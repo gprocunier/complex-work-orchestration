@@ -1226,7 +1226,7 @@ class RoundSixTests(_OutboundHelpers, unittest.TestCase):
                 from argparse import Namespace
                 sys.path.insert(0, {str(ROOT / "scripts")!r})
                 import dispatch_work
-                dispatch_work.LOCAL_INVOCATION_AVAILABLE = True  # as setUpModule does in-process; shipped code keeps it off
+                dispatch_work.require_local_http_workload = lambda *args: None  # isolate the lower model check
                 from cwo_core.routing import classify_work
                 route = classify_work({task!r}, local_ok=True, local_profile="openshift-ai-glm-5-3-direct",
                                       requested_roles=["architecture"])
@@ -2124,7 +2124,7 @@ finally:
 
 
 class ProductionGuardTests(unittest.TestCase):
-    """The shipped state, in fresh interpreters: local invocation is off, and nothing here enables it.
+    """Ordinary local invocation in fresh interpreters requires staged admission.
 
     Each run spies on request construction, opener construction, DNS resolution, connection and the audit
     write. The local route refuses before any of them; manual export still screens and refuses on the CLI path.
@@ -2149,34 +2149,30 @@ class ProductionGuardTests(unittest.TestCase):
         self.assertTrue(result.exists(), completed.stderr[-800:])
         return completed, json.loads(result.read_text(encoding="utf-8"))
 
-    def test_the_shipped_flag_is_off_in_a_fresh_interpreter(self) -> None:
+    def test_the_ordinary_route_is_available_in_a_fresh_interpreter(self) -> None:
         completed = subprocess.run(
             [sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(ROOT / 'scripts')!r}); import dispatch_work; "
              "print(repr(dispatch_work.LOCAL_INVOCATION_AVAILABLE))"],
             capture_output=True, text=True, timeout=120, cwd=ROOT)
-        self.assertEqual((completed.returncode, completed.stdout), (0, "False\n"), completed.stderr[-400:])
+        self.assertEqual((completed.returncode, completed.stdout), (0, "True\n"), completed.stderr[-400:])
 
     def test_the_execute_local_cli_refuses_before_any_request_or_resolution(self) -> None:
-        import dispatch_work
-
         with tempfile.TemporaryDirectory() as tmpdir:
             completed, result = self._run(Path(tmpdir), argv=[*self.LOCAL_ARGV, "--execute-local"])
             self.assertFalse((Path(tmpdir) / "audit.jsonl").exists())
-        self.assertIs(result["flag"], False)
+        self.assertIs(result["flag"], True)
         self.assertEqual(result["calls"], self.NO_EFFECTS)
-        self.assertEqual(result["exit"], dispatch_work.LOCAL_INVOCATION_UNAVAILABLE)
+        self.assertEqual(result["exit"], "local HTTP execution requires an original staged workload admission")
         self.assertEqual(completed.returncode, 1)
         self.assertEqual(completed.stdout, "")
-        self.assertIn("Nothing was sent", completed.stderr)
+        self.assertIn("original staged workload admission", completed.stderr)
 
     def test_the_local_effect_function_refuses_before_any_request_or_resolution(self) -> None:
-        import dispatch_work
-
         with tempfile.TemporaryDirectory() as tmpdir:
             completed, result = self._run(Path(tmpdir), mode="function")
-        self.assertIs(result["flag"], False)
+        self.assertIs(result["flag"], True)
         self.assertEqual(result["calls"], self.NO_EFFECTS)
-        self.assertEqual(result["exit"], dispatch_work.LOCAL_INVOCATION_UNAVAILABLE)
+        self.assertEqual(result["exit"], "local HTTP execution requires an original staged workload admission")
         self.assertEqual((completed.returncode, completed.stdout), (1, ""))
 
     def test_manual_export_cli_screens_and_refuses_with_the_shipped_flag(self) -> None:
@@ -2194,7 +2190,7 @@ class ProductionGuardTests(unittest.TestCase):
             for command, argv, secret in refused:
                 with self.subTest(command=command, argv=argv[-1]):
                     completed, result = self._run(tmp, argv=[command, *argv])
-                    self.assertIs(result["flag"], False)
+                    self.assertIs(result["flag"], True)
                     self.assertEqual(result["calls"], self.NO_EFFECTS)
                     self.assertEqual(completed.returncode, 1, completed.stderr[-400:])
                     self.assertIn("outbound screening refused manual export", completed.stderr)
@@ -2209,7 +2205,7 @@ class ProductionGuardTests(unittest.TestCase):
             for command, argv, audits in clean:
                 with self.subTest(command=command, clean=True):
                     completed, result = self._run(tmp, argv=[command, *argv])
-                    self.assertIs(result["flag"], False)
+                    self.assertIs(result["flag"], True)
                     self.assertEqual(result["calls"], {**self.NO_EFFECTS, "audit": audits})
                     self.assertEqual(completed.returncode, 0, completed.stderr[-400:])
                     self.assertIn("Review the retry plan for duplicate jobs.", completed.stdout)

@@ -692,67 +692,84 @@ class EvaluateReturnTests(unittest.TestCase):
         wrong_dispatch = self._evaluate_v2_cli(artifact, sample, "--dispatch-id", "another-dispatch")
         self.assertNotEqual(wrong_dispatch.returncode, 0)
 
-    def test_documented_glm_handoff_does_not_evaluate_stale_file_after_dispatch_failure(self) -> None:
+    def _run_documented_glm_handoff(self, root: Path, *, failure="", normalized_return=None):
         docs = (ROOT / "references" / "local-inference.md").read_text(encoding="utf-8")
         blocks = [block.split("```", 1)[0] for block in docs.split("```bash\n")[1:]]
         flow = next(block for block in blocks if "openshift-ai-glm-5-3-direct" in block and "evaluate_return.py" in block)
+        scripts = root / "scripts"
+        scripts.mkdir(exist_ok=True)
+        workload = root / "approved workload.json"
+        workload.write_text('{"route_input": {}, "node_id": "plan", "node_attempts": {}}', encoding="utf-8")
+        (root / "glm53-return.md").write_text("stale prior return", encoding="utf-8")
+        (root / "dispatch-steps").unlink(missing_ok=True)
+        (scripts / "dispatch_work.py").write_text(
+            """\
+import json
+import os
+import sys
+from pathlib import Path
+
+workload = os.environ["WORKLOAD_FILE"]
+common = ["--local-workload", workload, "--local-ok", "--local-profile", "openshift-ai-glm-5-3-direct",
+          "--requested-role", "architecture"]
+if not Path(workload).is_file():
+    raise SystemExit("Missing approved workload")
+steps = Path("dispatch-steps")
+args = sys.argv[1:]
+failure = os.environ["EXAMPLE_GLM_FAILURE"]
+if args == common + ["--prepare-local-admission"]:
+    steps.write_text("stage\\n")
+    raise SystemExit(7 if failure == "stage" else 0)
+if args != common + ["--execute-local", "--local-result-view", "compact", "--json"]:
+    raise SystemExit("Unexpected dispatch arguments")
+if steps.read_text() != "stage\\n":
+    raise SystemExit("Execution requires the staged workload")
+with steps.open("a") as log:
+    log.write("execute\\n")
+if failure == "execute":
+    raise SystemExit(8)
+normalized = json.loads(os.environ["EXAMPLE_GLM_RETURN"])
+print(json.dumps({"local_response": {"normalized_return": normalized}}))
+""",
+            encoding="utf-8",
+        )
+        (scripts / "evaluate_return.py").write_text(
+            "import sys\nfrom pathlib import Path\n"
+            "text = Path(sys.argv[sys.argv.index('--file') + 1]).read_text()\n"
+            "Path('evaluated-marker').write_text(text)\n",
+            encoding="utf-8",
+        )
+        env = {**os.environ, "TMPDIR": str(root), "WORKLOAD_FILE": str(workload),
+               "EXAMPLE_GLM_FAILURE": failure, "EXAMPLE_GLM_RETURN": json.dumps(normalized_return)}
+        return subprocess.run(["bash", "-c", flow], cwd=root, capture_output=True, text=True, env=env, check=False)
+
+    def test_documented_glm_handoff_does_not_evaluate_stale_file_after_dispatch_failure(self) -> None:
         with tempfile.TemporaryDirectory() as workdir:
             root = Path(workdir)
-            (root / "scripts").mkdir()
-            (root / "scripts" / "dispatch_work.py").write_text("raise SystemExit(7)\n", encoding="utf-8")
-            (root / "scripts" / "evaluate_return.py").write_text(
-                "from pathlib import Path\nPath('evaluated-marker').write_text('unsafe')\n",
-                encoding="utf-8",
-            )
-            (root / "critic-brief.md").write_text("synthetic", encoding="utf-8")
-            (root / "glm53-return.md").write_text("stale prior return", encoding="utf-8")
-            result = subprocess.run(
-                ["bash", "-c", flow], cwd=root, capture_output=True, text=True,
-                env={**os.environ, "TMPDIR": workdir}, check=False,
-            )
-            self.assertNotEqual(result.returncode, 0)
-            self.assertFalse((root / "evaluated-marker").exists())
+            for failure, exit_code, expected_steps in (
+                ("stage", 7, "stage\n"),
+                ("execute", 8, "stage\nexecute\n"),
+            ):
+                with self.subTest(failure=failure):
+                    result = self._run_documented_glm_handoff(root, failure=failure)
+                    self.assertEqual(result.returncode, exit_code, result.stderr)
+                    self.assertEqual((root / "dispatch-steps").read_text(), expected_steps)
+                    self.assertFalse((root / "evaluated-marker").exists())
+                    self.assertEqual((root / "glm53-return.md").read_text(), "stale prior return")
 
     def test_documented_glm_handoff_extracts_fresh_file_or_stops(self) -> None:
-        docs = (ROOT / "references" / "local-inference.md").read_text(encoding="utf-8")
-        blocks = [block.split("```", 1)[0] for block in docs.split("```bash\n")[1:]]
-        flow = next(block for block in blocks if "openshift-ai-glm-5-3-direct" in block and "evaluate_return.py" in block)
         with tempfile.TemporaryDirectory() as workdir:
             root = Path(workdir)
-            (root / "scripts").mkdir()
-            (root / "critic-brief.md").write_text("synthetic", encoding="utf-8")
-            (root / "glm53-return.md").write_text("stale prior return", encoding="utf-8")
-            evaluator = (root / "scripts" / "evaluate_return.py")
-            evaluator.write_text(
-                "import sys\nfrom pathlib import Path\n"
-                "args=sys.argv\n"
-                "text=Path(args[args.index('--file')+1]).read_text()\n"
-                "Path('evaluated-marker').write_text(text)\n",
-                encoding="utf-8",
-            )
-            dispatch = (root / "scripts" / "dispatch_work.py")
-            dispatch.write_text(
-                "import json\nprint(json.dumps({'local_response': {'normalized_return': None}}))\n",
-                encoding="utf-8",
-            )
-            bad = subprocess.run(
-                ["bash", "-c", flow], cwd=root, capture_output=True, text=True,
-                env={**os.environ, "TMPDIR": workdir}, check=False,
-            )
+            bad = self._run_documented_glm_handoff(root)
+            self.assertIn("did not produce an evaluator-ready return", bad.stderr)
             self.assertNotEqual(bad.returncode, 0)
+            self.assertEqual((root / "dispatch-steps").read_text(), "stage\nexecute\n")
             self.assertFalse((root / "evaluated-marker").exists())
-            dispatch.write_text(
-                "import json\nprint(json.dumps({'local_response': {'normalized_return': 'fresh synthetic return'}}))\n",
-                encoding="utf-8",
-            )
-            good = subprocess.run(
-                ["bash", "-c", flow], cwd=root, capture_output=True, text=True,
-                env={**os.environ, "TMPDIR": workdir}, check=False,
-            )
+            good = self._run_documented_glm_handoff(root, normalized_return="fresh synthetic return")
             self.assertEqual(good.returncode, 0, good.stderr)
+            self.assertEqual((root / "dispatch-steps").read_text(), "stage\nexecute\n")
             self.assertEqual((root / "evaluated-marker").read_text(), "fresh synthetic return")
             self.assertEqual((root / "glm53-return.md").read_text(), "stale prior return")
-
 
     def test_return_verdict_input_variants(self) -> None:
         variants = (

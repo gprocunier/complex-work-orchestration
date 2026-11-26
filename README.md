@@ -22,10 +22,10 @@ permissions. Guardrails reduce risk; they do not make the model trustworthy.
   dependencies and accepted decisions, so a fresh session can continue after
   compaction or a restart. It is a saved record, not perfect recall.
 - **Prepares focused review requests and checks the returns.** CWO builds and
-  validates request packets for approved cloud or local reviewers, then
-  normalizes and evaluates what comes back. Send the exported request within
-  the approved sharing boundary and bring back the reply. See the
-  [desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
+  validates request packets for approved cloud or local reviewers. For local
+  models, CWO can send the screened request to a configured vLLM endpoint after
+  workload admission and evaluate the captured reply. [Local model dispatch](references/local-inference.md#dispatch)
+  · [Desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
 - **Connects registered single-worker dispatch to hand review.** The installed
   launcher uses Codex's foreground approval for an exact registered assignment.
   The controller retains that approval so `cwo delegate` can deliver the
@@ -256,8 +256,10 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
 - **ChatGPT Pro browser review runs from the ChatGPT desktop app.** The
   architect thread uses `@Chrome` in the paired profile with the operator
   present. [Desktop Chrome workflow](references/chatgpt-pro-browser.md)
-- **Disabled in this version:** local HTTP dispatch
-  (`dispatch_work.py --execute-local`), raw native launch,
+- **Local calls require opt-in and a configured endpoint.**
+  `dispatch_work.py --execute-local` requires original host workload admission
+  and records the result as advisory evidence for review and adjudication.
+- **Disabled in this version:** raw native launch,
   ordinary productive pool plans passed to the standalone launcher, and live campaigns; new
   worker-surface qualification; live native activation
   (`run_native_pool_activation_preview.py run --enable-tech-preview`);
@@ -269,7 +271,7 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   separated from the executor, with all required clearances and no open blockers
   or children. Host records provide integrity within the host trust boundary;
   an unrestricted same-user writer can mint or replace them. The shipped review
-  host producer remains held by `LOCAL_INVOCATION_AVAILABLE`.
+  host producer remains held by `QUALIFIED_REVIEW_INVOCATION_AVAILABLE`.
 - **Cleanup detects and prunes by default.** The CLI supplies no controller
   capability, so termination requests report `termination-unavailable`.
   Explicit in-process callers may supply the original controller's opaque

@@ -33,6 +33,9 @@ profile. Check the actual model against the exact selection for each assignment.
 - The opt-in architect profile loads `prompts/cwo-architect.md` in a fresh session. See `references/cwo-system-prompt.md`.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
 - Prefer review-only workers before implementation unless write ownership is disjoint.
+- For local model calls, require `--local-ok`, an explicitly configured endpoint
+  and original workload admission. Review and adjudicate the captured advisory
+  return before implementation. [Local model dispatch](references/local-inference.md#dispatch).
 - Size native work first. Luna handles focused work. Sol handles recorded coding escalation, architecture and adjudication. Terra handles interface, visual and computer-use work. Astra reviews unresolved architecture. Spark records are historical.
 - Default mode is conservative. Explicit coach requests present coach options before plan creation unless execution was requested; Plan mode asks only questions that change execution.
 - Keep model names and versions in policy and use executor aliases from `policy/executor-registry.yaml` in plans and docs.

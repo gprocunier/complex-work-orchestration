@@ -26,16 +26,17 @@ LOCAL_ARGV = ["dispatch_work.py", "Documentation review for internal example not
               "--local-profile", "openshift-ai-vllm", "--requested-role", "documentation", "--json"]
 
 
-class ShippedRoutesAreDisabledTests(unittest.TestCase):
-    """Controlled invocation stays unavailable until issue #41's admission contract exists."""
+class ShippedRouteAdmissionTests(unittest.TestCase):
+    """Local HTTP requires original workload admission."""
 
     def setUp(self):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         self.enterContext(using_test_store(HostRecordStore.for_tests(Path(directory.name) / 'host')))
 
-    def test_the_shipped_switches_are_off(self) -> None:
-        self.assertIs(dispatch_work.LOCAL_INVOCATION_AVAILABLE, False)
+    def test_only_ordinary_local_invocation_is_available(self) -> None:
+        self.assertIs(dispatch_work.LOCAL_INVOCATION_AVAILABLE, True)
+        self.assertIs(dispatch_work.QUALIFIED_REVIEW_INVOCATION_AVAILABLE, False)
 
     def test_local_invocation_refuses_before_quota_audit_or_request(self) -> None:
         stdout = io.StringIO()
@@ -47,15 +48,14 @@ class ShippedRoutesAreDisabledTests(unittest.TestCase):
                 patch("dispatch_work.socket.getaddrinfo") as resolver:
             with self.assertRaises(SystemExit) as raised:
                 dispatch_work.main()
-        self.assertEqual(str(raised.exception), dispatch_work.LOCAL_INVOCATION_UNAVAILABLE)
-        self.assertIn("Nothing was sent", str(raised.exception))
+        self.assertEqual(str(raised.exception), "local HTTP execution requires an original staged workload admission")
         self.assertEqual((quota.call_count, audit.call_count, opener.call_count, resolver.call_count, stdout.getvalue()),
                          (0, 0, 0, 0, ""))
 
-    def test_the_local_effect_function_refuses_any_caller(self) -> None:
+    def test_the_local_effect_function_refuses_without_admission(self) -> None:
         with patch("dispatch_work.request.build_opener") as opener, self.assertRaises(SystemExit) as raised:
             dispatch_work.execute_local_envelope({"executor_key": "x"}, {}, None)  # type: ignore[arg-type]
-        self.assertEqual(str(raised.exception), dispatch_work.LOCAL_INVOCATION_UNAVAILABLE)
+        self.assertEqual(str(raised.exception), "local HTTP execution requires an original staged workload admission")
         opener.assert_not_called()
 
 

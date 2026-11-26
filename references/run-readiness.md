@@ -425,7 +425,7 @@ with qualified_closure.production_custody(
 
 This sequence is available to embedding library hosts. The shipped
 `RegisteredReviewHost.dispatch` producer remains held by
-`LOCAL_INVOCATION_AVAILABLE = False`; enabling closure opens no narrative CLI
+`QUALIFIED_REVIEW_INVOCATION_AVAILABLE = False`; enabling closure opens no narrative CLI
 success route. Offline tests exercise the
 original consumer and Beads adapters against a disposable fixture database and
 fake process boundary. No real task is closed by those tests.

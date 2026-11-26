@@ -4,17 +4,11 @@ This reference covers local OpenAI-compatible workers for
 `complex-work-orchestration`, including OpenShift AI vLLM endpoints.
 
 A local reviewer receives a specific question and approved material. CWO writes
-a request record (`local_envelope`) before any call; `--execute-local` makes the
-actual endpoint request.
-
-> **Currently unavailable:** `--execute-local` refuses before any quota check,
-> audit event, name resolution or request. General local execution does not yet
-> consume complete workload admission at its effect boundary. Writing the local
-> envelope and manual export still work. The commands below describe the held
-> route; the finite offline consumer coverage below does not restore it.
- Evaluate the answer and record the lead's decision before
-using it in implementation. This route does not make an ordinary cloud Codex
-session offline.
+a request record (`local_envelope`) by default. To send the request, opt in,
+configure your endpoint and stage original workload admission before invoking
+`--execute-local`. CWO evaluates a usable captured reply in the host chain.
+Review the result and record the lead's decision before using any finding.
+Local review does not make a cloud Codex session offline.
 
 Use the [local-model guide](../docs/local-workers.html) for the sequence, then
 this reference for endpoint variables, exact profiles, request limits and failure
@@ -30,12 +24,13 @@ uncertainty. Every sibling, retry and fallback belongs to the same declared grap
 and aggregate. Rehashing a changed request or issuing a new ticket cannot reset
 the original ledger's scope, limits or spent attempts.
 
-The maintained offline witnesses cover these distinct boundaries:
+The maintained offline witnesses cover these boundaries:
 
 | Boundary | Checked behavior and witness files |
 | --- | --- |
 | Sizing and whole-route feasibility | Real unit estimates, complete rendered text and source selection, dependent roles, rationale/uncertainty, token and cost projections, and all four aggregate dimensions: [unit sizing](../tests/test_native_work_sizing.py), [route feasibility](../tests/test_route_feasibility_preparation.py). Unknown measurements or billing remain unassessable. |
 | Offline admission | Immutable original route, exact request/options/allowance, current policy, expiry, replay, races and declared dependency outcomes: [local admission](../tests/test_local_admission_preparation.py). Its supplied fake effect provides no production authority. |
+| Ordinary local HTTP | Original host admission binds the exact screened endpoint, request and credential digest. Missing admission, a changed destination or configuration, and replay refuse before transport. A fake OpenAI-compatible endpoint witnesses both durable intents before POST and exact captured-return evaluation. [Local HTTP dispatch tests](../tests/test_local_http_admission.py). |
 | Finite advisory HTTP composition | The original HTTP consumer receives the admitted prompt, wrappers, source and attachment text, model, effort, options and output limit. Its effective timeout cannot exceed remaining runtime or admission lifetime; a final configuration-check delay cannot send an expired request: [registered review consumer](../tests/test_qualified_review_dispatch.py). Tests replace DNS and HTTP effects. |
 | Durable invocation accounting | Intent and observer registration precede synchronous callbacks and effects. One-use claims, aggregate exhaustion, crashes, unknown usage and cancellation preserve conservative charges: [ledger](../tests/test_invocation_ledger.py), [HTTP reservation](../tests/test_local_invocation_reservation.py). |
 | Legacy CDP Send and sharing | Default and confirmation calls refuse before reading inputs. The redacted rehearsal remains available. Transport and consent witnesses are preserved with their implementation in [v1.37.0](https://github.com/gprocunier/complex-work-orchestration/tree/v1.37.0). |
@@ -48,8 +43,7 @@ confirms no Send occurred. At-most-one local invocation does not establish
 exactly-once remote execution. An intent followed by a crash, local timeout or
 unknown remote result keeps its reservation charged. No terminal local record
 proves that remote work stopped, and no child or fallback starts a fresh aggregate
-to evade those charges. Independent planning remains available while execution
-routes are held.
+to evade those charges.
 
 ## In-Codex Invocation
 
@@ -192,17 +186,9 @@ python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-c
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16 --require-configured
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-5-3-direct --require-configured
-
-curl -sS "$CWO_OPENSHIFT_AI_VLLM_BASE_URL/v1/models" \
-  -H "Authorization: Bearer $CWO_OPENSHIFT_AI_VLLM_API_KEY"
-
-python3 scripts/dispatch_work.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --execute-local \
-  "Return one sentence confirming the local endpoint is reachable."
 ```
+
+Follow the [dispatch procedure](#dispatch) for an approved model call.
 
 The older `rhoai-glm-bf16` profile and the independently configured
 `rhoai-glm-bf16-256k` profile remain `offline` by default. The 256K profile
@@ -292,20 +278,50 @@ python3 scripts/dispatch_work.py \
   "Summarize docs-review risks."
 ```
 
-To execute:
+### Stage and send an admitted workload
+
+Use the original whole-route planning input for the approved work. It carries
+the exact executor, provider, model, request options, sized graph and aggregate
+limits. `python3 scripts/prepare_route_feasibility.py < route-input.json`
+checks the plan's sizing. Wrap that original input as a JSON object with
+`route_input` (the full input object), `node_id` (the selected node), and
+`node_attempts` (the prior attempt IDs required by the graph, or `{}` for
+an initial node). The plan provides the task text and project IDs.
+
+Run both commands with the same workload and local options, including the
+output cap and any thinking override. Use a private regular key file, such as
+mode `0600`, in a directory owned by your account with no group or other write
+permission. The key file holds one ASCII token. The selected profile's API-key
+environment variable also works.
+A key-file option takes precedence over the inherited environment value.
 
 ```bash
-python3 scripts/dispatch_work.py \
-  --local-ok \
-  --prefer-local \
-  --local-profile openshift-ai-vllm \
-  --execute-local \
-  "Summarize docs-review risks."
+local_args=(
+  --local-workload "$WORKLOAD_FILE"
+  --local-ok --prefer-local --local-profile openshift-ai-vllm
+  --requested-role documentation
+  --local-base-url "$VLLM_BASE_URL" --local-model "$VLLM_MODEL"
+  --local-api-key-file "$VLLM_KEY_FILE"
+  --local-max-tokens "$VLLM_MAX_TOKENS"
+)
+
+python3 scripts/dispatch_work.py "${local_args[@]}" --prepare-local-admission &&
+  python3 scripts/dispatch_work.py "${local_args[@]}" --execute-local --json
 ```
 
-For a complete call that saves the dispatch JSON, usable final answer and
-workspace comparison together, follow the [capture procedure](../docs/local-workers.html#execute-local).
-The bare invocation above does not create those evaluation files by itself.
+The preparation command writes the current host admission without a model
+call. Execution requires that original record, the same exact request, and
+usable capacity in the original ledger. Without an explicitly configured
+endpoint or without `--execute-local`, CWO sends no request. Before sending,
+it screens the exact request and records both the workload and HTTP
+reservations. A usable result includes the captured return digest and its
+advisory evaluation. [Save the dispatch JSON, usable answer and workspace comparison](../docs/local-workers.html#execute-local).
+
+Reasoning and final text can share the output cap on thinking models. With
+a small cap, the model may use it up before returning a usable answer.
+Increase `--local-max-tokens` within the profile limit, or use
+`--local-thinking off` on profiles that support it. Set the matching
+`max_tokens` and thinking options in the original workload before staging.
 
 The envelope follows `schemas/local-dispatch-envelope.schema.json` and includes
 the selected `access_profile`, sanitized `access_profile_details`, readiness
@@ -320,31 +336,9 @@ python3 scripts/render_access_profile_status.py --profile rhoai-vllm --require-c
 python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --require-configured
 ```
 
-For GLM-5.2 BF16 thinking:
-
-```bash
-export CWO_OPENSHIFT_AI_GLM_5_2_BF16_BASE_URL="https://glm-route.example.internal"
-export CWO_OPENSHIFT_AI_GLM_5_2_BF16_MODEL="glm-5.2-bf16-128k"
-
-python3 scripts/dispatch_work.py \
-  --local-ok \
-  --local-profile openshift-ai-vllm \
-  --requested-role architecture \
-  --execute-local \
-  "Use GLM-5.2 BF16 thinking as an independent architecture critic second opinion."
-```
-
-After an operator verifies the route and marks the access profile available,
-the hardened GLM-5.2 BF16 256K lane can be dispatched with:
-
-```bash
-python3 scripts/dispatch_work.py \
-  --local-ok \
-  --local-profile openshift-ai-glm-256k \
-  --requested-role architecture \
-  --execute-local \
-  "Use exact GLM-5.2 BF16 256K thinking as an independent architecture critic second opinion."
-```
+For GLM-5.2 BF16 reviews, use the architecture role and the executor
+selected by its profile in the original workload. The hardened 256K lane uses
+`--local-profile openshift-ai-glm-256k` once its access profile is available.
 
 ### GLM-5.2 BF16 thinking modes
 
@@ -409,20 +403,24 @@ pod restart. Consequently this profile fails closed if `response_format`,
 equivalent grammar-constrained request option is configured. Normal chat output
 is validated and quarantined client-side instead.
 
+Set `WORKLOAD_FILE` to the approved GLM workload JSON. Configure the profile's
+endpoint through `CWO_OPENSHIFT_AI_GLM_5_3_BASE_URL` before staging.
+
 ```bash
 set -euo pipefail
+: "${WORKLOAD_FILE:?Set WORKLOAD_FILE to the approved GLM workload JSON}"
 dispatch_json=$(mktemp "${TMPDIR:-/tmp}/cwo-glm53-dispatch.XXXXXXXX.json")
 return_file=$(mktemp "${TMPDIR:-/tmp}/cwo-glm53-return.XXXXXXXX.md")
 trap 'rm -f "$dispatch_json" "$return_file" "$return_file.pending"' EXIT
 
-python3 scripts/dispatch_work.py \
-  --file critic-brief.md \
-  --local-ok \
-  --local-profile openshift-ai-glm-5-3-direct \
-  --requested-role architecture \
-  --execute-local \
-  --local-result-view compact \
-  --json > "$dispatch_json"
+local_args=(
+  --local-workload "$WORKLOAD_FILE"
+  --local-ok --local-profile openshift-ai-glm-5-3-direct
+  --requested-role architecture
+)
+python3 scripts/dispatch_work.py "${local_args[@]}" --prepare-local-admission
+python3 scripts/dispatch_work.py "${local_args[@]}" --execute-local \
+  --local-result-view compact --json > "$dispatch_json"
 
 python3 - "$dispatch_json" "$return_file" <<'PY'
 import json
@@ -529,7 +527,8 @@ escape hatch; audit metadata records that insecure verification was selected,
 and other local executor profiles remain fail-closed unless they explicitly
 allow it.
 
-API-key values are never placed in the envelope. The API-key environment
+API-key values stay out of envelopes and host records. Reservations bind
+the authorization header by digest. The API-key environment
 variable name must be one of the local allowlist entries:
 
 - `CWO_OPENSHIFT_AI_VLLM_API_KEY`

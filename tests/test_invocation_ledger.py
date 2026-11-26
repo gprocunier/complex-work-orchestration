@@ -1046,18 +1046,20 @@ class SchemaAndContainmentTests(unittest.TestCase):
                     found.append(path.relative_to(ROOT).as_posix())
         return sorted(set(found))
 
-    def test_local_invocation_stays_unavailable_and_ledger_importers_are_explicit(self) -> None:
-        """Keep local invocation unavailable and enumerate every ledger importer.
+    def test_review_host_stays_unavailable_and_ledger_importers_are_explicit(self) -> None:
+        """Keep the registered review host unavailable and enumerate every ledger importer.
         Any additional importer requires a deliberate change to this reliability check."""
         import dispatch_work
 
-        self.assertIs(dispatch_work.LOCAL_INVOCATION_AVAILABLE, False)
+        self.assertIs(dispatch_work.QUALIFIED_REVIEW_INVOCATION_AVAILABLE, False)
         self.assertEqual(self.importers_of("invocation_ledger"), [
             # The optional parent fallback records a same-budget child attempt.
             "scripts/cwo_core/cyber_fallback.py",
             "scripts/cwo_core/local_invocation.py",
             "scripts/cwo_core/native_pool_qualification_budget.py",
             "scripts/cwo_core/native_pool_qualification_stage.py",
+            "scripts/dispatch_work.py",
+            "scripts/local_http_admission.py",
             # Experimental fake host reads persisted admission; production stays disabled.
             "scripts/offline_admitted_n1.py",
             "scripts/prepare_local_admission.py",
@@ -1075,7 +1077,7 @@ class SchemaAndContainmentTests(unittest.TestCase):
             "scripts/run_native_pool_qualification.py",
         ])
         self.assertEqual(self.importers_of("local_invocation"), [
-            "scripts/dispatch_work.py", "scripts/qualified_review_dispatch.py",
+            "scripts/local_http_admission.py", "scripts/qualified_review_dispatch.py",
         ])
 
 

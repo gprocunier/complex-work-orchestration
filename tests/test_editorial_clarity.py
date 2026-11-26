@@ -109,10 +109,21 @@ class EditorialClarityTests(unittest.TestCase):
         block = self.local_capture_block()
         result = subprocess.run(['bash', '-n'], input=block, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertLess(block.index('--snapshot'), block.index('--execute-local'))
+        self.assertLess(block.index('--snapshot'), block.index('--prepare-local-admission'))
+        self.assertLess(block.index('--prepare-local-admission'), block.index('--execute-local'))
         self.assertLess(block.index('--execute-local'), block.index('--compare'))
         self.assertIn('--json', block)
         self.assertIn('test ! -e', block)
+
+    def test_local_reference_uses_same_configured_workload_for_staging_and_execution(self):
+        guide = (ROOT / 'references/local-inference.md').read_text(encoding='utf-8')
+        blocks = [block.split('```', 1)[0] for block in guide.split('```bash\n')[1:]]
+        block = next(item for item in blocks if '--local-api-key-file' in item and '--execute-local' in item)
+        result = subprocess.run(['bash', '-n'], input=block, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('--local-workload "$WORKLOAD_FILE"', block)
+        self.assertIn('"${local_args[@]}" --prepare-local-admission &&', block)
+        self.assertIn('"${local_args[@]}" --execute-local --json', block)
 
     def test_local_capture_prefers_normalized_answer_and_rejects_unusable_content(self):
         code = re.search(r"python3 - <<'PY'\n(.*?)\nPY", self.local_capture_block(), re.S).group(1)

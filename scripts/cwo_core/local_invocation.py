@@ -1,6 +1,6 @@
 """Reservation, aggregate accounting and crash ambiguity at the controlled local HTTP route (issue #41).
 
-``dispatch_work.execute_local_envelope`` enters ``reserved_local_invocation`` after every binding check and both
+The local HTTP dispatcher enters ``reserved_local_invocation`` after both workload admission and
 outbound screens, and before endpoint resolution, its first network effect. Everything from resolution to the
 response runs inside the context, so:
 
@@ -26,8 +26,7 @@ response runs inside the context, so:
   timeout is charged in full and permits a separately admitted successor, not reuse of the invoked dispatch.
   An unresolved crash requires reconciliation; no terminal result proves the remote service stopped.
 
-This does not restore the route. ``dispatch_work.LOCAL_INVOCATION_AVAILABLE`` stays False and refuses before any of
-this is reached; workload-derived sizing and the admission record (restoration criteria 1 to 3) are still missing.
+For ordinary local HTTP, this request-count reservation supplements the separate whole-workload reservation.
 """
 
 from __future__ import annotations
@@ -136,10 +135,11 @@ def attempt_binding_sha256(envelope: Mapping[str, Any], *, budget_id: str, reque
     })).hexdigest()
 
 
-def _reserve(envelope: Mapping[str, Any], expected: Mapping[str, Any], record: bytes) -> tuple[InvocationLedger, dict]:
+def _reserve(envelope: Mapping[str, Any], expected: Mapping[str, Any], record: bytes,
+             ledger: InvocationLedger | None = None) -> tuple[InvocationLedger, dict]:
     """Open the budget and reserve one attempt, or refuse before anything is sent."""
     try:
-        ledger = open_ledger()
+        ledger = open_ledger() if ledger is None else ledger
         budget_id, limits, scope_sha256 = local_http_budget(envelope.get("epic_id"))
         ledger.open_budget(budget_id, limits, scope_sha256=scope_sha256)
         amount = {"attempts": 1, "requests": 1 if expected["preflight"] is None else 2}
@@ -237,11 +237,33 @@ class LocalHttpGate:
         self.sent: list[str] = []
         self.timed_out = False
         self._source = (PreparedSource.capture(None), None)
+        self._workload = None
 
     def bind_source(self, capture: PreparedSource, source: Any) -> None:
         """Keep mutable originals out of request serialization and check them after observers."""
         capture.require_unchanged(source)
         self._source = (capture, source)
+
+    def bind_workload(self, workload: Any) -> None:
+        self._workload = workload
+
+    def require_workload(self) -> None:
+        if self._workload is not None:
+            self._workload.require_live()
+
+    def workload_timeout(self, timeout: float) -> float:
+        return min(timeout, self._workload.remaining()) if self._workload is not None else timeout
+
+    def network_deadline(self) -> Any:
+        return None if self._workload is None else self._workload.network
+
+    def require_remaining_workload_time(self) -> None:
+        if self._workload is not None:
+            self._workload.remaining()
+
+    def observe_workload_result(self, result: Mapping[str, Any]) -> None:
+        if self._workload is not None:
+            self._workload.completed = result.get('usable_final_content') is True
 
     def require_source_unchanged(self) -> None:
         capture, source = self._source
@@ -330,13 +352,15 @@ class LocalHttpGate:
             except InvocationLedgerError as exc:
                 raise SystemExit(f"controlled local invocation refused: {exc}; nothing more is sent.") from exc
             # All callback and final ledger work precedes this pure deadline.
+            self.require_workload()
             self.require_source_unchanged()
             self._check_preflight_deadline(kind)
-            response = opener.open(frozen, timeout=timeout)
+            response = opener.open(frozen, timeout=self.workload_timeout(timeout))
         except BaseException as exc:
             with self._lock:
                 self._states[kind] = "failed"
                 self.timed_out = self.timed_out or _is_timeout(exc)
+            self.require_remaining_workload_time()
             raise
         with self._lock:
             self._states[kind] = "completed"
@@ -369,11 +393,12 @@ def _route_observer(observer):
 
 
 @contextmanager
-def _reserved_local_scope(envelope: Mapping[str, Any], post: Any, preflight: Any | None = None
-                          ) -> Iterator[LocalHttpGate]:
+def _reserved_local_scope(envelope: Mapping[str, Any], post: Any, preflight: Any | None = None,
+                          workload_ledger: InvocationLedger | None = None) -> Iterator[LocalHttpGate]:
     expected = reserved_requests(post, preflight)
     record = _canonical(expected)
-    ledger, reservation = _reserve(envelope, expected, record)
+    ledger, reservation = (_reserve(envelope, expected, record) if workload_ledger is None else
+                           _reserve(envelope, expected, record, workload_ledger))
     with ledger.invocation(reservation["reservation_id"], record,
                            observers=tuple(_route_observer(observer) for observer in OBSERVERS)) as handle:
         handle.require_intent()
@@ -403,8 +428,9 @@ def _context_call(call: Callable[..., Any], *args: Any) -> Any:
 
 
 class _ReservedLocalInvocation(ContextDecorator):
-    def __init__(self, envelope: Mapping[str, Any], post: Any, preflight: Any | None) -> None:
-        self._args = (envelope, post, preflight)
+    def __init__(self, envelope: Mapping[str, Any], post: Any, preflight: Any | None,
+                 ledger: InvocationLedger | None) -> None:
+        self._args = (envelope, post, preflight, ledger)
         self._context = _reserved_local_scope(*self._args)
 
     def _recreate_cm(self) -> _ReservedLocalInvocation:
@@ -422,7 +448,7 @@ class _ReservedLocalInvocation(ContextDecorator):
         return handled
 
 
-def reserved_local_invocation(envelope: Mapping[str, Any], post: Any, preflight: Any | None = None
-                              ) -> _ReservedLocalInvocation:
+def reserved_local_invocation(envelope: Mapping[str, Any], post: Any, preflight: Any | None = None,
+                              *, ledger: InvocationLedger | None = None) -> _ReservedLocalInvocation:
     """Persist intent before resolution; restore primary failures outside generators."""
-    return _ReservedLocalInvocation(envelope, post, preflight)
+    return _ReservedLocalInvocation(envelope, post, preflight, ledger)

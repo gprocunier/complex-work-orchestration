@@ -13,7 +13,8 @@ import socket
 import ssl
 import time
 import unicodedata
-import uuid
+from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 from urllib import request
 from urllib.error import HTTPError, URLError
@@ -32,9 +33,11 @@ from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
 from cwo_core.adjudication import dispatch_provenance
-from cwo_core.local_invocation import reserved_local_invocation
+import local_http_admission
 from cwo_core.host_records import configured_store
+from cwo_core.invocation_ledger import InvocationTimeout
 from cwo_core.prepared_outbound import PreparedSource
+from cwo_core.private_artifact import PrivateArtifactError, read_private_artifact
 from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, refuse_attachments, screen_request, withheld_diagnostics
 from cwo_core.reasoning_effort import effort_arguments, failed_default_delivery
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
@@ -100,6 +103,7 @@ RAW_REASONING_FIELDS = {
 }
 FORBIDDEN_LOCAL_RESPONSE_FIELDS = {"delta", "function_call", "tool_calls"}
 
+LOCAL_REQUEST_BODY_CAP = 1048576
 LOCAL_PREFLIGHT_RESPONSE_CAP = 262144
 LOCAL_COMPLETION_RESPONSE_CAP = 1048576
 LOCAL_HTTP_ERROR_RESPONSE_CAP = 65536
@@ -364,8 +368,9 @@ class NoRedirectHandler(request.HTTPRedirectHandler):
 
 
 class PinnedHTTPConnection(http.client.HTTPConnection):
-    def __init__(self, *args: Any, pinned_address: str, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, pinned_address: str, deadline=None, **kwargs: Any) -> None:
         self._cwo_pinned_address = pinned_address
+        self._cwo_deadline = deadline
         super().__init__(*args, **kwargs)
 
     def connect(self) -> None:
@@ -376,11 +381,14 @@ class PinnedHTTPConnection(http.client.HTTPConnection):
         )
         if self._tunnel_host:
             self._tunnel()
+        if self._cwo_deadline is not None:
+            self._cwo_deadline.watch(self.sock)
 
 
 class PinnedHTTPSConnection(http.client.HTTPSConnection):
-    def __init__(self, *args: Any, pinned_address: str, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, pinned_address: str, deadline=None, **kwargs: Any) -> None:
         self._cwo_pinned_address = pinned_address
+        self._cwo_deadline = deadline
         super().__init__(*args, **kwargs)
 
     def connect(self) -> None:
@@ -393,24 +401,31 @@ class PinnedHTTPSConnection(http.client.HTTPSConnection):
             self.sock = sock
             self._tunnel()
             sock = self.sock
+        if self._cwo_deadline is not None:
+            sock.settimeout(min(self.timeout, self._cwo_deadline.remaining()))
         self.sock = self._context.wrap_socket(sock, server_hostname=self.host)
+        if self._cwo_deadline is not None:
+            self._cwo_deadline.watch(self.sock)
 
 
 class PinnedHTTPHandler(request.HTTPHandler):
-    def __init__(self, pinned_address: str) -> None:
+    def __init__(self, pinned_address: str, *, deadline=None) -> None:
         self._cwo_pinned_address = pinned_address
+        self._cwo_deadline = deadline
         super().__init__()
 
     def http_open(self, req: request.Request) -> Any:
         return self.do_open(
-            lambda host, **kwargs: PinnedHTTPConnection(host, pinned_address=self._cwo_pinned_address, **kwargs),
+            lambda host, **kwargs: PinnedHTTPConnection(host, pinned_address=self._cwo_pinned_address,
+                                                        deadline=self._cwo_deadline, **kwargs),
             req,
         )
 
 
 class PinnedHTTPSHandler(request.HTTPSHandler):
-    def __init__(self, pinned_address: str, context: ssl.SSLContext | None = None) -> None:
+    def __init__(self, pinned_address: str, context: ssl.SSLContext | None = None, *, deadline=None) -> None:
         self._cwo_pinned_address = pinned_address
+        self._cwo_deadline = deadline
         super().__init__(context=context)
 
     def https_open(self, req: request.Request) -> Any:
@@ -418,7 +433,7 @@ class PinnedHTTPSHandler(request.HTTPSHandler):
             lambda host, **kwargs: PinnedHTTPSConnection(
                 host,
                 pinned_address=self._cwo_pinned_address,
-                context=self._context,
+                context=self._context, deadline=self._cwo_deadline,
                 **kwargs,
             ),
             req,
@@ -814,7 +829,8 @@ def validate_local_endpoint_base_url(base_url: str, *, allow_private_dns: bool =
     return [str(ip) for ip in addresses]
 
 
-def pinned_local_endpoint_address(base_url: str, *, allow_private_dns: bool = False) -> str | None:
+def pinned_local_endpoint_address(base_url: str, *, allow_private_dns: bool = False,
+                                  pin_loopback: bool = False) -> str | None:
     parsed = urlparse(base_url)
     hostname = (parsed.hostname or "").lower()
     try:
@@ -823,7 +839,7 @@ def pinned_local_endpoint_address(base_url: str, *, allow_private_dns: bool = Fa
     except ValueError:
         literal_host = False
     addresses = validate_local_endpoint_base_url(base_url, allow_private_dns=allow_private_dns)
-    if literal_host or hostname == "localhost":
+    if not pin_loopback and (literal_host or hostname == "localhost"):
         return None
     return addresses[0]
 
@@ -1547,14 +1563,15 @@ def _build_local_opener(
     transport: dict[str, Any],
     args: argparse.Namespace,
     pinned_address: str | None,
+    *, deadline=None,
 ) -> Any:
     opener_handlers: list[Any] = [NoRedirectHandler, request.ProxyHandler({})]
     context = local_ssl_context(base_url, transport, args)
     scheme = urlparse(base_url).scheme
     if pinned_address and scheme == "https":
-        opener_handlers.append(PinnedHTTPSHandler(pinned_address, context=context))
+        opener_handlers.append(PinnedHTTPSHandler(pinned_address, context=context, deadline=deadline))
     elif pinned_address and scheme == "http":
-        opener_handlers.append(PinnedHTTPHandler(pinned_address))
+        opener_handlers.append(PinnedHTTPHandler(pinned_address, deadline=deadline))
     elif context is not None:
         opener_handlers.append(request.HTTPSHandler(context=context))
     return request.build_opener(*opener_handlers)
@@ -1570,7 +1587,7 @@ def _local_response_header(response: Any, name: str) -> str | None:
     return None if value is None else str(value).strip()
 
 
-def _read_local_http_response(response: Any, *, cap: int, phase: str) -> bytes:
+def _read_local_http_response(response: Any, *, cap: int, phase: str, check_deadline=lambda: None) -> bytes:
     content_length = _local_response_header(response, "Content-Length")
     transfer_encoding = _local_response_header(response, "Transfer-Encoding")
     content_encoding = _local_response_header(response, "Content-Encoding")
@@ -1588,7 +1605,10 @@ def _read_local_http_response(response: Any, *, cap: int, phase: str) -> bytes:
             raise SystemExit(f"local {phase} response exceeded response cap")
     else:
         declared = None
-    raw_bytes = response.read(cap + 1)
+    try:
+        raw_bytes = response.read(cap + 1)
+    finally:
+        check_deadline()
     if len(raw_bytes) > cap:
         raise SystemExit(f"local {phase} response exceeded response cap")
     if declared is not None and len(raw_bytes) != declared:
@@ -1608,6 +1628,7 @@ def _preflight_local_model(
     headers: dict[str, str],
     model: str,
     screened: ScreenedRequest | None = None,
+    check_deadline=lambda: None,
 ) -> dict[str, Any]:
     req = request.Request(local_model_preflight_url(base_url, transport), headers=headers, method="GET")
     if screened is not None:
@@ -1615,7 +1636,8 @@ def _preflight_local_model(
     started = time.monotonic()
     with opener.open(req, timeout=int(transport.get("timeout_seconds", 120))) as response:
         raw_bytes = _read_local_http_response(
-            response, cap=LOCAL_PREFLIGHT_RESPONSE_CAP, phase="model preflight"
+            response, cap=LOCAL_PREFLIGHT_RESPONSE_CAP, phase="model preflight",
+            check_deadline=check_deadline,
         )
         raw_sha256 = hashlib.sha256(raw_bytes).hexdigest()
         try:
@@ -1655,26 +1677,25 @@ def _preflight_local_model(
         }
 
 
-# Controlled local invocation is unavailable until CWO binds workload-derived
-# sizing to the exact request and holds an atomic one-use reservation within an
-# aggregate budget before the call (issue #41). The reservation, durable intent,
-# aggregate accounting and crash-ambiguity guard are wired into
-# execute_local_envelope (cwo_core.local_invocation). The explicit registered
-# advisory scope now connects original sizing/admission through the same HTTP
-# consumer for deterministic qualification. It grants no live authority and
-# does not restore this flag. Envelope preparation and manual export remain
-# available; restoration requires a separate reviewed decision.
-LOCAL_INVOCATION_AVAILABLE = False
-LOCAL_INVOCATION_UNAVAILABLE = (
-    "controlled local invocation is unavailable: CWO cannot yet bind workload-derived sizing to the exact request "
-    "and hold an atomic one-use reservation within an aggregate budget before the call (issue #41). Nothing was "
-    "sent. Without --execute-local, dispatch still writes the local envelope, and manual export remains available."
-)
+LOCAL_INVOCATION_AVAILABLE = True
+LOCAL_INVOCATION_UNAVAILABLE = "Ordinary local HTTP invocation is disabled. Nothing was sent."
+QUALIFIED_REVIEW_INVOCATION_AVAILABLE = False
+QUALIFIED_REVIEW_INVOCATION_UNAVAILABLE = "Registered review host invocation is disabled. Nothing was sent."
 
 
-def _local_review_scope(envelope, post, preflight, qualified_review):
+def require_local_http_workload(workload, qualified_review=None):
+    if qualified_review is not None and not QUALIFIED_REVIEW_INVOCATION_AVAILABLE:
+        raise SystemExit(QUALIFIED_REVIEW_INVOCATION_UNAVAILABLE)
+    if workload is not None and qualified_review is not None:
+        raise SystemExit('local HTTP execution requires a single original admission')
+    if qualified_review is None and type(workload) is not local_http_admission.LocalWorkload:
+        raise SystemExit('local HTTP execution requires an original staged workload admission')
+
+
+def _local_review_scope(envelope, post, preflight, qualified_review, workload, validate_configuration):
     if qualified_review is None:
-        return reserved_local_invocation(envelope, post, preflight)
+        return local_http_admission.invocation_scope(
+            workload, envelope, post, preflight, configured_store(), validate_configuration)
     from qualified_review_dispatch import invocation_scope
     return invocation_scope(qualified_review, envelope, post, preflight)
 
@@ -1693,13 +1714,55 @@ def _local_review_result(result, qualified_review):
     return result
 
 
-def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace,
-                           *, qualified_review=None, source_files=()) -> dict[str, Any]:
-    if not LOCAL_INVOCATION_AVAILABLE:
-        raise SystemExit(LOCAL_INVOCATION_UNAVAILABLE)
-    refuse_attachments(envelope, surface="local HTTP request")
-    require_audited_local_execution(args)
-    require_access_profile_online_for_execution(envelope, args)
+@dataclass(frozen=True)
+class _PreparedLocalHttp:
+    transport: dict[str, Any]
+    source: dict[str, Any]
+    capture: PreparedSource
+    request: request.Request
+    preflight: request.Request | None
+    screened_request: ScreenedRequest
+    screened_preflight: ScreenedRequest | None
+    request_payload_sha256: str
+    request_options_sha256: str
+    headers: dict[str, str]
+
+
+def _local_api_key(api_key_env, key_file):
+    if key_file is None:
+        return os.environ.get(api_key_env)
+    try:
+        token = read_private_artifact(Path(key_file), max_bytes=4096, allow_directory_readers=True).rstrip(b'\r\n')
+    except (OSError, PrivateArtifactError):
+        raise SystemExit('local API key file must be a private regular file of at most 4096 bytes in a directory writable only by its owner') from None
+    if re.fullmatch(rb'[\x21-\x7e]+', token) is None:
+        raise SystemExit('local API key file must contain one nonempty ASCII token')
+    return token.decode('ascii')
+
+
+def _local_headers(envelope, transport, args):
+    api_key_env = str(transport.get('api_key_env') or '')
+    key_file = vars(args).get('local_api_key_file')
+    auth_mode = str(transport.get('auth_mode') or '')
+    headers = {'Content-Type': 'application/json', 'X-CWO-Dispatch-ID': envelope['dispatch_id']}
+    if auth_mode == 'none':
+        if api_key_env:
+            raise SystemExit('no-auth local executor must not configure an API-key environment variable')
+        if key_file is not None:
+            raise SystemExit('selected local executor is no-auth and forbids --local-api-key-file')
+    elif auth_mode == 'bearer-env':
+        if not api_key_env:
+            raise SystemExit('authenticated local executor requires an API-key environment variable')
+        validate_local_api_key_env_name(api_key_env)
+        api_key = _local_api_key(api_key_env, key_file)
+        if api_key:
+            headers['Authorization'] = f'Bearer {api_key}'
+    else:
+        raise SystemExit(f'unsupported local executor auth_mode: {auth_mode or "missing"}')
+    return headers
+
+
+def _prepare_local_http(envelope, selected_executor, args, qualified_review, source_files):
     executor_key = str(envelope.get("executor_key") or "")
     authoritative_executor = executor_config(executor_key)
     binding_fields = (
@@ -1738,17 +1801,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
             f"selected local executor requires exact model {required_model!r}; got a different model "
             f"(sha256 {_input_digest(model)})"
         )
-    api_key_env = str(transport.get("api_key_env") or "")
-    auth_mode = str(transport.get("auth_mode") or "")
-    if auth_mode == "none":
-        if api_key_env:
-            raise SystemExit("no-auth local executor must not configure an API-key environment variable")
-    elif auth_mode == "bearer-env":
-        if not api_key_env:
-            raise SystemExit("authenticated local executor requires an API-key environment variable")
-        validate_local_api_key_env_name(api_key_env)
-    else:
-        raise SystemExit(f"unsupported local executor auth_mode: {auth_mode or 'missing'}")
+    headers = _local_headers(envelope, transport, args)
     payload = {
         "model": model,
         "messages": envelope["messages"],
@@ -1766,12 +1819,8 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
             separators=(",", ":"),
         )
     )
-    headers = {"Content-Type": "application/json"}
-    headers["X-CWO-Dispatch-ID"] = str(envelope.get("dispatch_id") or uuid.uuid4())
-    if auth_mode == "bearer-env":
-        api_key = os.environ.get(api_key_env)
-        if api_key:
-            headers["Authorization"] = f"Bearer {api_key}"
+    if len(body) > LOCAL_REQUEST_BODY_CAP:
+        raise SystemExit('local HTTP request exceeded request body cap')
     endpoint = endpoint_url(str(base_url), str(transport.get("endpoint_path", "/v1/chat/completions")))
     # Both requests (the model preflight when required, and the POST) are
     # screened as the exact method, URL, headers and body sent, before either
@@ -1784,7 +1833,6 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
         else None
     )
     screened_request = screen_request("POST", endpoint, headers, body, surface="local HTTP request")
-    prepared = capture.bind(source, screened_request.body)
     # Both requests are built as they will be sent and checked against their
     # screens before resolution: Request normalizes a URL (it strips
     # surrounding spaces, for example), and a request that would be refused
@@ -1795,30 +1843,101 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
     if screened_preflight is not None:
         preflight = request.Request(local_model_preflight_url(str(base_url), transport), headers=headers, method="GET")
         screened_preflight.require_unchanged(preflight.get_method(), preflight.full_url, preflight.header_items(), preflight.data)
+    return _PreparedLocalHttp(transport, source, capture, req, preflight, screened_request, screened_preflight,
+                              request_payload_sha256, request_options_sha256, headers)
+
+
+def _require_original_local_configuration(envelope, args, prepared):
+    authoritative = executor_config(envelope['executor_key'])
+    current = local_transport(authoritative, args)
+    if current != prepared.transport or _local_headers(envelope, current, args) != prepared.headers:
+        raise SystemExit('local HTTP workload admission configuration changed after screening')
+    if _canonical_json_hash(local_tls_settings(current, args)) != envelope['tls_binding_sha256']:
+        raise SystemExit('local HTTP workload admission TLS settings changed after screening')
+    configured = vars(args).get('local_base_url') or os.environ.get(str(current.get('base_url_env')))
+    if not configured or configured != current['base_url']:
+        raise SystemExit('local HTTP workload admission requires an explicitly configured local endpoint')
+    parsed = urlparse(configured)
+    if parsed.query or parsed.fragment:
+        raise SystemExit('local HTTP workload admission endpoint cannot contain a query or fragment')
+
+
+def _resolve_local_http_target(base_url, transport, deadline):
+    allow_dns = bool(transport.get('allow_private_dns'))
+    if deadline is None:
+        return pinned_local_endpoint_address(str(base_url), allow_private_dns=allow_dns)
+    return deadline.resolve(pinned_local_endpoint_address, str(base_url), allow_private_dns=allow_dns, pin_loopback=True)
+
+
+def _build_admitted_local_opener(base_url, transport, args, pinned_address, deadline):
+    if deadline is None:
+        return _build_local_opener(base_url, transport, args, pinned_address)
+    return _build_local_opener(base_url, transport, args, pinned_address, deadline=deadline)
+
+
+def _evaluate_admitted_local_result(workload, gate, envelope, result):
+    if workload is None or result['usable_final_content'] is not True:
+        return
+    from evaluate_return import evaluate_captured_local_return
+
+    gate.require_workload()
+    gate.require_source_unchanged()
+    normalized = result['normalized_return'] or result['final_content']
+    evaluation = evaluate_captured_local_return(normalized, envelope, result)
+    result.update(normalized_return=normalized, normalized_return_sha256=evaluation['return_sha256'],
+                  normalized_return_chars=len(normalized), evaluation=evaluation)
+    if evaluation['quarantine_recommended']:
+        quarantine_local_response_content(result['response'])
+        result.update(normalized_return=None, final_content='', usable_final_content=False,
+                      final_content_sha256=artifact_hash(''), final_content_chars=0,
+                      completion_status='content-unsafe', content_security_status='rejected')
+
+
+def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace,
+                           *, qualified_review=None, workload=None, source_files=()) -> dict[str, Any]:
+    if not LOCAL_INVOCATION_AVAILABLE:
+        raise SystemExit(LOCAL_INVOCATION_UNAVAILABLE)
+    require_audited_local_execution(args)
+    require_local_http_workload(workload, qualified_review)
+    refuse_attachments(envelope, surface="local HTTP request")
+    require_access_profile_online_for_execution(envelope, args)
+    wire = _prepare_local_http(envelope, selected_executor, args, qualified_review, source_files)
+    transport, req, preflight = wire.transport, wire.request, wire.preflight
+    base_url, model = transport['base_url'], transport['model']
+    prepared = wire.capture.bind(wire.source, wire.screened_request.body)
+    screened_request = wire.screened_request
+
+    def validate_configuration():
+        _require_original_local_configuration(envelope, args, wire)
+
     # The reservation within the aggregate budget, durable intent and the
     # registered observers come before resolution, the first network effect;
     # every request then goes through the reservation's gate (issue #41).
-    with _local_review_scope(envelope, req, preflight, qualified_review) as gate:
-        gate.bind_source(capture, source)
-        record_local_execution(envelope, selected_executor, request_payload_sha256, qualified_review=qualified_review)
-        prepared.require_unchanged(source, req.data)
+    with _local_review_scope(envelope, req, preflight, qualified_review, workload, validate_configuration) as gate:
+        gate.bind_source(wire.capture, wire.source)
+        record_local_execution(envelope, selected_executor, wire.request_payload_sha256,
+                               qualified_review=qualified_review, workload=workload)
+        gate.require_workload()
+        prepared.require_unchanged(wire.source, req.data)
         # Resolution comes after screening: a hostname is sent to a resolver, so
         # it must already have passed the screen.
-        pinned_address = pinned_local_endpoint_address(str(base_url), allow_private_dns=bool(transport.get("allow_private_dns")))
+        deadline = None if workload is None else gate.network_deadline()
+        pinned_address = _resolve_local_http_target(base_url, transport, deadline)
         started = time.monotonic()
         try:
-            opener = gate.bind(_build_local_opener(str(base_url), transport, args, pinned_address))
-            prepared.require_unchanged(source, req.data)
+            opener = gate.bind(_build_admitted_local_opener(str(base_url), transport, args, pinned_address, deadline))
+            prepared.require_unchanged(wire.source, req.data)
             screened_request.require_unchanged(req.get_method(), req.full_url, req.header_items(), req.data)
             model_preflight = None
-            if preflight_required:
+            if preflight is not None:
                 model_preflight = _preflight_local_model(
                     opener,
                     base_url=str(base_url),
                     transport=transport,
-                    headers=headers,
+                    headers=wire.headers,
                     model=str(model),
-                    screened=screened_preflight,
+                    screened=wire.screened_preflight,
+                    check_deadline=gate.require_remaining_workload_time,
                 )
                 completed_monotonic = float(model_preflight.pop("_completed_monotonic"))
                 maximum_gap = int(transport.get("max_preflight_to_post_ms", 1000))
@@ -1829,7 +1948,8 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                 if model_preflight is not None:
                     model_preflight["to_post_ms"] = gate.preflight_to_post_ms
                 raw_bytes = _read_local_http_response(
-                    response, cap=LOCAL_COMPLETION_RESPONSE_CAP, phase="completion"
+                    response, cap=LOCAL_COMPLETION_RESPONSE_CAP, phase="completion",
+                    check_deadline=gate.require_remaining_workload_time,
                 )
                 raw_response_sha256 = hashlib.sha256(raw_bytes).hexdigest()
                 try:
@@ -1929,15 +2049,15 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                     response_metadata["final_content_sha256"] = artifact_hash("")
                     response_metadata["final_content_chars"] = 0
                 sanitized = project_local_response_payload(sanitized)
-                return _local_review_result({
+                result = {
                     "status_code": response.status,
                     "response": sanitized,
                     "elapsed_seconds": round(time.monotonic() - started, 3),
                     "raw_response_sha256": raw_response_sha256,
                     "raw_response_chars": len(raw),
                     "raw_response_bytes": len(raw_bytes),
-                    "request_payload_sha256": request_payload_sha256,
-                    "request_options_sha256": request_options_sha256,
+                    "request_payload_sha256": wire.request_payload_sha256,
+                    "request_options_sha256": wire.request_options_sha256,
                     "server_structured_outputs_status": envelope.get(
                         "server_structured_outputs_status"
                     ),
@@ -1945,11 +2065,15 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                     "response_model_status": response_model_status,
                     "normalized_return": normalized_return,
                     **response_metadata,
-                }, qualified_review)
+                }
+                _evaluate_admitted_local_result(workload, gate, envelope, result)
+                gate.observe_workload_result(result)
+                return _local_review_result(result, qualified_review)
         except HTTPError as exc:
             try:
                 body = _read_local_http_response(
-                    exc, cap=LOCAL_HTTP_ERROR_RESPONSE_CAP, phase="HTTP error"
+                    exc, cap=LOCAL_HTTP_ERROR_RESPONSE_CAP, phase="HTTP error",
+                    check_deadline=gate.require_remaining_workload_time,
                 )
                 raise SystemExit(
                     f"local endpoint returned HTTP {exc.code}; response body omitted "
@@ -2070,6 +2194,7 @@ def compact_local_response(local_response: dict[str, Any] | None) -> dict[str, A
         "normalized_return",
         "normalized_return_sha256",
         "normalized_return_chars",
+        "evaluation",
     )
     return {key: local_response.get(key) for key in fields if key in local_response}
 
@@ -2222,8 +2347,17 @@ def require_requested_local_execution(args: argparse.Namespace) -> None:
         require_audited_local_execution(args)
 
 
+def _local_admission_metadata(store, dispatch_id, workload, staged):
+    if staged is not None:
+        return {local_http_admission.RECORD_KEY: staged}
+    if workload is None:
+        return {}
+    _, verified = local_http_admission.require_saved(store, dispatch_id)
+    return {local_http_admission.RECORD_KEY: verified}
+
+
 def record_local_execution(envelope: dict[str, Any], selected: dict[str, Any], request_sha256: str,
-                           *, qualified_review=None) -> str:
+                           *, qualified_review=None, workload=None, admission=None) -> str:
     """After screening and reservation, record provenance before resolution."""
     store = configured_store()
     dispatch_id = envelope['dispatch_id']
@@ -2232,7 +2366,8 @@ def record_local_execution(envelope: dict[str, Any], selected: dict[str, Any], r
         from qualified_review_dispatch import evaluation_requirements
         requirements = evaluation_requirements(qualified_review, envelope)
     metadata = {'dispatch_mode': selected['dispatch_mode'], 'share_boundary': envelope.get('share_boundary'),
-                'job_description_label': envelope.get('job_description_label'), **requirements}
+                'job_description_label': envelope.get('job_description_label'), **requirements,
+                **_local_admission_metadata(store, dispatch_id, workload, admission)}
     if store.find('dispatch', dispatch_id=dispatch_id):
         existing = store.require_dispatch(dispatch_id)
         expected = {'request_sha256': request_sha256, 'dispatch_role': 'executor',
@@ -2327,10 +2462,57 @@ def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], ta
     )
 
 
+def _local_workload_arguments(args, files):
+    if args.prepare_local_admission:
+        require_audited_local_execution(args)
+        if args.execute_local or args.rehearsal or not args.local_workload:
+            raise SystemExit('--prepare-local-admission requires --local-workload and a separate audited preparation')
+    if not args.local_workload:
+        if args.execute_local:
+            require_local_http_workload(None)
+        return None
+    if args.packet or args.file or args.text:
+        raise SystemExit('--local-workload supplies the original task and cannot be combined with --packet, --file or text')
+    if not args.local_ok or not (args.execute_local or args.prepare_local_admission):
+        raise SystemExit('--local-workload requires --local-ok and an explicit preparation or execution mode')
+    return local_http_admission.LocalWorkload.read(args.local_workload, files)
+
+
+def _local_workload_task(args, workload, files):
+    if workload is None:
+        return read_task_segments(' '.join(args.text).strip() or None, args.file, captures=files)
+    route, node = workload.route_node()
+    args.bead = args.bead or route.get('parent_id')
+    args.epic = args.epic or route.get('aggregate_id')
+    args.dispatch_id = args.dispatch_id or node['id']
+    return [workload.task()]
+
+
+def _stage_requested_local_admission(args, workload, task, route, dispatch_id, files):
+    if not args.prepare_local_admission:
+        return
+    selected = route['selected_executor']
+    if selected['dispatch_mode'] not in {'local_openai_compatible', 'local_secure_review'}:
+        raise SystemExit('--prepare-local-admission requires a local worker route')
+    envelope = build_local_envelope(task=task, route=route, dispatch_id=dispatch_id,
+                                    bead_id=args.bead, epic_id=args.epic, args=args)
+    wire = _prepare_local_http(envelope, selected, args, None, files)
+    _require_original_local_configuration(envelope, args, wire)
+    binding = local_http_admission.stage(workload, envelope, wire.request, wire.preflight)
+    wire.capture.require_unchanged(wire.source)
+    record = record_local_execution(envelope, selected, wire.request_payload_sha256, admission=binding)
+    print(json.dumps({'dispatch_id': dispatch_id, 'admission_sha256': binding['binding_sha256'],
+                      'host_record_sha256': record}, sort_keys=True))
+    raise SystemExit(0)
+
+
 def main() -> None:
     # Diagnostics before the final screen can repeat caller input; withhold any the screen refuses.
     with withheld_diagnostics("dispatch_work"):
-        _main()
+        try:
+            _main()
+        except InvocationTimeout as exc:
+            raise SystemExit(str(exc)) from exc
 
 
 def _main() -> None:
@@ -2373,7 +2555,9 @@ def _main() -> None:
     )
     parser.add_argument("--local-base-url", help="OpenAI-compatible local endpoint base URL.")
     parser.add_argument("--local-model", help="Model name for local OpenAI-compatible dispatch.")
-    parser.add_argument("--local-api-key-env", help="Environment variable containing the local endpoint API key.")
+    local_auth = parser.add_mutually_exclusive_group()
+    local_auth.add_argument("--local-api-key-env", help="Environment variable containing the local endpoint API key.")
+    local_auth.add_argument("--local-api-key-file", help="Private file containing the local endpoint API key.")
     parser.add_argument("--local-timeout", type=int, help="Timeout in seconds for --execute-local.")
     parser.add_argument(
         "--local-max-tokens",
@@ -2398,6 +2582,9 @@ def _main() -> None:
         help="Lab-only: disable TLS verification when the selected local executor profile explicitly allows it.",
     )
     parser.add_argument("--execute-local", action="store_true", help="Actually POST a local-worker envelope to the endpoint.")
+    parser.add_argument("--local-workload", help="Original whole-route planning JSON and selected node for local HTTP.")
+    parser.add_argument("--prepare-local-admission", action="store_true",
+                        help="Stage the exact screened local HTTP admission in the host chain without sending.")
     parser.add_argument(
         "--local-result-view",
         choices=["full", "compact"],
@@ -2448,6 +2635,7 @@ def _main() -> None:
     )
 
     files: list = []
+    workload = _local_workload_arguments(args, files)
     if args.packet:
         packet = load_packet_file(args.packet, captures=files)
         inputs = {"packet": packet, "options": vars(args)}
@@ -2554,7 +2742,7 @@ def _main() -> None:
         write_export(screened_output, prepared=prepared, source=source)
         return
 
-    task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file, captures=files)
+    task_segments = _local_workload_task(args, workload, files)
     task = "\n\n".join(task_segments)
     from model_catalog_startup import configure_cli_model_catalog
 
@@ -2591,6 +2779,7 @@ def _main() -> None:
     manual_prompt = render_prompt(captured["task"], captured["route"]) if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None
     input_capture.require_unchanged(captured)
     input_capture.require_unchanged(inputs)
+    _stage_requested_local_admission(args, workload, task, route, dispatch_id, files)
     # Reads the audit log only; consumption is recorded by the audit event.
     quota_info = enforce_contracting_quota(
         args.epic,
@@ -2617,7 +2806,8 @@ def _main() -> None:
         if not local_envelope:
             raise SystemExit("--execute-local is only valid for local worker dispatch routes")
         input_capture.require_unchanged(inputs)
-        local_response = execute_local_envelope(local_envelope, route["selected_executor"], args, source_files=tuple(files))
+        local_response = execute_local_envelope(local_envelope, route["selected_executor"], args,
+                                                workload=workload, source_files=tuple(files))
 
     artifact = {
         "dispatch_id": dispatch_id,

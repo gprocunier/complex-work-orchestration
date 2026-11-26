@@ -288,6 +288,18 @@ def _contractor_evaluation_input(args: argparse.Namespace) -> tuple[dict, bytes 
     return evaluation_metadata, raw
 
 
+def _local_v2_frame_valid(response):
+    return bool(
+        response.get("response_truncated") is False
+        and response.get("reasoning_malformed") is False
+        and response.get("finish_reasons") == ["stop"]
+        and response.get("response_contract_errors") == []
+        and response.get("content_security_status") == "passed"
+        and type(response.get("final_content_chars")) is int
+        and 0 < response["final_content_chars"] <= 6000
+    )
+
+
 def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
     try:
         artifact = json.loads(path.read_text(encoding="utf-8"))
@@ -403,15 +415,7 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
             if type(local_response.get("status_code")) is int
             else None
         ),
-        "local_v2_frame_valid": bool(
-            local_response.get("response_truncated") is False
-            and local_response.get("reasoning_malformed") is False
-            and local_response.get("finish_reasons") == ["stop"]
-            and local_response.get("response_contract_errors") == []
-            and local_response.get("content_security_status") == "passed"
-            and type(local_response.get("final_content_chars")) is int
-            and 0 < local_response["final_content_chars"] <= 6000
-        ),
+        "local_v2_frame_valid": _local_v2_frame_valid(local_response),
         "local_v2_identity_consistent": v2_identity_consistent,
         "_local_normalized_return": local_response.get("normalized_return"),
         "_local_normalized_return_sha256": local_response.get("normalized_return_sha256"),
@@ -526,6 +530,47 @@ def _review_surface_telemetry(result: dict, private_browser_return: bool) -> dic
     fields = ("review_surface", "source_inspection", "sources_inspected", "sources_not_inspected",
               "independent_verification", "packet_reported_claims")
     return {key: result.get(key) for key in fields}
+
+
+def evaluate_captured_local_return(text, envelope, response):
+    """Score the exact admitted HTTP capture with the existing advisory holds."""
+    from cwo_core.host_acceptance import record_received_evaluation
+    from cwo_core.host_records import configured_store
+
+    dispatch_id = envelope['dispatch_id']
+    digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
+    store = configured_store()
+    dispatch = store.require_dispatch(dispatch_id)
+    if dispatch['request_sha256'] != response['request_payload_sha256']:
+        raise SystemExit('local HTTP capture differs from its original host request')
+    store.write_return_received(dispatch_id, digest, capture_provenance='host-capture-v1')
+    preflight = response.get('model_preflight') or {}
+    result = _evaluate_current_return(
+        text, dispatch_id=dispatch_id, bead_id=envelope['bead_id'],
+        executor=envelope['executor_key'], provider_key=envelope['provider_key'],
+        share_boundary=envelope['share_boundary'], job_description_label=envelope['job_description_label'],
+        local_profile=envelope['local_profile'], model_profile=envelope['model_profile'],
+        expected_return_language=envelope['expected_return_language'],
+        expected_return_language_source=envelope['expected_return_language_source'],
+        peer_review_required=True, peer_review_status='pending',
+        local_response_truncated=response['response_truncated'],
+        local_finish_reasons=response['finish_reasons'], local_reasoning_malformed=response['reasoning_malformed'],
+        local_completion_status=response['completion_status'], local_usable_final_content=response['usable_final_content'],
+        local_expected_response_contract=envelope['response_contract'],
+        local_response_contract=response.get('response_contract'),
+        local_response_contract_status=response.get('response_contract_status'),
+        local_normalized_return_matches=True, local_v2_frame_valid=_local_v2_frame_valid(response),
+        local_v2_identity_consistent=True,
+        local_response_model_status=response['response_model_status'],
+        local_model_preflight_status=preflight.get('status'), local_http_status=response['status_code'],
+    )
+    _mark_advisory(result)
+    record = record_received_evaluation(text, result)
+    if not record:
+        raise SystemExit('local HTTP evaluation requires its original captured host return')
+    return {'record_sha256': record, 'return_sha256': digest, 'verdict': result['verdict'],
+            'implementation_blocked': result['implementation_blocked'], 'hold_reasons': result['hold_reasons'],
+            'quarantine_recommended': result['quarantine_recommended']}
 
 
 def main() -> None:

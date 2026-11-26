@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Recognize the exact `None.` disclosure declaration in outbound screening of contractor peer reviews.
+- Send screened local review requests to a configured vLLM endpoint after workload admission. The dispatcher records bounded requests and evaluates the captured return as advisory evidence.
 
 ## 1.46.0 - 2026-11-26
 
