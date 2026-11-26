@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve terminal provider token counts in the contained pool rollout while keeping cumulative qualification accounting stable.
+
 ## 1.41.0 - 2026-11-26
 
 - Retire the legacy native campaign launcher’s execution, preparation and claim code. The command retains its early refusal. Use `v1.37.0` for historical verification.

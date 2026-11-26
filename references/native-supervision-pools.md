@@ -272,6 +272,11 @@ limits still apply. Reconcile ambiguous starts in the campaign ledger before
 continuing. The signed expiry bounds new effects. Cleanup and settlement
 preserve their original custody after the cutoff.
 
+The contained adapter reports token usage as `unavailable` throughout cumulative
+pool accounting. The controller retains provider token counts for inspection in
+the verified terminal rollout and its archive. Pool hard budgets apply to tool
+calls, runtime seconds, compactions, full-suite runs, and mutations.
+
 An enrolled host calls `run_registered_pool_qualification` from
 `scripts/registered_pool_qualification_host.py` once with the original
 disposable Beads inputs and a directive over `admission_action_sha256`. The
