@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Document the worker `--repo` and lead `--project` paths required to accept a registered delivery by hand.
 - Apply peer-review and provider-conflict requirements from the recorded manual contractor dispatch at the first return evaluation.
 
 ## 1.41.0 - 2026-11-26
