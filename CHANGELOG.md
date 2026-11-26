@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.42.0 - 2026-11-26
+
 - Preserve terminal provider token counts in the contained pool rollout while keeping cumulative qualification accounting stable.
 - Document the worker `--repo` and lead `--project` paths required to accept a registered delivery by hand.
 - Apply peer-review and provider-conflict requirements from the recorded manual contractor dispatch at the first return evaluation.
