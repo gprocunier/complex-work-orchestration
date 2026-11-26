@@ -19,7 +19,7 @@ retained approval to dispatch the worker.
 
 Set the architect launcher's model, reasoning effort and service tier under the
 Sol role (`sol`) in [`policy/model-roles.yaml`](../policy/model-roles.yaml). Use the
-same settings in plain Codex for a like-for-like comparison.
+same settings in plain Codex for a like-for-like comparison. Cyber fallback is opt-in.
 Candidate E is retired.
 
 Install the optional [architect profile](cwo-system-prompt.md) to use CWO's

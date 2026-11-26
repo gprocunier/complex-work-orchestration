@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Treat a structured provider cyber-policy refusal as terminal. Record the refusal against the original charged attempt without reserving or dispatching a fallback. Existing version 1 policies can still contain the retired role.
+- Read the optional Daybreak Blue fallback model from `policy/model-roles.yaml` (documented default `gpt-6-sol` with `daybreak=true`, with `previous` for rollback) instead of the retired `gpt-daybreak-blue-latest` alias. Only a cyber-policy refusal triggers the single fallback attempt; other refusals and errors stop. If you enabled the role, change its `model` to `gpt-6-sol`.
 
 ## 1.47.0 - 2026-11-26
 

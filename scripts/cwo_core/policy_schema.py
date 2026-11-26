@@ -143,8 +143,9 @@ POLICY_VALIDATION_BOUNDARIES = {
     ),
     "model-roles.yaml": (
         "schema",
-        "schemas/model-roles.schema.json validates required roles and the retired cyber fallback entry at load. "
-        "The role resolver additionally checks exact identity family, pins and reviewer ordering.",
+        "schemas/model-roles.schema.json validates required roles and the optional cyber fallback shape at load. "
+        "The role resolver additionally checks exact identity family, pin, reviewer ordering and caller-specific "
+        "access-program metadata.",
     ),
     "native-worker-execution.yaml": (
         "schema",
