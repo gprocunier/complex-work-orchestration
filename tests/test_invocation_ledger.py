@@ -1047,7 +1047,7 @@ class SchemaAndContainmentTests(unittest.TestCase):
         return sorted(set(found))
 
     def test_local_invocation_stays_unavailable_and_ledger_importers_are_explicit(self) -> None:
-        """The disabled production route and offline adapter have an explicit ledger importer inventory.
+        """Keep local invocation unavailable and enumerate every ledger importer.
         Any additional importer requires a deliberate change to this reliability check."""
         import dispatch_work
 
@@ -1063,6 +1063,12 @@ class SchemaAndContainmentTests(unittest.TestCase):
             "scripts/prepare_local_admission.py",
             "scripts/prepare_native_pool_qualification.py",
             "scripts/qualified_review_dispatch.py",
+            # The signed ordinary pool host constructs the protected ledger for one approval.
+            "scripts/registered_contained_pool_host.py",
+            # Preparation checks that the proposed limits fit the ledger's numeric bound.
+            "scripts/registered_contained_pool_preparation.py",
+            # The ordinary runtime checks the exact ledger and shares its allowance across both phases.
+            "scripts/registered_pool_ordinary_runtime.py",
             # The protected qualification route uses one campaign ledger for calibration and runs.
             "scripts/registered_pool_qualification_calibration.py",
             "scripts/registered_pool_qualification_capability.py",

@@ -28,8 +28,9 @@ import run_admitted_native_pool_transaction as launcher
 from cwo_core.maintenance_authority import sign_controller_directive
 from cwo_core.native_authority import canonical_authority_sha256
 from cwo_core import native_live_availability as availability
-from cwo_core.outbound_screen import require_clean
+from cwo_core.outbound_screen import OutboundRefused
 from cwo_core.private_artifact import PrivateDirectory
+from cwo_core.supervision.transport.app_server import _prepare_native_frame
 from tests import test_ordinary_pool_hosted_e2e as hosted
 
 
@@ -110,7 +111,7 @@ class OrdinaryPoolIngressTests(unittest.TestCase):
         def planned(root, *_args):
             return {"cwd": str(root / "workspaces" / "worker-1")}
 
-        with TemporaryDirectory() as directory:
+        with hosted._pool_test_directory() as directory:
             project = Path(directory)
             store = SimpleNamespace(state_root=project / "controller")
             database = {"selector": str(project), "sha256": "test-database"}
@@ -123,7 +124,22 @@ class OrdinaryPoolIngressTests(unittest.TestCase):
                   patch.object(preparation, "_mounts", return_value=()),
                   patch.object(preparation, "_manifest", side_effect=planned)):
                 with preparation.prepare_pool(project, proposal) as pending:
-                    require_clean(pending.manifest.decode(), surface="original contained app-server thread/start")
+                    checkout = Path(json.loads(pending.manifest)["cwd"])
+                    self.assertRegex(pending.root.name, r"^pool-[0-9]{12}-[0-9]{12}$")
+                    frame, _ = _prepare_native_frame(self._thread_start(checkout), "thread/start")
+                    params = json.loads(frame)["params"]
+                    self.assertEqual((params["cwd"], params["runtimeWorkspaceRoots"]), (str(checkout), [str(checkout)]))
+                    old_checkout = pending.root.with_name("pool-ed8fcfb18caa453b9794fb22c8cb2c64")
+                    # Reproduce the worker shard's ambient TMPDIR token independently of its random suffixes.
+                    shard_parent = Path("/disk/tmp/cwo-worker-02-a1b2c3d4/tmpq9w8e7r6/controller.pool")
+                    for root in (old_checkout, shard_parent / pending.root.name):
+                        with self.subTest(root=root), self.assertRaisesRegex(OutboundRefused, "entropy.*json view"):
+                            path = root / "workspaces" / "worker-1"
+                            _prepare_native_frame(self._thread_start(path), "thread/start")
+
+    @staticmethod
+    def _thread_start(checkout):
+        return {"id": 2, "method": "thread/start", "params": pool_config.thread_start_selectors(checkout)}
 
     def test_authorize_pool_foreground_declines_or_retains_original_cohort(self):
         with hosted._pool_test_directory() as directory, ExitStack() as stack:

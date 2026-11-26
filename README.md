@@ -257,8 +257,9 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   architect thread uses `@Chrome` in the paired profile with the operator
   present. [Desktop Chrome workflow](references/chatgpt-pro-browser.md)
 - **Disabled in this version:** local HTTP dispatch
-  (`dispatch_work.py --execute-local`), raw native launch, generic pool plans and
-  live campaigns; new worker-surface qualification; live native activation
+  (`dispatch_work.py --execute-local`), raw native launch,
+  ordinary productive pool plans passed to the standalone launcher, and live campaigns; new
+  worker-surface qualification; live native activation
   (`run_native_pool_activation_preview.py run --enable-tech-preview`);
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`
   are refused).
