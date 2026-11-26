@@ -10,7 +10,6 @@ import subprocess
 import sys
 import tempfile
 import unittest
-import uuid
 from unittest import mock
 
 
@@ -22,13 +21,10 @@ from cwo_core.native_pool_config import (  # noqa: E402
     NativePoolConfigError,
     RENDER_REQUEST_SCHEMA,
     RENDER_REQUEST_TYPE,
-    build_live_canary_pool_contract,
     build_pool_contract,
-    seal_bound_manifest_validation,
     validate_pool_render_request,
 )
 from cwo_core.native_pool_contracts import (  # noqa: E402
-    canonical_sha256,
     default_completion_evidence_policy,
     seal_artifact,
     validate_pool_contract,
@@ -357,119 +353,6 @@ class NativePoolConfigTests(unittest.TestCase):
             write_private_artifact(state_path, state)
             with self.assertRaisesRegex(NativePoolConfigError, "worker-state-not-newly-created"):
                 build_pool_contract(fixture.request)
-
-    def test_historical_manifest_versions_are_not_live_renderable(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            fixture = RenderFixture(Path(temporary), 2)
-            owner = capture_owner_identity()
-            payload = capability_payload()
-            payload["host_identity"] = owner
-            payload["control_turn_id"] = fixture.request["control_turn_id"]
-            capability = seal_artifact(payload, "receipt_sha256")
-            now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
-            for version in range(2, 8):
-                with self.subTest(version=version), self.assertRaisesRegex(
-                    NativePoolConfigError, "manifest-version-historical-only"
-                ):
-                    build_live_canary_pool_contract(
-                        fixture.request,
-                        campaign_manifest={"version": version},
-                        capability_receipt=capability,
-                        owner_pid=owner["pid"],
-                        now=now,
-                    )
-
-    def test_v8_manifest_requires_exact_full_binding_receipt(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            fixture = RenderFixture(root, 2)
-            manifest = {
-                "version": 8,
-                "schema": "schemas/native-live-campaign-manifest-v8.schema.json",
-                "manifest_id": str(uuid.uuid4()),
-                "authorization_id": str(uuid.uuid4()),
-                "control_turn_id": fixture.request["control_turn_id"],
-                "candidate": {"commit": "a" * 40, "tree": "b" * 40},
-            }
-            manifest["manifest_sha256"] = canonical_sha256(manifest)
-            owner = capture_owner_identity()
-            payload = capability_payload()
-            payload["host_identity"] = owner
-            payload["control_turn_id"] = manifest["control_turn_id"]
-            capability = seal_artifact(payload, "receipt_sha256")
-            bindings = {
-                "manifest_sha256": manifest["manifest_sha256"],
-                "launch_claim_sha256": sha("launch-claim"),
-                "candidate_commit": manifest["candidate"]["commit"],
-            }
-            bound = seal_bound_manifest_validation(manifest, bindings)
-            now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
-
-            with self.assertRaisesRegex(
-                NativePoolConfigError, "bound-validation-invalid"
-            ):
-                build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=manifest,
-                    capability_receipt=capability,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
-
-            contract = build_live_canary_pool_contract(
-                fixture.request,
-                campaign_manifest=manifest,
-                capability_receipt=capability,
-                bound_manifest_validation=bound,
-                expected_bound_manifest_validation=bound,
-                owner_pid=owner["pid"],
-                now=now,
-            )
-            self.assertEqual(validate_pool_contract(contract), [])
-
-            for field, replacement in (
-                ("manifest_sha256", sha("stale-manifest")),
-                ("launch_claim_sha256", sha("stale-claim")),
-                ("artifact_bindings_sha256", sha("stale-bindings")),
-            ):
-                stale = copy.deepcopy(bound)
-                stale[field] = replacement
-                stale["validation_sha256"] = canonical_sha256(
-                    {
-                        key: value
-                        for key, value in stale.items()
-                        if key != "validation_sha256"
-                    }
-                )
-                with self.subTest(field=field), self.assertRaisesRegex(
-                    NativePoolConfigError, "bound-validation-invalid"
-                ):
-                    build_live_canary_pool_contract(
-                        fixture.request,
-                        campaign_manifest=manifest,
-                        capability_receipt=capability,
-                        bound_manifest_validation=stale,
-                        expected_bound_manifest_validation=bound,
-                        owner_pid=owner["pid"],
-                        now=now,
-                    )
-
-            changed_manifest = copy.deepcopy(manifest)
-            changed_manifest["candidate"]["tree"] = sha("changed-tree")[:40]
-            changed_manifest.pop("manifest_sha256")
-            changed_manifest["manifest_sha256"] = canonical_sha256(changed_manifest)
-            with self.assertRaisesRegex(
-                NativePoolConfigError, "bound-validation-invalid"
-            ):
-                build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=changed_manifest,
-                    capability_receipt=capability,
-                    bound_manifest_validation=bound,
-                    expected_bound_manifest_validation=bound,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
 
     def test_cli_renders_mode_0600_contract_and_requires_no_task_text(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

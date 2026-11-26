@@ -211,20 +211,6 @@
       "reason": "Frozen validator-contract path: its blob SHA-256 is bound into historical live-campaign evidence (native_live_campaign_contracts.VALIDATOR_CONTRACT_PATHS_V1 to _V6), so editing the file breaks verification of those records."
     },
     {
-      "path": "scripts/cwo_core/native_live_campaign_contracts.py",
-      "literal": "gpt-5.3-codex-spark",
-      "count": 4,
-      "class": "historical",
-      "reason": "Frozen validator-contract path: its blob SHA-256 is bound into historical live-campaign evidence (native_live_campaign_contracts.VALIDATOR_CONTRACT_PATHS_V1 to _V6), so editing the file breaks verification of those records."
-    },
-    {
-      "path": "scripts/cwo_core/native_live_campaign_contracts.py",
-      "literal": "gpt-5.6-sol",
-      "count": 1,
-      "class": "historical",
-      "reason": "Frozen validator-contract path: its blob SHA-256 is bound into historical live-campaign evidence (native_live_campaign_contracts.VALIDATOR_CONTRACT_PATHS_V1 to _V6), so editing the file breaks verification of those records."
-    },
-    {
       "path": "scripts/cwo_core/routing_signals.py",
       "literal": "gpt-5",
       "count": 1,

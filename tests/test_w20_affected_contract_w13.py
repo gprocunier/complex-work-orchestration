@@ -15,11 +15,9 @@ from __future__ import annotations
 import ast
 from contextlib import ExitStack
 from copy import deepcopy
-from dataclasses import replace
 import hashlib
 import importlib
 import inspect
-import itertools
 import json
 import os
 from pathlib import Path
@@ -29,7 +27,6 @@ import sys
 import tempfile
 import unittest
 from unittest import mock
-import uuid
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -43,7 +40,6 @@ from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from cwo_core import native_pool_contracts as POOL  # noqa: E402
 from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
 from tests import test_codex_tool_surface as SURFACE_TESTS  # noqa: E402
-from tests import test_native_live_campaign_generation12 as G12  # noqa: E402
 from tests import test_native_pool_contracts as POOL_TESTS  # noqa: E402
 from tests.historical_campaign_launcher import (  # noqa: E402
     PRE_RETIREMENT, RETIRED_CAMPAIGN, launcher_before_retirement, pinned_blob, pinned_git, run_archived_cases,
@@ -93,9 +89,6 @@ CONTRACT_FUNCTIONS = {
     "v5": "validator_contract_sha256_v5",
     "v6": "validator_contract_sha256_v6",
 }
-GENERATION11_COMMIT = FIXTURE.commits["generation11"]
-GENERATION11_TREE = FIXTURE.trees["generation11"]
-BASELINE_TREE = FIXTURE.trees["baseline"]
 RUNNER_PATH = "scripts/run_native_pool_live_canaries.py"
 BOUNDARY_PATH = "scripts/cwo_core/native_session_boundary.py"
 
@@ -214,136 +207,6 @@ def validator_contract_section() -> dict:
         "path_lists": paths,
         "legacy_alias_is_v1": CONTRACTS.VALIDATOR_CONTRACT_PATHS is CONTRACTS.VALIDATOR_CONTRACT_PATHS_V1,
         "verdicts": verdicts,
-    }
-
-
-# --- Generation 11 runner-source binding ----------------------------------------------
-
-
-def _generation11_rebound(proof, bindings, manifest, *, runner, boundary, commit, tree):
-    contracts = G12.CONTRACTS
-    value = deepcopy(proof.terminal_facts.value)
-    value["source_bindings"]["generation11_runner_source_sha256"] = _sha256(runner)
-    value["source_bindings"]["generation11_session_boundary_source_sha256"] = _sha256(boundary)
-    value["source_root_sha256"] = contracts.canonical_sha256(value["source_bindings"])
-    value["identity"]["candidate_commit"] = commit
-    value["identity"]["candidate_tree"] = tree
-    snapshot = G12.Generation12ContractTests._reseal(value, "canonical_terminal_facts_sha256")
-    rebound_manifest = deepcopy(manifest)
-    rebound_manifest["candidate"] = {"commit": commit, "tree": tree}
-    rebound_bindings = deepcopy(bindings)
-    rebound_bindings.update({
-        "predecessor_terminal_facts_file_sha256": snapshot.raw_sha256,
-        "predecessor_terminal_facts_canonical_sha256": snapshot.value["canonical_terminal_facts_sha256"],
-        "predecessor_generation11_runner_source_sha256": _sha256(runner),
-        "predecessor_generation11_session_boundary_source_sha256": _sha256(boundary),
-    })
-    rebound_proof = replace(
-        proof,
-        terminal_facts=snapshot,
-        generation11_runner_source_bytes=runner,
-        generation11_session_boundary_source_bytes=boundary,
-    )
-    return snapshot, rebound_bindings, rebound_proof, rebound_manifest
-
-
-def generation11_section() -> dict:
-    contracts = G12.CONTRACTS
-    counter = itertools.count(1)
-    with mock.patch("uuid.uuid4", side_effect=lambda: uuid.UUID(int=next(counter))):
-        proof, bindings, authorization, manifest, failure, _hashes = (
-            G12.Generation12ContractTests("run").terminal_facts_fixture()
-        )
-    historical_runner = _git_blob(GENERATION11_COMMIT, RUNNER_PATH)
-    historical_boundary = _git_blob(GENERATION11_COMMIT, BOUNDARY_PATH)
-    baseline_runner = _git_blob(BASELINE_COMMIT, RUNNER_PATH)
-    cases = {
-        "historical-record-repo-bound": dict(
-            runner=historical_runner, boundary=historical_boundary,
-            commit=GENERATION11_COMMIT, tree=GENERATION11_TREE, repo=True),
-        "historical-record-without-repo": dict(
-            runner=historical_runner, boundary=historical_boundary,
-            commit=GENERATION11_COMMIT, tree=GENERATION11_TREE, repo=False),
-        "relabelled-to-baseline-commit": dict(
-            runner=historical_runner, boundary=historical_boundary,
-            commit=BASELINE_COMMIT, tree=BASELINE_TREE, repo=True),
-        "unknown-commit": dict(
-            runner=historical_runner, boundary=historical_boundary,
-            commit="f" * 40, tree="e" * 40, repo=True),
-        "baseline-runner-bytes-rebound": dict(
-            runner=baseline_runner, boundary=historical_boundary,
-            commit=GENERATION11_COMMIT, tree=GENERATION11_TREE, repo=True),
-        "tampered-runner-byte-rebound": dict(
-            runner=historical_runner + b"\n", boundary=historical_boundary,
-            commit=GENERATION11_COMMIT, tree=GENERATION11_TREE, repo=True),
-    }
-    verdicts = {}
-    for label, case in cases.items():
-        snapshot, rebound_bindings, rebound_proof, rebound_manifest = _generation11_rebound(
-            proof, bindings, manifest, runner=case["runner"], boundary=case["boundary"],
-            commit=case["commit"], tree=case["tree"])
-        # Only source identity inputs differ from production; the full real
-        # semantic, canonical-binding and Git-blob validation remains active.
-        with mock.patch.multiple(contracts,
-                GENERATION11_RUNNER_SOURCE_SHA256=_sha256(historical_runner),
-                GENERATION11_SESSION_BOUNDARY_SOURCE_SHA256=_sha256(historical_boundary)):
-            errors = contracts._validate_generation11_terminal_facts(
-                snapshot,
-                bindings=rebound_bindings,
-                proof=rebound_proof,
-                authorization=authorization,
-                manifest=rebound_manifest,
-                failure=failure,
-                repo_root=FIXTURE.root if case["repo"] else None,
-            )
-        verdicts[label] = {
-            "input": {
-                "runner_source_sha256": _sha256(case["runner"]),
-                "session_boundary_source_sha256": _sha256(case["boundary"]),
-                "candidate_commit": case["commit"],
-                "repo_bound": case["repo"],
-                "terminal_facts_canonical_sha256": snapshot.value["canonical_terminal_facts_sha256"],
-            },
-            "errors": errors,
-        }
-    return {
-        "recorded_runner_source_sha256": _sha256(historical_runner),
-        "production_source_sha256": {"runner": contracts.GENERATION11_RUNNER_SOURCE_SHA256,
-                                     "boundary": contracts.GENERATION11_SESSION_BOUNDARY_SOURCE_SHA256},
-        "recorded_session_boundary_source_sha256": _sha256(historical_boundary),
-        "history_runner_blob_sha256": _sha256(historical_runner),
-        "history_session_boundary_blob_sha256": _sha256(historical_boundary),
-        "verdicts": verdicts,
-    }
-
-
-# --- Historical full-auto authorization and campaign manifest records ------------------
-
-
-def historical_record_section() -> dict:
-    fixtures = ROOT / "tests" / "fixtures"
-    authorization_raw = (fixtures / "historical-full-auto-authorization-v4.json").read_bytes()
-    manifest_raw = (fixtures / "historical-live-campaign-manifest-v1.json").read_bytes()
-    authorization = json.loads(authorization_raw)
-    manifest = json.loads(manifest_raw)
-    nonce = authorization["bindings"]["campaign_nonce"]
-    tampered = deepcopy(authorization)
-    tampered["live_generation"] = 99
-
-    return {
-        "inputs": {
-            "historical-full-auto-authorization-v4.json": _sha256(authorization_raw),
-            "historical-live-campaign-manifest-v1.json": _sha256(manifest_raw),
-        },
-        "verdicts": {
-            "authorization-v4-historical-read": CONTRACTS.validate_full_auto_authorization(
-                authorization, expected_campaign_nonce=nonce),
-            "authorization-v4-operative": CONTRACTS.validate_operative_full_auto_authorization(
-                authorization, expected_campaign_nonce=nonce),
-            "authorization-v4-tampered-historical-read": CONTRACTS.validate_full_auto_authorization(
-                tampered, expected_campaign_nonce=nonce),
-            "manifest-v1-historical-read": CONTRACTS.validate_campaign_manifest(manifest),
-        },
     }
 
 
@@ -825,7 +688,6 @@ def identity_section() -> dict:
         "model_identities": {
             "EXACT_MODEL": LIVE.EXACT_MODEL,
             "AppServer.requested_model.default": signature.parameters["requested_model"].default,
-            "CONTRACTS.EXACT_OPERATIVE_MODEL": CONTRACTS.EXACT_OPERATIVE_MODEL,
         },
         "constants": {name: getattr(LIVE, name) for name in MOVED_CONSTANTS},
         "thread_start_phases": sorted(LIVE.THREAD_START_PHASES),
@@ -844,8 +706,6 @@ def identity_section() -> dict:
 
 SECTIONS = {
     "validator_contracts": validator_contract_section,
-    "generation11_runner_source": generation11_section,
-    "historical_records": historical_record_section,
     "tool_surface": tool_surface_section,
     "capability_receipts": capability_receipt_section,
     "adapter_digest_coverage": adapter_digest_coverage_section,
@@ -1009,15 +869,12 @@ class GoldenVerdictTests(unittest.TestCase):
     def check(self, name: str) -> dict:
         observed = compute([name])[name]
         expected = self.golden[name]
-        if name in {"validator_contracts", "generation11_runner_source", "historical_records"}:
+        if name == "validator_contracts":
             expected = {key: value for key, value in expected.items() if key != "validator_source_sha256"}
-        if name == "historical_records":
-            # The archived record witness still checks these runner-only verdicts
-            # against the complete golden record in its matching checkout.
-            retired = {"runner-entry-authorization-v4-read", "runner-entry-authorization-v4-operative"}
-            expected = {**expected, "verdicts": {
-                key: value for key, value in expected["verdicts"].items() if key not in retired
-            }}
+        if name == "identities":
+            identities = dict(expected["model_identities"])
+            del identities["CONTRACTS.EXACT_OPERATIVE_MODEL"]
+            expected = {**expected, "model_identities": identities}
         self.assertEqual(observed, expected)
         return observed
 
@@ -1058,25 +915,6 @@ class GoldenVerdictTests(unittest.TestCase):
             self.assertIn(RUNNER_PATH, paths)
             self.assertFalse(moved & paths, name)
 
-    def test_generation11_runner_source_binding_is_unchanged(self) -> None:
-        observed = self.check("generation11_runner_source")
-        self.assertEqual(observed["production_source_sha256"], contract_evidence()["production_generation11_sources"])
-        self.assertEqual(observed["recorded_runner_source_sha256"], observed["history_runner_blob_sha256"])
-        self.assertEqual(observed["verdicts"]["historical-record-repo-bound"]["errors"], [])
-        for label in ("relabelled-to-baseline-commit", "unknown-commit",
-                      "baseline-runner-bytes-rebound", "tampered-runner-byte-rebound"):
-            self.assertTrue(observed["verdicts"][label]["errors"], label)
-
-    def test_template_records_are_recorded_as_observed(self) -> None:
-        # The two template fixtures fail their header check under the current read
-        # API. They are invalid inputs, recorded as observed; they are not
-        # historical-valid evidence.
-        observed = self.check("historical_records")
-        verdicts = observed["verdicts"]
-        self.assertEqual(verdicts["authorization-v4-historical-read"], ["authorization-header-invalid"])
-        self.assertEqual(verdicts["manifest-v1-historical-read"], ["campaign-manifest-header-invalid"])
-        self.assertEqual(verdicts["authorization-v4-operative"], ["authorization-version-historical-only"])
-
     def test_archived_launcher_refuses_historical_authorization_with_zero_effects(self) -> None:
         launcher_before_retirement()
         run_archived_cases(
@@ -1093,7 +931,16 @@ class GoldenVerdictTests(unittest.TestCase):
             suite + "test_moved_paths_are_in_no_frozen_contract_list",
             suite + "test_generation11_runner_source_binding_is_unchanged",
             suite + "test_template_records_are_recorded_as_observed",
+            suite + "test_f5_held_route_identities_keep_historical_lineage_with_explicit_gates",
         )
+
+    def test_neutral_generation11_git_sources_match_golden(self) -> None:
+        revision = FIXTURE.commits["generation11"]
+        self.assertEqual(FIXTURE.git("rev-parse", revision + "^{tree}"), FIXTURE.trees["generation11"])
+        expected = self.golden["generation11_runner_source"]
+        for name, path in (("runner", RUNNER_PATH), ("session_boundary", BOUNDARY_PATH)):
+            with self.subTest(path=path):
+                self.assertEqual(_sha256(_git_blob(revision, path)), expected[f"history_{name}_blob_sha256"])
 
     def test_public_generation11_git_sources_match_recorded_digests(self) -> None:
         revision = "e7f540654e0ed605e4720bd4d3b670a11cb8f701"

@@ -407,10 +407,6 @@ class ValidatorContractV6TreeTests(unittest.TestCase):
             with self.subTest(value=value):
                 self.assertEqual(self.errors(value), ["validator-contract-tree-invalid"])
 
-    def test_the_gate_stays_while_the_operative_tuple_selects_v6(self) -> None:
-        # Wiring V7 into a campaign version must revisit this gate.
-        self.assertEqual(CONTRACTS.OPERATIVE_VERSION_TUPLE[3], CONTRACTS.VALIDATOR_CONTRACT_VERSION_V6)
-
 
 class _EffectReached(Exception):
     """Raised by an effect spy; main() reports it as its failure."""
@@ -456,7 +452,7 @@ def drive_current_launcher(directory: Path, tree: str) -> dict:
     nonce = str(uuid.UUID(int=1))
     contents = {
         "authorization": {
-            "version": CONTRACTS.AUTHORIZATION_VERSION_V12,
+            "version": 12,
             "authorization_id": str(uuid.UUID(int=2)),
             "bindings": {"checkpoint_tree": tree, "campaign_nonce": nonce},
         },

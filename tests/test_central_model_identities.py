@@ -12,7 +12,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 SPARK = "gpt-5.3-codex-spark"
 FROZEN_VALIDATOR_CONTRACT_FILES = {
-    "scripts/cwo_core/native_live_campaign_contracts.py",
     "scripts/run_native_pool_live_canaries.py",
 }
 

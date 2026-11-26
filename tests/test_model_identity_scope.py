@@ -321,14 +321,14 @@ class RepositoryValidatorCopyTests(unittest.TestCase):
     def test_rewriting_a_frozen_historical_literal_fails(self) -> None:
         def change(root: Path) -> None:
             self.edit(
-                root, "scripts/cwo_core/native_live_campaign_contracts.py",
-                f'EXACT_OPERATIVE_MODEL = "{SPARK}"', f'EXACT_OPERATIVE_MODEL = "{LUNA}"',
+                root, "scripts/cwo_core/supervision/transport/app_server.py",
+                f'EXACT_MODEL = "{SPARK}"', f'EXACT_MODEL = "{LUNA}"',
             )
 
         result = self.run_validator(change)
         self.assertEqual(result.returncode, 1, result.stdout[-2000:])
         self.assertIn(
-            f"scripts/cwo_core/native_live_campaign_contracts.py '{SPARK}': '{SPARK}' found 3 time(s), register pins 4",
+            f"scripts/cwo_core/supervision/transport/app_server.py '{SPARK}': '{SPARK}' found 0 time(s), register pins 1",
             result.stderr,
         )
 

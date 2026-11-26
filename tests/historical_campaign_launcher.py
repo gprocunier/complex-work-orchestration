@@ -68,6 +68,8 @@ def run_archived_cases(case: unittest.TestCase, revision: str, *tests: str) -> N
     with tempfile.TemporaryDirectory(prefix="cwo-historical-campaign-") as directory:
         with tarfile.open(fileobj=io.BytesIO(raw), mode="r:") as archive:
             archive.extractall(directory, filter="data")
+        # The archived generation suite imports some sibling fixtures by bare name.
+        environment["PYTHONPATH"] = str(Path(directory) / "tests")
         child = subprocess.run([sys.executable, "-B", "-m", "unittest", "-v", *tests],
                                cwd=directory, env=environment, capture_output=True, text=True, timeout=90)
     case.assertEqual(child.returncode, 0, child.stdout + child.stderr)
