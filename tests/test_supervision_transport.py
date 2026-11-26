@@ -37,6 +37,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_native_pool_live_canaries as runner  # noqa: E402
+from cwo_core import native_campaign_history as HISTORY  # noqa: E402
+from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
+from cwo_core.supervision import callback_timing as TIMING  # noqa: E402
+from cwo_core.supervision import live_thread as LIVE_THREAD  # noqa: E402
 from tests.real_beads_fixture import configure_git_fixture
 
 
@@ -116,6 +120,8 @@ class TransportImportPathTests(unittest.TestCase):
         for name in sorted(MOVED_NAMES):
             with self.subTest(name=name):
                 self.assertIs(getattr(copy, name), getattr(runner, name))
+        self.assertIs(runner.LiveThreadAdapter, LIVE_THREAD.LiveThreadAdapter)
+        self.assertIs(copy.LiveThreadAdapter, LIVE_THREAD.LiveThreadAdapter)
         self.assertTrue(issubclass(copy.LivePoolProtectedFault, transport("errors").AppServerError))
 
     def test_script_and_core_importers_bind_the_core_objects(self) -> None:
@@ -130,6 +136,10 @@ class TransportImportPathTests(unittest.TestCase):
                 self.assertIs(module.AppServer, app_server.AppServer)
                 self.assertIs(module.AppServerError, errors.AppServerError)
         self.assertIs(maintenance_native_runtime.THREAD_PHASE_PRECOMMIT_FIT, app_server.THREAD_PHASE_PRECOMMIT_FIT)
+        self.assertIs(run_native_pool_activation_preview.LiveThreadAdapter, LIVE_THREAD.LiveThreadAdapter)
+        self.assertIs(maintenance_native_runtime.LiveThreadAdapter, LIVE_THREAD.LiveThreadAdapter)
+        self.assertIs(transport("private_io").JsonArtifactSnapshot, CONTRACTS.JsonArtifactSnapshot)
+        self.assertEqual(CONTRACTS.JsonArtifactSnapshot.__module__, CONTRACTS.__name__)
 
     def test_codex_tool_surface_old_name_is_the_core_module(self) -> None:
         core = importlib.import_module("cwo_core.codex_tool_surface")
@@ -199,6 +209,7 @@ class TransportImportPathTests(unittest.TestCase):
         import validate_repository
 
         self.assertIn("scripts/cwo_core/supervision/transport/*.py", validate_repository._CAPACITY_SOURCE_GLOBS)
+        self.assertIn("scripts/cwo_core/supervision/*.py", validate_repository._CAPACITY_SOURCE_GLOBS)
 
 
 class AdapterImplementationDigestTests(unittest.TestCase):
@@ -211,6 +222,11 @@ class AdapterImplementationDigestTests(unittest.TestCase):
                 "scripts/cwo_core/supervision/transport/app_server.py",
                 "scripts/cwo_core/supervision/transport/errors.py",
                 "scripts/cwo_core/supervision/transport/private_io.py",
+                "scripts/cwo_core/supervision/calibration.py",
+                "scripts/cwo_core/supervision/callback_timing.py",
+                "scripts/cwo_core/supervision/containment.py",
+                "scripts/cwo_core/supervision/live_thread.py",
+                "scripts/cwo_core/supervision/session_evidence.py",
             ),
         )
         expected = runner.domain_sha256(
@@ -230,7 +246,7 @@ class AdapterImplementationDigestTests(unittest.TestCase):
                 target = copy_root / relative
                 target.parent.mkdir(parents=True, exist_ok=True)
                 shutil.copyfile(ROOT / relative, target)
-            with mock.patch.object(runner, "ROOT", copy_root):
+            with mock.patch.object(TIMING, "ROOT", copy_root):
                 baseline = runner.adapter_implementation_sha256()
                 self.assertEqual(baseline, runner.adapter_implementation_sha256())
                 for relative in runner.ADAPTER_IMPLEMENTATION_PATHS:
@@ -314,7 +330,7 @@ class ValidatorContractV7Tests(unittest.TestCase):
         """The digest and the canonical payload it was computed over."""
 
         with mock.patch.object(
-            self.contracts, "canonical_sha256", wraps=self.contracts.canonical_sha256
+            HISTORY, "canonical_sha256", wraps=HISTORY.canonical_sha256
         ) as spy:
             value = digest(root, tree)
         self.assertEqual(spy.call_count, 1)

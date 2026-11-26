@@ -26,6 +26,13 @@ from cwo_core import workspace_capture  # noqa: E402
 # AppServer and its helpers live here; patch module globals they read at their
 # defining module, not on the runner that re-exports them.
 from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
+from cwo_core.supervision import (
+    calibration as CALIBRATION,
+    callback_timing as TIMING,
+    containment as CONTAINMENT,
+    live_thread as LIVE_THREAD,
+    session_evidence as EVIDENCE,
+)  # noqa: E402
 from cwo_core.native_tool_isolation import (  # noqa: E402
     seal_tool_enforcement_override,
 )
@@ -3365,7 +3372,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
         # Calibration's injected clock must not replace stdlib time.sleep used
         # by real Git/subprocess waits in workspace snapshots.
         clock_time = SimpleNamespace(**vars(LIVE.time))
-        self.enterContext(mock.patch.object(LIVE, "time", clock_time))
+        for module in (LIVE, CALIBRATION, TIMING, CONTAINMENT, LIVE_THREAD, EVIDENCE):
+            self.enterContext(mock.patch.object(module, "time", clock_time))
 
         def measure(action, *, guard_seconds=0.0):
             result, elapsed_ms = deterministic_calibration_measurement(
@@ -3377,8 +3385,9 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                                ("monotonic_ns", clock.monotonic_ns),
                                ("sleep", clock.sleep)):
             self.enterContext(mock.patch.object(clock_time, name, side_effect=callback))
-        self.enterContext(mock.patch.object(LIVE, "utc_now", side_effect=clock.utc_now))
-        self.enterContext(mock.patch.object(LIVE, "_measure_action_ms", side_effect=measure))
+        for module in (CALIBRATION, TIMING):
+            self.enterContext(mock.patch.object(module, "utc_now", side_effect=clock.utc_now))
+            self.enterContext(mock.patch.object(module, "_measure_action_ms", side_effect=measure))
         return clock
 
     @staticmethod
@@ -3755,7 +3764,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     self._host_sleep(0.11)
 
             with mock.patch.object(
-                LIVE,
+                CALIBRATION,
                 "write_private_artifact",
                 side_effect=delayed_artifact_write,
             ):
@@ -3815,11 +3824,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=clock.sleep,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
             ):
                 receipt, _evidence = LIVE.calibration(
                     server,
@@ -3895,11 +3901,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=clock.sleep,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
                 mock.patch.object(
                     server,
                     "notification_events",
@@ -3956,11 +3959,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=clock.sleep,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
                 self.assertRaisesRegex(
                     LIVE.AppServerError,
                     "capability-materialization-deadline-exceeded",
@@ -4012,11 +4012,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=clock.sleep,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
                 self.assertRaisesRegex(
                     LIVE.AppServerError,
                     "capability-materialization-deadline-exceeded",
@@ -4494,11 +4491,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=clock.sleep,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
             ):
                 receipt, evidence = LIVE.calibration(
                     server,
@@ -4545,16 +4539,10 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=clock.sleep,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
-                mock.patch.object(
-                    LIVE,
-                    "_measure_action_ms",
-                    side_effect=self.measure_elapsed,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(CALIBRATION, "_measure_action_ms", side_effect=self.measure_elapsed),
+                mock.patch.object(TIMING, "_measure_action_ms", side_effect=self.measure_elapsed),
                 self.assertRaisesRegex(
                     LIVE.AppServerError,
                     (
@@ -4601,16 +4589,10 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=clock.sleep,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
-                mock.patch.object(
-                    LIVE,
-                    "_measure_action_ms",
-                    side_effect=self.measure_elapsed,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(CALIBRATION, "_measure_action_ms", side_effect=self.measure_elapsed),
+                mock.patch.object(TIMING, "_measure_action_ms", side_effect=self.measure_elapsed),
             ):
                 receipt, evidence = LIVE.calibration(
                     server,
@@ -4666,11 +4648,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                     "sleep",
                     side_effect=sleep_with_controller_stall,
                 ),
-                mock.patch.object(
-                    LIVE,
-                    "utc_now",
-                    side_effect=clock.utc_now,
-                ),
+                mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
                 self.assertRaisesRegex(
                     LIVE.AppServerError,
                     "capability-poll-interval-exceeded",
@@ -4889,7 +4868,7 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
             record_dir = root / "records"
             record_dir.mkdir()
             server = FakeCalibrationServer(root, early_status="interrupted")
-            with mock.patch.object(LIVE, "PROVISIONAL_TERMINAL_GRACE_SECONDS", 0.1):
+            with mock.patch.object(CALIBRATION, "PROVISIONAL_TERMINAL_GRACE_SECONDS", 0.1):
                 with self.assertRaisesRegex(
                     LIVE.AppServerError, "uncorroborated-terminal-projection"
                 ):
@@ -4957,11 +4936,8 @@ class LiveCanaryMaterializationTests(unittest.TestCase):
                         "sleep",
                         side_effect=clock.sleep,
                     ),
-                    mock.patch.object(
-                        LIVE,
-                        "utc_now",
-                        side_effect=clock.utc_now,
-                    ),
+                    mock.patch.object(CALIBRATION, "utc_now", side_effect=clock.utc_now),
+                    mock.patch.object(TIMING, "utc_now", side_effect=clock.utc_now),
                     self.assertRaisesRegex(LIVE.AppServerError, expected),
                 ):
                     LIVE.calibration(
@@ -6116,7 +6092,7 @@ class LiveThreadBoundaryPhaseTests(unittest.TestCase):
             self.controller_bind_and_arm(adapter)
             original = LIVE.capture_workspace_baseline
             capped = lambda *args, **kwargs: original(*args, **{**kwargs, "max_files": 0})
-            with mock.patch.object(LIVE, "capture_workspace_baseline", side_effect=capped):
+            with mock.patch.object(LIVE_THREAD, "capture_workspace_baseline", side_effect=capped):
                 with self.assertRaisesRegex(LIVE.AppServerError, "workspace-baseline-comparison-incomplete"):
                     adapter.evidence()
             subprocess.run(["git", "config", "core.sshCommand", "EXAMPLE-unapproved"], cwd=root, check=True)

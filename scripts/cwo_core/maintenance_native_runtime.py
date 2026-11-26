@@ -64,12 +64,13 @@ from cwo_core.workspace import capture_workspace_baseline, compare_workspace_bas
 from prepare_native_worker import (
     _render_prompt, validate_native_worker_packet, validate_native_worker_return,
 )
+from cwo_core.supervision.callback_timing import pool_sleep
+from cwo_core.supervision.containment import contain_started_threads
+from cwo_core.supervision.live_thread import LiveThreadAdapter
+from cwo_core.supervision.session_evidence import capture_server_tool_surface
 from cwo_core.supervision.transport.app_server import AppServer, THREAD_PHASE_PRECOMMIT_FIT
 from cwo_core.supervision.transport.errors import AppServerError as AppServerError
 from cwo_core.supervision.turn_observations import turn_items
-from run_native_pool_live_canaries import (
-    LiveThreadAdapter, capture_server_tool_surface, contain_started_threads, pool_sleep,
-)
 
 
 def _iso() -> str:

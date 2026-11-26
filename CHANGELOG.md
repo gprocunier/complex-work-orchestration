@@ -6,6 +6,7 @@
 - Retire the legacy CDP launcher and browser Send and share transport. `cwo browser-review --dry-run` retains its local audit, and `cwo ingest-share --private-artifact` accepts saved private captures. Positional share URLs and HTML files receive an early refusal.
 - Keep contained pool checks responsive while a registered writer is being released.
 - Retire the native campaign proof engine and `build_live_canary_pool_contract`. Use `v1.37.0` to verify historical campaign records or render older manifest-bound contracts. Current pool rendering applies the released capacity policy.
+- Split native session evidence, adapter, calibration, containment and timing code behind the existing imports. Give historical Git verification its own module and preserve the private snapshot type.
 
 ## 1.40.0 - 2026-11-25
 

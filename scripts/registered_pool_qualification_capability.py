@@ -31,8 +31,8 @@ from cwo_core.native_pool_contracts import (
 )
 from cwo_core.native_pool_leases import capture_owner_identity
 from cwo_core.native_pool_scheduler import select_earliest_deadline
+from cwo_core.supervision.callback_timing import _measure_action_ms, callback_certification_policy, stats
 from cwo_core.workspace_capture import _pin_directory, read_at
-from run_native_pool_live_canaries import _measure_action_ms, callback_certification_policy, stats
 
 _CALIBRATION_SCOPE = "contained-pool-callback-calibration-v1"
 _CALIBRATION_FIELDS = {"scope", "calibration_plan_sha256", "adapter_scope_sha256", "expires_at", "runtime_seconds"}
@@ -51,6 +51,11 @@ _SOURCE_PATHS = (
     "cwo_core/native_pool_qualification_stage.py",
     "cwo_core/supervision/transport/app_server.py",
     "run_native_pool_live_canaries.py",
+    "cwo_core/supervision/calibration.py",
+    "cwo_core/supervision/callback_timing.py",
+    "cwo_core/supervision/containment.py",
+    "cwo_core/supervision/live_thread.py",
+    "cwo_core/supervision/session_evidence.py",
 )
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _MAX_SAMPLES = 64

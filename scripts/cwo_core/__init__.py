@@ -88,6 +88,7 @@ __all__ = [
     "native_progress",
     "native_release",
     "native_disposition",
+    "native_campaign_history",
     "native_live_campaign_contracts",
     "native_live_allocation_ledger",
     "native_turn_dispatch",

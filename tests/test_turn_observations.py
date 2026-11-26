@@ -408,8 +408,11 @@ def action():
     runtime = importlib.import_module("cwo_core.maintenance_native_runtime")
     assert runtime.turn_items is owner.turn_items
     assert runtime.turn_items(thread, "EXAMPLE turn")[0] is item
-    for name in ("run_native_pool_live_canaries", "prepare_native_worker"):
-        assert Path(sys.modules[name].__file__).resolve() == root / "scripts" / (name + ".py")
+    assert "run_native_pool_live_canaries" not in sys.modules
+    adapter = sys.modules["cwo_core.supervision.live_thread"]
+    assert runtime.LiveThreadAdapter is adapter.LiveThreadAdapter
+    assert Path(adapter.__file__).resolve() == root / "scripts/cwo_core/supervision/live_thread.py"
+    assert Path(sys.modules["prepare_native_worker"].__file__).resolve() == root / "scripts/prepare_native_worker.py"
     for module in list(sys.modules.values()):
         filename = getattr(module, "__file__", None)
         if filename:

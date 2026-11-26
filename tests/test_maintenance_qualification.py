@@ -162,7 +162,7 @@ class QualificationTests(unittest.TestCase):
             self.server = server_type(**kwargs)
             return self.server
         with mock.patch("cwo_core.supervision.transport.app_server.AppServer", side_effect=create), \
-             mock.patch("run_native_pool_live_canaries.contain_started_threads", side_effect=lambda server, **kw: server.contain()), \
+             mock.patch("cwo_core.supervision.containment.contain_started_threads", side_effect=lambda server, **kw: server.contain()), \
              mock.patch("codex_tool_surface.require_surface_proof", side_effect=lambda value, **kw: deepcopy(value)):
             return q.observe_qualification(operation=self.cap, verifier=self.verifier, plan=self.plan,
                 workspace=self.fixture.workspace, output=self.output, session_ledger=self.ledger,

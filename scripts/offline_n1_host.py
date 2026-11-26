@@ -19,7 +19,7 @@ from cwo_core.native_control import (
     validate_control_turn_contract,
     validate_control_turn_receipt,
 )
-from run_native_pool_live_canaries import LiveThreadAdapter
+from cwo_core.supervision.live_thread import LiveThreadAdapter
 
 MAX_TASK_BYTES = 64 * 1024
 MAX_FILE_BYTES = 1024 * 1024
