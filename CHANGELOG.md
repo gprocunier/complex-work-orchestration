@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Apply peer-review and provider-conflict requirements from the recorded manual contractor dispatch at the first return evaluation.
+- Let embedding hosts record original Codex and Gemini critic completions for synthesis. Peer review and architect adjudication still apply.
+
 ### Tests
 
 - Pace the signed pool isolation fixture with a deterministic scheduler clock while its inert workers run on real pipes.

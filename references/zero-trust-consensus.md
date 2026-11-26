@@ -144,6 +144,15 @@ policy. Implementation or closure requires its own decision. The offline
 workflow test uses fake observed Codex and Claude returns for agreement and
 disagreement. Live route checks are separate.
 
+An embedding host can record an original Codex or Antigravity completion from a
+read-only process it launched. The capture checks the prepared request, observed
+model and session, completed turn and exact response before writing a dispatch
+observation and return receipt. A separate observed Codex turn can review the
+exact Gemini return and pending evaluation. The synthesis command consumes the
+resulting recorded evaluations through the same peer review and adjudication
+checks. A saved critique can still be included through the advisory capture
+described above.
+
 The Python helper `evaluate_synthesis_inputs` also accepts explicit input,
 dispatch and adjudication records using the contract below.
 

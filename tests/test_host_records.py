@@ -17,6 +17,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from cwo_core import audit, host_records as records, paths  # noqa: E402
+from cwo_core.host_return_intake import record_manual_return, record_received_return  # noqa: E402
 
 
 import shutil
@@ -645,6 +646,32 @@ class HostRecordTests(unittest.TestCase):
         events = audit.iter_audit_events(self.store.audit_file)
         anchored = [event['host_record_sha256'] for event in events if event['event_type'] == 'dispatch_prepared']
         self.assertEqual(anchored, [prepared, observed])
+
+    def test_observed_manual_dispatch_requires_original_capture(self):
+        prepared = self.dispatch(evaluation_metadata={'dispatch_mode': 'manual_ui'})
+        manual = record_manual_return(self.store, 'executor', b'return')
+        observed = self.observed()
+        self.assertEqual(self.store.get(manual)['dispatch_record_sha256'], prepared)
+        before = self.store.audit_events()
+        with self.assertRaisesRegex(records.CWOPolicyError, 'manual intake requires'):
+            record_manual_return(self.store, 'executor', b'return')
+        # A caller can reach the locked writer after observation wins the race.
+        with self.assertRaisesRegex(records.HostRecordError, 'capture provenance'):
+            self.store.write_return_received('executor', self.digest, capture_provenance='manual-intake-v1')
+        self.assertEqual(self.store.audit_events(), before)
+        receipt = record_received_return(self.store, 'executor', b'return')
+        self.assertEqual(self.store.require_return('executor', self.digest)['_record_sha256'], receipt)
+        self.assertEqual(self.store.get(receipt)['dispatch_record_sha256'], observed)
+
+    def test_observed_manual_dispatch_refuses_old_unverified_receipt_on_read(self):
+        self.dispatch(evaluation_metadata={'dispatch_mode': 'manual_ui'})
+        observed = self.observed()
+        raw = self.raw(dict(schema_version=1, record_type='return-received', dispatch_id='executor',
+                            dispatch_record_sha256=observed, return_sha256=self.digest,
+                            capture_provenance='manual-intake-v1'))
+        self.anchored_raw(self.store, raw, 'return-received')
+        with self.assertRaisesRegex(records.HostRecordError, 'capture provenance'):
+            self.store.require_return('executor', self.digest)
 
     def test_check_observation_preserves_every_known_core_and_typed_metadata_value(self):
         changes = [dict(prepared_record_sha256='0' * 64), dict(observation_sha256='bad'),
