@@ -7,6 +7,10 @@
 - Apply peer-review and provider-conflict requirements from the recorded manual contractor dispatch at the first return evaluation.
 - Let embedding hosts record original Codex and Gemini critic completions for synthesis. Peer review and architect adjudication still apply.
 
+### Tests
+
+- Pace the signed pool isolation fixture with a deterministic scheduler clock while its inert workers run on real pipes.
+
 ## 1.41.0 - 2026-11-26
 
 - Retire the legacy native campaign launcher’s execution, preparation and claim code. The command retains its early refusal. Use `v1.37.0` for historical verification.
