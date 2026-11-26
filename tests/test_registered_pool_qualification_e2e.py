@@ -8,7 +8,7 @@ import json
 from pathlib import Path
 import subprocess
 import sys
-from threading import Event
+from threading import Event, Lock
 from time import time
 import unittest
 from unittest.mock import patch
@@ -382,6 +382,112 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
         _, events, worker = self._assert_pre_writer_refusal("wrong-context")
         self.assertEqual(events.count("qualification-provisional-turn-proof"), 1)
         self.assertIsInstance(worker.wire.transport_failure, NativeSessionBoundaryError)
+
+    def test_retains_first_transport_refusal_after_original_close(self):
+        self._assert_stopped_transport_receipt()
+
+    def test_transport_receipt_write_failure_preserves_settlement(self):
+        self._assert_stopped_transport_receipt(fail_write=True)
+
+    def _assert_stopped_transport_receipt(self, *, fail_write=False):
+        original_record = host.PoolWorkerContainment.record
+        original_context = adapter.trusted_turn_context
+        original_cleanup = adapter._PoolParent.cleanup
+        original_join = adapter._WorkerWire._join_protocol_threads
+        primary = NativeSessionBoundaryError("EXAMPLE-private-primary")
+        secondary = adapter.AppServerError("EXAMPLE-private-secondary")
+        captures = []
+        attempted = []
+
+        def context(*args, **kwargs):
+            try:
+                return original_context(*args, **kwargs)
+            except NativeSessionBoundaryError:
+                raise primary from ValueError("EXAMPLE-private-cause")
+
+        def join(wire, cutoff):
+            self.assertTrue(wire._retiring.is_set())
+            wire._fail_transport(secondary)
+            return original_join(wire, cutoff)
+
+        def cleanup(parent, cutoff):
+            target = next(worker for worker in parent.workers.values() if worker.containment.behavior == "wrong-context")
+            if not captures:
+                self.assertIs(target.wire.transport_failure, primary)
+                parent.controls[target.child_id].close()
+                self.assertTrue(target.wire._retiring.is_set())
+                captures.append(target)
+            return original_cleanup(parent, cutoff)
+
+        def record(peer, stage_name, observation):
+            self.assertEqual(peer.process.poll(), 0)
+            attempted.append(peer.worker_id)
+            if fail_write:
+                raise OSError("fixture receipt unavailable")
+            original_record(peer, stage_name, observation)
+
+        with _pool_test_directory() as scratch, ExitStack() as stack:
+            preparation, (n2, n3), accounting, _ = self._approved_cohorts(Path(scratch), stack, behavior="wrong-context")
+            peer_type = host.PoolWorkerContainment
+            launch, close = peer_type.launch_appserver, peer_type.close
+
+            def launch_with_receipts(peer):
+                process = launch(peer)
+                peer._receipt_root = peer.home.parent / "containment-receipts"
+                peer._receipt_root.mkdir(mode=0o700)
+                peer._receipt_identity = host._directory_identity(peer._receipt_root)
+                peer._records, peer._record_lock = [], Lock()
+                peer._closed = False
+                return process
+
+            def close_with_receipts(peer):
+                peer._closed = True
+                return close(peer)
+
+            stack.enter_context(patch.object(peer_type, "launch_appserver", launch_with_receipts))
+            stack.enter_context(patch.object(peer_type, "close", close_with_receipts))
+            stack.enter_context(patch.object(peer_type, "record", record, create=True))
+            stack.enter_context(patch.object(adapter, "trusted_turn_context", context))
+            stack.enter_context(patch.object(adapter._PoolParent, "cleanup", cleanup))
+            stack.enter_context(patch.object(adapter._WorkerWire, "_join_protocol_threads", join))
+            observed = self._execute(preparation, (n2, n3), accounting)
+            original = deepcopy(observed)
+            unfinished = {**observed, "transactions": [{**observed["transactions"][0], "state": "VALIDATING"}]}
+            controller._retain_stopped_transport((n2, n3), unfinished)
+            controller._retain_stopped_transport((n3, n2), observed)
+            self.assertFalse(attempted)
+            controller._retain_stopped_transport((n2, n3), observed)
+            controller._retain_stopped_transport((n2, n3), observed)
+            self.assertEqual(observed, original)
+
+            result, = observed["transactions"]
+            self.assertEqual((result["state"], result["accepted"]), ("CONTAINED", False))
+            receipt = result["launch_result"]["pool_receipt"]
+            self.assertEqual(receipt["first_protected_fault"]["code"], "child-check-failed")
+            self.assertEqual([row["lifecycle_state"] for row in receipt["lease_evidence"]], ["release-pending"] * 2)
+            effects = {row["event_type"] for row in _qualification_effect_events(n2, accounting)}
+            self.assertTrue(effects.isdisjoint({"qualification-tool-debit", "qualification-writer-release"}))
+            self.assertTrue(result["validation"]["qualification_active_limits"]["cleanup_confirmed"])
+            self.assertFalse(n3.journal_path.exists())
+
+            target, = captures
+            self.assertIs(target.wire.transport_failure, primary)
+            self.assertEqual(attempted.count(target.child_id), 1)
+            if fail_write:
+                self.assertFalse(list(target.containment._receipt_root.iterdir()))
+                return
+            path, = target.containment._receipt_root.glob("*.json")
+            raw = path.read_bytes()
+            self.assertNotIn(b"EXAMPLE-private-", raw)
+            self.assertEqual(path.stat().st_mode & 0o777, 0o400)
+            row = json.loads(raw)
+            self.assertEqual(set(row), {"stage", "observation"})
+            self.assertEqual(row["stage"], "transport-failed")
+            observation = row["observation"]
+            self.assertEqual(set(observation), {"source", "error_type", "observed_at"})
+            self.assertEqual(observation["source"], "writer-callback")
+            self.assertEqual(observation["error_type"], "NativeSessionBoundaryError")
+            self.assertEqual(datetime.fromisoformat(observation["observed_at"]).utcoffset(), timedelta(0))
 
     def test_completed_turn_without_writer_preserves_refusal(self):
         receipt, _, worker = self._assert_pre_writer_refusal("no-writer")

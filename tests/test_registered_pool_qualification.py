@@ -650,6 +650,18 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "invalid-qualification-authority"):
             adapter.build_pool_qualification_runtime(raw_plan, authority_path=authority, admission=admission)
 
+    def test_transport_eof_after_retirement_has_no_observation(self):
+        parent = self._prepare_workers(2)
+        self.assertTrue(parent.cleanup(monotonic() + 2))
+        for worker in parent.workers.values():
+            wire = worker.wire
+            self.assertIsNone(wire.transport_failure)
+            self.assertTrue(wire._retiring.is_set())
+            failure = EOFError("fixture retired transport")
+            wire._fail_transport(failure, source="protocol-read")
+            self.assertIs(wire.transport_failure, failure)
+            self.assertIsNone(wire.take_transport_failure_observation())
+
 
 if __name__ == "__main__":
     unittest.main()

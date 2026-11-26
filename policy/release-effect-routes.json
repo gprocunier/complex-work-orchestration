@@ -2916,7 +2916,7 @@
 
 "xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",439,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
 
-"xk":[157,"build_pool_qualification_runtime",1374,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
+"xk":[157,"build_pool_qualification_runtime",1422,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
 
 "xl":[155,"PoolWorkerContainment.run_writer",593,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
 
@@ -3094,7 +3094,7 @@
 
 "zT":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"A8gKF8grrSFM3l4p_rgbzGXhHmcErV2qw7A7Cfxvj7o"],
 
-"zU":[157,638,"self.wire.request(\"turn/start\", self.turn_parameters())",20,638,75],
+"zU":[157,670,"self.wire.request(\"turn/start\", self.turn_parameters())",20,670,75],
 
 "zV":[146,301,{"$":366},21,301,40],
 
@@ -3136,7 +3136,7 @@
 
 "zo":[146,439,"socket.socket()",54,439,69],
 
-"zp":[157,220,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,220,94],
+"zp":[157,235,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,235,94],
 
 "zq":[159,"SignedCalibrationPipeTests._run_calibration",265,"XxEketqySof3vD5zir__iIs7RUIHy3e-lIzXRmC_W-g"],
 
@@ -3154,9 +3154,9 @@
 
 "zx":[127,"FactoryTests.assert_terminal_worker_failure",1829,"osH5ulByQ7HU651Sb7wBNY402iq8B6v1Tq1oNutli60"],
 
-"zy":[157,577,"self.wire.request(\"thread/start\", selectors)",22,577,66],
+"zy":[157,609,"self.wire.request(\"thread/start\", selectors)",22,609,66],
 
-"zz":[157,228,"super().notify(method, params)",15,228,45]
+"zz":[157,243,"super().notify(method, params)",15,243,45]
 },
 
 "primitive_coverage":{
@@ -5141,21 +5141,21 @@
 
 [86,613,18,613,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
 
-[87,220,15,220,94,{"$":3},"k9v9TIBzAvfsm4g-p0xcA49hWoxqg8jO4SXZwJ4H1SU",["route","N4.3","zp"]],
+[87,235,15,235,94,{"$":3},"k9v9TIBzAvfsm4g-p0xcA49hWoxqg8jO4SXZwJ4H1SU",["route","N4.3","zp"]],
 
-[87,228,15,228,45,{"$":3},"zn2F8ic2CBXkGOU3-IAm68NPKRDdOD8VOJnhLuG1IWI",["route","N4.3","zz"]],
+[87,243,15,243,45,{"$":3},"zn2F8ic2CBXkGOU3-IAm68NPKRDdOD8VOJnhLuG1IWI",["route","N4.3","zz"]],
 
-[87,440,23,440,60,"dynamic",{"$":193},[{"$":9},"al"]],
+[87,455,23,455,60,"dynamic",{"$":193},[{"$":9},"al"]],
 
-[87,577,22,577,66,{"$":3},"ASrHBvTxXjo6EcL91WNjSV7qP4Up9zNEQrOXC0jRWNU",["route","N4.3","zy"]],
+[87,609,22,609,66,{"$":3},"ASrHBvTxXjo6EcL91WNjSV7qP4Up9zNEQrOXC0jRWNU",["route","N4.3","zy"]],
 
-[87,638,20,638,75,{"$":3},"oetzLYzEwzVftN11UnRUwmTpaRYOodkzp6eSS6H-Pa4",["route","N4.3","zU"]],
+[87,670,20,670,75,{"$":3},"oetzLYzEwzVftN11UnRUwmTpaRYOodkzp6eSS6H-Pa4",["route","N4.3","zU"]],
 
-[87,900,21,900,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
+[87,932,21,932,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
 
-[87,1107,20,1107,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
+[87,1139,20,1139,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
 
-[87,1115,43,1115,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
+[87,1147,43,1147,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
 
 [84,193,19,193,60,"network",{"$":348},["route","N3.7","zn"]],
 
@@ -6630,9 +6630,9 @@
 
 "@156":["wZOxycaJWn5zjwlaJ7XOb_7X4hNwZWq2Awqh5-PXNxg",420,24887],
 
-"@157":["UUF1bF0L2kaSsXAv534XTgOpq1UdZPjEFqhj7M13mtg",420,72577],
+"@157":["VaBGJeGKw7gsGvLBcF0MTEtOe0tsQxVxGYvfsxohmIg",420,75183],
 
-"@158":["wQZ9jkea45kJi1uRJXan47piB64DY38wW5HfuOkNn2c",420,35900],
+"@158":["3zTD7mAAVMuy_2AIve4P8n19HWiOe2ECzGXSlytvxOk",420,36513],
 
 "@159":["BO2Ka53KeZdLTIMRm8E3zCAzWklqR21YuxMB8ofYK3g",420,20167],
 
@@ -6652,7 +6652,7 @@
 
 "@166":["sAZT9JkORrXLNCC2NtUYeUXTZp6ENRXscjxpvi7VDXg",420,28764],
 
-"@167":["TL32nvwlxgPQGV0iw8mnR9WsB4nZ4vAlnCtjA9ri_bE",493,37095],
+"@167":["BvYVNF4wuaXMnOCylwHFSLimAhjnTWBW2iufKJapYe4",493,37898],
 
 "@168":["UmDyHnQoxavkf8MrAIsmEyh5_xLV50tfdX_XHB9YjGY",420,92030],
 
