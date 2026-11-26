@@ -7056,7 +7056,7 @@
 
 "policy/model-roles.yaml":["gnnS0Pw2tLCzppZfzYr289jJhAIF2U9-RD5ii4nrTg8",420,765],
 
-"references/claims-register.md":["E8C8E1s1oYyywn86n2Ft_R1mdkYoAZK4r9R8xdA3-l4",420,16889],
+"references/claims-register.md":["DPfgKj2vXNiEtJTn6A7oWSDXQ296jD-5zbEwsSoK-qg",420,17001],
 
 "references/cwo-system-prompt.md":["NaUTR-c8I0JleXR4pZHdEBuAPkuhI9NrDO6qVWw7kr8",420,2833],
 
@@ -7238,7 +7238,7 @@
 
 "scripts/cwo_core/peer_review_identity.py":["4wS2fC4Yboj4zUq1qCHO1EpL_V_Fj61ctGn0Z3H4j84",420,9231],
 
-"scripts/cwo_core/policy.py":["nP4pBir2VXMvKllnvLO4opcj0rpv9voWOGnhCgFNlWA",420,16495],
+"scripts/cwo_core/policy.py":["M6qNTmzPaILFnhZxOOplobBDdfzB3Zh4uq4Kd3rykFE",420,18692],
 
 "scripts/cwo_core/policy_schema.py":["ScOBA-pQoJPhb--cCj1v7tOm33dA9A_1oTtmnKcNtYE",420,26198],
 
@@ -7448,7 +7448,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["EOYO2Y8vpy75J2UiRhYv-H4HPQ4xWOcPa0KKJ2AO5MQ",420,142074],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["kECAWmjoFZtVAtflzl4Eh-ZTA_LrFQaooJt_Wr14cZU",420,142074],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
