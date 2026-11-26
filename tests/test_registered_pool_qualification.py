@@ -4,6 +4,7 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import subprocess
 import sys
@@ -461,10 +462,12 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         split, complete = parent.workers.values()
         capture = adapter.capture_boundary
         observed_partial = []
+        observed_complete = []
+        complete_prefix = []
 
         def finish_after_partial(path, thread_id, *, baseline=None):
             try:
-                return capture(path, thread_id, baseline=baseline)
+                boundary, records = capture(path, thread_id, baseline=baseline)
             except adapter.NativeSessionBoundaryError as failure:
                 self.assertEqual((path, thread_id), (split._rollout, split.thread_id))
                 self.assertEqual(str(failure), "session file has a trailing partial record")
@@ -475,6 +478,15 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
                 observed_partial.append(path)
                 self._finish_split_append(split)
                 raise
+            if path == complete._rollout:
+                observed_complete.append(baseline)
+                if len(observed_complete) == 1:
+                    self.assertNotIn(complete.child_id, parent.limits.proofs)
+                    self.assertNotIn(complete.child_id, parent.limits.debits)
+                    self.assertFalse((complete.worktree / complete.task["write_path"]).exists())
+                    complete_prefix.append({key: boundary[key] for key in ("byte_offset", "boundary_sha256")})
+                    self._append_complete_rollout_row(path)
+            return boundary, records
 
         with patch.object(adapter, "capture_boundary", finish_after_partial):
             split.start_turn()
@@ -484,6 +496,7 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         self.assertEqual(observed_partial, [split._rollout])
         self.assertIsNone(split.wire.transport_failure)
         self.assertIsNone(complete.wire.transport_failure)
+        self.assertEqual(observed_complete, [complete._startup_prefix, *complete_prefix])
         self.assertEqual(parent.limits.proofs.keys(), parent.workers.keys())
         self.assertEqual(parent.limits.debits, parent.workers.keys())
         for worker in (split, complete):
@@ -496,7 +509,13 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         (worker.spool / "finish-append").touch()
         self._wait(lambda: (worker.spool / "append-finished").exists())
 
-    def _assert_rollout_refusal(self, behavior, reason, captures, *, finish_split=False, edit=None, first_capture=None):
+    @staticmethod
+    def _append_complete_rollout_row(path):
+        with path.open("ab") as stream:
+            stream.write(b'{"type":"event_msg","payload":{"type":"agent_reasoning"}}\n')
+
+    def _assert_rollout_refusal(self, behavior, reason, captures, *, finish_split=False, edit=None,
+                                first_capture=None, after_capture=None):
         parent = self._prepare_workers(2, (behavior,))
         worker = next(iter(parent.workers.values()))
         capture = adapter.capture_boundary
@@ -507,13 +526,16 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
                 first_capture(path)
             observed.append(path)
             try:
-                return capture(path, thread_id, baseline=baseline)
+                result = capture(path, thread_id, baseline=baseline)
             except adapter.NativeSessionBoundaryError:
                 if finish_split and len(observed) == 1:
                     self._finish_split_append(worker)
                     if edit is not None:
                         edit(path)
                 raise
+            if after_capture is not None:
+                after_capture(path, worker, len(observed))
+            return result
 
         with patch.object(adapter, "capture_boundary", observe):
             try:
@@ -526,6 +548,7 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         self.assertFalse(parent.limits.proofs)
         self.assertFalse(parent.limits.debits)
         self.assertFalse((worker.worktree / worker.task["write_path"]).exists())
+        self._cleanup_fixture(parent)
 
     def test_writer_refuses_a_persistent_rollout_tail_after_one_recheck(self):
         self._assert_rollout_refusal("persistent-rollout-tail", "trailing partial record$", 2)
@@ -533,16 +556,16 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
     def test_writer_refuses_a_malformed_complete_record_without_a_recheck(self):
         self._assert_rollout_refusal("malformed-rollout-row", r"session record [0-9]+ is invalid$", 1)
 
-    def test_writer_refuses_a_changed_prefix_during_a_split_append(self):
-        def rewrite_prefix(path):
-            with path.open("r+b") as stream:
-                data = stream.read()
-                self.assertIn(b"f" * 40, data)
-                stream.seek(data.index(b"f" * 40))
-                stream.write(b"e" * 40)
+    def _rewrite_rollout_prefix(self, path):
+        with path.open("r+b") as stream:
+            data = stream.read()
+            self.assertIn(b"f" * 40, data)
+            stream.seek(data.index(b"f" * 40))
+            stream.write(b"e" * 40)
 
+    def test_writer_refuses_a_changed_prefix_during_a_split_append(self):
         self._assert_rollout_refusal("split-rollout-append", "prefix was rewritten", 2,
-                                     finish_split=True, edit=rewrite_prefix)
+                                     finish_split=True, edit=self._rewrite_rollout_prefix)
 
     @staticmethod
     def _replace_rollout_source(path):
@@ -561,6 +584,48 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
     def test_writer_refuses_a_durable_terminal_completed_by_the_split_append(self):
         self._assert_rollout_refusal("split-rollout-terminal", "callback-after-durable-terminal$", 2,
                                      finish_split=True)
+
+    def test_writer_refuses_unstable_or_untrusted_complete_growth(self):
+        def append(path, _worker):
+            self._append_complete_rollout_row(path)
+
+        def rewrite(path, _worker):
+            stamp = path.stat()
+            self._rewrite_rollout_prefix(path)
+            os.utime(path, ns=(stamp.st_atime_ns, stamp.st_mtime_ns + 1_000_000_000))
+
+        def rewrite_and_grow(path, worker):
+            rewrite(path, worker)
+            append(path, worker)
+
+        def replace_and_grow(path, worker):
+            self._replace_rollout_source(path)
+            append(path, worker)
+
+        def malformed(path, _worker):
+            with path.open("ab") as stream:
+                stream.write(b'{invalid fixture record}\n')
+
+        def terminal(path, worker):
+            row = {"type": "event_msg", "payload": {"type": "task_complete", "turn_id": worker.turn_id}}
+            with path.open("ab") as stream:
+                stream.write((json.dumps(row) + "\n").encode())
+
+        cases = (
+            ("repeated growth", append, "rollout-drift$", 2),
+            ("equal-size rewrite", rewrite, "rollout-drift$", 1),
+            ("rewrite plus growth", rewrite_and_grow, "prefix was rewritten", 2),
+            ("replacement plus growth", replace_and_grow, "rollout-drift$", 1),
+            ("malformed suffix", malformed, r"session record [0-9]+ is invalid$", 2),
+            ("terminal suffix", terminal, "callback-after-durable-terminal$", 2),
+        )
+        for name, change, reason, captures in cases:
+            with self.subTest(name=name):
+                def mutate(path, worker, observation):
+                    if observation == 1 or change is append:
+                        change(path, worker)
+
+                self._assert_rollout_refusal("complete-rollout-append", reason, captures, after_capture=mutate)
 
     def test_bad_callback_never_reaches_the_barrier_or_writer(self):
         parent, worker = self._refused_writer("wrong-command")
