@@ -49,6 +49,7 @@ from cwo_core.native_pool_transaction import (
 from cwo_core.native_pool_workspace import PoolWorkspaceMonitor, capture_workspace_snapshot
 from cwo_core.native_session_boundary import (
     NativeSessionBoundaryError,
+    NativeSessionPartialRecordError,
     assert_prefix_intact,
     capture_boundary,
     locate_unique_session,
@@ -79,6 +80,7 @@ from registered_server_requests import RegisteredServerRequests
 _START_RPCS = frozenset({"thread/start", "turn/start"})
 _CONTROL_RPCS = frozenset({"turn/interrupt", "thread/archive"})
 _ROLLOUT_BYTES = 8_388_608
+_PARTIAL_ROLLOUT_RECHECK_SECONDS = .01
 _CALLBACK_REPLY_BYTES = 4096
 _AUTHORITY_SCOPE = "stock-codex-contained-pool"
 _QUALIFICATION_MODE = "qualification"
@@ -103,7 +105,7 @@ _TRANSPORT_FAILURE_TYPES = {kind: kind.__name__ for kind in (
     AppServerError, DeferredAttestationError, FiniteToolError, NativePoolTransactionError,
     NativeSessionBoundaryError, PoolContainmentError, PoolQualificationAdapterError,
     TimeoutError, protocol.PreparationError,
-)}
+)} | {NativeSessionPartialRecordError: NativeSessionBoundaryError.__name__}
 _TRANSPORT_FAILURE_SOURCES = frozenset({
     "effect-write", "protocol-read", "registered-reply", "request-ingress", "writer-callback",
 })
@@ -681,7 +683,11 @@ class _PoolWorker:
     def _capture_active_rollout(self, *, baseline=None, allow_empty=False):
         located = locate_unique_session(self.spool, self.thread_id, reported_path=self._rollout)
         _require(located.path == self._rollout and located.store == "sessions", "active-rollout-path-drift")
-        boundary, rows = _capture_rollout(located.path, self.thread_id, baseline=baseline, allow_empty=allow_empty)
+        try:
+            boundary, rows = _capture_rollout(located.path, self.thread_id, baseline=baseline, allow_empty=allow_empty)
+        except NativeSessionPartialRecordError as partial:
+            _require(located.source_identity_sha256 == partial.source_identity_sha256, "active-rollout-source-drift")
+            raise
         _require(located.source_identity_sha256 == boundary["source_identity_sha256"], "active-rollout-source-drift")
         return boundary, rows
 
@@ -716,10 +722,23 @@ class _PoolWorker:
         trusted_turn_context(rows, turn_id=self.turn_id, model=MODEL, effort=EFFORT)
         return True
 
+    def _capture_pending_rollout(self, pending):
+        try:
+            return self._capture_active_rollout(baseline=self._startup_prefix)
+        except NativeSessionPartialRecordError as partial:
+            # This callback may re-observe one append. The strict reader must verify all earlier bytes.
+            sleep(min(_PARTIAL_ROLLOUT_RECHECK_SECONDS, self.remaining()))
+            self._recheck_pending(pending)
+            boundary, records = self._capture_active_rollout(baseline=partial.prefix)
+            _require(boundary["source_identity_sha256"] == partial.source_identity_sha256,
+                     "callback-rollout-replaced")
+            self._recheck_pending(pending)
+            return boundary, records
+
     def _attest_turn(self, pending):
         from cwo_core.native_pool_deferred_attestation import attest_deferred_turn
 
-        boundary, records = self._capture_active_rollout(baseline=self._startup_prefix)
+        boundary, records = self._capture_pending_rollout(pending)
         self._verify_session_meta(records)
         index, _ = trusted_turn_context(records, turn_id=self.turn_id, model=MODEL, effort=EFFORT)
         _require(trusted_terminal_event(records, turn_id=self.turn_id) is None, "callback-after-durable-terminal")

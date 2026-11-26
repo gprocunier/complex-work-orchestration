@@ -33,6 +33,15 @@ class NativeSessionBoundaryError(ValueError):
     """Raised when trusted native telemetry cannot be bound unambiguously."""
 
 
+class NativeSessionPartialRecordError(NativeSessionBoundaryError):
+    """A strict capture ended inside a record, with only the observed prefix retained."""
+
+    def __init__(self, raw: bytes, source_identity_sha256: str) -> None:
+        super().__init__("session file has a trailing partial record")
+        self.prefix = {"byte_offset": len(raw), "boundary_sha256": hashlib.sha256(raw).hexdigest()}
+        self.source_identity_sha256 = source_identity_sha256
+
+
 @dataclass(frozen=True)
 class LocatedSession:
     """Internal location plus privacy-safe provenance for one logical session."""
@@ -100,7 +109,7 @@ def capture_boundary(
     if not raw:
         raise NativeSessionBoundaryError("session file has no complete records")
     if not raw.endswith(b"\n"):
-        raise NativeSessionBoundaryError("session file has a trailing partial record")
+        raise NativeSessionPartialRecordError(raw, source_before)
     records: list[dict[str, Any]] = []
     for number, line in enumerate(raw.splitlines(keepends=True), 1):
         if not line.strip():
