@@ -1053,7 +1053,7 @@ class SchemaAndContainmentTests(unittest.TestCase):
 
         self.assertIs(dispatch_work.QUALIFIED_REVIEW_INVOCATION_AVAILABLE, False)
         self.assertEqual(self.importers_of("invocation_ledger"), [
-            # The optional parent fallback records a same-budget child attempt.
+            # The parent refusal audit verifies the original attempt without reserving a child.
             "scripts/cwo_core/cyber_fallback.py",
             "scripts/cwo_core/local_invocation.py",
             "scripts/cwo_core/native_pool_qualification_budget.py",

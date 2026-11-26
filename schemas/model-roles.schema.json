@@ -67,6 +67,7 @@
           }
         },
         "cyber_fallback": {
+          "description": "Retired role retained for compatibility with installed version 1 policies.",
           "type": "object",
           "additionalProperties": false,
           "required": ["model", "required_access_program", "codex_config"],
