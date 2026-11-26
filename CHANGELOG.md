@@ -2,9 +2,11 @@
 
 ## Unreleased
 
+## 1.46.0 - 2026-11-26
+
 - Document the observed single-worker and contained-pool qualifications, the architect prompt check, and the architect real-use trial in [Evaluation evidence](references/evaluation-evidence.md).
 - Default Codex reasoning effort to `high` and record the reason when worker or reviewer routing selects `xhigh`.
-- Limit configured Sol routing effort to `xhigh` or lower.
+- Limit configured Sol routing effort to `xhigh` or lower. Policies that set Sol `reasoning_effort` to `max` now fail validation. Change that setting to `xhigh` or lower before upgrading.
 - Run two or three approved native workers through the registered contained pool, with separate logins, read-only app-server checkouts, provider-only access, and a registered writer for each approved output.
 - Support an optional host-local account and executable for the manual Claude critic invocation.
 
