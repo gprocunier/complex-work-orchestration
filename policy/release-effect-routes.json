@@ -1290,7 +1290,7 @@
 
 "fG":[59,"_ProductionBeadsBridge.__call__",133,"w2nQftmziTMiYUS_Anhjw-l0lWevljkWGubs1E7ditI"],
 
-"fH":[104,"InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments",166,"AtA4DY4ICh39GqpiBOBbIhHQlJ9o76bks0rErGCih0k"],
+"fH":[104,"InstructionProfileTests.test_launcher_selects_profile_and_forwards_arguments",165,"AtA4DY4ICh39GqpiBOBbIhHQlJ9o76bks0rErGCih0k"],
 
 "fI":[116,"OwnershipProducerTests.test_cleanup_consumes_controller_owned_lifetime",271,"58IxzCluVIbqb6QCciS1Qz49bwVCGYJYADiXPIwPs4w"],
 
@@ -6676,7 +6676,7 @@
 
 "@103":["djXTMMXIOvHJmEVruh-6yCkyczebcRQhX5TO4iGtr_A",420,44030],
 
-"@104":["XuZz79hXd0CVgfE0OAj7kfl3-62JCtSrbicLTJ16E18",420,9428],
+"@104":["xWGUXuxSWkbO9aivPDPP86h8tBoDzd83M0ioV3TYvx0",420,9374],
 
 "@105":["j__iCUlZXjTQuMSoPKidwwLUNOiq4szXP0RExYRqaAc",420,8487],
 
@@ -7114,7 +7114,7 @@
 
 "scripts/cwo_core/codex_protocol_pin.py":["X2Xiv-3DzLsfUkjGP6F8TXtgplhr-TBEdB4VejXJS70",420,29437],
 
-"scripts/cwo_core/cyber_fallback.py":["1IUEL4nKYBcg6n6hfShuKSzAky9v4SAKzpZN9HaT968",420,20119],
+"scripts/cwo_core/cyber_fallback.py":["YfUIJ2BfOxpH8MSkYacJOHSnA-cQfLBxh24DXPWQEC0",420,20431],
 
 "scripts/cwo_core/epic_convergence.py":["Vkapb1o5JC4mXpy_Hf3CnE1ns4VOuUqg0jcBkcVhk-U",420,11536],
 
@@ -7148,7 +7148,7 @@
 
 "scripts/cwo_core/model_catalog_startup.py":["DqsueOZw1HBhnEcJ0Y_BTMVIoNntliM7kjIpSE4wxvI",420,2045],
 
-"scripts/cwo_core/model_identities.py":["5_JAv7G2gMM2m8MFixMrysNgM6pCYh94qVwCulLIdsc",420,10393],
+"scripts/cwo_core/model_identities.py":["HaucEcjvKsJ-lG3cKtuNHTaFIswhz1U3TBfS1B63zjY",420,11439],
 
 "scripts/cwo_core/model_identity_scope.py":["6EGFmDTCeucxzeFK4EEdqGqQCbv7yd6pri67W0gqWeE",420,10784],
 
@@ -7460,7 +7460,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Ek4WDVSGzOJezShRlFB5P5PT9GL0tvgYeMYHPKt-AF8",420,142692],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["nsdAr-oKtP91YeOrZZE23ERhG4A-AhY_Uwz4OXE3pg8",420,142692],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 

@@ -20,7 +20,7 @@ from cwo_core.policy import load_policy
 
 
 PACKET = b'{"packet_id":"EXAMPLE-security-work","task":"EXAMPLE authorized review"}'
-CYBER_MODEL = "gpt-daybreak-blue-latest"
+CYBER_MODEL = "gpt-6-sol"
 AMOUNT = {"requests": 1, "tokens": 100, "seconds": 10}
 LIMITS = {key: value * 3 for key, value in AMOUNT.items()}
 ZERO_USAGE = dict.fromkeys(AMOUNT, 0)
@@ -193,6 +193,43 @@ class CyberFallbackTests(unittest.TestCase):
         self.assertEqual([row["event"] for row in self.records], ["invocation-intent", "terminal"])
         self.assertTrue(all(row["reason"] == "cyber_refusal" for row in self.records))
         self.assertTrue(all(row["mark"]["marked_by"] == "EXAMPLE operator" for row in self.records))
+
+    def test_configured_model_drives_the_fallback_request(self) -> None:
+        self.role_config["roles"]["cyber_fallback"]["model"] = "gpt-7-sol"
+        self.role_config["roles"]["cyber_fallback"]["previous"] = CYBER_MODEL
+        role = cyber_fallback_availability(
+            config=self.role_config,
+            catalog={
+                "data": [{
+                    "id": "gpt-7-sol",
+                    "model": "gpt-7-sol",
+                    "hidden": False,
+                    "availableAccessPrograms": {"cyber": ["daybreakBlue"]},
+                }],
+                "nextCursor": None,
+            },
+        )
+        dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
+
+        result = self.recover(self.controller(self.mark_store()), dispatch, role=role)
+
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(dispatch.calls[0]["model"], "gpt-7-sol")
+        self.assertEqual(dispatch.calls[0]["codex_config"], {"daybreak": True})
+
+    def test_only_a_cyber_policy_refusal_triggers_recovery(self) -> None:
+        dispatch = FakeDispatch()
+        controller = self.controller(self.mark_store())
+        for refusal in (
+            {"summary": {"terminal_blockers": {"provider-safety-policy-refusal": "misalignmentPolicyViolation"}}},
+            {"summary": {"terminal_blockers": {"provider-safety-policy-refusal": "otherPolicy"}}},
+            self.ordinary_failure,
+        ):
+            with self.subTest(refusal=refusal):
+                result = self.recover(controller, dispatch, refusal=refusal)
+                self.assertEqual(result["status"], "unchanged")
+        self.assertEqual(dispatch.calls, [])
+        self.assertEqual(self.records, [])
 
     def test_project_mark_covers_work_once_and_spent_handle_is_rejected(self) -> None:
         store = self.mark_store(scope="project", mark_id="EXAMPLE-project")

@@ -139,8 +139,7 @@ class InstructionProfileTests(unittest.TestCase):
 
     def test_architect_prompt_contains_no_model_ids(self) -> None:
         model_id = re.compile(
-            r"\b(?:gpt-\d+(?:\.\d+)*(?:-[a-z0-9]+)*|gpt-reserve|"
-            r"gpt-daybreak-blue-latest|codex-auto-review)\b",
+            r"\b(?:gpt-[a-z0-9]+(?:[.-][a-z0-9]+)*|codex-auto-review)\b",
             re.IGNORECASE,
         )
         self.assertNotRegex(PROMPT.read_text(encoding="utf-8"), model_id)

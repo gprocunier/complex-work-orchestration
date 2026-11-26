@@ -23,13 +23,14 @@ from .invocation_ledger import EffectResult, InvocationLedger
 from .model_identities import (
     CYBER_FALLBACK_ACCESS_PROGRAM,
     CYBER_FALLBACK_CODEX_CONFIG,
-    CYBER_FALLBACK_MODEL,
     CYBER_FALLBACK_ROLE,
+    is_cyber_fallback_model,
 )
 
 
 _BLOCKER_KEY = "provider-safety-policy-refusal"
-_REFUSAL_CATEGORIES = {"cyberPolicy", "misalignmentPolicyViolation"}
+# Only a cyber-policy refusal triggers recovery; other refusals and errors stop.
+_REFUSAL_CATEGORIES = {"cyberPolicy"}
 _MARK_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:/-]{0,255}")
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 
@@ -305,7 +306,7 @@ class CyberFallbackController:
     @staticmethod
     def _available_role(value: Any) -> dict[str, Any] | None:
         required = {"role", "status", "reason", "model", "required_access_program", "codex_config"}
-        if not isinstance(value, Mapping) or set(value) != required:
+        if not isinstance(value, Mapping) or not required <= set(value) <= required | {"previous", "purpose"}:
             raise CyberFallbackError("fallback role projection is invalid")
         role = copy.deepcopy(dict(value))
         if role["role"] != CYBER_FALLBACK_ROLE:
@@ -313,7 +314,7 @@ class CyberFallbackController:
         if role["status"] != "available":
             return None
         if (
-            role["model"] != CYBER_FALLBACK_MODEL
+            not is_cyber_fallback_model(role["model"])
             or role["required_access_program"] != CYBER_FALLBACK_ACCESS_PROGRAM
             or role["codex_config"] != CYBER_FALLBACK_CODEX_CONFIG
             or role["reason"] != "required-access-program-advertised"
@@ -363,6 +364,10 @@ class CyberFallbackController:
                 mark=mark_record, role=role,
             )
         original_identity = self._dispatch_identity(original_dispatch)
+        if role["model"] == original_identity["model"]:
+            raise CyberFallbackError(
+                "available fallback must bind the configured Daybreak Blue role, not the refused model"
+            )
         self.mark_store.verify(
             mark, work_item_id=work_item_id, project_id=project_id, consume=True
         )

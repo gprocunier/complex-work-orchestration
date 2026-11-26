@@ -5,7 +5,7 @@ import unittest
 from cwo_core import model_identities as identities
 
 
-CYBER_MODEL = "gpt-daybreak-blue-latest"
+CYBER_MODEL = "gpt-6-sol"
 CYBER_ROLE = {
     "model": CYBER_MODEL,
     "required_access_program": "daybreakBlue",
@@ -151,11 +151,40 @@ class ModelRoleResolutionTests(unittest.TestCase):
             {**CYBER_ROLE, "codex_config": {"daybreak": False}},
             {**CYBER_ROLE, "codex_config": {"daybreak": True, "other": True}},
             {**CYBER_ROLE, "extra": True},
+            {**CYBER_ROLE, "model": "gpt-daybreak-blue-latest"},
+            {**CYBER_ROLE, "previous": "not-a-model"},
         )
         for entry in invalid:
             with self.subTest(entry=entry), self.assertRaisesRegex(ValueError, "cyber_fallback"):
                 config = {"version": base["version"], "roles": {**base["roles"], "cyber_fallback": entry}}
                 identities.validate_model_role_config(config)
+
+
+class CyberFallbackConfigurationTests(unittest.TestCase):
+    def test_configured_model_and_previous_are_accepted(self):
+        from cwo_core.policy import load_policy
+
+        base = load_policy("model-roles")
+        for entry in (
+            dict(CYBER_ROLE),
+            {**CYBER_ROLE, "model": "gpt-7-sol", "previous": CYBER_MODEL},
+            {**CYBER_ROLE, "previous": None, "purpose": "Daybreak Blue retry after a cyber-policy refusal"},
+        ):
+            with self.subTest(entry=entry):
+                identities.validate_model_role_config(
+                    {"version": base["version"], "roles": {**base["roles"], "cyber_fallback": entry}}
+                )
+
+    def test_no_daybreak_model_id_is_hard_coded_in_scripts(self):
+        from pathlib import Path
+
+        scripts = Path(__file__).resolve().parents[1] / "scripts"
+        offenders = [
+            str(path.relative_to(scripts))
+            for path in scripts.rglob("*.py")
+            if "gpt-daybreak-blue-latest" in path.read_text(encoding="utf-8")
+        ]
+        self.assertEqual(offenders, [])
 
 
 if __name__ == "__main__":
