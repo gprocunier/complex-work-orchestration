@@ -45,6 +45,7 @@ _PEER = r"""
 import json
 from pathlib import Path
 import sys
+import time
 from uuid import uuid4
 
 inputs = json.loads(sys.argv[1])
@@ -133,9 +134,28 @@ for line in sys.stdin:
         if behavior == 'no-writer':
             finish_answer(marker)
             continue
+        split_append = behavior in ('split-rollout-append', 'split-rollout-terminal', 'persistent-rollout-tail')
+        if split_append or behavior == 'complete-rollout-append':
+            row = (event('task_complete', last_agent_message=marker, error=None) if behavior == 'split-rollout-terminal'
+                   else event('agent_reasoning', text='inert rollout append'))
+            record = (json.dumps(row) + '\n').encode()
+            offset = len(record) // 2 if split_append else len(record)
+            with active.open('ab', buffering=0) as stream:
+                stream.write(record[:offset])
+        elif behavior == 'malformed-rollout-row':
+            with active.open('ab', buffering=0) as stream:
+                stream.write(b'{invalid fixture record}\n')
         notify('item/started', dict(thread_scope, item=tool))
         emit({'id': 71, 'method': 'item/tool/call', 'params': dict(thread_scope, callId=call,
               namespace=tool['namespace'], tool=tool_name, arguments=arguments)})
+        if split_append and behavior != 'persistent-rollout-tail':
+            cutoff = time.monotonic() + 2
+            while not (home / 'finish-append').exists() and time.monotonic() < cutoff:
+                time.sleep(.005)
+            assert (home / 'finish-append').exists()
+            with active.open('ab', buffering=0) as stream:
+                stream.write(record[offset:])
+            (home / 'append-finished').touch()
     elif method is None and req == 71:
         result = frame['result']
         if behavior == 'calibration':
@@ -435,6 +455,112 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         self.assertEqual((usage["tool_calls"], usage["mutations"]), (2, 2))
         self.assertGreater(usage["runtime_seconds"], 0)
         self.assertEqual(usage["tokens"], zero_token_usage())
+
+    def test_original_writer_reobserves_a_split_rollout_append(self):
+        parent = self._prepare_workers(2, ("split-rollout-append", "complete-rollout-append"))
+        split, complete = parent.workers.values()
+        capture = adapter.capture_boundary
+        observed_partial = []
+
+        def finish_after_partial(path, thread_id, *, baseline=None):
+            try:
+                return capture(path, thread_id, baseline=baseline)
+            except adapter.NativeSessionBoundaryError as failure:
+                self.assertEqual((path, thread_id), (split._rollout, split.thread_id))
+                self.assertEqual(str(failure), "session file has a trailing partial record")
+                self.assertNotIn(split.child_id, parent.limits.proofs)
+                self.assertNotIn(split.child_id, parent.limits.debits)
+                self.assertFalse((split.worktree / split.task["write_path"]).exists())
+                self.assertEqual(adapter._WorkerControl(split, {}).check(), {"decision": "continue"})
+                observed_partial.append(path)
+                self._finish_split_append(split)
+                raise
+
+        with patch.object(adapter, "capture_boundary", finish_after_partial):
+            split.start_turn()
+            complete.start_turn()
+            self._wait(lambda: any(worker.wire.transport_failure is not None for worker in (split, complete))
+                       or all(worker.wire.terminal is not None for worker in (split, complete)))
+        self.assertEqual(observed_partial, [split._rollout])
+        self.assertIsNone(split.wire.transport_failure)
+        self.assertIsNone(complete.wire.transport_failure)
+        self.assertEqual(parent.limits.proofs.keys(), parent.workers.keys())
+        self.assertEqual(parent.limits.debits, parent.workers.keys())
+        for worker in (split, complete):
+            self.assertIsNotNone(worker.poll())
+            self.assertEqual((worker.worktree / worker.task["write_path"]).read_text(), worker.task["expected_utf8"])
+            worker.archive()
+        self.assertTrue(parent.cleanup(monotonic() + 2))
+
+    def _finish_split_append(self, worker):
+        (worker.spool / "finish-append").touch()
+        self._wait(lambda: (worker.spool / "append-finished").exists())
+
+    def _assert_rollout_refusal(self, behavior, reason, captures, *, finish_split=False, edit=None, first_capture=None):
+        parent = self._prepare_workers(2, (behavior,))
+        worker = next(iter(parent.workers.values()))
+        capture = adapter.capture_boundary
+        observed = []
+
+        def observe(path, thread_id, *, baseline=None):
+            if not observed and first_capture is not None:
+                first_capture(path)
+            observed.append(path)
+            try:
+                return capture(path, thread_id, baseline=baseline)
+            except adapter.NativeSessionBoundaryError:
+                if finish_split and len(observed) == 1:
+                    self._finish_split_append(worker)
+                    if edit is not None:
+                        edit(path)
+                raise
+
+        with patch.object(adapter, "capture_boundary", observe):
+            try:
+                worker.start_turn()
+            except adapter.AppServerError:
+                self.assertIsNotNone(worker.wire.transport_failure)
+            self._wait(lambda: worker.wire.transport_failure is not None)
+        self.assertRegex(str(worker.wire.transport_failure), reason)
+        self.assertEqual(observed, [worker._rollout] * captures)
+        self.assertFalse(parent.limits.proofs)
+        self.assertFalse(parent.limits.debits)
+        self.assertFalse((worker.worktree / worker.task["write_path"]).exists())
+
+    def test_writer_refuses_a_persistent_rollout_tail_after_one_recheck(self):
+        self._assert_rollout_refusal("persistent-rollout-tail", "trailing partial record$", 2)
+
+    def test_writer_refuses_a_malformed_complete_record_without_a_recheck(self):
+        self._assert_rollout_refusal("malformed-rollout-row", r"session record [0-9]+ is invalid$", 1)
+
+    def test_writer_refuses_a_changed_prefix_during_a_split_append(self):
+        def rewrite_prefix(path):
+            with path.open("r+b") as stream:
+                data = stream.read()
+                self.assertIn(b"f" * 40, data)
+                stream.seek(data.index(b"f" * 40))
+                stream.write(b"e" * 40)
+
+        self._assert_rollout_refusal("split-rollout-append", "prefix was rewritten", 2,
+                                     finish_split=True, edit=rewrite_prefix)
+
+    @staticmethod
+    def _replace_rollout_source(path):
+        previous = path.rename(path.with_suffix(".previous"))
+        path.touch(mode=0o600)
+        path.write_bytes(previous.read_bytes())
+
+    def test_writer_refuses_a_replaced_source_during_a_split_append(self):
+        self._assert_rollout_refusal("split-rollout-append", "callback-rollout-replaced$", 2,
+                                     finish_split=True, edit=self._replace_rollout_source)
+
+    def test_writer_refuses_source_drift_at_the_first_partial_capture(self):
+        self._assert_rollout_refusal("split-rollout-append", "active-rollout-source-drift$", 1,
+                                     finish_split=True, first_capture=self._replace_rollout_source)
+
+    def test_writer_refuses_a_durable_terminal_completed_by_the_split_append(self):
+        self._assert_rollout_refusal("split-rollout-terminal", "callback-after-durable-terminal$", 2,
+                                     finish_split=True)
 
     def test_bad_callback_never_reaches_the_barrier_or_writer(self):
         parent, worker = self._refused_writer("wrong-command")

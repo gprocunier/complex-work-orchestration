@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recheck a partial rollout append once before proving a pending contained-pool writer call.
+
 ## 1.43.0 - 2026-11-26
 
 - Wake blocked writer callbacks before validation joins the workers of a refused contained pool.
