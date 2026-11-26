@@ -10,7 +10,6 @@ from unittest import mock
 
 from cwo_core import beads, native_live_availability as availability
 from cwo_core import native_pool_qualification_stage as stage
-from cwo_core import native_pool_transaction as transaction
 from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.maintenance_authority import sign_controller_directive
 from cwo_core.native_pool_contracts import validate_capability_receipt
@@ -278,7 +277,7 @@ class SignedCalibrationPipeTests(unittest.TestCase):
 
         stack.enter_context(mock.patch.object(host, "PoolWorkerContainment", Peer))
         stack.enter_context(mock.patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", False))
-        for module in (availability, stage, transaction):
+        for module in (availability, stage):
             stack.enter_context(mock.patch.object(module, "require_pool_qualification", require_inert_scope))
         bd = _FixtureBeads()
         stack.enter_context(mock.patch.object(beads, "require_bd", lambda: None))

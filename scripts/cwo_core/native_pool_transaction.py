@@ -22,7 +22,6 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .native_pool_admitted import run_admitted_native_pool
 from .native_pool_contracts import canonical_sha256
-from .native_live_availability import require_pool_qualification, require_registered_n1_live
 from .native_pool_deferred_context import ProvisionalWorkerStartup, _ContainedPoolAdmission, _require
 from .policy_schema import json_equal
 from .util import atomic_write_text
@@ -1433,8 +1432,6 @@ def _checked_worker_allocation(raw, plan, allocation_class, child, allocation_id
 def _require_contained_context(contained, plan, journal_path, runtime, run_pool):
     if contained is None:
         return
-    require_pool_qualification()
-    require_registered_n1_live()
     if type(contained) is not _ContainedPoolAdmission or run_pool is not run_admitted_native_pool:
         raise NativePoolProtectedError("transaction-contained-admission-authority-missing")
     _require(plan["version"] == PLAN_VERSION and plan["prelude_session_count"] == 0,

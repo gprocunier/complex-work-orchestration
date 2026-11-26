@@ -47,6 +47,7 @@ class ContainedPoolSelection:
     bind_limits: Callable[..., None]
     cleanup: Callable[[float], bool]
     issuer: InitVar[object]
+    ordinary: object | None = None
 
     def __post_init__(self, issuer: object) -> None:
         _require(issuer is _RUNTIME_TOKEN, "contained-runtime-construction-refused")
@@ -180,6 +181,7 @@ class _ContainedPoolAdmission:
         self._runtime = runtime
 
     def require_transaction(self, plan: Mapping[str, Any], journal_path: str | Path, runtime: object) -> None:
+        self._check_availability()
         self._guard()
         _require(plan == self._plan and Path(journal_path) == self._journal_path and runtime is self._runtime,
                  "contained-transaction-binding-mismatch")

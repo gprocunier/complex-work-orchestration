@@ -336,11 +336,33 @@ def _fixture(root, size):
 
 
 class RegisteredPoolQualificationTests(unittest.TestCase):
+    def test_production_login_is_read_only_and_refuses_replaced_or_unselected_home(self):
+        with _pool_test_directory() as scratch:
+            home = Path(scratch) / "login"
+            home.mkdir(mode=0o700)
+            details = home.stat()
+            selected = SimpleNamespace(login_home=home, login_identity=(details.st_dev, details.st_ino))
+            parent = SimpleNamespace(_ordinary=None)
+            worker = adapter._PoolWorker(parent, {"child_id": "worker-1"}, {}, None, None, 1)
+            self.assertIsNone(worker.production_login_home)
+            parent._ordinary = SimpleNamespace(children={})
+            with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-production-login-required"):
+                _ = worker.production_login_home
+            parent._ordinary.children[worker.child_id] = selected
+            self.assertEqual(worker.production_login_home, home)
+            with self.assertRaises(AttributeError):
+                worker.production_login_home = home
+            home.rename(home.with_name("previous-login"))
+            home.mkdir(mode=0o700)
+            with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-production-login-custody-drift"):
+                _ = worker.production_login_home
+
     def _prepare_workers(self, size, behaviors=(), *, calibrating=False):
         root = Path(self.enterContext(_pool_test_directory()))
         plan, tasks, fixture = _fixture(root, size)
         parent = object.__new__(adapter._PoolParent)
         parent.plan, parent.limits, parent.workers, parent._started = plan, _Limits(size), {}, 0
+        parent.fixture_root = fixture
         parent.tasks = {child["child_id"]: task for child, task in zip(plan["children"], tasks)}
         parent.authority = {"mode": "callback-calibration" if calibrating else "qualification"}
         parent.protected_roots, parent.host_inputs = (), {}

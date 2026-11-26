@@ -64,10 +64,10 @@ class ValidateRepositoryTests(unittest.TestCase):
 <p>finite time/usage allowance</p>
 <p>which files actually changed</p>
 <p>Confirm owned processes and resources are closed</p>
-<p>N=1..3</p>
-<p>host that has proved the required capabilities</p>
-<p>Concurrent native work is held</p>
-<p>model dispatch serial</p>
+<p>two or three independent approved assignments</p>
+<p>measures its callbacks on the same host</p>
+<p>Registered contained pools</p>
+<p>Beads updates, integration and publication in their normal order</p>
 <p>A stopped attempt cannot be resumed; another attempt needs its own fresh allowance</p>
 <p>https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md</p>
 <p>https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md</p>
@@ -285,10 +285,10 @@ class ValidateRepositoryTests(unittest.TestCase):
             'finite operation reservation': ('finite time/usage allowance', 'REMOVED_CONTRACT'),
             'final attribution': ('which files actually changed', 'REMOVED_CONTRACT'),
             'owned cleanup': ('Confirm owned processes and resources are closed', 'REMOVED_CONTRACT'),
-            'fixed cohort ceiling': ('N=1..3', 'REMOVED_CONTRACT'),
-            'actual host capability': ('host that has proved the required capabilities', 'REMOVED_CONTRACT'),
-            'preview boundary': ('Concurrent native work is held', 'REMOVED_CONTRACT'),
-            'stateful operations serial': ('model dispatch serial', 'REMOVED_CONTRACT'),
+            'fixed cohort ceiling': ('two or three independent approved assignments', 'four independent approved assignments'),
+            'same-host callback measurement': ('measures its callbacks on the same host', 'measures its callbacks on another host'),
+            'registered contained route': ('Registered contained pools', 'Unrestricted pools'),
+            'stateful operation ordering': ('Beads updates, integration and publication in their normal order', 'Concurrent Beads updates, integration and publication'),
             'terminal attempts': ('A stopped attempt cannot be resumed; another attempt needs its own fresh allowance', 'REMOVED_CONTRACT'),
             'single-worker operator link': ('https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision.md', 'REMOVED_CONTRACT'),
             'pool operator link': ('https://github.com/gprocunier/complex-work-orchestration/blob/main/references/native-supervision-pools.md', 'REMOVED_CONTRACT'),

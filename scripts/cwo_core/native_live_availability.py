@@ -53,8 +53,14 @@ def require_activation_live(profile: str | None = None) -> None:
 
 
 POOL_QUALIFICATION_AVAILABLE = True
+REGISTERED_CONTAINED_POOL_LIVE_AVAILABLE = True
 
 
 def require_pool_qualification() -> None:
     if POOL_QUALIFICATION_AVAILABLE is not True:
         raise NativeLiveUnavailable("native-pool-qualification-unavailable")
+
+
+def require_registered_contained_pool_live() -> None:
+    if REGISTERED_CONTAINED_POOL_LIVE_AVAILABLE is not True:
+        raise NativeLiveUnavailable("native-registered-contained-pool-unavailable")

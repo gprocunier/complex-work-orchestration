@@ -14,6 +14,7 @@ COMMANDS = {
     "beads-brief": "build_beads_brief.py",
     "build-packet": "build_contractor_packet.py",
     "delegate": "everyday_delegation.py",
+    "delegate-pool": "everyday_pool_delegation.py",
     "dispatch": "dispatch_work.py",
     "manual-prompt": "generate_manual_dispatch_prompt.py",
     "browser-review": "chatgpt_browser_review.py",

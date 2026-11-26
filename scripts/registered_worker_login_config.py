@@ -7,6 +7,7 @@ from pathlib import Path
 from cwo_core import host_records
 
 _FILE = "worker-login.json"
+_POOL_FILE = "pool-worker-logins.json"
 _MAX_BYTES = 4096
 
 
@@ -56,3 +57,37 @@ def write_worker_login_home(home: Path) -> None:
             host_records._write_at(directory, _FILE, raw, replace=True)
     except (OSError, host_records.HostRecordError) as exc:
         raise WorkerLoginConfigurationError("The installed worker login setting could not be saved.") from exc
+
+
+def _pool_homes(value) -> tuple[Path, ...]:
+    if (type(value) is not list or len(value) not in (2, 3)
+            or any(type(item) is not str or not Path(item).is_absolute()
+                   or ".." in Path(item).parts or str(Path(item)) != item for item in value)):
+        raise WorkerLoginConfigurationError("Configure two or three distinct, canonical pool worker login homes.")
+    homes = tuple(map(Path, value))
+    if len(set(homes)) != len(homes):
+        raise WorkerLoginConfigurationError("Pool worker login homes must be distinct.")
+    return homes
+
+
+def read_pool_worker_login_homes() -> tuple[Path, ...]:
+    """Read the protected pool roster separately from the existing single-worker setting."""
+    try:
+        with host_records.configured_store()._state() as directory:
+            value = host_records._parse(host_records._read_at(directory, _POOL_FILE, _MAX_BYTES))
+    except (OSError, host_records.HostRecordError) as exc:
+        raise WorkerLoginConfigurationError("Configure the installed pool worker login roster first.") from exc
+    if set(value) != {"version", "worker_login_homes"} or type(value["version"]) is not int or value["version"] != 1:
+        raise WorkerLoginConfigurationError("The installed pool worker login roster is invalid.")
+    return _pool_homes(value["worker_login_homes"])
+
+
+def write_pool_worker_login_homes(homes: tuple[Path, ...]) -> None:
+    selected = _pool_homes([str(home) for home in homes])
+    if any(home.resolve(strict=True) != home for home in selected):
+        raise WorkerLoginConfigurationError("Pool worker homes must exist without symlink components.")
+    raw = host_records._json({"version": 1, "worker_login_homes": list(map(str, selected))})
+    if len(raw) > _MAX_BYTES:
+        raise WorkerLoginConfigurationError("The pool worker login paths exceed the configuration bound.")
+    with host_records.configured_store()._state(create=True) as directory:
+        host_records._write_at(directory, _POOL_FILE, raw, replace=True)

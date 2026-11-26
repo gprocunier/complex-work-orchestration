@@ -33,14 +33,18 @@ MAX_TEXT_BYTES = 2048
 _DURATION_SECONDS = 600
 
 
-def _known_output(path, text):
+def _known_output_data(path, text):
     path = runtime.native._relative(path)
     _need(not (set(path.lower().split('/')) & BLOCKED_OUTPUT_PATH_PARTS), 'Protected project paths cannot be delegation outputs.')
     try:
         _reject_secret_like_path(Path(path))
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
-    data = _text(text)
+    return path, _text(text)
+
+
+def _known_output(path, text):
+    path, data = _known_output_data(path, text)
     command = f'/usr/bin/printf %s {shlex.quote(text)} > {shlex.quote(path)}'
     _need(len(command) <= 4096, 'The proposed output does not fit the finite command bound.')
     policy = {'version': 1, 'outputs': [{'path': path, 'validator': 'bytes', 'size': len(data),
@@ -118,8 +122,7 @@ def _custody(store, protected_login, project, stack):
     scripts = Path(runtime.__file__).resolve().parent
     runtime.require_private_roots((sibling, *protected_login), visible_paths=(scripts, scripts.parent / 'policy', scripts.parent / 'schemas'))
     os.close(host_records._directory(sibling, create=True, private=True))
-    ticket = '-'.join(f'{secrets.randbelow(10**12):012d}' for _ in range(2))
-    runtime_root = sibling / f'offer-{ticket}'
+    runtime_root = sibling / f'offer-{_custody_ticket()}'
     runtime_root.mkdir(mode=0o700)
     stack.callback(shutil.rmtree, runtime_root, ignore_errors=True)
     target, worker = runtime_root / 'target', runtime_root / 'worker'
@@ -130,6 +133,10 @@ def _custody(store, protected_login, project, stack):
                  control / 'controller', control / 'publication', control / 'authority'):
         path.mkdir(mode=0o700)
     return runtime.native.OfflineN1Host(host, target, worker), control
+
+
+def _custody_ticket():
+    return '-'.join(f'{secrets.randbelow(10**12):012d}' for _ in range(2))
 
 
 def _offer_parent(store):

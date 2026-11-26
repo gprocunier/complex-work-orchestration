@@ -162,18 +162,20 @@ the approval, run `cwo delegate` from the project checkout to send the exact
 eligible assignment and post a bound delivery for hand acceptance. See the
 [configured host and single-worker requirements](references/native-live-route-holds.md#standing-approved-delegation).
 
-Concurrent v2 pools and new worker-surface qualification remain held. Direct v1
-pool dispatch and the legacy campaign launcher are retired.
-The pool contract bounds groups to three and additionally requires a trusted
-controller, which is not shipped.
+The [registered contained pool](references/native-supervision-pools.md)
+runs two or three preapproved, independent assignments on one trusted host.
+Each app server sees a read-only checkout and reaches only the model provider.
+The registered writer can write the exact approved output in its own checkout.
+Each worker uses a separate configured login, and the host accounts for both
+calibration and execution against the approved allowance.
 
 The native app-server integration supports Codex CLI 0.163.0 and later releases
 that provide the required protocol capabilities. CWO checks the installed CLI's
 schema and names any required capability it cannot verify. See the
 [Codex protocol compatibility reference](references/codex-protocol-capability-matrix.md).
 
-The selected `constrained-integrity` profile and the native pool remain
-unqualified. Confidential operation remains unsupported.
+The selected general `constrained-integrity` profile remains unqualified.
+Confidential operation remains unsupported.
 
 ### Plan your task with Prompt Coach
 
@@ -255,11 +257,12 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   architect thread uses `@Chrome` in the paired profile with the operator
   present. [Desktop Chrome workflow](references/chatgpt-pro-browser.md)
 - **Disabled in this version:** local HTTP dispatch
-  (`dispatch_work.py --execute-local`), raw native launch, concurrent pools and
-  live campaigns; new worker-surface qualification; live native activation
+  (`dispatch_work.py --execute-local`), raw native launch,
+  ordinary productive pool plans passed to the standalone launcher, and live campaigns; new
+  worker-surface qualification; live native activation
   (`run_native_pool_activation_preview.py run --enable-tech-preview`);
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`
-  are refused); and ordinary productive pool plans.
+  are refused).
 - **Verified successful closure is a library route for embedding hosts.** It
   requires the original dispatch, exact baseline and candidate, current policy,
   setup database identity and single-use host acceptance from an adjudicator
@@ -346,10 +349,10 @@ its mechanism and limit. [Understand these limits](https://gprocunier.github.io/
 
 CWO is a development-stage public skill package. See [VERSION](VERSION) and
 [CHANGELOG](CHANGELOG.md); neither implies a Git tag or a deployed site version.
-Historical Spark records do not approve new dispatches. Concurrent native work
-is unavailable in this release; the capacity contract does not approve a launch. Outside review, local models and
-alternate agent tools are optional, and each needs its own access, permission
-and availability checks.
+Historical Spark records do not approve new dispatches. The registered
+contained pool requires original admission and fresh callback evidence on the
+same host. Outside review, local models and alternate agent tools are optional,
+and each needs its own access, permission and availability checks.
 
 Code is licensed under [GPL-3.0](LICENSE). Passing local checks does not authorize
 committing, pushing, deployment or changing a live skill installation.

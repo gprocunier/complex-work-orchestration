@@ -1,8 +1,8 @@
 # Native live route holds
 
 `scripts/cwo_core/native_live_availability.py` enables the registered
-single-worker production decision. `N1_LIVE_AVAILABLE`, `POOL_LIVE_AVAILABLE`
-and `CAMPAIGN_LIVE_AVAILABLE` remain `False`. These decisions come from installed
+single-worker and contained-pool production decisions. The generic N1, pool
+and campaign source decisions remain held. These decisions come from installed
 source. Activation preview retains its independent `LIVE_ACTIVATION_AVAILABLE`
 hold in `run_native_pool_activation_preview.py`. Its accepted-child close route
 uses pool receipts and would require a separate closure review before claiming
@@ -14,7 +14,8 @@ verified acceptance.
 | Raw native or generic maintenance launch | `N1_LIVE_AVAILABLE` | Raw `AppServer` construction and its adjacent `Popen`, unbound model RPCs, maintenance runtime `prepare` and the admitted v8 loader. |
 | N1 host qualification | Signed version 2 qualification permit | The protected controller binds one exact operation, its expiry and the fixed 20-start campaign limit. The factory charges the launch to a private campaign journal before releasing the app-server command. |
 | Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
-| Registered pool and retry | `N1_LIVE_AVAILABLE` and `POOL_LIVE_AVAILABLE` | Pool host execute entry and each member, plus approved retry entry and effect. `PoolConfiguration.enabled=True` cannot replace either source decision. |
+| Registered contained pool | `REGISTERED_CONTAINED_POOL_LIVE_AVAILABLE` and `REGISTERED_N1_LIVE_AVAILABLE` | The original host checks the approved cohort, exact model and limits, and distinct configured login custody before admission. Execution uses the same host's fresh callback capability and original registered writer. |
+| Legacy pool and retry | `N1_LIVE_AVAILABLE` and `POOL_LIVE_AVAILABLE` | Pool host execute entry and each member, plus approved retry entry and effect. `PoolConfiguration.enabled=True` cannot replace either source decision. |
 | Activation preview | Dedicated `LIVE_ACTIVATION_AVAILABLE` plus N1 for `n1-read-only` and `n1-mutable`; additionally pool for `n2-read-only` | Run entry checks the dedicated hold and N1 before loading inputs; the loaded profile is checked before claims, ledger creation, reservation or launch. Server creation, ledger transport RPC entry points, worker-contract allocation and accepted-child closure recheck the dedicated hold and selected profile. |
 | Retired campaign | Campaign, pool and N1, in that order | The CLI, pool canary, pool preparation, preclaim, global claim and server entry points check the three decisions and then refuse as retired. They refuse before input reads, claims, evidence writes or worker allocation. |
 | Admitted v8 multiworker plan | N1 and pool | The loader checks the actual child count before consuming the verified operation or importing its runtime adapter. The concrete installed maintenance runtime supports exactly one worker child and one precommit session; it does not implement a multiworker maintenance cohort. |
