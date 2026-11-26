@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.43.0 - 2026-11-26
+
 - Wake blocked writer callbacks before validation joins the workers of a refused contained pool.
 - Retain the first registered pool transport failure's category and time in the worker's private containment receipt.
 
