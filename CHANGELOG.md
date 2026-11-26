@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.45.0 - 2026-11-26
+
 - Recheck one verified rollout growth after a complete read before proving a pending contained-pool writer call.
 
 ## 1.44.0 - 2026-11-26
