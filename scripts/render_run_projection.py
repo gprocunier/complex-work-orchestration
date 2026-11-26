@@ -17,6 +17,12 @@ PROJECTION_ALIASES = {
     "wrap-up-status": "wrap-up-status",
     "next-version": "next-version",
 }
+CRITERION_COLUMNS = {
+    "Criterion": "criterion",
+    "Evidence type": "evidence_type",
+    "Evidence": "evidence",
+    "Owner": "owner",
+}
 
 
 def _items(value: Any) -> list[dict[str, Any]]:
@@ -126,6 +132,19 @@ def _render_table(headers: list[str], rows: list[list[str]]) -> list[str]:
     return rendered
 
 
+def _render_record_table(
+    items: list[dict[str, Any]], columns: dict[str, str], *, list_fields: tuple[str, ...] = (),
+) -> list[str]:
+    rows = [
+        [
+            ", ".join(_strings(item.get(key))) if key in list_fields else str(item.get(key, ""))
+            for key in columns.values()
+        ]
+        for item in items
+    ]
+    return _render_table(list(columns), rows)
+
+
 def render_markdown(projection: dict[str, Any]) -> str:
     lines = [
         f"# {projection['title']}",
@@ -142,17 +161,12 @@ def render_markdown(projection: dict[str, Any]) -> str:
     projection_type = projection["projection_type"]
     if projection_type == "run-sheet":
         lines.extend(["## Workstreams", ""])
-        rows = [
-            [
-                str(item.get("name", "")),
-                str(item.get("owner", "")),
-                str(item.get("exit_condition", "")),
-                ", ".join(_strings(item.get("validation_refs"))),
-                ", ".join(_strings(item.get("handoff_evidence"))),
-            ]
-            for item in _items(projection.get("workstreams"))
-        ]
-        lines.extend(_render_table(["Name", "Owner", "Exit", "Validation", "Handoff"], rows))
+        lines.extend(_render_record_table(
+            _items(projection.get("workstreams")),
+            {"Name": "name", "Owner": "owner", "Exit": "exit_condition",
+             "Validation": "validation_refs", "Handoff": "handoff_evidence"},
+            list_fields=("validation_refs", "handoff_evidence"),
+        ))
         rubric = projection.get("rubric") if isinstance(projection.get("rubric"), dict) else {}
         lines.extend(
             [
@@ -169,59 +183,25 @@ def render_markdown(projection: dict[str, Any]) -> str:
                 "",
             ]
         )
-        rows = [
-            [
-                str(item.get("criterion", "")),
-                str(item.get("evidence_type", "")),
-                str(item.get("evidence", "")),
-                str(item.get("owner", "")),
-            ]
-            for item in _items(projection.get("criterion_evidence_matrix"))
-        ]
-        lines.extend(_render_table(["Criterion", "Evidence type", "Evidence", "Owner"], rows))
+        lines.extend(_render_record_table(_items(projection.get("criterion_evidence_matrix")), CRITERION_COLUMNS))
         lines.extend(["", "## Handoff Evidence Requirements", ""])
         lines.extend(_bullet_lines(_strings(projection.get("handoff_evidence_requirements"))))
 
     elif projection_type == "wrap-up-status":
-        lines.extend(["## Architect Adjudication", "", "### Accepted", ""])
-        lines.extend(_bullet_lines(_strings(projection.get("accepted_findings"))))
-        lines.extend(["", "### Rejected", ""])
-        lines.extend(_bullet_lines(_strings(projection.get("rejected_findings"))))
-        lines.extend(["", "### Quarantined", ""])
-        lines.extend(_bullet_lines(_strings(projection.get("quarantined_findings"))))
-        lines.extend(["", "## Adjudication Evidence Refs", ""])
-        rows = [
-            [
-                str(item.get("artifact", "")),
-                str(item.get("artifact_type", "")),
-                str(item.get("sha256", "")),
-                str(item.get("description", "")),
-            ]
-            for item in _items(projection.get("adjudication_evidence_refs"))
-        ]
-        lines.extend(_render_table(["Artifact", "Type", "SHA-256", "Description"], rows))
-        lines.extend(["", "## Provider Provenance", ""])
-        rows = [
-            [
-                str(item.get("provider_key", "")),
-                str(item.get("provider_family", "")),
-                str(item.get("provenance_class", "")),
-                str(item.get("disposition", "")),
-            ]
-            for item in _items(projection.get("provider_provenance"))
-        ]
-        lines.extend(_render_table(["Provider", "Family", "Provenance", "Disposition"], rows))
-        lines.extend(["", "## Validation Evidence", ""])
-        rows = [
-            [
-                str(item.get("criterion", "")),
-                str(item.get("evidence_type", "")),
-                str(item.get("evidence", "")),
-                str(item.get("owner", "")),
-            ]
-            for item in _items(projection.get("validation_evidence"))
-        ]
-        lines.extend(_render_table(["Criterion", "Evidence type", "Evidence", "Owner"], rows))
+        lines.append("## Architect Adjudication")
+        for finding in ("accepted", "rejected", "quarantined"):
+            lines.extend(["", f"### {finding.capitalize()}", ""])
+            lines.extend(_bullet_lines(_strings(projection.get(f"{finding}_findings"))))
+        for title, field, columns in (
+            ("Adjudication Evidence Refs", "adjudication_evidence_refs",
+             {"Artifact": "artifact", "Type": "artifact_type", "SHA-256": "sha256", "Description": "description"}),
+            ("Provider Provenance", "provider_provenance",
+             {"Provider": "provider_key", "Family": "provider_family",
+              "Provenance": "provenance_class", "Disposition": "disposition"}),
+            ("Validation Evidence", "validation_evidence", CRITERION_COLUMNS),
+        ):
+            lines.extend(["", f"## {title}", ""])
+            lines.extend(_render_record_table(_items(projection.get(field)), columns))
         lines.extend(["", "## Next-Version Rail", ""])
         lines.extend(_render_next_version_items(_items(projection.get("next_version_rail"))))
 
@@ -245,15 +225,7 @@ def render_markdown(projection: dict[str, Any]) -> str:
 
 
 def _render_next_version_items(items: list[dict[str, Any]]) -> list[str]:
-    rows = [
-        [
-            str(item.get("item", "")),
-            str(item.get("reason_type", "")),
-            str(item.get("followup_bead", "")),
-        ]
-        for item in items
-    ]
-    return _render_table(["Item", "Reason", "Follow-up Bead"], rows)
+    return _render_record_table(items, {"Item": "item", "Reason": "reason_type", "Follow-up Bead": "followup_bead"})
 
 
 def main(argv: list[str] | None = None) -> int:

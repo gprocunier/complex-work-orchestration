@@ -3,7 +3,9 @@ from __future__ import annotations
 
 import ast
 import json
+import os
 import re
+import stat
 import sys
 from pathlib import Path
 from typing import Any
@@ -38,12 +40,15 @@ from cwo_core.harness import (
 from cwo_core.model_identity_scope import lint_model_identities
 from cwo_core.policy import load_json_compatible_yaml, load_policy
 from cwo_core.policy_schema import POLICY_SCHEMAS, POLICY_VALIDATION_BOUNDARIES, policy_document_errors
-from cwo_core.workspace_capture import WorkspaceDiscoveryError, trusted_git_ignored
+from cwo_core.workspace_capture import WorkspaceDiscoveryError, trusted_git_completed, trusted_git_ignored
 from cwo_core.public_copy import (
     validate_markdown_public_copy,
     validate_required_doc_terms,
 )
 from validate_run_readiness_plan import validate_plan as validate_run_readiness_plan
+
+# Keep the size of maintained Python under scripts/ bounded as features change.
+PYTHON_LINE_CEILING = 180_000
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
     "assignment_summary",
@@ -595,16 +600,9 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
             if not isinstance(metadata, dict):
                 _report_error("graph", f"graph item {idx} is missing metadata")
                 continue
-            if metadata.get("closure_pressure_active") is not True:
-                _report_error(
-                    "graph",
-                    f"graph item {idx} has closure_pressure_active={metadata.get('closure_pressure_active')!r} expected True",
-                )
-            if metadata.get("routine_repair_child_forbidden") is not True:
-                _report_error(
-                    "graph",
-                    f"graph item {idx} has routine_repair_child_forbidden={metadata.get('routine_repair_child_forbidden')!r} expected True",
-                )
+            for field in ("closure_pressure_active", "routine_repair_child_forbidden"):
+                if metadata.get(field) is not True:
+                    _report_error("graph", f"graph item {idx} has {field}={metadata.get(field)!r} expected True")
             closure_pressure = metadata.get("closure_pressure")
             if not isinstance(closure_pressure, dict):
                 _report_error(
@@ -631,36 +629,20 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
     current_action = "continue-current-work-unit"
     allowed_dispositions = list(epic_convergence.CLOSURE_DISPOSITIONS)
     baseline_cases = (
-        (
-            False,
-            current_action,
-            None,
-            {
-                "active": False,
-                "action": current_action,
-                "disposition": None,
-                "allowed": True,
-                "reason": "closure-pressure-inactive",
-                "allowed_dispositions": allowed_dispositions,
-            },
-        ),
-        (
-            True,
-            current_action,
-            None,
-            {
-                "active": True,
-                "action": current_action,
-                "disposition": None,
-                "allowed": False,
-                "reason": "explicit-closure-disposition-required",
-                "allowed_dispositions": allowed_dispositions,
-            },
-        ),
+        (False, True, "closure-pressure-inactive"),
+        (True, False, "explicit-closure-disposition-required"),
     )
-    for active, action, disposition, expected in baseline_cases:
+    for active, allowed, reason in baseline_cases:
+        expected = {
+            "active": active,
+            "action": current_action,
+            "disposition": None,
+            "allowed": allowed,
+            "reason": reason,
+            "allowed_dispositions": allowed_dispositions,
+        }
         try:
-            decision = epic_convergence.evaluate_closure_pressure(active, action, disposition)
+            decision = epic_convergence.evaluate_closure_pressure(active, current_action, None)
         except Exception as exc:
             _report_error("evaluator", f"decision failed for active={active}: {exc}")
             continue
@@ -927,8 +909,49 @@ def validate_release_version(errors: list[str], repo_root: Path) -> None:
             errors.append(f"CHANGELOG.md:{number} release heading {heading.strip()!r} must use major version 1")
 
 
+def _script_python_paths(repo_root: Path) -> list[Path]:
+    git_dir = repo_root / ".git"
+    if not (git_dir.exists() or git_dir.is_symlink()):
+        # A source archive has no index. Its exported files define the scope.
+        return sorted((repo_root / "scripts").rglob("*.py"))
+    result = trusted_git_completed(repo_root, ["ls-files", "-z", "--deduplicate", "--", "scripts/"], timeout=30)
+    if result.returncode:
+        raise WorkspaceDiscoveryError(f"git ls-files failed: {os.fsdecode(result.stderr).strip()}")
+    tracked = result.stdout
+    return [repo_root / os.fsdecode(path) for path in tracked.split(b"\0") if path.endswith(b".py")]
+
+
+def _script_python_lines(path: Path, repo_root: Path) -> int:
+    if not path.parent.resolve().is_relative_to(repo_root):
+        raise OSError(f"Python path has a parent outside the repository: {path}")
+    try:
+        mode = path.lstat().st_mode
+    except FileNotFoundError:
+        return 0  # The tracked path was removed from the working tree.
+    if stat.S_ISLNK(mode):
+        return len(os.readlink(os.fsencode(path)).splitlines())
+    if stat.S_ISREG(mode):
+        return len(path.read_bytes().splitlines())
+    return 0
+
+
+def validate_python_line_ceiling(errors: list[str], repo_root: Path) -> None:
+    repo_root = repo_root.resolve()
+    try:
+        total = sum(_script_python_lines(path, repo_root) for path in _script_python_paths(repo_root))
+    except (OSError, WorkspaceDiscoveryError) as exc:
+        errors.append(f"Could not count physical Python lines under scripts/: {exc}")
+        return
+    if total > PYTHON_LINE_CEILING:
+        errors.append(
+            f"Python line ceiling exceeded under scripts/: {total:,} physical lines "
+            f"(limit {PYTHON_LINE_CEILING:,})."
+        )
+
+
 def validate_repository() -> list[str]:
     errors: list[str] = []
+    validate_python_line_ceiling(errors, REPO_ROOT)
     validate_release_version(errors, REPO_ROOT)
     validate_qualification_target(errors)
     validate_release_effect_inventory(errors)
@@ -937,10 +960,8 @@ def validate_repository() -> list[str]:
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
     validate_native_supervision_tech_preview_copy(errors)
-    require_doc_terms(
-        errors,
-        "references/native-supervision-pools.md",
-        [
+    for relative_path, terms in (
+        ("references/native-supervision-pools.md", [
             "Temporary Audited Tool Boundary",
             "intent and audit evidence, never dispatch authority",
             "VerifiedToolEnforcementActivation",
@@ -968,12 +989,8 @@ def validate_repository() -> list[str]:
             "version-2 admitted contract passed directly",
             "admitted-pool-launcher-required",
             "capability_receipt=capability_receipt",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/execution-environments.md",
-        [
+        ]),
+        ("references/execution-environments.md", [
             "--tool-enforcement-override",
             "audit-only intent",
             "cannot start `supervise_native_worker.py`",
@@ -987,12 +1004,8 @@ def validate_repository() -> list[str]:
             "Capacity four and above is blocked",
             "Native Worker Supervision",
             "Native Supervision Pools",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/native-supervision.md",
-        [
+        ]),
+        ("references/native-supervision.md", [
             "Single-worker execution is the default",
             "fresh Spark session with trusted model attestation",
             "version-2 native worker packet",
@@ -1007,18 +1020,15 @@ def validate_repository() -> list[str]:
             "run_admitted_native_pool",
             "Exact server-side tool allowlisting",
             "--enable-tech-preview",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        'docs/reference.html',
-        [
+        ]),
+        ('docs/reference.html', [
             "id=\"activation-artifacts\"",
             "references/native-supervision-pools.md",
             "current",
             "historical",
-        ],
-    )
+        ]),
+    ):
+        require_doc_terms(errors, relative_path, terms)
     validate_closure_pressure_contract(errors)
 
     validate_policy_validation_boundaries(errors)
@@ -1103,12 +1113,9 @@ def validate_repository() -> list[str]:
             if executor.get("supports_web") or executor.get("supports_shell") or executor.get("supports_repo_write"):
                 errors.append(f"local executor {key!r} must not support web, shell, or repo write")
         if executor.get("dispatch_mode") == "local_secure_review":
-            if executor.get("supports_web"):
-                errors.append(f"local secure reviewer {key!r} must not support web")
-            if executor.get("supports_shell"):
-                errors.append(f"local secure reviewer {key!r} must not support shell")
-            if executor.get("supports_repo_write"):
-                errors.append(f"local secure reviewer {key!r} must not support repo write")
+            for permission in ("web", "shell", "repo_write"):
+                if executor.get(f"supports_{permission}"):
+                    errors.append(f"local secure reviewer {key!r} must not support {permission.replace('_', ' ')}")
             if not executor.get("supports_repo_read"):
                 errors.append(f"local secure reviewer {key!r} must support repo read")
 
@@ -1161,10 +1168,9 @@ def validate_repository() -> list[str]:
     for executor in control_peer_executors:
         if executor not in executors:
             errors.append(f"contracting controls peer review allows unknown executor {executor!r}")
-    if not controls.get("sabotage_policy", {}).get("signal_weights"):
-        errors.append("contracting controls must define sabotage_policy.signal_weights")
-    if not controls.get("malpractice_policy", {}).get("signal_weights"):
-        errors.append("contracting controls must define malpractice_policy.signal_weights")
+    for policy in ("sabotage_policy", "malpractice_policy"):
+        if not controls.get(policy, {}).get("signal_weights"):
+            errors.append(f"contracting controls must define {policy}.signal_weights")
     acceptance_sabotage_signals = load_policy("acceptance-policy").get("sabotage", {}).get("signals", [])
     for required_signal in [
         "provider_policy_opaque_intervention",
@@ -1224,37 +1230,36 @@ def validate_repository() -> list[str]:
     if not all(name in thresholds for name in ["review", "escalation", "quarantine"]):
         errors.append("zero-trust-consensus-policy thresholds must include review, escalation, and quarantine")
 
-    packet_schema = load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json")
-    packet_required = set(packet_schema.get("required", []))
-    missing_packet_required = sorted(set(CONTRACTOR_PACKET_REQUIRED_FIELDS) - packet_required)
-    if missing_packet_required:
-        errors.append(
-            "contractor packet schema is missing runtime required fields: " + ", ".join(missing_packet_required)
-        )
-    opt_in_schema = load_json(REPO_ROOT / "schemas" / "opt-in-record.schema.json")
-    require_schema_properties(
-        errors,
-        schema_name="opt-in-record.schema.json",
-        schema=opt_in_schema,
-        properties=["allowed_providers"],
+    _require_runtime_schema_fields(
+        errors, "contractor packet", load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json"),
+        CONTRACTOR_PACKET_REQUIRED_FIELDS,
     )
-    acceptance_schema = load_json(REPO_ROOT / "schemas" / "acceptance-decision.schema.json")
-    require_schema_properties(
-        errors,
-        schema_name="acceptance-decision.schema.json",
-        schema=acceptance_schema,
-        properties=[
+    evidence_properties = [
+        "evidence_quality_score",
+        "evidence_quality_signals",
+        "evidence_quality_signal_categories",
+        "research_evidence_score",
+        "research_evidence_signals",
+        "research_evidence_signal_categories",
+        "research_evidence_items",
+        "research_contradictions",
+        "research_reflection",
+    ]
+    language_properties = [
+        "expected_return_language",
+        "expected_return_language_source",
+        "return_language_status",
+        "return_language_findings",
+        "detected_letter_scripts",
+        "unexpected_script_ratio",
+        "unicode_normalization_changed",
+    ]
+    _require_schema_file_properties(errors, {
+        "opt-in-record.schema.json": ["allowed_providers"],
+        "acceptance-decision.schema.json": [
             "malpractice_score",
             "malpractice_signals",
-            "evidence_quality_score",
-            "evidence_quality_signals",
-            "evidence_quality_signal_categories",
-            "research_evidence_score",
-            "research_evidence_signals",
-            "research_evidence_signal_categories",
-            "research_evidence_items",
-            "research_contradictions",
-            "research_reflection",
+            *evidence_properties,
             "signal_categories",
             "peer_review_required",
             "peer_review_status",
@@ -1268,21 +1273,9 @@ def validate_repository() -> list[str]:
             "human_adjudication_required",
             "recommended_disposition",
             "recommended_synthesis_use",
-            "expected_return_language",
-            "expected_return_language_source",
-            "return_language_status",
-            "return_language_findings",
-            "detected_letter_scripts",
-            "unexpected_script_ratio",
-            "unicode_normalization_changed",
+            *language_properties,
         ],
-    )
-    contractor_return_bundle_schema = load_json(REPO_ROOT / "schemas" / "contractor-return-bundle.schema.json")
-    require_schema_properties(
-        errors,
-        schema_name="contractor-return-bundle.schema.json",
-        schema=contractor_return_bundle_schema,
-        properties=[
+        "contractor-return-bundle.schema.json": [
             "provider_key",
             "provider_trust_tier",
             "provider_external",
@@ -1290,35 +1283,14 @@ def validate_repository() -> list[str]:
             "local_profile",
             "model_profile",
             "provenance_class",
-            "evidence_quality_score",
-            "evidence_quality_signals",
-            "evidence_quality_signal_categories",
-            "research_evidence_score",
-            "research_evidence_signals",
-            "research_evidence_signal_categories",
-            "research_evidence_items",
-            "research_contradictions",
-            "research_reflection",
-            "expected_return_language",
-            "expected_return_language_source",
-            "return_language_status",
-            "return_language_findings",
-            "detected_letter_scripts",
-            "unexpected_script_ratio",
-            "unicode_normalization_changed",
+            *evidence_properties,
+            *language_properties,
         ],
-    )
+    })
     local_envelope_schema = load_json(REPO_ROOT / "schemas" / "local-dispatch-envelope.schema.json")
-    local_required = set(local_envelope_schema.get("required", []))
-    missing_local_required = sorted(set(LOCAL_DISPATCH_REQUIRED_FIELDS) - local_required)
-    if missing_local_required:
-        errors.append(
-            "local dispatch envelope schema is missing runtime required fields: " + ", ".join(missing_local_required)
-        )
+    _require_runtime_schema_fields(errors, "local dispatch envelope", local_envelope_schema, LOCAL_DISPATCH_REQUIRED_FIELDS)
     require_schema_properties(
-        errors,
-        schema_name="local-dispatch-envelope.schema.json",
-        schema=local_envelope_schema,
+        errors, schema_name="local-dispatch-envelope.schema.json", schema=local_envelope_schema,
         properties=[
             "access_profile",
             "access_profile_details",
@@ -1333,17 +1305,9 @@ def validate_repository() -> list[str]:
         ],
     )
     prompt_coach_schema = load_json(REPO_ROOT / "schemas" / "prompt-coach-result.schema.json")
-    prompt_coach_required = set(prompt_coach_schema.get("required", []))
-    missing_prompt_coach_required = sorted(set(PROMPT_COACH_RESULT_REQUIRED_FIELDS) - prompt_coach_required)
-    if missing_prompt_coach_required:
-        errors.append(
-            "prompt coach result schema is missing runtime required fields: "
-            + ", ".join(missing_prompt_coach_required)
-        )
+    _require_runtime_schema_fields(errors, "prompt coach result", prompt_coach_schema, PROMPT_COACH_RESULT_REQUIRED_FIELDS)
     require_schema_properties(
-        errors,
-        schema_name="prompt-coach-result.schema.json",
-        schema=prompt_coach_schema,
+        errors, schema_name="prompt-coach-result.schema.json", schema=prompt_coach_schema,
         properties=[
             "scaffold_sizing",
             "requires_user_selection_before_plan",
@@ -1351,11 +1315,8 @@ def validate_repository() -> list[str]:
             "selection_before_plan_question_ids",
         ],
     )
-    require_schema_properties(
-        errors,
-        schema_name="route-result.schema.json",
-        schema=load_json(REPO_ROOT / "schemas" / "route-result.schema.json"),
-        properties=[
+    _require_schema_file_properties(errors, {
+        "route-result.schema.json": [
             "access_profile",
             "model_synthesis",
             "data_sensitivity_source",
@@ -1368,19 +1329,11 @@ def validate_repository() -> list[str]:
             "zero_trust_minimum_independent_domains",
             "zero_trust_policy_version",
         ],
-    )
+    })
     harness_dispatch_schema = load_json(REPO_ROOT / "schemas" / "harness-dispatch-envelope.schema.json")
-    harness_dispatch_required = set(harness_dispatch_schema.get("required", []))
-    missing_harness_dispatch_required = sorted(set(HARNESS_DISPATCH_REQUIRED_FIELDS) - harness_dispatch_required)
-    if missing_harness_dispatch_required:
-        errors.append(
-            "harness dispatch envelope schema is missing runtime required fields: "
-            + ", ".join(missing_harness_dispatch_required)
-        )
+    _require_runtime_schema_fields(errors, "harness dispatch envelope", harness_dispatch_schema, HARNESS_DISPATCH_REQUIRED_FIELDS)
     require_schema_properties(
-        errors,
-        schema_name="harness-dispatch-envelope.schema.json",
-        schema=harness_dispatch_schema,
+        errors, schema_name="harness-dispatch-envelope.schema.json", schema=harness_dispatch_schema,
         properties=[
             "model_profile",
             "model_profile_details",
@@ -1389,12 +1342,7 @@ def validate_repository() -> list[str]:
             "access_profile_readiness",
         ],
     )
-    require_schema_properties(
-        errors,
-        schema_name="access-profile.schema.json",
-        schema=load_json(REPO_ROOT / "schemas" / "access-profile.schema.json"),
-        properties=["profiles"],
-    )
+    _require_schema_file_properties(errors, {"access-profile.schema.json": ["profiles"]})
     model_profile_schema = load_json(REPO_ROOT / "schemas" / "model-profile.schema.json")
     profile_properties = (
         model_profile_schema.get("properties", {})
@@ -1408,12 +1356,7 @@ def validate_repository() -> list[str]:
     for field in ["precision", "thinking_enabled", "reasoning_mode", "request_options", "required_vllm_flags"]:
         if field not in profile_properties:
             errors.append(f"model-profile.schema.json profile is missing property {field!r}")
-    require_schema_properties(
-        errors,
-        schema_name="execution-environment.schema.json",
-        schema=load_json(REPO_ROOT / "schemas" / "execution-environment.schema.json"),
-        properties=["profiles"],
-    )
+    _require_schema_file_properties(errors, {"execution-environment.schema.json": ["profiles"]})
     activation_schema_requirements = {
         "native-tool-activation-result-v2.schema.json": [
             "tool_trace_sha256",
@@ -1480,11 +1423,8 @@ def validate_repository() -> list[str]:
             "native tool activation result schemas must preserve "
             "historical v1 and current v2"
         )
-    require_schema_properties(
-        errors,
-        schema_name="run-readiness-plan.schema.json",
-        schema=load_json(REPO_ROOT / "schemas" / "run-readiness-plan.schema.json"),
-        properties=[
+    _require_schema_file_properties(errors, {
+        "run-readiness-plan.schema.json": [
             "workstreams",
             "rubric",
             "criterion_evidence_matrix",
@@ -1496,12 +1436,7 @@ def validate_repository() -> list[str]:
             "handoff_evidence_requirements",
             "adjudication_record",
         ],
-    )
-    require_schema_properties(
-        errors,
-        schema_name="sprint-continuation.schema.json",
-        schema=load_json(REPO_ROOT / "schemas" / "sprint-continuation.schema.json"),
-        properties=[
+        "sprint-continuation.schema.json": [
             "recommended_next_issue",
             "why_next",
             "ready_issues",
@@ -1522,7 +1457,7 @@ def validate_repository() -> list[str]:
             "ready_set_authority",
             "dispatch_authorized",
         ],
-    )
+    })
     sprint_continuation_schema = load_json(REPO_ROOT / "schemas" / "sprint-continuation.schema.json")
     operator_packet_schema = sprint_continuation_schema.get("properties", {}).get("operator_handoff_packet", {})
     for field in [
@@ -1542,10 +1477,8 @@ def validate_repository() -> list[str]:
     for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
         errors.append(f"sample-run-readiness-plan.json: {error}")
 
-    require_doc_terms(
-        errors,
-        'README.md',
-        [
+    for relative_path, terms in (
+        ('README.md', [
             "CWO is a Codex skill",
             "tasks and their dependencies",
             "first-project",
@@ -1557,13 +1490,16 @@ def validate_repository() -> list[str]:
             "Historical Spark records",
             "CONTRIBUTING.md",
             "SECURITY.md",
-        ],
-    )
-    require_doc_terms(errors, 'docs/index.html', ["A Codex skill", "./get-started.html", "./use-cases.html#cli-review", "./use-cases.html", "./explanation.html", "./reference.html"])
-    require_doc_terms(
-        errors,
-        'docs/explanation.html',
-        [
+        ]),
+        ('docs/index.html', [
+            "A Codex skill",
+            "./get-started.html",
+            "./use-cases.html#cli-review",
+            "./use-cases.html",
+            "./explanation.html",
+            "./reference.html",
+        ]),
+        ('docs/explanation.html', [
             "model",
             "agent client",
             "skill",
@@ -1575,17 +1511,30 @@ def validate_repository() -> list[str]:
             "Two models given different role prompts can still repeat the same unsupported claim",
             "provider",
             "./native-supervision.html",
-        ],
-    )
-    require_doc_terms(errors, 'docs/get-started.html', ["signed-in Codex command-line client", "github.com/gastownhall/beads", "./install.html", "./first-project.html", "./continue-project.html"])
-    require_doc_terms(errors, 'docs/install.html', ["CODEX_SKILLS_DIR", "manage_instruction_profile.py install --profile architect", "manage_instruction_profile.py verify --profile architect"])
-    require_doc_terms(errors, 'docs/first-project.html', ["scripts/create_first_project.py", "bd init", "a CLI task blocked by it", "HANDOFF.md", "cwo-tutorial-start", "provider"])
-    require_doc_terms(errors, 'docs/continue-project.html', ["fresh", "HANDOFF.md", "exit 0", "exit 1", "exit 2"])
-    require_doc_terms(errors, 'docs/tutorial-recovery.html', ["--uninstall", "git restore", "staged", "managed"])
-    require_doc_terms(
-        errors,
-        "docs/beads-memory.html",
-        [
+        ]),
+        ('docs/get-started.html', [
+            "signed-in Codex command-line client",
+            "github.com/gastownhall/beads",
+            "./install.html",
+            "./first-project.html",
+            "./continue-project.html",
+        ]),
+        ('docs/install.html', [
+            "CODEX_SKILLS_DIR",
+            "manage_instruction_profile.py install --profile architect",
+            "manage_instruction_profile.py verify --profile architect",
+        ]),
+        ('docs/first-project.html', [
+            "scripts/create_first_project.py",
+            "bd init",
+            "a CLI task blocked by it",
+            "HANDOFF.md",
+            "cwo-tutorial-start",
+            "provider",
+        ]),
+        ('docs/continue-project.html', ["fresh", "HANDOFF.md", "exit 0", "exit 1", "exit 2"]),
+        ('docs/tutorial-recovery.html', ["--uninstall", "git restore", "staged", "managed"]),
+        ("docs/beads-memory.html", [
             "Beads stores tasks and dependencies",
             "accepted decisions",
             "Before closing an important task",
@@ -1597,12 +1546,8 @@ def validate_repository() -> list[str]:
             "Outside reviewers receive only",
             "./workflows.html#beads-graph",
             "./reference.html#durable-memory",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/model-synthesis.html",
-        [
+        ]),
+        ("docs/model-synthesis.html", [
             "Compare model reviews and decide what to change",
             "The combined review summary reports findings; the lead makes the decision",
             "architect decides",
@@ -1618,12 +1563,8 @@ def validate_repository() -> list[str]:
             "./zero-trust-consensus.html",
             "./external-contracting.html#multi-expert-review",
             "./reference.html#experts",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/zero-trust-consensus.html",
-        [
+        ]),
+        ("docs/zero-trust-consensus.html", [
             "Zero-Trust Consensus",
             "Two models may repeat the same unsupported assumption",
             "independent trust domains",
@@ -1641,12 +1582,8 @@ def validate_repository() -> list[str]:
             "Agreement remains evidence",
             "./model-synthesis.html",
             "./malpractice-sabotage.html",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/malpractice-sabotage.html",
-        [
+        ]),
+        ("docs/malpractice-sabotage.html", [
             "Check model output before using it",
             "untrusted evidence",
             "malpractice",
@@ -1679,12 +1616,8 @@ def validate_repository() -> list[str]:
             "./zero-trust-consensus.html",
             "./workflows.html#validate-handoff",
             "./model-synthesis.html",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/prompt-coach.html",
-        [
+        ]),
+        ("docs/prompt-coach.html", [
             'Prompt Coach',
             '/plan Use $complex-work-orchestration prompt coach',
             'Codex may run this helper behind the scenes',
@@ -1722,12 +1655,8 @@ def validate_repository() -> list[str]:
             './model-synthesis.html#planning-example',
             'Planning only: do not modify files or deploy',
             'Do not implement, publish or make extra reviewer calls',
-        ],
-    )
-    require_doc_terms(
-        errors,
-        'docs/workflows.html',
-        [
+        ]),
+        ('docs/workflows.html', [
             "Codex supplies the agent tools",
             "Beads stores the task state",
             "CWO’s instructions and helpers",
@@ -1738,12 +1667,8 @@ def validate_repository() -> list[str]:
             "new allowance",
             "./use-cases.html#conflicting-review",
             "./get-started.html#recover",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        'docs/use-cases.html',
-        [
+        ]),
+        ('docs/use-cases.html', [
             "multi-session",
             "conflicting-review",
             "lab-operations",
@@ -1756,12 +1681,8 @@ def validate_repository() -> list[str]:
             "rollback_verified",
             "N3",
             "VALIDATION.md",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/external-contracting.html",
-        [
+        ]),
+        ("docs/external-contracting.html", [
             'Get a review from an outside model',
             'specialist guide',
             'Should this project use an outside model for this review?',
@@ -1803,12 +1724,8 @@ def validate_repository() -> list[str]:
             'model picker label confirmed by the sender',
             'ChatGPT desktop app',
             './model-synthesis.html#planning-example',
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/local-workers.html",
-        [
+        ]),
+        ("docs/local-workers.html", [
             "Local Models",
             "Guided Workflow",
             "Ask for a specific local review",
@@ -1834,12 +1751,8 @@ def validate_repository() -> list[str]:
             "codex_pickup=forbidden",
             "evaluate_return.py",
             "./workflows.html#optional-lanes",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        'docs/reference.html',
-        [
+        ]),
+        ('docs/reference.html', [
             "installation",
             "updates",
             "troubleshooting",
@@ -1852,12 +1765,8 @@ def validate_repository() -> list[str]:
             "controls",
             "preview_site.py",
             "CONTRIBUTING.md",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/codex-beads-hooks.html",
-        [
+        ]),
+        ("docs/codex-beads-hooks.html", [
             "Keep Beads context without noisy hook output",
             "SessionStart",
             "bd codex-hook SessionStart",
@@ -1869,12 +1778,8 @@ def validate_repository() -> list[str]:
             "compact-degraded",
             "SubagentStart",
             "Beads 1.0.5",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/contractor-demo.html",
-        [
+        ]),
+        ("docs/contractor-demo.html", [
             "Historical example: two outside contractors",
             "hello-world contractor demo",
             "gprocunier/hello-world-contractor-demo",
@@ -1904,12 +1809,8 @@ def validate_repository() -> list[str]:
             "file://",
             "Beads had no Dolt remote",
             "the coordinating agent’s and lead’s responsibilities",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "docs/styles.css",
-        [
+        ]),
+        ("docs/styles.css", [
             ":focus-visible",
             "@media",
             "--red",
@@ -1918,12 +1819,8 @@ def validate_repository() -> list[str]:
             "doc-layout",
             "page-nav",
             "callout",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "SKILL.md",
-        [
+        ]),
+        ("SKILL.md", [
             "When To Use",
             "Operating Defaults",
             "First Moves",
@@ -1952,8 +1849,9 @@ def validate_repository() -> list[str]:
             "references/redhat-expert-catalog.md",
             "policy/executor-registry.yaml",
             "scripts/close_bead_with_summary.py",
-        ],
-    )
+        ]),
+    ):
+        require_doc_terms(errors, relative_path, terms)
     skill_path = REPO_ROOT / "SKILL.md"
     if skill_path.is_file():
         skill_content = skill_path.read_text(encoding="utf-8")
@@ -1963,10 +1861,8 @@ def validate_repository() -> list[str]:
             errors.append(f"SKILL.md should stay router-sized: {len(skill_lines)} lines > 220")
         if len(skill_words) > 1600:
             errors.append(f"SKILL.md should stay router-sized: {len(skill_words)} words > 1600")
-    require_doc_terms(
-        errors,
-        "references/redhat-expert-catalog.md",
-        [
+    for relative_path, terms in (
+        ("references/redhat-expert-catalog.md", [
             "contract-jd-redhat-openshift-platform",
             "contract-jd-redhat-openshift-app-dev",
             "contract-jd-redhat-openshift-ai",
@@ -1976,12 +1872,8 @@ def validate_repository() -> list[str]:
             "contract-jd-redhat-rhel",
             "Identity Management",
             "Satellite",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/prompt-coach.md",
-        [
+        ]),
+        ("references/prompt-coach.md", [
             "interactive_questions",
             "requires_user_selection_before_plan",
             "selection_before_plan_reason",
@@ -2007,12 +1899,8 @@ def validate_repository() -> list[str]:
             "--data-sensitivity",
             "data_sensitivity_provenance",
             "Exact contract labels belong",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/run-readiness.md",
-        [
+        ]),
+        ("references/run-readiness.md", [
             "Run Readiness Gate",
             "summarizes saved Beads state",
             "criterion maps to an artifact, validator, or review gate",
@@ -2036,12 +1924,8 @@ def validate_repository() -> list[str]:
             "scripts/validate_run_readiness_plan.py",
             "templates/run-readiness-plan.md",
             "Architect adjudication is the handoff decision",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/codex-beads-hooks.md",
-        [
+        ]),
+        ("references/codex-beads-hooks.md", [
             "Codex Beads Hooks",
             "bd codex-hook SessionStart",
             "full-context",
@@ -2053,12 +1937,8 @@ def validate_repository() -> list[str]:
             "Beads 1.0.5",
             "scripts/build_beads_brief.py",
             "scripts/build_contractor_packet.py",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "examples/prompt-coach-examples.md",
-        [
+        ]),
+        ("examples/prompt-coach-examples.md", [
             "interactive_questions",
             "advanced helper equivalent",
             "beads_tracking_required",
@@ -2087,12 +1967,8 @@ def validate_repository() -> list[str]:
             "zero_trust_consensus_required",
             "Declared Data Sensitivity",
             "data_sensitivity_source=operator-declared",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/external-contracting.md",
-        [
+        ]),
+        ("references/external-contracting.md", [
             'Peer-review disposition',
             'malpractice_score',
             'contract-jd-sabotage-review',
@@ -2125,12 +2001,8 @@ def validate_repository() -> list[str]:
             'stop dependent implementation',
             'An explicit operator decision',
             'desktop workflow and availability',
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/chatgpt-pro-browser.md",
-        [
+        ]),
+        ("references/chatgpt-pro-browser.md", [
             'visible message text',
             'ChatGPT desktop app',
             '@Chrome',
@@ -2140,20 +2012,17 @@ def validate_repository() -> list[str]:
             '--model-label',
             'host audit',
             'before dependent implementation',
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/zero-trust-consensus.md",
-        [
+        ]),
+        ("references/zero-trust-consensus.md", [
             "Zero-Trust Consensus",
             "zero_trust_consensus_required",
             "zero_trust_claims",
             "independent trust domains",
             "Agreement is evidence, not validation",
             "policy/zero-trust-consensus-policy.yaml",
-        ],
-    )
+        ]),
+    ):
+        require_doc_terms(errors, relative_path, terms)
     for template_path in [
         "templates/work-task.md",
         "templates/review-task.md",
@@ -2179,11 +2048,9 @@ def validate_repository() -> list[str]:
                 "follow-up",
             ],
         )
-    require_doc_terms(errors, "templates/followup-task.md", ["closure summary"])
-    require_doc_terms(
-        errors,
-        "experts/editor.md",
-        [
+    for relative_path, terms in (
+        ("templates/followup-task.md", ["closure summary"]),
+        ("experts/editor.md", [
             "Editor Distinguished Engineer",
             "contract-jd-editorial-reasoning",
             "Diataxis",
@@ -2196,22 +2063,14 @@ def validate_repository() -> list[str]:
             "public-copy validator evidence",
             "Required prerequisites",
             "Acceptance criteria",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/incident-response-playbook.md",
-        [
+        ]),
+        ("references/incident-response-playbook.md", [
             "malpractice_score",
             "peer_review_status",
             "recommended_disposition",
             "zero-trust consensus status",
-        ],
-    )
-    require_doc_terms(
-        errors,
-        "references/local-inference.md",
-        [
+        ]),
+        ("references/local-inference.md", [
             "/plan Use $complex-work-orchestration prompt coach",
             "OpenShift AI vLLM",
             "CWO_OPENSHIFT_AI_VLLM_BASE_URL",
@@ -2222,8 +2081,9 @@ def validate_repository() -> list[str]:
             "scripts/dispatch_work.py",
             "architect adjudication",
             "expected_return_language: en",
-        ],
-    )
+        ]),
+    ):
+        require_doc_terms(errors, relative_path, terms)
     validate_local_inference_peer_review_guidance(errors)
     validate_public_docs_do_not_expose_hardware_categories(errors)
     validate_waiver_conventions(errors)
@@ -2506,6 +2366,24 @@ def require_schema_properties(
     missing = sorted(set(properties) - available)
     if missing:
         errors.append(f"schema {schema_name} is missing properties: {', '.join(missing)}")
+
+
+def _require_schema_file_properties(errors: list[str], requirements: dict[str, list[str]]) -> None:
+    for schema_name, properties in requirements.items():
+        require_schema_properties(
+            errors, schema_name=schema_name,
+            schema=load_json(REPO_ROOT / "schemas" / schema_name),
+            properties=properties,
+        )
+
+
+def _require_runtime_schema_fields(
+    errors: list[str], label: str, schema: dict[str, Any], fields: list[str],
+) -> None:
+    required = set(schema.get("required", []))
+    missing = sorted(set(fields) - required)
+    if missing:
+        errors.append(f"{label} schema is missing runtime required fields: {', '.join(missing)}")
 
 
 def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -> None:

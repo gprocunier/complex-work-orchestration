@@ -76,6 +76,47 @@ class ValidateRepositoryTests(unittest.TestCase):
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
 
+    def test_python_line_ceiling_counts_tracked_recursive_sources(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            subprocess.run(["git", "init", "-q", root], check=True, capture_output=True)
+            (root / "scripts/nested").mkdir(parents=True)
+            (root / "tests").mkdir()
+            (root / "scripts/first.py").write_bytes(b"# comment\r\n\r# vertical\vtab \xff")
+            (root / "scripts/empty.py").touch()
+            lines = root / "scripts/nested/more lines.py"
+            lines.write_bytes(b"\n" * 179_996)
+            (root / "scripts/link.py").symlink_to("../tests/outside.py")
+            (root / "scripts/not_python.txt").write_bytes(b"\n" * 180_001)
+            (root / "tests/outside.py").write_bytes(b"\n" * 180_001)
+            subprocess.run(["git", "add", "scripts", "tests"], cwd=root, check=True, capture_output=True)
+            (root / "scripts/untracked.py").write_bytes(b"\n" * 180_001)
+
+            errors: list[str] = []
+            validate_repository_module.validate_python_line_ceiling(errors, root)
+            self.assertEqual(errors, [])
+
+            with lines.open("ab") as stream:
+                stream.write(b"\n")
+            validate_repository_module.validate_python_line_ceiling(errors, root)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("180,001", errors[0])
+            self.assertIn("180,000", errors[0])
+
+    def test_python_line_ceiling_counts_gitless_source_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            parent = Path(temporary)
+            subprocess.run(["git", "init", "-q", parent], check=True, capture_output=True)
+            root = parent / "archive"
+            scripts = root / "scripts/nested"
+            scripts.mkdir(parents=True)
+            (scripts / "source.py").write_bytes(b"\n" * 180_001)
+
+            errors: list[str] = []
+            validate_repository_module.validate_python_line_ceiling(errors, root)
+            self.assertEqual(len(errors), 1)
+            self.assertIn("180,001", errors[0])
+
     def test_repository_rejects_versions_outside_major_one(self) -> None:
         version_path = ROOT / "VERSION"
         changelog_path = ROOT / "CHANGELOG.md"

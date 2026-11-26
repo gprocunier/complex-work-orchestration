@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import re
-from typing import Any
+from typing import Any, Callable
 
 from .model_identities import SPARK_MODEL, resolve_model
 from .operative_routing import TASK_SELECTED_VERSION
@@ -165,92 +165,64 @@ def prompt_coach_has_browser_provider_context(text: str) -> bool:
     )
 
 
+_NATIVE_SPARK_SCOPE_TERMS = [
+    "native spark",
+    "native dispatch",
+    "native spark dispatch",
+    "native-spark",
+    "native-dispatch",
+    "native spark tooling",
+    "native spark tool",
+    "native tool",
+    "native-tool",
+    "native tooling",
+    "native-tooling",
+    "native worker",
+    "native-worker",
+    "native subagent",
+    "native-subagent",
+    "native registry",
+    "native-registry",
+    "control plane",
+    "control-plane",
+    "local spark",
+    "local codex cli",
+    "local cli",
+    "local tool surface",
+    "local tool-surface",
+    "spark tool surface",
+    "spark tool-surface",
+]
+_NATIVE_SPARK_CONTROL_TERMS = _NATIVE_SPARK_SCOPE_TERMS + [
+    "spawn tool",
+    "spawn-tool",
+    "worker registry",
+    "workerbee registry",
+    "spark tooling",
+    "spark tool",
+    "spark capability",
+    "spark dispatch",
+    "spark route",
+    "spark workerbee",
+    "spark worker",
+    "spark model",
+    "codex 5.3 spark",
+    SPARK_MODEL,
+    "registry_tool_mismatch",
+    "registry/tool",
+    "registry-tool",
+    "registry tool",
+    "registry and tool",
+    "model override",
+]
+
+
 def prompt_coach_has_native_spark_control_context(text: str) -> bool:
-    return text_has_any(
-        text,
-        [
-            "native spark",
-            "native dispatch",
-            "native spark dispatch",
-            "native-spark",
-            "native-dispatch",
-            "native spark tooling",
-            "native spark tool",
-            "native tool",
-            "native-tool",
-            "native tooling",
-            "native-tooling",
-            "native worker",
-            "native-worker",
-            "native subagent",
-            "native-subagent",
-            "spawn tool",
-            "spawn-tool",
-            "control plane",
-            "control-plane",
-            "native registry",
-            "native-registry",
-            "worker registry",
-            "workerbee registry",
-            "spark tooling",
-            "spark tool",
-            "spark capability",
-            "spark dispatch",
-            "spark route",
-            "spark workerbee",
-            "spark worker",
-            "spark model",
-            "codex 5.3 spark",
-            SPARK_MODEL,
-            "local spark",
-            "local codex cli",
-            "local cli",
-            "local tool surface",
-            "local tool-surface",
-            "spark tool surface",
-            "spark tool-surface",
-            "registry_tool_mismatch",
-            "registry/tool",
-            "registry-tool",
-            "registry tool",
-            "registry and tool",
-            "model override",
-        ],
-    )
+    return text_has_any(text, _NATIVE_SPARK_CONTROL_TERMS)
 
 
 def prompt_coach_has_explicit_native_spark_scope(text: str) -> bool:
-    return text_has_any(
-        text,
-        [
-            "native spark",
-            "native dispatch",
-            "native spark dispatch",
-            "native-spark",
-            "native-dispatch",
-            "native spark tooling",
-            "native spark tool",
-            "native tool",
-            "native-tool",
-            "native tooling",
-            "native-tooling",
-            "native worker",
-            "native-worker",
-            "native subagent",
-            "native-subagent",
-            "native registry",
-            "native-registry",
-            "control plane",
-            "control-plane",
-            "local spark",
-            "local codex cli",
-            "local cli",
-            "local tool surface",
-            "local tool-surface",
-            "spark tool surface",
-            "spark tool-surface",
-        ],
-    )
+    return text_has_any(text, _NATIVE_SPARK_SCOPE_TERMS)
 
 
 def prompt_coach_has_workerbee_execution_context(text: str) -> bool:
@@ -286,6 +258,13 @@ SPARK_UNAVAILABLE_PATTERN = (
     r"(?:is(?:\s+not|n't)\s+available|are(?:\s+not|n't)\s+available|"
     r"not\s+(?:be\s+)?available|unavailable|absent|missing|not\s+installed)"
 )
+
+
+def _spark_subject_unavailable(text: str, subject: str) -> bool:
+    return bool(
+        re.search(rf"\b{subject}\b\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b", text)
+        or re.search(rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?{subject}\b", text)
+    )
 
 
 def prompt_coach_clause_has_direct_spark_absence(text: str) -> bool:
@@ -331,16 +310,7 @@ def prompt_coach_clause_has_native_tool_absence(text: str) -> bool:
         r"(?:tooling|tool(?:\s+surface|-surface)?|spawn(?:\s+|-)tool|worker(?:bee)?|subagent|registry)"
     )
     return bool(
-        re.search(
-            rf"\b(?:{spark_tool_subject}|{native_tool_subject})\b\s+"
-            rf"{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
-            text,
-        )
-        or re.search(
-            rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?"
-            rf"(?:{spark_tool_subject}|{native_tool_subject})\b",
-            text,
-        )
+        _spark_subject_unavailable(text, rf"(?:{spark_tool_subject}|{native_tool_subject})")
         or re.search(
             rf"\b{SPARK_MODEL_PATTERN}\b\s+{SPARK_FAILURE_STATE_PATTERN}(?:absent|missing)\b.{{0,40}}"
             r"\b(?:native\s+)?(?:worker|workerbee)\s+registry\b",
@@ -362,14 +332,7 @@ def prompt_coach_clause_has_explicit_native_spark_absence(text: str) -> bool:
         rf"|{SPARK_MODEL_PATTERN}\s+(?:tool\s+surface|tool-surface))"
     )
     return bool(
-        re.search(
-            rf"\b{explicit_subject}\b\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
-            text,
-        )
-        or re.search(
-            rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?{explicit_subject}\b",
-            text,
-        )
+        _spark_subject_unavailable(text, explicit_subject)
         or re.search(
             rf"\b{SPARK_MODEL_PATTERN}\b(?:\s+(?:model|capability|dispatch|route|workerbee|worker|tooling|tool))?"
             rf"\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b.{{0,40}}"
@@ -385,16 +348,7 @@ def prompt_coach_clause_has_explicit_native_tool_absence(text: str) -> bool:
         r"(?:tooling|tool(?:\s+surface|-surface)?|spawn(?:\s+|-)tool|registry)"
         rf"|{SPARK_MODEL_PATTERN}\s+(?:tool\s+surface|tool-surface))"
     )
-    return bool(
-        re.search(
-            rf"\b{explicit_tool_subject}\b\s+{SPARK_FAILURE_STATE_PATTERN}{SPARK_UNAVAILABLE_PATTERN}\b",
-            text,
-        )
-        or re.search(
-            rf"\b{SPARK_UNAVAILABLE_PATTERN}\b(?:\s*[:=-]\s*|\s+)(?:the\s+)?{explicit_tool_subject}\b",
-            text,
-        )
-    )
+    return _spark_subject_unavailable(text, explicit_tool_subject)
 
 
 def prompt_coach_has_workerbee_availability_constraint(text: str) -> bool:
@@ -416,15 +370,19 @@ def prompt_coach_has_workerbee_availability_constraint(text: str) -> bool:
     )
 
 
-def prompt_coach_has_spark_native_tool_absence_signal(text: str) -> bool:
+def _matches_spark_failure(
+    text: str, native_check: Callable[[str], bool], provider_check: Callable[[str], bool],
+) -> bool:
     return any(
         prompt_coach_is_native_spark_failure_clause(clause)
-        and (
-            prompt_coach_clause_has_explicit_native_tool_absence(clause)
-            if prompt_coach_has_browser_provider_context(clause)
-            else prompt_coach_clause_has_native_tool_absence(clause)
-        )
+        and (provider_check if prompt_coach_has_browser_provider_context(clause) else native_check)(clause)
         for clause in prompt_coach_spark_failure_clauses(text)
+    )
+
+
+def prompt_coach_has_spark_native_tool_absence_signal(text: str) -> bool:
+    return _matches_spark_failure(
+        text, prompt_coach_clause_has_native_tool_absence, prompt_coach_clause_has_explicit_native_tool_absence,
     )
 
 
@@ -468,14 +426,8 @@ def prompt_coach_clause_has_explicit_native_spark_rejection(text: str) -> bool:
 
 
 def prompt_coach_has_spark_override_rejection_signal(text: str) -> bool:
-    return any(
-        prompt_coach_is_native_spark_failure_clause(clause)
-        and (
-            prompt_coach_clause_has_explicit_native_spark_rejection(clause)
-            if prompt_coach_has_browser_provider_context(clause)
-            else prompt_coach_clause_has_spark_rejection(clause)
-        )
-        for clause in prompt_coach_spark_failure_clauses(text)
+    return _matches_spark_failure(
+        text, prompt_coach_clause_has_spark_rejection, prompt_coach_clause_has_explicit_native_spark_rejection,
     )
 
 
@@ -554,14 +506,8 @@ def prompt_coach_clause_has_explicit_native_spark_failure(text: str) -> bool:
 
 
 def prompt_coach_has_spark_registry_tool_mismatch_signal(text: str) -> bool:
-    return any(
-        prompt_coach_is_native_spark_failure_clause(clause)
-        and (
-            prompt_coach_clause_has_explicit_native_spark_registry_tool_mismatch(clause)
-            if prompt_coach_has_browser_provider_context(clause)
-            else prompt_coach_clause_has_spark_registry_tool_mismatch(clause)
-        )
-        for clause in prompt_coach_spark_failure_clauses(text)
+    return _matches_spark_failure(
+        text, prompt_coach_clause_has_spark_registry_tool_mismatch, prompt_coach_clause_has_explicit_native_spark_registry_tool_mismatch,
     )
 
 
@@ -842,6 +788,19 @@ def _workerbee_recommendation(
     return None
 
 
+def _workerbee_dispatch_record(
+    status: str = "not-applicable", requested_model: str = "", requested_route: str = "",
+    *, failed_check: str = "", justification: str = "",
+) -> dict[str, str]:
+    return {
+        "status": status,
+        "requested_model": requested_model,
+        "requested_route": requested_route,
+        "failed_native_capability_check": failed_check,
+        "failed_native_capability_check_justification": justification,
+    }
+
+
 def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[str, Any]) -> dict[str, Any]:
     lower = text.lower()
     explicit_workerbee = prompt_coach_has_explicit_workerbee_request(lower)
@@ -923,13 +882,7 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
         and not spark_operational_pairing
         and not explicit_operative_authority
     )
-    spark_dispatch = {
-        "status": "not-applicable",
-        "requested_model": "",
-        "requested_route": "",
-        "failed_native_capability_check": "",
-        "failed_native_capability_check_justification": "",
-    }
+    spark_dispatch = _workerbee_dispatch_record()
 
     native_dispatch = route.get("native_operative_dispatch")
     operative_route_authoritative = route_version in TASK_SELECTED_ROUTE_VERSIONS or bool(operative_route.get("availability_evidence"))
@@ -949,14 +902,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             "Native operative dispatch is contained by policy until "
             f"{native_dispatch.get('release_requires', 'trusted precommit supervision is available')}."
         )
-        spark_dispatch.update(
-            {
-                "status": "hard-stop",
-                "requested_model": operative_route.get("selected_model") or default_model,
-                "requested_route": mode,
-                "failed_native_capability_check": failed_check,
-                "failed_native_capability_check_justification": failed_check_justification,
-            }
+        spark_dispatch = _workerbee_dispatch_record(
+            "hard-stop", operative_route.get("selected_model") or default_model, mode,
+            failed_check=failed_check, justification=failed_check_justification,
         )
         rationale.append(failed_check_justification)
     elif not operative_route_authoritative and (registry_tool_mismatch or native_tool_absent or model_rejected or model_unavailable):
@@ -979,14 +927,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             failed_check = "spark-native-capability-unavailable"
             hard_stop_reason = "spark_native_unavailable"
             failed_check_justification = "Native Spark capability is explicitly unavailable."
-        spark_dispatch.update(
-            {
-                "status": "hard-stop",
-                "requested_model": SPARK_MODEL_ALIAS,
-                "requested_route": mode,
-                "failed_native_capability_check": failed_check,
-                "failed_native_capability_check_justification": failed_check_justification,
-            }
+        spark_dispatch = _workerbee_dispatch_record(
+            "hard-stop", SPARK_MODEL_ALIAS, mode,
+            failed_check=failed_check, justification=failed_check_justification,
         )
         rationale.append(f"{failed_check_justification} Workerbee execution remains blocked until native capability is re-proven.")
     elif spark_operational_pairing and not review_only_intent:
@@ -1034,16 +977,11 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
     if mode != "none" and operative_route_authoritative and not native_precommit_contained:
         if operative_route.get("dispatch_authorized") is True:
             selected_model = str(operative_route.get("selected_model") or "")
-            spark_dispatch.update(
-                {
-                    "status": (f"task-selected-v{route_version}" if route_version in TASK_SELECTED_ROUTE_VERSIONS else
-                               "native-first" if selected_model == SPARK_MODEL_ALIAS else "not-applicable"),
-                    "requested_model": selected_model,
-                    "requested_route": mode,
-                    "failed_native_capability_check": "",
-                    "failed_native_capability_check_justification": "",
-                }
-            )
+            if route_version in TASK_SELECTED_ROUTE_VERSIONS:
+                status = f"task-selected-v{route_version}"
+            else:
+                status = "native-first" if selected_model == SPARK_MODEL_ALIAS else "not-applicable"
+            spark_dispatch = _workerbee_dispatch_record(status, selected_model, mode)
             rationale.append(
                 f"Trusted operative routing selected {selected_model} via {operative_route.get('selection_source', operative_route.get('selected_model'))}."
             )
@@ -1051,14 +989,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             hard_stop = False
             mode = "blocked"
             suggested_lanes = []
-            spark_dispatch.update(
-                {
-                    "status": "hard-stop",
-                    "requested_model": SPARK_MODEL_ALIAS,
-                    "requested_route": mode,
-                    "failed_native_capability_check": operative_status,
-                    "failed_native_capability_check_justification": "Explicit user fallback selection and scope are required before dispatch.",
-                }
+            spark_dispatch = _workerbee_dispatch_record(
+                "hard-stop", SPARK_MODEL_ALIAS, mode, failed_check=operative_status,
+                justification="Explicit user fallback selection and scope are required before dispatch.",
             )
             rationale.append("Verified Spark quota/capacity state opened a user decision; no fallback is selected automatically.")
         else:
@@ -1066,16 +999,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
             mode = "blocked"
             suggested_lanes = []
             hard_stop_reason = str(operative_route.get("stop_reason") or operative_status)
-            spark_dispatch.update(
-                {
-                    "status": "hard-stop",
-                    "requested_model": operative_route.get("selected_model") or "",
-                    "requested_route": mode,
-                    "failed_native_capability_check": operative_status,
-                    "failed_native_capability_check_justification": str(
-                        operative_route.get("stop_reason") or "Trusted operative availability was not proven."
-                    ),
-                }
+            spark_dispatch = _workerbee_dispatch_record(
+                "hard-stop", operative_route.get("selected_model") or "", mode, failed_check=operative_status,
+                justification=str(operative_route.get("stop_reason") or "Trusted operative availability was not proven."),
             )
             rationale.append("Operative routing failed closed; critic and peer-review lanes remain evidence-only.")
 
@@ -1086,11 +1012,9 @@ def prompt_coach_parallel_workerbee_signal(text: str, level: str, route: dict[st
 
     if mode != "none" and not hard_stop and not operative_route_authoritative:
         spark_dispatch.update(
-            {
-                "status": "native-first" if default_model == SPARK_MODEL_ALIAS else "not-applicable",
-                "requested_model": default_model,
-                "requested_route": mode,
-            }
+            status="native-first" if default_model == SPARK_MODEL_ALIAS else "not-applicable",
+            requested_model=default_model,
+            requested_route=mode,
         )
 
     if hard_stop and not hard_stop_reason:
@@ -1311,6 +1235,16 @@ def prompt_coach_beads_context_depth_signal(
     return signal
 
 
+def _missing_question(question_id: str, *, question: str, why: str, default: str) -> dict[str, str]:
+    return {"id": question_id, "question": question, "why": why, "default": default}
+
+
+def _operative_fallback(route: dict[str, Any]) -> dict[str, Any]:
+    operative_route = route.get("operative_route")
+    fallback = operative_route.get("fallback") if isinstance(operative_route, dict) else None
+    return fallback if isinstance(fallback, dict) else {}
+
+
 def prompt_coach_missing_questions(
     route: dict[str, Any],
     text: str,
@@ -1323,67 +1257,55 @@ def prompt_coach_missing_questions(
     lower = text.lower()
     words = re.findall(r"[A-Za-z0-9_/-]+", text)
     questions: list[dict[str, str]] = []
-    operative_route = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
-    fallback = operative_route.get("fallback") if isinstance(operative_route.get("fallback"), dict) else {}
+    fallback = _operative_fallback(route)
 
     if fallback.get("decision_required") is True:
-        questions.extend(
-            [
-                {
-                    "id": "operative_fallback",
-                    "question": "Which live approved operative fallback should CWO use, or should it wait for Spark?",
-                    "why": f"Trusted evidence verified a Spark quota/capacity trigger. Policy recommends {fallback.get('recommended_model') or 'Wait for Spark'} but forbids automatic model substitution.",
-                    "default": f"Select {fallback.get('recommended_model')} with an explicit scope, or Wait for Spark." if fallback.get("recommended_model") else "Wait for Spark because no live fit fallback is proven.",
-                },
-                {
-                    "id": "operative_fallback_scope",
-                    "question": "Should the explicit fallback apply to the current Bead, current wave, or only until Spark is restored?",
-                    "why": "Fallback authority must have a recorded expiry and is re-evaluated at every fresh operative segment.",
-                    "default": "Use until Spark is restored, then return new segments to Spark automatically.",
-                },
-            ]
-        )
+        model = fallback.get("recommended_model")
+        questions.append(_missing_question(
+            "operative_fallback",
+            question="Which live approved operative fallback should CWO use, or should it wait for Spark?",
+            why=f"Trusted evidence verified a Spark quota/capacity trigger. Policy recommends {model or 'Wait for Spark'} but forbids automatic model substitution.",
+            default=f"Select {model} with an explicit scope, or Wait for Spark." if model else "Wait for Spark because no live fit fallback is proven.",
+        ))
+        questions.append(_missing_question(
+            "operative_fallback_scope",
+            question="Should the explicit fallback apply to the current Bead, current wave, or only until Spark is restored?",
+            why="Fallback authority must have a recorded expiry and is re-evaluated at every fresh operative segment.",
+            default="Use until Spark is restored, then return new segments to Spark automatically.",
+        ))
 
     if len(words) < 4:
-        questions.append(
-            {
-                "id": "goal_success_criteria",
-                "question": "What is the concrete goal and what would make the work complete?",
-                "why": "The task text is too short for reliable sizing.",
-                "default": "Ask for goal, success criteria, and validation before scaffolding.",
-            }
-        )
+        questions.append(_missing_question(
+            "goal_success_criteria",
+            question="What is the concrete goal and what would make the work complete?",
+            why="The task text is too short for reliable sizing.",
+            default="Ask for goal, success criteria, and validation before scaffolding.",
+        ))
     if not file_paths and text_has_any(lower, ["repo", "code", "patch", "tests", "implementation", "publish", "release"]):
-        questions.append(
-            {
-                "id": "repo_or_paths",
-                "question": "Which repository, paths, or components are in scope?",
-                "why": "Path context changes expert routing, blast radius, and validation.",
-                "default": "Use the current working repository and ask before touching unclear paths.",
-            }
-        )
+        questions.append(_missing_question(
+            "repo_or_paths",
+            question="Which repository, paths, or components are in scope?",
+            why="Path context changes expert routing, blast radius, and validation.",
+            default="Use the current working repository and ask before touching unclear paths.",
+        ))
     if text_has_any(lower, ["multi-session", "handoff", "parallel", "multiple agents", "epic", "work graph"]) and "beads" not in lower:
-        questions.append(
-            {
-                "id": "beads_graph_size",
-                "question": "Should this stay as a single Beads task or expand into an epic/work graph?",
-                "why": "Beads tracking is mandatory; this only decides the amount of graph structure.",
-                "default": "Start with one Beads task and escalate to an epic if independent work streams appear.",
-            }
-        )
+        questions.append(_missing_question(
+            "beads_graph_size",
+            question="Should this stay as a single Beads task or expand into an epic/work graph?",
+            why="Beads tracking is mandatory; this only decides the amount of graph structure.",
+            default="Start with one Beads task and escalate to an epic if independent work streams appear.",
+        ))
     if scaffold_sizing and scaffold_sizing.get("prompt_user_in_plan_mode"):
         if scaffold_sizing.get("recommended_size") == "tight":
             default = "Use a tight-chain scaffold with --scaffold-size tight; keep required gates and limit optional expert fan-out."
         else:
             default = "Use the full scaffold unless the user chooses a tight-chain review graph or a single manual Bead."
-        questions.append(
-            {
-                "id": "scaffold_size",
-                "question": "Should the scaffold use the full graph or a tight review chain?",
-                "why": "The answer controls optional expert fan-out while preserving required gates.",
-                "default": default,
-            }
-        )
+        questions.append(_missing_question(
+            "scaffold_size",
+            question="Should the scaffold use the full graph or a tight review chain?",
+            why="The answer controls optional expert fan-out while preserving required gates.",
+            default=default,
+        ))
     if workerbee_parallelism and not workerbee_parallelism.get("hard_stop"):
         mode = str(workerbee_parallelism.get("recommended_mode") or "none")
         registry_tool_mismatch = bool(workerbee_parallelism.get("registry_tool_mismatch"))
@@ -1411,64 +1333,52 @@ def prompt_coach_missing_questions(
             )
         else:
             default = "Use no subagents by default for narrow work, but still present the parallelization choice so the user can opt into review subagents."
-        questions.append(
-            {
-                "id": "workerbee_parallelism",
-                "question": "Should CWO parallelize this work with subagent lanes?",
-                "why": "Subagents can review docs, tests, routing, validation, terminology, or disjoint implementation workstreams while the selected lead owns integration.",
-                "default": default,
-            }
-        )
+        questions.append(_missing_question(
+            "workerbee_parallelism",
+            question="Should CWO parallelize this work with subagent lanes?",
+            why="Subagents can review docs, tests, routing, validation, terminology, or disjoint implementation workstreams while the selected lead owns integration.",
+            default=default,
+        ))
     if beads_context_depth_signal and beads_context_depth_signal.get("prompt_user_in_plan_mode"):
         depth = str(beads_context_depth_signal.get("beads_context_depth") or "focused")
-        questions.append(
-            {
-                "id": "beads_context_depth",
-                "question": "How much Beads history should internal sidecar agents read?",
-                "why": "The answer controls durable-memory recall for internal sidecar agents without changing contractor redaction boundaries.",
-                "default": (
-                    f"Use {depth} context. Use build_beads_brief.py for internal sidecar agents; "
-                    "use build_contractor_packet.py for outside contractors."
-                ),
-            }
-        )
+        questions.append(_missing_question(
+            "beads_context_depth",
+            question="How much Beads history should internal sidecar agents read?",
+            why="The answer controls durable-memory recall for internal sidecar agents without changing contractor redaction boundaries.",
+            default=(
+                f"Use {depth} context. Use build_beads_brief.py for internal sidecar agents; "
+                "use build_contractor_packet.py for outside contractors."
+            ),
+        ))
     if model_synthesis and model_synthesis.get("requires_user_acceptance"):
-        questions.append(
-            {
-                "id": "model_synthesis_opt_in",
-                "question": "Should Codex add a model-synthesis lane for this work?",
-                "why": "Synthesis changes the graph from independent review lanes to independent lanes plus a provenance-preserving consensus/disagreement artifact.",
-                "default": "Offer CWO-native synthesis as an opt-in choice; if unselected, keep independent reviews and normal architect adjudication.",
-            }
-        )
+        questions.append(_missing_question(
+            "model_synthesis_opt_in",
+            question="Should Codex add a model-synthesis lane for this work?",
+            why="Synthesis changes the graph from independent review lanes to independent lanes plus a provenance-preserving consensus/disagreement artifact.",
+            default="Offer CWO-native synthesis as an opt-in choice; if unselected, keep independent reviews and normal architect adjudication.",
+        ))
     if prompt_coach_has_contractor_sharing_signal(lower) and not route.get("external_opt_in"):
-        questions.append(
-            {
-                "id": "outside_sharing_boundary",
-                "question": "Is outside model contracting allowed, and what may be shared?",
-                "why": "Model preference is not enough to export context.",
-                "default": "Default to no outside sharing until the user chooses redacted-packet, repo-readonly, or patch-branch.",
-            }
-        )
+        questions.append(_missing_question(
+            "outside_sharing_boundary",
+            question="Is outside model contracting allowed, and what may be shared?",
+            why="Model preference is not enough to export context.",
+            default="Default to no outside sharing until the user chooses redacted-packet, repo-readonly, or patch-branch.",
+        ))
     local_terms = ["local inference", "local worker", "vllm", "openshift ai", "openai-compatible"]
     if text_has_any(lower, local_terms) and not route.get("local_worker_allowed"):
-        questions.append(
-            {
-                "id": "local_worker_opt_in",
-                "question": "Should local inference be used, and which local profile should handle it?",
-                "why": "Local worker use is explicit opt-in and still requires evaluator plus architect review.",
-                "default": "Use --local-ok only for low-risk local-worker review; use openshift-ai-vllm when requested.",
-            }
-        )
+        questions.append(_missing_question(
+            "local_worker_opt_in",
+            question="Should local inference be used, and which local profile should handle it?",
+            why="Local worker use is explicit opt-in and still requires evaluator plus architect review.",
+            default="Use --local-ok only for low-risk local-worker review; use openshift-ai-vllm when requested.",
+        ))
     if route.get("risk_level") in {"high", "critical"} or text_has_any(lower, ["security", "release", "publish", "production"]):
-        questions.append(
-            {
-                "id": "validation_bar",
-                "question": "What validation commands or evidence are required before the work is accepted?",
-                "why": "High-risk and publish/release work needs explicit acceptance evidence.",
-                "default": "Require tests, repository validation, docs/examples checks, and publish sanitization when applicable.",
-            }
-        )
+        questions.append(_missing_question(
+            "validation_bar",
+            question="What validation commands or evidence are required before the work is accepted?",
+            why="High-risk and publish/release work needs explicit acceptance evidence.",
+            default="Require tests, repository validation, docs/examples checks, and publish sanitization when applicable.",
+        ))
     return questions
 
 
@@ -1512,34 +1422,29 @@ def prompt_coach_interactive_questions(
 ) -> list[dict[str, Any]]:
     missing_ids = {question["id"] for question in missing_questions}
     questions: list[dict[str, Any]] = []
-    operative_route = route.get("operative_route") if isinstance(route.get("operative_route"), dict) else {}
-    fallback = operative_route.get("fallback") if isinstance(operative_route.get("fallback"), dict) else {}
+    fallback = _operative_fallback(route)
 
     if "operative_fallback" in missing_ids:
         options = fallback.get("options") if isinstance(fallback.get("options"), list) else []
-        questions.append(
-            {
-                "id": "operative_fallback",
-                "header": "Worker",
-                "question": "Which operative fallback should CWO use?",
-                "why": "Only an explicit user choice may authorize a live approved fallback after verified Spark quota/capacity failure.",
-                "options": dedupe_interactive_options([dict(item) for item in options if isinstance(item, dict)]),
-            }
-        )
+        questions.append(_interactive_question(
+            "operative_fallback",
+            header="Worker",
+            question="Which operative fallback should CWO use?",
+            why="Only an explicit user choice may authorize a live approved fallback after verified Spark quota/capacity failure.",
+            options=dedupe_interactive_options([dict(item) for item in options if isinstance(item, dict)]),
+        ))
     if "operative_fallback_scope" in missing_ids:
-        questions.append(
-            {
-                "id": "operative_fallback_scope",
-                "header": "Scope",
-                "question": "How long should the fallback selection remain active?",
-                "why": "The selected scope is persisted with actor, reason, evidence, and expiry provenance.",
-                "options": [
-                    {"label": "Until restored (Recommended)", "value": "until-spark-restored", "description": "Return new segments to Spark as soon as trusted evidence shows it available."},
-                    {"label": "Current Bead", "value": "current-bead", "description": "Keep the fallback for fresh segments in only the named Bead."},
-                    {"label": "Current wave", "value": "current-wave", "description": "Keep the fallback for fresh segments in only the named wave."},
-                ],
-            }
-        )
+        questions.append(_interactive_question(
+            "operative_fallback_scope",
+            header="Scope",
+            question="How long should the fallback selection remain active?",
+            why="The selected scope is persisted with actor, reason, evidence, and expiry provenance.",
+            options=[
+                _interactive_option("Until restored (Recommended)", "until-spark-restored", "Return new segments to Spark as soon as trusted evidence shows it available."),
+                _interactive_option("Current Bead", "current-bead", "Keep the fallback for fresh segments in only the named Bead."),
+                _interactive_option("Current wave", "current-wave", "Keep the fallback for fresh segments in only the named wave."),
+            ],
+        ))
 
     if level in {"lightweight-beads", "full-harness", "publish-release"} or missing_ids & {
         "goal_success_criteria",
@@ -1552,66 +1457,56 @@ def prompt_coach_interactive_questions(
             "publish-release": ("Publish gate (Recommended)", "Use full harness plus publish-sanitization before push, release, or tag."),
         }.get(level, ("Full harness (Recommended)", "Use the full orchestration harness."))
         options = [
-            {"label": recommended[0], "value": level, "description": recommended[1]},
-            {
-                "label": "Beads task",
-                "value": "in-thread",
-                "description": "Use normal current-thread execution while recording the work in one Beads task.",
-            },
-            {
-                "label": "Light Beads",
-                "value": "lightweight-beads",
-                "description": "Track durable state with Beads while avoiding heavyweight review workstreams.",
-            },
+            _interactive_option(recommended[0], level, recommended[1]),
+            _interactive_option(
+                "Beads task", "in-thread",
+                "Use normal current-thread execution while recording the work in one Beads task.",
+            ),
+            _interactive_option(
+                "Light Beads", "lightweight-beads",
+                "Track durable state with Beads while avoiding heavyweight review workstreams.",
+            ),
         ]
         if level in {"in-thread", "lightweight-beads"}:
-            options[2] = {
-                "label": "Full harness",
-                "value": "full-harness",
-                "description": "Use the full architect, PM, workerbee, validation, and review graph.",
-            }
-        questions.append(
-            {
-                "id": "orchestration_level",
-                "header": "Harness",
-                "question": "How much orchestration should CWO use?",
-                "why": "The answer changes graph size and review workstreams; Beads tracking remains mandatory.",
-                "options": dedupe_interactive_options(options),
-            }
-        )
+            options[2] = _interactive_option(
+                "Full harness", "full-harness",
+                "Use the full architect, PM, workerbee, validation, and review graph.",
+            )
+        questions.append(_interactive_question(
+            "orchestration_level",
+            header="Harness",
+            question="How much orchestration should CWO use?",
+            why="The answer changes graph size and review workstreams; Beads tracking remains mandatory.",
+            options=dedupe_interactive_options(options),
+        ))
 
     if "scaffold_size" in missing_ids:
         recommended_size = str((scaffold_sizing or {}).get("recommended_size") or "full")
-        full = {
-            "label": "Full graph",
-            "value": "full-graph",
-            "description": "Create the full policy-shaped epic with all selected expert and validation lanes.",
-        }
-        tight = {
-            "label": "Tight chain",
-            "value": "tight-chain",
-            "description": "Use --scaffold-size tight to keep required gates while limiting optional expert fan-out.",
-        }
-        manual = {
-            "label": "Manual Bead",
-            "value": "manual-bead",
-            "description": "Create one focused Bead when there are no independent lanes to coordinate.",
-        }
+        full = _interactive_option(
+            "Full graph", "full-graph",
+            "Create the full policy-shaped epic with all selected expert and validation lanes.",
+        )
+        tight = _interactive_option(
+            "Tight chain", "tight-chain",
+            "Use --scaffold-size tight to keep required gates while limiting optional expert fan-out.",
+        )
+        manual = _interactive_option(
+            "Manual Bead", "manual-bead",
+            "Create one focused Bead when there are no independent lanes to coordinate.",
+        )
         if recommended_size == "tight":
             tight = {**tight, "label": "Tight chain (Recommended)"}
             options = [tight, full, manual]
         else:
             full = {**full, "label": "Full graph (Recommended)"}
             options = [full, tight, manual]
-        questions.append(
-            {
-                "id": "scaffold_size",
-                "header": "Graph",
-                "question": "How large should the scaffold be?",
-                "why": "The answer changes graph size and optional expert fan-out, not required policy gates.",
-                "options": dedupe_interactive_options(options),
-            }
-        )
+        questions.append(_interactive_question(
+            "scaffold_size",
+            header="Graph",
+            question="How large should the scaffold be?",
+            why="The answer changes graph size and optional expert fan-out, not required policy gates.",
+            options=dedupe_interactive_options(options),
+        ))
 
     if (
         "workerbee_parallelism" in missing_ids
@@ -1621,176 +1516,156 @@ def prompt_coach_interactive_questions(
         recommended_mode = recommended.get("recommended_mode") or "review-only"
         use_phrase = workerbee_use_phrase(workerbee_parallelism)
         option_map = {
-            "heavy-review": {
-                "label": "Heavy review subagents (Recommended)",
-                "value": "heavy-review-subagents",
-                "description": f"{use_phrase} for parallel docs-flow, terminology, web-design, validation, and publish checks.",
-            },
-            "review-only": {
-                "label": "Review subagents (Recommended)",
-                "value": "review-subagents",
-                "description": f"{use_phrase} for bounded review or investigation workstreams.",
-            },
-            "implementation-capable": {
-                "label": "Split implementation (Recommended)",
-                "value": "implementation-subagents",
-                "description": "Use subagents only for disjoint file scopes with main-thread integration.",
-            },
-            "none": {
-                "label": "No subagents (Recommended)",
-                "value": "no-subagents",
-                "description": "Keep all work in the main thread while still using Beads tracking.",
-            },
+            "heavy-review": _interactive_option(
+                "Heavy review subagents (Recommended)", "heavy-review-subagents",
+                f"{use_phrase} for parallel docs-flow, terminology, web-design, validation, and publish checks.",
+            ),
+            "review-only": _interactive_option(
+                "Review subagents (Recommended)", "review-subagents",
+                f"{use_phrase} for bounded review or investigation workstreams.",
+            ),
+            "implementation-capable": _interactive_option(
+                "Split implementation (Recommended)", "implementation-subagents",
+                "Use subagents only for disjoint file scopes with main-thread integration.",
+            ),
+            "none": _interactive_option(
+                "No subagents (Recommended)", "no-subagents",
+                "Keep all work in the main thread while still using Beads tracking.",
+            ),
         }
         first = option_map.get(str(recommended_mode), option_map["review-only"])
-        questions.append(
-            {
-                "id": "workerbee_parallelism",
-                "header": "Subagents",
-                "question": "Should CWO parallelize this work with subagent lanes?",
-                "why": "The answer changes whether sidecar review or disjoint implementation work runs in parallel.",
-                "options": workerbee_parallelism_options(str(recommended_mode), first, use_phrase),
-            }
-        )
+        questions.append(_interactive_question(
+            "workerbee_parallelism",
+            header="Subagents",
+            question="Should CWO parallelize this work with subagent lanes?",
+            why="The answer changes whether sidecar review or disjoint implementation work runs in parallel.",
+            options=workerbee_parallelism_options(str(recommended_mode), first, use_phrase),
+        ))
 
     if "beads_context_depth" in missing_ids:
         recommended_depth = str((beads_context_depth_signal or {}).get("beads_context_depth") or "focused")
-        questions.append(
-            {
-                "id": "beads_context_depth",
-                "header": "Context",
-                "question": "How much Beads history should internal sidecar agents read?",
-                "why": "This sizes durable-memory recall for the active harness and subagents while keeping external contractor packets redacted.",
-                "options": beads_context_depth_options(recommended_depth),
-            }
-        )
+        questions.append(_interactive_question(
+            "beads_context_depth",
+            header="Context",
+            question="How much Beads history should internal sidecar agents read?",
+            why="This sizes durable-memory recall for the active harness and subagents while keeping external contractor packets redacted.",
+            options=beads_context_depth_options(recommended_depth),
+        ))
 
     if "model_synthesis_opt_in" in missing_ids:
         pattern = "independent-then-synthesize"
         if model_synthesis:
             pattern = str(model_synthesis.get("synthesis_pattern") or pattern)
-        questions.append(
-            {
-                "id": "model_synthesis_opt_in",
-                "header": "Synthesis",
-                "question": "Should CWO synthesize independent model outputs?",
-                "why": "The answer adds or skips a synthesis/adjudication support lane after independent returns.",
-                "options": [
-                    {
-                        "label": "Use synthesis (Recommended)",
-                        "value": "model-synthesis",
-                        "description": f"Add a CWO-native {pattern} lane with provenance and disagreement tracking.",
-                    },
-                    {
-                        "label": "Independent lanes",
-                        "value": "independent-lanes",
-                        "description": "Keep separate review lanes and let the architect adjudicate them directly.",
-                    },
-                    {
-                        "label": "No synthesis",
-                        "value": "no-synthesis",
-                        "description": "Use the normal route without a synthesis artifact.",
-                    },
-                ],
-            }
-        )
+        questions.append(_interactive_question(
+            "model_synthesis_opt_in",
+            header="Synthesis",
+            question="Should CWO synthesize independent model outputs?",
+            why="The answer adds or skips a synthesis/adjudication support lane after independent returns.",
+            options=[
+                _interactive_option(
+                    "Use synthesis (Recommended)", "model-synthesis",
+                    f"Add a CWO-native {pattern} lane with provenance and disagreement tracking.",
+                ),
+                _interactive_option(
+                    "Independent lanes", "independent-lanes",
+                    "Keep separate review lanes and let the architect adjudicate them directly.",
+                ),
+                _interactive_option(
+                    "No synthesis", "no-synthesis",
+                    "Use the normal route without a synthesis artifact.",
+                ),
+            ],
+        ))
 
     if "outside_sharing_boundary" in missing_ids:
-        questions.append(
-            {
-                "id": "outside_sharing_boundary",
-                "header": "Sharing",
-                "question": "Is outside model contracting allowed for this work?",
-                "why": "Codex must not export context until the sharing boundary is explicit.",
-                "options": [
-                    {
-                        "label": "No sharing (Recommended)",
-                        "value": "no-outside-sharing",
-                        "description": "Keep all context inside the Codex session and do not contract outside models.",
-                    },
-                    {
-                        "label": "Redacted packet",
-                        "value": "redacted-packet",
-                        "description": "Allow a minimal redacted contractor packet with no repo access.",
-                    },
-                    {
-                        "label": "Repo-readonly",
-                        "value": "repo-readonly",
-                        "description": "Allow read-only repo context only after disclosure escalation approval.",
-                    },
-                    {
-                        "label": "Patch-branch",
-                        "value": "patch-branch",
-                        "description": "Allow patch-proposal repo context only after disclosure escalation approval.",
-                    },
-                ],
-            }
-        )
+        questions.append(_interactive_question(
+            "outside_sharing_boundary",
+            header="Sharing",
+            question="Is outside model contracting allowed for this work?",
+            why="Codex must not export context until the sharing boundary is explicit.",
+            options=[
+                _interactive_option(
+                    "No sharing (Recommended)", "no-outside-sharing",
+                    "Keep all context inside the Codex session and do not contract outside models.",
+                ),
+                _interactive_option(
+                    "Redacted packet", "redacted-packet",
+                    "Allow a minimal redacted contractor packet with no repo access.",
+                ),
+                _interactive_option(
+                    "Repo-readonly", "repo-readonly",
+                    "Allow read-only repo context only after disclosure escalation approval.",
+                ),
+                _interactive_option(
+                    "Patch-branch", "patch-branch",
+                    "Allow patch-proposal repo context only after disclosure escalation approval.",
+                ),
+            ],
+        ))
 
     if "local_worker_opt_in" in missing_ids:
         profile = route.get("local_profile") or "generic-openai-compatible"
-        questions.append(
-            {
-                "id": "local_worker_opt_in",
-                "header": "Local AI",
-                "question": "Should a local inference worker be used?",
-                "why": "Local worker dispatch is opt-in and still needs evaluation plus architect adjudication.",
-                "options": [
-                    {
-                        "label": "No local (Recommended)",
-                        "value": "no-local-worker",
-                        "description": "Do not use local inference for this work.",
-                    },
-                    {
-                        "label": "Local review",
-                        "value": f"local-review:{profile}",
-                        "description": "Use a bounded local read-only review workstream.",
-                    },
-                    {
-                        "label": "Prefer local",
-                        "value": f"prefer-local:{profile}",
-                        "description": "Prefer local-worker routing when policy permits it.",
-                    },
-                ],
-            }
-        )
+        questions.append(_interactive_question(
+            "local_worker_opt_in",
+            header="Local AI",
+            question="Should a local inference worker be used?",
+            why="Local worker dispatch is opt-in and still needs evaluation plus architect adjudication.",
+            options=[
+                _interactive_option(
+                    "No local (Recommended)", "no-local-worker",
+                    "Do not use local inference for this work.",
+                ),
+                _interactive_option(
+                    "Local review", f"local-review:{profile}",
+                    "Use a bounded local read-only review workstream.",
+                ),
+                _interactive_option(
+                    "Prefer local", f"prefer-local:{profile}",
+                    "Prefer local-worker routing when policy permits it.",
+                ),
+            ],
+        ))
 
     if "validation_bar" in missing_ids:
         if level == "publish-release":
-            first = {
-                "label": "Publish grade (Recommended)",
-                "value": "publish-grade",
-                "description": "Run tests, repository validation, docs/examples checks, and publish sanitization.",
-            }
+            first = _interactive_option(
+                "Publish grade (Recommended)", "publish-grade",
+                "Run tests, repository validation, docs/examples checks, and publish sanitization.",
+            )
         else:
-            first = {
-                "label": "Repo validation (Recommended)",
-                "value": "repo-validation",
-                "description": "Run focused tests plus repository validation and report residual risk.",
-            }
-        questions.append(
-            {
-                "id": "validation_bar",
-                "header": "Validate",
-                "question": "What validation bar should this execution run apply?",
-                "why": "The answer sets the acceptance evidence before implementation is considered complete.",
-                "options": dedupe_interactive_options([
-                    first,
-                    {
-                        "label": "Basic tests",
-                        "value": "basic-tests",
-                        "description": "Run only the smallest focused test set appropriate to the change.",
-                    },
-                    {
-                        "label": "Publish grade",
-                        "value": "publish-grade",
-                        "description": "Add docs/examples checks and publish-sanitization gates where applicable.",
-                    },
-                ]),
-            }
-        )
+            first = _interactive_option(
+                "Repo validation (Recommended)", "repo-validation",
+                "Run focused tests plus repository validation and report residual risk.",
+            )
+        questions.append(_interactive_question(
+            "validation_bar",
+            header="Validate",
+            question="What validation bar should this execution run apply?",
+            why="The answer sets the acceptance evidence before implementation is considered complete.",
+            options=dedupe_interactive_options([
+                first,
+                _interactive_option(
+                    "Basic tests", "basic-tests",
+                    "Run only the smallest focused test set appropriate to the change.",
+                ),
+                _interactive_option(
+                    "Publish grade", "publish-grade",
+                    "Add docs/examples checks and publish-sanitization gates where applicable.",
+                ),
+            ]),
+        ))
 
     return questions
+
+
+def _interactive_question(
+    question_id: str, *, header: str, question: str, why: str, options: list[dict[str, str]],
+) -> dict[str, Any]:
+    return {"id": question_id, "header": header, "question": question, "why": why, "options": options}
+
+
+def _interactive_option(label: str, value: str, description: str) -> dict[str, str]:
+    return {"label": label, "value": value, "description": description}
 
 
 def dedupe_interactive_options(options: list[dict[str, str]]) -> list[dict[str, str]]:
@@ -1810,23 +1685,18 @@ def workerbee_parallelism_options(
     first: dict[str, str],
     use_phrase: str,
 ) -> list[dict[str, str]]:
-    heavy = {
-        "label": "Heavy review subagents",
-        "value": "heavy-review-subagents",
-        "description": f"{use_phrase} for multiple bounded review tracks before integration.",
-    }
-    review = {
-        "label": "Review subagents",
-        "value": "review-subagents",
-        "description": "Use subagents only for read-only review, test triage, or evidence gathering.",
-    }
-    no_subagents = {
-        "label": "No subagents",
-        "value": "no-subagents",
-        "description": "Keep all work in the main thread while still using Beads tracking.",
-    }
-    if recommended_mode == "implementation-capable":
-        return dedupe_interactive_options([first, heavy, no_subagents])
+    heavy = _interactive_option(
+        "Heavy review subagents", "heavy-review-subagents",
+        f"{use_phrase} for multiple bounded review tracks before integration.",
+    )
+    review = _interactive_option(
+        "Review subagents", "review-subagents",
+        "Use subagents only for read-only review, test triage, or evidence gathering.",
+    )
+    no_subagents = _interactive_option(
+        "No subagents", "no-subagents",
+        "Keep all work in the main thread while still using Beads tracking.",
+    )
     if recommended_mode == "heavy-review":
         return dedupe_interactive_options([first, review, no_subagents])
     if recommended_mode == "none":
@@ -1835,19 +1705,12 @@ def workerbee_parallelism_options(
 
 
 def beads_context_depth_options(recommended_depth: str) -> list[dict[str, str]]:
-    labels = {
-        "none": "No lookup",
-        "summary": "Summary",
-        "focused": "Focused",
-        "heavy": "Heavy",
-        "audit": "Audit",
-    }
-    descriptions = {
-        "none": "Use only the assigned prompt metadata; perform no bd lookup.",
-        "summary": "Read assigned-bead JSON without comments.",
-        "focused": "Read assigned-bead JSON plus comments as internal evidence.",
-        "heavy": "Add broader related Beads history when prior work or synthesis matters.",
-        "audit": "Use maximum internal Beads context for incidents, sabotage, or forensics.",
+    choices = {
+        "none": ("No lookup", "Use only the assigned prompt metadata; perform no bd lookup."),
+        "summary": ("Summary", "Read assigned-bead JSON without comments."),
+        "focused": ("Focused", "Read assigned-bead JSON plus comments as internal evidence."),
+        "heavy": ("Heavy", "Add broader related Beads history when prior work or synthesis matters."),
+        "audit": ("Audit", "Use maximum internal Beads context for incidents, sabotage, or forensics."),
     }
     sequence = {
         "none": ["none", "summary", "focused"],
@@ -1858,10 +1721,10 @@ def beads_context_depth_options(recommended_depth: str) -> list[dict[str, str]]:
     }.get(recommended_depth, ["focused", "summary", "heavy"])
     options = []
     for index, depth in enumerate(sequence):
-        label = labels[depth]
+        label, description = choices[depth]
         if index == 0:
             label += " (Recommended)"
-        options.append({"label": label, "value": depth, "description": descriptions[depth]})
+        options.append(_interactive_option(label, depth, description))
     return dedupe_interactive_options(options)
 
 
@@ -2329,17 +2192,15 @@ def render_coached_prompt(
             "Use a tight-chain scaffold when creating a work graph: pass --scaffold-size tight, "
             "keep required gates, and limit optional expert fan-out. Prefer one manual Bead if there are no independent lanes.\n"
         )
+    context = (
+        f"Goal: {text}\n"
+        f"{workerbees}{synthesis}{beads_context}{blocking_review}"
+        f"{operator_line}{environment_line}{scaffold_line}"
+    )
     if level == "in-thread":
         return (
             "Handle this in the current thread with mandatory Beads tracking, without the full $complex-work-orchestration harness.\n"
-            f"Goal: {text}\n"
-            f"{workerbees}"
-            f"{synthesis}"
-            f"{beads_context}"
-            f"{blocking_review}"
-            f"{operator_line}"
-            f"{environment_line}"
-            f"{scaffold_line}"
+            f"{context}"
             "Create or update one Beads task for the work story, evidence, validation, and handoff. "
             "Keep the change bounded; escalate to a larger work graph only if architecture, release, safety risk, "
             "or multiple independent work streams appear.\n"
@@ -2348,14 +2209,7 @@ def render_coached_prompt(
     if level == "lightweight-beads":
         return (
             "Use $complex-work-orchestration for lightweight Beads-backed coordination.\n"
-            f"Goal: {text}\n"
-            f"{workerbees}"
-            f"{synthesis}"
-            f"{beads_context}"
-            f"{blocking_review}"
-            f"{operator_line}"
-            f"{environment_line}"
-            f"{scaffold_line}"
+            f"{context}"
             "Create only the durable tasks needed for planning, implementation, validation, and handoff. "
             "Do not create outside-contractor or local-worker beads unless the route is re-approved.\n"
             f"{validation}{question_block}"
@@ -2363,14 +2217,7 @@ def render_coached_prompt(
     if level == "full-harness":
         return (
             "Use $complex-work-orchestration to scaffold a full architect/PM/subagent/validation harness.\n"
-            f"Goal: {text}\n"
-            f"{workerbees}"
-            f"{synthesis}"
-            f"{beads_context}"
-            f"{blocking_review}"
-            f"{operator_line}"
-            f"{environment_line}"
-            f"{scaffold_line}"
+            f"{context}"
             "Create an epic with architect framing, PM coordination, implementation, validation, docs/handoff, "
             "and any policy-required peer-review workstreams. Keep final decisions with the architect.\n"
             f"{validation}{question_block}"
@@ -2393,14 +2240,7 @@ def render_coached_prompt(
             )
             return (
                 "Use $complex-work-orchestration with outside architecture critic workstreams.\n"
-                f"Goal: {text}\n"
-                f"{workerbees}"
-                f"{synthesis}"
-                f"{beads_context}"
-                f"{blocking_review}"
-                f"{operator_line}"
-                f"{environment_line}"
-                f"{scaffold_line}"
+                f"{context}"
                 f"Share boundary: {route.get('share_boundary')}.\n"
                 "Create one contractor-only/no-codex-exec Bead per selected architecture critic, all using "
                 "contract-jd-architecture-reasoning. Dispatch them independently from the same Codex architect proposal:\n"
@@ -2411,14 +2251,7 @@ def render_coached_prompt(
             )
         return (
             "Use $complex-work-orchestration with an outside contractor workstream.\n"
-            f"Goal: {text}\n"
-            f"{workerbees}"
-            f"{synthesis}"
-            f"{beads_context}"
-            f"{blocking_review}"
-            f"{operator_line}"
-            f"{environment_line}"
-            f"{scaffold_line}"
+            f"{context}"
             f"Share boundary: {route.get('share_boundary')}.\n"
             f"Create one contractor-only bead with no-codex-exec and {expert.get('job_description_label', 'contract-jd-general-reasoning')}. "
             "Build a boundary-gated contractor packet, evaluate the return, run peer review if required, "
@@ -2428,14 +2261,7 @@ def render_coached_prompt(
     if level == "local-worker":
         return (
             "Use $complex-work-orchestration with a bounded local-worker review workstream.\n"
-            f"Goal: {text}\n"
-            f"{workerbees}"
-            f"{synthesis}"
-            f"{beads_context}"
-            f"{blocking_review}"
-            f"{operator_line}"
-            f"{environment_line}"
-            f"{scaffold_line}"
+            f"{context}"
             f"Local profile: {route.get('local_profile') or 'generic-openai-compatible'}.\n"
             "Create local-worker-only/no-codex-exec work, produce a local dispatch envelope, evaluate the return, "
             "and require architect adjudication before follow-up implementation.\n"
@@ -2443,14 +2269,7 @@ def render_coached_prompt(
         )
     return (
         "Use $complex-work-orchestration for publish/release-ready execution.\n"
-        f"Goal: {text}\n"
-        f"{workerbees}"
-        f"{synthesis}"
-        f"{beads_context}"
-        f"{blocking_review}"
-        f"{operator_line}"
-        f"{environment_line}"
-        f"{scaffold_line}"
+        f"{context}"
         "Include architect framing, implementation, validation, docs/handoff, and publish-sanitization workstreams. "
         "Do not push, release, or tag until validation and sanitization pass.\n"
         f"{validation}{question_block}"

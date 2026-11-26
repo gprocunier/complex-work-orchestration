@@ -481,18 +481,8 @@ def _is_canonical_contract_path(path: str) -> bool:
     return all(part not in {"", ".", ".."} for part in path.split("/"))
 
 
-def _task_class_policy(work_sizing: Mapping[str, Any]) -> Mapping[str, Any]:
-    foundation = _get_work_sizing_section(work_sizing)
-    if not isinstance(foundation, Mapping):
-        raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    return _ensure_mapping(foundation.get("task_class_policy"), label="task_class_policy")
-
-
 def _protected_surface_groups(work_sizing: Mapping[str, Any]) -> Mapping[str, list[str]]:
-    foundation = _get_work_sizing_section(work_sizing)
-    if not isinstance(foundation, Mapping):
-        raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    protected = _ensure_mapping(foundation.get("protected_surfaces"), label="protected_surfaces")
+    protected = _foundation_policy_section(work_sizing, "protected_surfaces")
     normalized: dict[str, list[str]] = {}
     for group_name, patterns in protected.items():
         normalized[group_name] = _ensure_list(patterns, path=f"protected_surfaces.{group_name}")
@@ -851,13 +841,6 @@ def _evaluate_task_profile_fit(
     return task_class, fit_mode, fit_evidence, protected_surface_matches
 
 
-def _semantic_routing_policy(work_sizing: Mapping[str, Any]) -> Mapping[str, Any]:
-    foundation = _get_work_sizing_section(work_sizing)
-    if not isinstance(foundation, Mapping):
-        raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    return _ensure_mapping(foundation.get("semantic_routing"), label="semantic_routing")
-
-
 def _compute_semantic_scores(semantic_payload: dict[str, Any]) -> dict[str, int]:
     diff_score = _bucket_diff_score(int(semantic_payload["estimated_diff_p90"]))
     behavior_score = _bucket_behavior_score(int(semantic_payload["behavioral_changes"]))
@@ -922,49 +905,14 @@ def _load_work_sizing_policy(policy: Mapping[str, Any] | None) -> Mapping[str, A
     return _ensure_mapping(source["work_sizing"], label="work_sizing policy")
 
 
-def _get_work_sizing_section(policy: Mapping[str, Any]) -> Mapping[str, Any]:
-    return _ensure_mapping(policy.get("enforcement"), label="work_sizing.enforcement").get(
-        "foundation-canary",
-        None,
-    )
-
-
-def _route_thresholds(policy: Mapping[str, Any]) -> Mapping[str, Any]:
-    foundation = _get_work_sizing_section(policy)
+def _foundation_policy_section(
+    policy: Mapping[str, Any], name: str, *, label: str | None = None,
+) -> Mapping[str, Any]:
+    enforcement = _ensure_mapping(policy.get("enforcement"), label="work_sizing.enforcement")
+    foundation = enforcement.get("foundation-canary")
     if not isinstance(foundation, Mapping):
         raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    return _ensure_mapping(foundation.get("route_thresholds"), label="route_thresholds")
-
-
-def _hard_caps(policy: Mapping[str, Any]) -> Mapping[str, Any]:
-    foundation = _get_work_sizing_section(policy)
-    if not isinstance(foundation, Mapping):
-        raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    return _ensure_mapping(foundation.get("hard_caps"), label="hard_caps")
-
-
-def _architect_gates(policy: Mapping[str, Any]) -> Mapping[str, Any]:
-    foundation = _get_work_sizing_section(policy)
-    if not isinstance(foundation, Mapping):
-        raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    return _ensure_mapping(foundation.get("architect_hard_gates"), label="architect_hard_gates")
-
-
-def _autonomous_replanning(policy: Mapping[str, Any]) -> Mapping[str, Any]:
-    foundation = _get_work_sizing_section(policy)
-    if not isinstance(foundation, Mapping):
-        raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    return _ensure_mapping(
-        foundation.get("autonomous_replanning"),
-        label="autonomous_replanning",
-    )
-
-
-def _commitment_policy(policy: Mapping[str, Any]) -> Mapping[str, Any]:
-    foundation = _get_work_sizing_section(policy)
-    if not isinstance(foundation, Mapping):
-        raise ValueError("malformed policy: enforcement.foundation-canary missing")
-    return _ensure_mapping(foundation.get("commitment"), label="work_sizing.enforcement.foundation-canary.commitment")
+    return _ensure_mapping(foundation.get(name), label=label or name)
 
 
 def _validate_refinement_lineage_shape(payload: Mapping[str, Any]) -> None:
@@ -1259,35 +1207,21 @@ def _evaluate_v1_route(
     if reasons and any(r.startswith("too-many") or "exceeded" in r for r in reasons):
         has_cap_reason = True
 
-    if reasons:
-        if "unresolved-decisions" in reasons or "reasoning-uncertainty-architect" in reasons or "contract-risk-architect" in reasons:
-            route = "architect"
-        elif has_cap_reason and score_total < architect_min:
-            route = "split"
-        else:
-            if score_total >= architect_min:
-                route = "architect"
-            elif score_total >= split_min:
-                route = "split"
-            else:
-                route = "spark"
+    if (
+        "unresolved-decisions" in reasons
+        or "reasoning-uncertainty-architect" in reasons
+        or "contract-risk-architect" in reasons
+        or score_total >= architect_min
+    ):
+        route = "architect"
+    elif has_cap_reason or score_total >= split_min:
+        route = "architect" if score_total > split_max else "split"
     else:
-        if score_total >= architect_min:
-            route = "architect"
-        elif score_total >= split_min:
-            route = "split"
-        else:
-            route = "spark"
-
-    if route == "split":
-        if score_total > split_max:
-            route = "architect"
+        route = "spark"
 
     if route == "spark" and score_total > spark_fit_max:
         route = "split"
 
-    if score_total >= architect_min:
-        route = "architect"
     return route, reasons
 
 
@@ -1366,11 +1300,11 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     if int(work_sizing.get("version", 0)) != 1:
         raise ValueError("malformed policy: work_sizing.version must be 1")
 
-    route_thresholds = _route_thresholds(work_sizing)
-    hard_caps = _hard_caps(work_sizing)
-    architect_gates = _architect_gates(work_sizing)
-    replanning = _autonomous_replanning(work_sizing)
-    task_class_policy = _task_class_policy(work_sizing)
+    route_thresholds = _foundation_policy_section(work_sizing, "route_thresholds")
+    hard_caps = _foundation_policy_section(work_sizing, "hard_caps")
+    architect_gates = _foundation_policy_section(work_sizing, "architect_hard_gates")
+    replanning = _foundation_policy_section(work_sizing, "autonomous_replanning")
+    task_class_policy = _foundation_policy_section(work_sizing, "task_class_policy")
     protected_surfaces = _protected_surface_groups(work_sizing)
     scores = normalized["scores"]
     estimates = normalized["estimates"]
@@ -1392,7 +1326,7 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     variance_metrics: dict[str, Any] = {}
     route_axes = {"authority_route": v1_route, "operative_route": v1_route}
     if estimate_contract_version >= 2:
-        semantic_policy = _semantic_routing_policy(work_sizing)
+        semantic_policy = _foundation_policy_section(work_sizing, "semantic_routing")
         (
             semantic_route,
             semantic_reasons,
@@ -1693,7 +1627,7 @@ def _refinement_operator_policy(
     policy: Mapping[str, Any] | None,
 ) -> tuple[Mapping[str, Any], list[str]]:
     work_sizing = _load_work_sizing_policy(policy)
-    replanning = _autonomous_replanning(work_sizing)
+    replanning = _foundation_policy_section(work_sizing, "autonomous_replanning")
     configured = _ensure_list(
         replanning.get("operator_required_for"),
         path="work_sizing.autonomous_replanning.operator_required_for",
@@ -1945,6 +1879,41 @@ def validate_work_estimate_refinement(
     return errors
 
 
+def _receipt_commitment(
+    estimate: Mapping[str, Any], receipt: Mapping[str, Any], fit_result: Mapping[str, Any],
+    estimates: dict[str, Any], *, deterministic_model: str | None = None,
+) -> dict[str, Any]:
+    scope = estimate if deterministic_model is not None else receipt
+    return {
+        "commitment_type": "cwo-native-worker-fit-commitment",
+        "version": 2,
+        "packet_id": receipt["packet_id"],
+        "attempt_nonce": receipt["attempt_nonce"],
+        "work_unit_id": scope["work_unit_id"],
+        "bead_id": scope["bead_id"],
+        "requested_model": deterministic_model if deterministic_model is not None else receipt["requested_model"],
+        "session_id": receipt["session_id"],
+        "agent_id": receipt["agent_id"],
+        "attestation_source": receipt["attestation_source"],
+        "attested_model": receipt["attested_model"],
+        "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
+        "decision": "accept" if deterministic_model is not None else fit_result["decision"],
+        "estimates": estimates,
+        "precommit_receipt_sha256": receipt["receipt_sha256"],
+    }
+
+
+def _deterministic_commitment_estimates(work_sizing: Mapping[str, Any], task_class: str) -> dict[str, int]:
+    class_policy = _ensure_mapping(
+        _foundation_policy_section(work_sizing, "task_class_policy").get(task_class),
+        label=f"task_class_policy.{task_class}",
+    )
+    return {
+        field: _ensure_int(class_policy.get(field), path=f"task_class_policy.{task_class}.{field}", minimum=1)
+        for field in COMMITMENT_ESTIMATE_KEYS
+    }
+
+
 def build_policy_fit_commitment(
     work_estimate: Any,
     *,
@@ -1973,32 +1942,7 @@ def build_policy_fit_commitment(
 
     work_sizing = _load_work_sizing_policy(policy)
     task_class = _ensure_nonempty_str(estimate.get("task_class"), path="work_estimate.task_class")
-    class_policy = _ensure_mapping(
-        _task_class_policy(work_sizing).get(task_class),
-        label=f"task_class_policy.{task_class}",
-    )
-    estimates = {
-        "tool_calls_p50": _ensure_int(
-            class_policy.get("tool_calls_p50"),
-            path=f"task_class_policy.{task_class}.tool_calls_p50",
-            minimum=1,
-        ),
-        "tool_calls_p90": _ensure_int(
-            class_policy.get("tool_calls_p90"),
-            path=f"task_class_policy.{task_class}.tool_calls_p90",
-            minimum=1,
-        ),
-        "runtime_seconds_p50": _ensure_int(
-            class_policy.get("runtime_seconds_p50"),
-            path=f"task_class_policy.{task_class}.runtime_seconds_p50",
-            minimum=1,
-        ),
-        "runtime_seconds_p90": _ensure_int(
-            class_policy.get("runtime_seconds_p90"),
-            path=f"task_class_policy.{task_class}.runtime_seconds_p90",
-            minimum=1,
-        ),
-    }
+    estimates = _deterministic_commitment_estimates(work_sizing, task_class)
     receipt_errors = validate_precommit_receipt(
         precommit_receipt,
         estimate,
@@ -2015,23 +1959,7 @@ def build_policy_fit_commitment(
         raise ValueError("deterministic precommit receipt must contain an accepting fit result")
     if fit_result.get("estimates") != estimates:
         raise ValueError("deterministic precommit receipt estimates must exactly match task-class policy")
-    commitment = {
-        "commitment_type": "cwo-native-worker-fit-commitment",
-        "version": 2,
-        "packet_id": precommit_receipt["packet_id"],
-        "attempt_nonce": precommit_receipt["attempt_nonce"],
-        "work_unit_id": estimate["work_unit_id"],
-        "bead_id": estimate["bead_id"],
-        "requested_model": requested_model,
-        "session_id": precommit_receipt["session_id"],
-        "agent_id": precommit_receipt["agent_id"],
-        "attestation_source": precommit_receipt["attestation_source"],
-        "attested_model": precommit_receipt["attested_model"],
-        "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
-        "decision": "accept",
-        "estimates": estimates,
-        "precommit_receipt_sha256": precommit_receipt["receipt_sha256"],
-    }
+    commitment = _receipt_commitment(estimate, precommit_receipt, fit_result, estimates, deterministic_model=requested_model)
     commitment_errors = validate_worker_commitment(
         commitment,
         estimate,
@@ -2092,23 +2020,7 @@ def build_worker_commitment_from_receipt(
     if not isinstance(fit_result, Mapping):
         raise ValueError("precommit receipt fit_result is missing")
     operative_estimates = _operative_commitment_estimates(estimate, precommit_receipt)
-    commitment = {
-        "commitment_type": "cwo-native-worker-fit-commitment",
-        "version": 2,
-        "packet_id": precommit_receipt["packet_id"],
-        "attempt_nonce": precommit_receipt["attempt_nonce"],
-        "work_unit_id": precommit_receipt["work_unit_id"],
-        "bead_id": precommit_receipt["bead_id"],
-        "requested_model": precommit_receipt["requested_model"],
-        "session_id": precommit_receipt["session_id"],
-        "agent_id": precommit_receipt["agent_id"],
-        "attestation_source": precommit_receipt["attestation_source"],
-        "attested_model": precommit_receipt["attested_model"],
-        "work_estimate_sha256": canonical_work_estimate_sha256(estimate),
-        "decision": fit_result["decision"],
-        "estimates": operative_estimates,
-        "precommit_receipt_sha256": precommit_receipt["receipt_sha256"],
-    }
+    commitment = _receipt_commitment(estimate, precommit_receipt, fit_result, operative_estimates)
     errors = validate_worker_commitment(
         commitment,
         estimate,
@@ -2209,7 +2121,9 @@ def validate_worker_commitment(
     work_sizing = _load_work_sizing_policy(policy)
     if int(work_sizing.get("version", 0)) != 1:
         return ["malformed policy: work_sizing.version must be 1"]
-    commitment_policy = _commitment_policy(work_sizing)
+    commitment_policy = _foundation_policy_section(
+        work_sizing, "commitment", label="work_sizing.enforcement.foundation-canary.commitment",
+    )
 
     estimate_errors = validate_work_estimate(work_estimate, policy=policy)
     if estimate_errors:

@@ -71,6 +71,23 @@ IMMUTABLE_WORK_FIELDS = (
     "work_plan",
 )
 
+_RETRY_WORK_FIELDS = (
+    "parent_packet_id",
+    "retry_packet_id",
+    "bead_id",
+    "requested_model",
+    "attested_model",
+    "parent_session_id",
+    "retry_session_id",
+    "tool_surface_id",
+    "attestation_source",
+    "work_sha256",
+    "attempt_from",
+    "attempt_to",
+    "cumulative_usage",
+    "remaining_before_retry",
+    "retry_budget",
+)
 
 def _mapping(value: Any, label: str) -> Mapping[str, Any]:
     if not isinstance(value, Mapping):
@@ -411,21 +428,7 @@ def _validate_v1_retry_authorization(receipt: Any) -> list[str]:
     required = {
         "receipt_type",
         "version",
-        "parent_packet_id",
-        "retry_packet_id",
-        "bead_id",
-        "requested_model",
-        "attested_model",
-        "parent_session_id",
-        "retry_session_id",
-        "tool_surface_id",
-        "attestation_source",
-        "work_sha256",
-        "attempt_from",
-        "attempt_to",
-        "cumulative_usage",
-        "remaining_before_retry",
-        "retry_budget",
+        *_RETRY_WORK_FIELDS,
         "authority",
         "decision",
         "receipt_sha256",
@@ -516,24 +519,7 @@ def _validate_receipt_sha256(receipt: Mapping[str, Any]) -> list[str]:
 
 
 def _historical_v1_shadow(receipt: Mapping[str, Any]) -> dict[str, Any]:
-    common_fields = (
-        "parent_packet_id",
-        "retry_packet_id",
-        "bead_id",
-        "requested_model",
-        "attested_model",
-        "parent_session_id",
-        "retry_session_id",
-        "tool_surface_id",
-        "attestation_source",
-        "work_sha256",
-        "attempt_from",
-        "attempt_to",
-        "cumulative_usage",
-        "remaining_before_retry",
-        "retry_budget",
-    )
-    shadow = {field: copy.deepcopy(receipt.get(field)) for field in common_fields}
+    shadow = {field: copy.deepcopy(receipt.get(field)) for field in _RETRY_WORK_FIELDS}
     shadow.update(
         {
             "receipt_type": RETRY_AUTHORIZATION_TYPE_V2,
@@ -552,21 +538,7 @@ def _validate_v2_retry_authorization(receipt: Any) -> list[str]:
     required = {
         "receipt_type",
         "version",
-        "parent_packet_id",
-        "retry_packet_id",
-        "bead_id",
-        "requested_model",
-        "attested_model",
-        "parent_session_id",
-        "retry_session_id",
-        "tool_surface_id",
-        "attestation_source",
-        "work_sha256",
-        "attempt_from",
-        "attempt_to",
-        "cumulative_usage",
-        "remaining_before_retry",
-        "retry_budget",
+        *_RETRY_WORK_FIELDS,
         "evidence_bindings",
         "retry_evidence_sha256",
         "authority_provenance",
@@ -628,21 +600,7 @@ def _validate_v3_retry_evidence(receipt: Any) -> list[str]:
         "receipt_type",
         "version",
         "schema",
-        "parent_packet_id",
-        "retry_packet_id",
-        "bead_id",
-        "requested_model",
-        "attested_model",
-        "parent_session_id",
-        "retry_session_id",
-        "tool_surface_id",
-        "attestation_source",
-        "work_sha256",
-        "attempt_from",
-        "attempt_to",
-        "cumulative_usage",
-        "remaining_before_retry",
-        "retry_budget",
+        *_RETRY_WORK_FIELDS,
         "evidence_bindings",
         "retry_evidence_sha256",
         "evidence_provenance",
@@ -708,6 +666,20 @@ def _validate_v3_retry_evidence(receipt: Any) -> list[str]:
     return errors
 
 
+def _checked_retry_snapshot(receipt: Any) -> tuple[dict[str, Any] | None, list[str]]:
+    snapshot = _plain_retry_receipt_snapshot(receipt)
+    if snapshot is None:
+        return None, ["receipt must be a canonical JSON object"]
+    version = snapshot.get("version")
+    if type(version) is not int:
+        return None, ["version must be an exact integer"]
+    validators = {
+        RETRY_AUTHORIZATION_VERSION_V1: _validate_v1_retry_authorization,
+        RETRY_AUTHORIZATION_VERSION_V2: _validate_v2_retry_authorization,
+    }
+    return snapshot, validators.get(version, _validate_v3_retry_evidence)(snapshot)
+
+
 def validate_retry_authorization(receipt: Any) -> list[str]:
     """Validate current v3 evidence or mark valid v1/v2 shapes historical.
 
@@ -715,35 +687,19 @@ def validate_retry_authorization(receipt: Any) -> list[str]:
     It never grants dispatch authority.
     """
 
-    snapshot = _plain_retry_receipt_snapshot(receipt)
-    if snapshot is None:
-        return ["receipt must be a canonical JSON object"]
-    version = snapshot.get("version")
-    if type(version) is not int:
-        return ["version must be an exact integer"]
-    if version == RETRY_AUTHORIZATION_VERSION_V1:
-        errors = _validate_v1_retry_authorization(snapshot)
-        return errors or ["retry authorization version 1 is historical-only"]
-    if version == RETRY_AUTHORIZATION_VERSION_V2:
-        errors = _validate_v2_retry_authorization(snapshot)
-        return errors or ["retry authorization version 2 is historical-only"]
-    return _validate_v3_retry_evidence(snapshot)
+    snapshot, errors = _checked_retry_snapshot(receipt)
+    if errors:
+        return errors
+    version = snapshot["version"]
+    if version in {RETRY_AUTHORIZATION_VERSION_V1, RETRY_AUTHORIZATION_VERSION_V2}:
+        return [f"retry authorization version {version} is historical-only"]
+    return []
 
 
 def read_retry_authorization(receipt: Any) -> dict[str, Any]:
     """Read v3 or historical v1/v2 evidence without authorizing dispatch."""
 
-    snapshot = _plain_retry_receipt_snapshot(receipt)
-    if snapshot is None:
-        errors = ["receipt must be a canonical JSON object"]
-    elif type(snapshot.get("version")) is not int:
-        errors = ["version must be an exact integer"]
-    elif snapshot.get("version") == RETRY_AUTHORIZATION_VERSION_V1:
-        errors = _validate_v1_retry_authorization(snapshot)
-    elif snapshot.get("version") == RETRY_AUTHORIZATION_VERSION_V2:
-        errors = _validate_v2_retry_authorization(snapshot)
-    else:
-        errors = _validate_v3_retry_evidence(snapshot)
+    snapshot, errors = _checked_retry_snapshot(receipt)
     if errors:
         raise ValueError("invalid retry evidence: " + "; ".join(errors))
     return snapshot

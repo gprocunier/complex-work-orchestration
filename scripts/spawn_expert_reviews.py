@@ -21,7 +21,8 @@ from cwo_core.routing import (
 )
 from cwo_core.beads import create_bead
 from cwo_core.util import read_text_segments
-from scaffold_workgraph import bullet_list, route_notes, unique_strings
+from routing_cli_options import add_route_access_arguments
+from scaffold_workgraph import expert_fields, route_notes, unique_strings
 
 SABOTAGE_CONTROL_TRIGGER_PROVIDER_CONFLICT = "provider-conflict"
 SABOTAGE_CONTROL_TRIGGER_WORK_REROUTING = "work-rerouting-or-subversion"
@@ -64,37 +65,7 @@ Codex handling rule:
 
 
 def review_fields(expert: dict[str, object], route: dict[str, object]) -> dict[str, object]:
-    display_name = str(expert.get("display_name") or expert.get("name") or "Expert reviewer")
-    job_label = str(expert.get("job_description_label", "contract-jd-general-reasoning"))
-    stage = str(expert.get("review_stage", "pre-implementation"))
-    return {
-        "skills": unique_strings(
-            [
-                "expert-review",
-                "complex-work-orchestration",
-                "beads",
-                expert.get("discipline"),
-                expert.get("name"),
-                job_label,
-            ]
-        ),
-        "acceptance": "Review is complete when these checks pass:\n"
-        + bullet_list(
-            list(expert.get("acceptance_checks", [])),
-            "Findings are scoped, evidenced, and actionable.",
-        ),
-        "design": (
-            f"Apply the {display_name} lens during {stage}. "
-            f"Honor job-description label {job_label}, share boundary {route.get('share_boundary')}, "
-            "and the Codex pickup rule recorded in metadata."
-        ),
-        "notes": route_notes(route)
-        + "\nOutput contract:\n"
-        + bullet_list(
-            list(expert.get("output_contract", [])),
-            "Findings, confidence, residual risk, and recommended next Beads.",
-        ),
-    }
+    return expert_fields(expert, route, include_manual_notes=False)
 
 
 def control_review_body(kind: str, route: dict[str, object]) -> str:
@@ -137,57 +108,41 @@ def control_review_fields(kind: str, route: dict[str, object]) -> dict[str, obje
 
 
 def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[dict[str, object]]:
-    tasks: list[dict[str, object]] = []
+    def control_task(
+        label: str, heading: str, kind: str, labels: list[str], extra_metadata: dict[str, object],
+    ) -> dict[str, object]:
+        return {
+            "title": f"{title_prefix}: {heading}",
+            "labels": ["local-worker-only", "no-codex-exec", *labels, label],
+            "metadata": {
+                "job_description_label": label,
+                "executor": route.get("local_secure_review_executor"),
+                "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                **extra_metadata,
+                "codex_pickup": "forbidden",
+                "acceptance_bead_required": True,
+                "architect_review_required": True,
+            },
+            "description": control_review_body(kind, route),
+            **control_review_fields(kind, route),
+        }
+
+    tasks = []
     if route.get("peer_review_required"):
-        tasks.append(
+        tasks.append(control_task(
+            "contract-jd-peer-review", "Peer review gate", "independent peer review",
+            ["peer-review-required", "contractor-peer-review"],
             {
-                "title": f"{title_prefix}: Peer review gate",
-                "labels": [
-                    "local-worker-only",
-                    "no-codex-exec",
-                    "peer-review-required",
-                    "contractor-peer-review",
-                    "contract-jd-peer-review",
-                ],
-                "metadata": {
-                    "job_description_label": "contract-jd-peer-review",
-                    "executor": route.get("local_secure_review_executor"),
-                    "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                    "peer_review_count": route.get("peer_review_count", 1),
-                    "provider_diversity_required": route.get("provider_diversity_required", True),
-                    "codex_pickup": "forbidden",
-                    "acceptance_bead_required": True,
-                    "architect_review_required": True,
-                },
-                "description": control_review_body("independent peer review", route),
-                **control_review_fields("independent peer review", route),
-            }
-        )
+                "peer_review_count": route.get("peer_review_count", 1),
+                "provider_diversity_required": route.get("provider_diversity_required", True),
+            },
+        ))
     sabotage_triggers = sabotage_control_triggers(route)
     if sabotage_triggers:
-        tasks.append(
-            {
-                "title": f"{title_prefix}: Sabotage review gate",
-                "labels": [
-                    "local-worker-only",
-                    "no-codex-exec",
-                    "sabotage-review",
-                    "contract-jd-sabotage-review",
-                ],
-                "metadata": {
-                    "job_description_label": "contract-jd-sabotage-review",
-                    "executor": route.get("local_secure_review_executor"),
-                    "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                    "control_review_triggers": sabotage_triggers,
-                    "authority": "advisory-evidence-only",
-                    "codex_pickup": "forbidden",
-                    "acceptance_bead_required": True,
-                    "architect_review_required": True,
-                },
-                "description": control_review_body("sabotage and malpractice review", route),
-                **control_review_fields("sabotage and malpractice review", route),
-            }
-        )
+        tasks.append(control_task(
+            "contract-jd-sabotage-review", "Sabotage review gate", "sabotage and malpractice review",
+            ["sabotage-review"], {"control_review_triggers": sabotage_triggers, "authority": "advisory-evidence-only"},
+        ))
     return tasks
 
 
@@ -222,15 +177,7 @@ def main() -> None:
     parser.add_argument("--parent")
     parser.add_argument("--title-prefix", default="Expert review")
     parser.add_argument("--external-ok", action="store_true")
-    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
-    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
-    parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
-    parser.add_argument("--share-boundary", default="no-outside-sharing")
-    parser.add_argument(
-        "--data-sensitivity",
-        choices=["public", "redacted", "internal", "restricted"],
-        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
-    )
+    add_route_access_arguments(parser)
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--top-n", type=int, default=3)
     parser.add_argument("--dry-run", action="store_true")

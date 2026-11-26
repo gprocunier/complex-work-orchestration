@@ -111,17 +111,6 @@ LOCAL_HTTP_ERROR_RESPONSE_CAP = 65536
 GLM_CRITIC_CONTRACT_V1 = "cwo-glm-critic-v1"
 GLM_CRITIC_CONTRACT = "cwo-glm-critic-v2"
 GLM_CRITIC_CONTRACTS = {GLM_CRITIC_CONTRACT_V1, GLM_CRITIC_CONTRACT}
-GLM_CRITIC_FIELDS = {
-    "verdict",
-    "summary",
-    "findings",
-    "alternatives",
-    "risks",
-    "confidence",
-    "recommended_next_action",
-    "escalation_needed",
-}
-GLM_CRITIC_FINDING_FIELDS = {"severity", "claim", "evidence", "repair"}
 GLM_CRITIC_MAX_FINDINGS = 3
 GLM_CRITIC_MAX_ALTERNATIVES = 2
 GLM_CRITIC_MAX_RISKS = 2
@@ -131,138 +120,56 @@ GLM_CRITIC_MAX_LIST_ITEM_CHARS = 240
 GLM_CRITIC_MAX_ACTION_CHARS = 320
 GLM_CRITIC_MAX_ESCALATION_CHARS = 240
 GLM_CRITIC_MAX_FINAL_CHARS = 6000
-GLM_CRITIC_V1_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
+
+
+def _glm_critic_json_schema(*, bounded_text: bool) -> dict[str, Any]:
+    def text(maximum: int) -> dict[str, Any]:
+        schema: dict[str, Any] = {"type": "string", "minLength": 1}
+        if bounded_text:
+            schema["maxLength"] = maximum
+        return schema
+
+    def text_list(maximum: int) -> dict[str, Any]:
+        return {"type": "array", "maxItems": maximum, "items": text(GLM_CRITIC_MAX_LIST_ITEM_CHARS)}
+
+    finding_properties = {
+        "severity": {"type": "string", "enum": ["critical", "high", "medium", "low"]},
+        "claim": text(GLM_CRITIC_MAX_FINDING_TEXT_CHARS),
+        "evidence": text(GLM_CRITIC_MAX_FINDING_TEXT_CHARS),
+        "repair": text(GLM_CRITIC_MAX_FINDING_TEXT_CHARS),
+    }
+    properties = {
         "verdict": {"type": "string", "enum": ["approve", "revise", "reject"]},
-        "summary": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": GLM_CRITIC_MAX_SUMMARY_CHARS,
-        },
+        "summary": text(GLM_CRITIC_MAX_SUMMARY_CHARS),
         "findings": {
             "type": "array",
             "minItems": 1,
             "maxItems": GLM_CRITIC_MAX_FINDINGS,
             "items": {
                 "type": "object",
-                "properties": {
-                    "severity": {
-                        "type": "string",
-                        "enum": ["critical", "high", "medium", "low"],
-                    },
-                    "claim": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
-                    },
-                    "evidence": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
-                    },
-                    "repair": {
-                        "type": "string",
-                        "minLength": 1,
-                        "maxLength": GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
-                    },
-                },
-                "required": ["severity", "claim", "evidence", "repair"],
+                "properties": finding_properties,
+                "required": list(finding_properties),
                 "additionalProperties": False,
             },
         },
-        "alternatives": {
-            "type": "array",
-            "maxItems": GLM_CRITIC_MAX_ALTERNATIVES,
-            "items": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": GLM_CRITIC_MAX_LIST_ITEM_CHARS,
-            },
-        },
-        "risks": {
-            "type": "array",
-            "maxItems": GLM_CRITIC_MAX_RISKS,
-            "items": {
-                "type": "string",
-                "minLength": 1,
-                "maxLength": GLM_CRITIC_MAX_LIST_ITEM_CHARS,
-            },
-        },
+        "alternatives": text_list(GLM_CRITIC_MAX_ALTERNATIVES),
+        "risks": text_list(GLM_CRITIC_MAX_RISKS),
         "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
-        "recommended_next_action": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": GLM_CRITIC_MAX_ACTION_CHARS,
-        },
-        "escalation_needed": {
-            "type": "string",
-            "minLength": 1,
-            "maxLength": GLM_CRITIC_MAX_ESCALATION_CHARS,
-        },
-    },
-    "required": [
-        "verdict",
-        "summary",
-        "findings",
-        "alternatives",
-        "risks",
-        "confidence",
-        "recommended_next_action",
-        "escalation_needed",
-    ],
-    "additionalProperties": False,
-}
-GLM_CRITIC_JSON_SCHEMA = {
-    "type": "object",
-    "properties": {
-        "verdict": {"type": "string", "enum": ["approve", "revise", "reject"]},
-        "summary": {"type": "string", "minLength": 1},
-        "findings": {
-            "type": "array",
-            "minItems": 1,
-            "maxItems": GLM_CRITIC_MAX_FINDINGS,
-            "items": {
-                "type": "object",
-                "properties": {
-                    "severity": {
-                        "type": "string",
-                        "enum": ["critical", "high", "medium", "low"],
-                    },
-                    "claim": {"type": "string", "minLength": 1},
-                    "evidence": {"type": "string", "minLength": 1},
-                    "repair": {"type": "string", "minLength": 1},
-                },
-                "required": ["severity", "claim", "evidence", "repair"],
-                "additionalProperties": False,
-            },
-        },
-        "alternatives": {
-            "type": "array",
-            "maxItems": GLM_CRITIC_MAX_ALTERNATIVES,
-            "items": {"type": "string", "minLength": 1},
-        },
-        "risks": {
-            "type": "array",
-            "maxItems": GLM_CRITIC_MAX_RISKS,
-            "items": {"type": "string", "minLength": 1},
-        },
-        "confidence": {"type": "string", "enum": ["high", "medium", "low"]},
-        "recommended_next_action": {"type": "string", "minLength": 1},
-        "escalation_needed": {"type": "string", "minLength": 1},
-    },
-    "required": [
-        "verdict",
-        "summary",
-        "findings",
-        "alternatives",
-        "risks",
-        "confidence",
-        "recommended_next_action",
-        "escalation_needed",
-    ],
-    "additionalProperties": False,
-}
+        "recommended_next_action": text(GLM_CRITIC_MAX_ACTION_CHARS),
+        "escalation_needed": text(GLM_CRITIC_MAX_ESCALATION_CHARS),
+    }
+    return {
+        "type": "object",
+        "properties": properties,
+        "required": list(properties),
+        "additionalProperties": False,
+    }
+
+
+GLM_CRITIC_V1_JSON_SCHEMA = _glm_critic_json_schema(bounded_text=True)
+GLM_CRITIC_JSON_SCHEMA = _glm_critic_json_schema(bounded_text=False)
+GLM_CRITIC_FIELDS = set(GLM_CRITIC_JSON_SCHEMA["required"])
+GLM_CRITIC_FINDING_FIELDS = set(GLM_CRITIC_JSON_SCHEMA["properties"]["findings"]["items"]["required"])
 
 LOCAL_RESERVED_REQUEST_OPTIONS = {
     "function_call",
@@ -502,12 +409,17 @@ def local_response_contract_prompt(contract: str | None) -> str | None:
     )
 
 
-def _bounded_nonempty_string(value: Any, *, maximum: int) -> bool:
-    return isinstance(value, str) and bool(value.strip()) and len(value) <= maximum
+def _nonempty_string(value: Any, maximum: int | None = None) -> bool:
+    return isinstance(value, str) and bool(value.strip()) and (maximum is None or len(value) <= maximum)
 
 
-def _nonempty_string(value: Any) -> bool:
-    return isinstance(value, str) and bool(value.strip())
+def _has_dangerous_return_controls(content: str, source: str) -> bool:
+    language = analyze_return_language(content, expected_language="en", expected_language_source=source)
+    return any(
+        item.get("category") == "unicode_control_evasion"
+        for item in language.get("return_language_findings", [])
+        if isinstance(item, dict)
+    )
 
 
 def _local_json_type(value: Any) -> str:
@@ -554,32 +466,15 @@ def _validate_local_response_contract_detailed(
     if len(content) > maximum:
         diagnostic("final.overlong", "final", observed_count=len(content), maximum=maximum)
         return None, [f"final content exceeds max_final_chars={maximum}"], diagnostics
-    language = analyze_return_language(
-        content,
-        expected_language="en",
-        expected_language_source="local-response-contract",
-    )
-    if any(
-        item.get("category") == "unicode_control_evasion"
-        for item in language.get("return_language_findings", [])
-        if isinstance(item, dict)
-    ):
+    if _has_dangerous_return_controls(content, "local-response-contract"):
         diagnostic("final.unsafe_unicode", "final")
         return None, ["final content contains dangerous Unicode controls"], diagnostics
     value, decode_error = strict_json_loads(content)
     if decode_error:
         diagnostic("final.invalid_json", "final")
         return None, [f"final content is not one safe JSON object: {decode_error}"], diagnostics
-    decoded_language = analyze_return_language(
-        json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":")),
-        expected_language="en",
-        expected_language_source="local-response-contract-decoded",
-    )
-    if any(
-        item.get("category") == "unicode_control_evasion"
-        for item in decoded_language.get("return_language_findings", [])
-        if isinstance(item, dict)
-    ):
+    decoded = json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
+    if _has_dangerous_return_controls(decoded, "local-response-contract-decoded"):
         diagnostic("final.unsafe_unicode", "final")
         return None, ["final content contains dangerous Unicode controls"], diagnostics
     errors: list[str] = []
@@ -603,23 +498,17 @@ def _validate_local_response_contract_detailed(
     if not isinstance(confidence, str) or confidence not in {"high", "medium", "low"}:
         errors.append("confidence must be high, medium, or low")
         diagnostic("confidence.invalid_enum", "confidence", observed_type=_local_json_type(confidence))
-    if contract == GLM_CRITIC_CONTRACT_V1:
-        string_limits = {
-            "summary": GLM_CRITIC_MAX_SUMMARY_CHARS,
-            "recommended_next_action": GLM_CRITIC_MAX_ACTION_CHARS,
-            "escalation_needed": GLM_CRITIC_MAX_ESCALATION_CHARS,
-        }
-        for field, field_maximum in string_limits.items():
-            if not _bounded_nonempty_string(value.get(field), maximum=field_maximum):
-                errors.append(
-                    f"{field} must be a non-empty string no longer than {field_maximum} characters"
-                )
-                diagnostic("field.invalid_text", field, observed_type=_local_json_type(value.get(field)))
-    else:
-        for field in ("summary", "recommended_next_action", "escalation_needed"):
-            if not _nonempty_string(value.get(field)):
-                errors.append(f"{field} must be a non-empty string")
-                diagnostic("field.invalid_text", field, observed_type=_local_json_type(value.get(field)))
+    bounded_text = contract == GLM_CRITIC_CONTRACT_V1
+    string_limits = {
+        "summary": GLM_CRITIC_MAX_SUMMARY_CHARS,
+        "recommended_next_action": GLM_CRITIC_MAX_ACTION_CHARS,
+        "escalation_needed": GLM_CRITIC_MAX_ESCALATION_CHARS,
+    }
+    for field, limit in string_limits.items():
+        if not _nonempty_string(value.get(field), limit if bounded_text else None):
+            suffix = f" no longer than {limit} characters" if bounded_text else ""
+            errors.append(f"{field} must be a non-empty string{suffix}")
+            diagnostic("field.invalid_text", field, observed_type=_local_json_type(value.get(field)))
     findings = value.get("findings")
     if not isinstance(findings, list) or not 1 <= len(findings) <= GLM_CRITIC_MAX_FINDINGS:
         errors.append(f"findings must contain one to {GLM_CRITIC_MAX_FINDINGS} items")
@@ -640,7 +529,7 @@ def _validate_local_response_contract_detailed(
                     diagnostic("finding.missing_fields", path, fields=missing)
                 if extra:
                     diagnostic("finding.unexpected_fields", path, count=len(extra), digest=_contract_key_digest(extra))
-                if contract == GLM_CRITIC_CONTRACT_V1:
+                if bounded_text:
                     continue
             severity = finding.get("severity")
             if not isinstance(severity, str) or severity not in {"critical", "high", "medium", "low"}:
@@ -648,36 +537,24 @@ def _validate_local_response_contract_detailed(
                 diagnostic("finding.invalid_enum", f"{path}.severity", observed_type=_local_json_type(severity))
             for field in ("claim", "evidence", "repair"):
                 item = finding.get(field)
-                if contract == GLM_CRITIC_CONTRACT_V1:
-                    valid = _bounded_nonempty_string(
-                        item,
-                        maximum=GLM_CRITIC_MAX_FINDING_TEXT_CHARS,
-                    )
-                else:
-                    valid = _nonempty_string(item)
-                if not valid:
-                    qualifier = "bounded " if contract == GLM_CRITIC_CONTRACT_V1 else ""
+                limit = GLM_CRITIC_MAX_FINDING_TEXT_CHARS if bounded_text else None
+                if not _nonempty_string(item, limit):
+                    qualifier = "bounded " if bounded_text else ""
                     errors.append(f"finding {index} {field} must be a {qualifier}non-empty string")
                     diagnostic("finding.invalid_text", f"{path}.{field}", observed_type=_local_json_type(item))
     list_limits = {
         "alternatives": GLM_CRITIC_MAX_ALTERNATIVES,
         "risks": GLM_CRITIC_MAX_RISKS,
     }
+    list_text_limit = GLM_CRITIC_MAX_LIST_ITEM_CHARS if bounded_text else None
     for field, maximum_items in list_limits.items():
         items = value.get(field)
         if not isinstance(items, list) or len(items) > maximum_items:
             errors.append(f"{field} must be a list of at most {maximum_items} items")
             diagnostic("list.invalid_bounds", field, observed_type=_local_json_type(items), observed_count=len(items) if isinstance(items, list) else None, minimum=0, maximum=maximum_items)
-        elif contract == GLM_CRITIC_CONTRACT_V1 and any(
-            not _bounded_nonempty_string(item, maximum=GLM_CRITIC_MAX_LIST_ITEM_CHARS)
-            for item in items
-        ):
-            errors.append(f"{field} items must be bounded non-empty strings")
-            diagnostic("list.invalid_text", field)
-        elif contract == GLM_CRITIC_CONTRACT and any(
-            not _nonempty_string(item) for item in items
-        ):
-            errors.append(f"{field} items must be non-empty strings")
+        elif any(not _nonempty_string(item, list_text_limit) for item in items):
+            qualifier = "bounded " if bounded_text else ""
+            errors.append(f"{field} items must be {qualifier}non-empty strings")
             diagnostic("list.invalid_text", field)
     return (value if not errors else None), errors, diagnostics
 
@@ -1344,16 +1221,7 @@ def sanitize_local_response_payload(
     metadata["final_content_sha256"] = artifact_hash(final_content)
     metadata["final_content_chars"] = len(final_content)
     finish_reasons = [str(item).strip().lower() for item in metadata["finish_reasons"]]
-    language = analyze_return_language(
-        final_content,
-        expected_language="en",
-        expected_language_source="local-response-sanitizer",
-    )
-    dangerous_controls = any(
-        item.get("category") == "unicode_control_evasion"
-        for item in language.get("return_language_findings", [])
-        if isinstance(item, dict)
-    )
+    dangerous_controls = _has_dangerous_return_controls(final_content, "local-response-sanitizer")
     metadata["content_security_status"] = "rejected" if dangerous_controls else "passed"
     if dangerous_controls:
         completion_status = "content-unsafe"

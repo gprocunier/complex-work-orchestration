@@ -7,8 +7,6 @@ import re
 import sys
 from typing import Any
 
-from cwo_core.routing import current_authority_file_arguments
-
 from cwo_core.beads import (
     add_dependency,
     create_bead,
@@ -37,7 +35,7 @@ from cwo_core.routing import (
     unmet_required_experts_message,
 )
 from cwo_core.synthesis import synthesis_lane_enabled
-from cwo_core.util import load_optional_json, read_text_arg, read_text_segments
+from cwo_core.util import read_text_arg, read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 from cwo_core.workgraph_markdown import (
     FIELD_DEPENDS_ON_LANES,
@@ -48,6 +46,14 @@ from cwo_core.workgraph_markdown import (
     FIELD_TYPE,
     WORKGRAPH_FALLBACK_MARKER,
 )
+from routing_cli_options import (
+    add_beads_context_depth_argument,
+    add_operative_route_arguments,
+    add_route_access_arguments,
+    add_route_selection_arguments,
+    routing_options,
+)
+
 
 SPARK_WORKER_MODEL = SPARK_MODEL
 SPARK_WORKER_MODE = "implementation-capable"
@@ -207,64 +213,36 @@ def _route_planned_workerbee_delegation(
     route: dict[str, Any], lane: str
 ) -> dict[str, Any]:
     planned = route.get("workerbee_planned_delegation")
-    if not isinstance(planned, dict):
-        lanes: list[str] = []
-        return {
-            "workerbee_planned_delegation": {
-                "mode": "none",
-                "model": None,
-                "lanes": lanes,
-            },
-            "workerbee_planned_mode": "none",
-            "workerbee_planned_model": "",
-            "workerbee_planned_lanes": lanes,
-            "workerbee_operational_owner": "",
-            "workerbee_registry_tool_mismatch": False,
-            "spark_operational_worker": False,
-            "workerbee_spark_dispatch": {},
-        }
-    spark_dispatch = _sanitize_workerbee_spark_dispatch(planned.get("spark_dispatch"))
-    if _route_has_spark_hard_stop(route):
-        lanes: list[str] = []
-        return {
-            "workerbee_planned_delegation": {
-                "mode": "blocked",
-                "model": None,
-                "lanes": lanes,
-            },
-            "workerbee_planned_mode": "blocked",
-            "workerbee_planned_model": "",
-            "workerbee_planned_lanes": lanes,
-            "workerbee_operational_owner": "",
-            "workerbee_registry_tool_mismatch": bool(planned.get("registry_tool_mismatch")),
-            "spark_operational_worker": False,
-            "workerbee_spark_dispatch": spark_dispatch,
-        }
-    lanes = unique_strings([item for item in planned.get("lanes", [])])
-    mode = str(planned.get("mode") or "none")
-    model = planned.get("model")
-    model = model if not (model is not None and not str(model).strip()) else None
-    if _route_prefers_native_operational(route):
-        is_operative_lane = lane in OPERATIONAL_WORKER_BEAD_LANES
-    else:
-        is_operative_lane = False
-    if is_operative_lane:
-        mode = SPARK_WORKER_MODE
-        operative = route.get("operative_route")
-        model = operative.get("selected_model") if isinstance(operative, dict) else SPARK_WORKER_MODEL
-    workerbee_operational_owner = _native_operational_owner(model, route) if is_operative_lane else ""
+    mode, model, owner = "none", None, ""
+    lanes: list[str] = []
+    spark_dispatch: dict[str, Any] = {}
+    registry_mismatch = spark_worker = False
+    if isinstance(planned, dict):
+        spark_dispatch = _sanitize_workerbee_spark_dispatch(planned.get("spark_dispatch"))
+        if _route_has_spark_hard_stop(route):
+            mode = "blocked"
+            registry_mismatch = bool(planned.get("registry_tool_mismatch"))
+        else:
+            lanes = unique_strings([item for item in planned.get("lanes", [])])
+            mode = str(planned.get("mode") or "none")
+            model = planned.get("model")
+            if model is not None and not str(model).strip():
+                model = None
+            if _route_prefers_native_operational(route) and lane in OPERATIONAL_WORKER_BEAD_LANES:
+                mode = SPARK_WORKER_MODE
+                operative = route.get("operative_route")
+                model = operative.get("selected_model") if isinstance(operative, dict) else SPARK_WORKER_MODEL
+                owner = _native_operational_owner(model, route)
+            registry_mismatch = bool(planned.get("registry_tool_mismatch"))
+            spark_worker = bool(planned.get("spark_operational_worker"))
     return {
-        "workerbee_planned_delegation": {
-            "mode": mode,
-            "model": model,
-            "lanes": lanes,
-        },
+        "workerbee_planned_delegation": {"mode": mode, "model": model, "lanes": lanes},
         "workerbee_planned_mode": mode,
         "workerbee_planned_model": str(model) if model is not None else "",
         "workerbee_planned_lanes": lanes,
-        "workerbee_operational_owner": workerbee_operational_owner,
-        "workerbee_registry_tool_mismatch": bool(planned.get("registry_tool_mismatch")),
-        "spark_operational_worker": bool(planned.get("spark_operational_worker")),
+        "workerbee_operational_owner": owner,
+        "workerbee_registry_tool_mismatch": registry_mismatch,
+        "spark_operational_worker": spark_worker,
         "workerbee_spark_dispatch": spark_dispatch,
     }
 
@@ -335,14 +313,13 @@ def route_notes(route: dict[str, Any]) -> str:
             spark_dispatch = planned.get("workerbee_spark_dispatch")
         if not isinstance(spark_dispatch, dict):
             spark_dispatch = {}
-        if isinstance(spark_dispatch, dict):
-            lines.append(
-                "Spark dispatch metadata: "
-                f"status={spark_dispatch.get('status', 'not-applicable')} | "
-                f"requested_route={spark_dispatch.get('requested_route', '') or 'none'} | "
-                f"requested_model={spark_dispatch.get('requested_model', '') or ''} | "
-                f"failed_check={spark_dispatch.get('failed_native_capability_check', '') or ''}"
-            )
+        lines.append(
+            "Spark dispatch metadata: "
+            f"status={spark_dispatch.get('status', 'not-applicable')} | "
+            f"requested_route={spark_dispatch.get('requested_route', '') or 'none'} | "
+            f"requested_model={spark_dispatch.get('requested_model', '') or ''} | "
+            f"failed_check={spark_dispatch.get('failed_native_capability_check', '') or ''}"
+        )
     operative = route.get("operative_route")
     if isinstance(operative, dict):
         lines.extend(
@@ -354,10 +331,6 @@ def route_notes(route: dict[str, Any]) -> str:
             ]
         )
     return "\n".join(lines)
-
-
-def _planned_workerbee_metadata(route: dict[str, Any]) -> dict[str, Any]:
-    return _route_planned_workerbee_delegation(route, "non-operational")
 
 
 def _lane_metadata(
@@ -583,7 +556,9 @@ def lane_fields(
     }
 
 
-def expert_fields(expert: dict[str, Any], route: dict[str, Any]) -> dict[str, object]:
+def expert_fields(
+    expert: dict[str, Any], route: dict[str, Any], *, include_manual_notes: bool = True,
+) -> dict[str, object]:
     acceptance_checks = expert.get("acceptance_checks", [])
     output_contract = expert.get("output_contract", [])
     display_name = str(expert.get("display_name") or expert.get("name") or "Expert reviewer")
@@ -592,11 +567,12 @@ def expert_fields(expert: dict[str, Any], route: dict[str, Any]) -> dict[str, ob
     notes = route_notes(route) + "\nOutput contract:\n" + bullet_list(
         list(output_contract), "Findings, confidence, residual risk, and recommended next Beads."
     )
-    contract = expert.get("contractor_contract") if isinstance(expert.get("contractor_contract"), dict) else {}
-    if contract.get("manual_command"):
-        notes += f"\nManual dispatch command:\n- {contract['manual_command']}"
-    if contract.get("claude_effort"):
-        notes += f"\nClaude effort:\n- {contract['claude_effort']}"
+    if include_manual_notes:
+        contract = expert.get("contractor_contract") if isinstance(expert.get("contractor_contract"), dict) else {}
+        if contract.get("manual_command"):
+            notes += f"\nManual dispatch command:\n- {contract['manual_command']}"
+        if contract.get("claude_effort"):
+            notes += f"\nClaude effort:\n- {contract['claude_effort']}"
     return {
         "skills": unique_strings(
             [
@@ -729,6 +705,47 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
     if not closure_pressure["allowed"]:
         raise ValueError(f"closure-pressure blocked: {closure_pressure['reason']}")
     route = {**route, "closure_pressure": closure_pressure}
+    def task(
+        lane: str, action: str, labels: list[str], depends_on: list[str] | None = None,
+        *, metadata: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        item: dict[str, Any] = {"title": f"{action}: {title}", "type": "task", "lane": lane, "labels": labels}
+        if depends_on is not None:
+            item["depends_on_lanes"] = depends_on
+        item.update(lane_fields(lane, route, metadata=metadata))
+        return item
+
+    def dispatch_task(lane: str, action: str, depends_on: list[str], *extra_labels: str) -> dict[str, Any]:
+        guard_labels = list(route.get("guard_labels") or [])
+        return task(
+            lane, action, unique_strings(["dispatch", *extra_labels, route["route"], *guard_labels]),
+            depends_on,
+            metadata={
+                "codex_pickup": "forbidden",
+                "guard_labels": guard_labels,
+                "route": route.get("route"),
+                "share_boundary": route.get("share_boundary"),
+                "architect_review_required": True,
+            },
+        )
+
+    def peer_review_task(lane: str, action: str, depends_on: list[str], *extra_labels: str) -> dict[str, Any]:
+        labels = route.get("peer_review_labels") or [
+            "peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec",
+        ]
+        return task(
+            lane, action, [*labels, "contract-jd-peer-review", *extra_labels], depends_on,
+            metadata={
+                "job_description_label": "contract-jd-peer-review",
+                "peer_review_count": route.get("peer_review_count", 1),
+                "provider_diversity_required": route.get("provider_diversity_required", True),
+                "provider_conflict_domains": route.get("provider_conflict_domains", []),
+                "local_secure_review_executor": route.get("local_secure_review_executor"),
+                "codex_pickup": "forbidden",
+                "architect_review_required": True,
+            },
+        )
+
     expert_items: list[dict[str, Any]] = []
     acceptance_review_lanes: list[str] = []
     final_acceptance_lanes: list[str] = []
@@ -771,17 +788,9 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
                 validation_blocker_lanes.append(lane)
                 depends_on.extend(CONTENT_LANES)
 
-        expert_items.append(
-            {
-                "title": f"{expert['display_name']}: {title}",
-                "type": "task",
-                "lane": lane,
-                "labels": expert_review_labels(expert, route),
-                "depends_on_lanes": depends_on,
-                **lane_fields(lane, route, metadata=metadata),
-                **expert_fields(expert, route),
-            }
-        )
+        item = task(lane, expert["display_name"], expert_review_labels(expert, route), depends_on, metadata=metadata)
+        item.update(expert_fields(expert, route))
+        expert_items.append(item)
 
     peer_review_required = bool(route.get("peer_review_required"))
     if final_acceptance_lanes:
@@ -793,6 +802,7 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
         not needs_external_acceptance
         and (route.get("architect_adjudication_required") or peer_review_required)
     )
+    implementation_dependencies = ["architect", *implementation_blocker_lanes]
     graph: list[dict[str, Any]] = [
         {
             "title": title,
@@ -809,365 +819,90 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             "design": "Policy-routed epic that coordinates architect, PM, workerbee, review, validation, and handoff lanes through Beads.",
             "notes": route_notes(route),
         },
-        {
-            "title": f"Architect frame: {title}",
-            "type": "task",
-            "lane": "architect",
-            "labels": ["architect", "framing"],
-            **lane_fields("architect", route),
-        },
-        {
-            "title": f"PM coordinate: {title}",
-            "type": "task",
-            "lane": "pm",
-            "labels": ["pm", "coordination"],
-            **lane_fields("pm", route),
-        },
-        {
-            "title": f"Implement: {title}",
-            "type": "task",
-            "lane": "implementation",
-            "labels": _lane_labels(
-                route,
-                "implementation",
-                ["workerbee", "implementation"],
-            ),
-            "depends_on_lanes": ["architect", *implementation_blocker_lanes],
-            **lane_fields("implementation", route),
-        },
-        {
-            "title": f"Docs: {title}",
-            "type": "task",
-            "lane": "docs",
-            "labels": _lane_labels(
-                route,
-                "docs",
-                ["docs"],
-            ),
-            "depends_on_lanes": ["implementation"],
-            **lane_fields("docs", route),
-        },
-        {
-            "title": f"Validate: {title}",
-            "type": "task",
-            "lane": "validation",
-            "labels": _lane_labels(
-                route,
-                "validation",
-                ["workerbee", "validation"],
-            ),
-            "depends_on_lanes": [*CONTENT_LANES, *validation_blocker_lanes],
-            **lane_fields("validation", route),
-        },
+        task("architect", "Architect frame", ["architect", "framing"]),
+        task("pm", "PM coordinate", ["pm", "coordination"]),
+        task(
+            "implementation", "Implement", _lane_labels(route, "implementation", ["workerbee", "implementation"]),
+            implementation_dependencies,
+        ),
+        task("docs", "Docs", _lane_labels(route, "docs", ["docs"]), ["implementation"]),
+        task(
+            "validation", "Validate", _lane_labels(route, "validation", ["workerbee", "validation"]),
+            [*CONTENT_LANES, *validation_blocker_lanes],
+        ),
     ]
     final_check_lane = "validation"
     if publish_sanitization_required:
-        graph.append(
-            {
-                "title": f"Publish sanitization: {title}",
-                "type": "task",
-                "lane": "publish-sanitization",
-                "labels": _lane_labels(
-                    route,
-                    "publish-sanitization",
-                    ["publish-sanitization", "public-artifact-review"],
-                ),
-                "depends_on_lanes": ["validation", *editor_gate_lanes],
-                **lane_fields("publish-sanitization", route, metadata={"inspect_only": True}),
-            }
-        )
         final_check_lane = "publish-sanitization"
+        graph.append(task(
+            final_check_lane, "Publish sanitization",
+            _lane_labels(route, final_check_lane, ["publish-sanitization", "public-artifact-review"]),
+            ["validation", *editor_gate_lanes], metadata={"inspect_only": True},
+        ))
 
-    graph.extend(
-        [
-            {
-                "title": f"Wrap-up report and handoff: {title}",
-                "type": "task",
-                "lane": "wrap-up-report",
-                "labels": _lane_labels(
-                    route,
-                    "wrap-up-report",
-                    ["reporting", "wrap-up-status", "handoff"],
-                ),
-                "depends_on_lanes": [final_check_lane],
-                **lane_fields("wrap-up-report", route, metadata={"inspect_only": True}),
-            },
-            {
-                "title": f"Dashboard report: {title}",
-                "type": "task",
-                "lane": "dashboard-report",
-                "labels": _lane_labels(
-                    route,
-                    "dashboard-report",
-                    ["reporting", "dashboard"],
-                ),
-                "depends_on_lanes": ["validation"],
-                **lane_fields("dashboard-report", route),
-            },
-        ]
-    )
+    graph.extend([
+        task(
+            "wrap-up-report", "Wrap-up report and handoff",
+            _lane_labels(route, "wrap-up-report", ["reporting", "wrap-up-status", "handoff"]),
+            [final_check_lane], metadata={"inspect_only": True},
+        ),
+        task(
+            "dashboard-report", "Dashboard report", _lane_labels(route, "dashboard-report", ["reporting", "dashboard"]),
+            ["validation"],
+        ),
+    ])
     if final_acceptance_lanes:
-        final_lanes: list[dict[str, Any]] = []
         if final_dispatch_required:
-            final_lanes.append(
-                {
-                    "title": f"Dispatch final reviews: {title}",
-                    "type": "task",
-                    "lane": "final-dispatch",
-                    "labels": unique_strings(["dispatch", "final-review", route["route"], *(route.get("guard_labels") or [])]),
-                    "depends_on_lanes": list(CONTENT_LANES),
-                    **lane_fields(
-                        "final-dispatch",
-                        route,
-                        metadata={
-                            "codex_pickup": "forbidden",
-                            "guard_labels": list(route.get("guard_labels") or []),
-                            "route": route.get("route"),
-                            "share_boundary": route.get("share_boundary"),
-                            "architect_review_required": True,
-                        },
-                    ),
-                }
-            )
+            graph.append(dispatch_task("final-dispatch", "Dispatch final reviews", list(CONTENT_LANES), "final-review"))
         final_evaluation_dependencies = list(final_acceptance_lanes)
         if peer_review_required:
-            final_lanes.append(
-                {
-                    "title": f"Peer review final returns: {title}",
-                    "type": "task",
-                    "lane": "final-peer-review",
-                    "labels": [
-                        *(route.get("peer_review_labels")
-                          or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
-                        "contract-jd-peer-review",
-                        "final-review",
-                    ],
-                    "depends_on_lanes": list(final_acceptance_lanes),
-                    **lane_fields(
-                        "final-peer-review",
-                        route,
-                        metadata={
-                            "job_description_label": "contract-jd-peer-review",
-                            "peer_review_count": route.get("peer_review_count", 1),
-                            "provider_diversity_required": route.get("provider_diversity_required", True),
-                            "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                            "local_secure_review_executor": route.get("local_secure_review_executor"),
-                            "codex_pickup": "forbidden",
-                            "architect_review_required": True,
-                        },
-                    ),
-                }
-            )
+            graph.append(peer_review_task("final-peer-review", "Peer review final returns", list(final_acceptance_lanes), "final-review"))
             final_evaluation_dependencies = ["final-peer-review"]
-        final_lanes.extend(
-            [
-                {
-                    "title": f"Evaluate final reviews: {title}",
-                    "type": "task",
-                    "lane": "final-evaluation",
-                    "labels": ["evaluation", "contractor-evaluator", "final-review"],
-                    "depends_on_lanes": final_evaluation_dependencies,
-                    **lane_fields("final-evaluation", route),
-                },
-                {
-                    "title": f"Architect adjudication of final reviews: {title}",
-                    "type": "task",
-                    "lane": "final-adjudication",
-                    "labels": ["architect", "adjudication", "final-review"],
-                    "depends_on_lanes": ["final-evaluation"],
-                    **lane_fields("final-adjudication", route),
-                },
-            ]
-        )
-        graph.extend(final_lanes)
-    if needs_external_acceptance:
-        peer_review_lanes = ["peer-review"] if peer_review_required else []
-        dispatch_guard_labels = list(route.get("guard_labels") or [])
-        dispatch_metadata = {
-            "codex_pickup": "forbidden",
-            "guard_labels": dispatch_guard_labels,
-            "route": route.get("route"),
-            "share_boundary": route.get("share_boundary"),
-            "architect_review_required": True,
-        }
-        acceptance_lanes: list[dict[str, Any]] = [
-            {
-                "title": f"Dispatch: {title}",
-                "type": "task",
-                "lane": "external-dispatch",
-                "labels": unique_strings(["dispatch", route["route"], *dispatch_guard_labels]),
-                "depends_on_lanes": ["pm"],
-                **lane_fields("external-dispatch", route, metadata=dispatch_metadata),
-            },
-            *(
-                [
-                    {
-                        "title": f"Peer review return: {title}",
-                        "type": "task",
-                        "lane": "peer-review",
-                        "labels": [
-                            *(route.get("peer_review_labels")
-                              or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
-                            "contract-jd-peer-review",
-                        ],
-                        "depends_on_lanes": ["external-dispatch"],
-                        **lane_fields(
-                            "peer-review",
-                            route,
-                            metadata={
-                                "job_description_label": "contract-jd-peer-review",
-                                "peer_review_count": route.get("peer_review_count", 1),
-                                "provider_diversity_required": route.get("provider_diversity_required", True),
-                                "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                                "local_secure_review_executor": route.get("local_secure_review_executor"),
-                                "codex_pickup": "forbidden",
-                                "architect_review_required": True,
-                            },
-                        ),
-                    }
-                ]
-                if peer_review_required
-                else []
+        graph.extend([
+            task(
+                "final-evaluation", "Evaluate final reviews", ["evaluation", "contractor-evaluator", "final-review"],
+                final_evaluation_dependencies,
             ),
-            {
-                "title": f"Evaluate return: {title}",
-                "type": "task",
-                "lane": "evaluation",
-                "labels": ["evaluation", "contractor-evaluator"],
-                "depends_on_lanes": ["external-dispatch", *peer_review_lanes, *acceptance_review_lanes],
-                **lane_fields("evaluation", route),
-            },
-        ]
+            task(
+                "final-adjudication", "Architect adjudication of final reviews",
+                ["architect", "adjudication", "final-review"], ["final-evaluation"],
+            ),
+        ])
+
+    if needs_external_acceptance:
+        graph.append(dispatch_task("external-dispatch", "Dispatch", ["pm"]))
+        evaluation_dependencies = ["external-dispatch"]
+        if peer_review_required:
+            graph.append(peer_review_task("peer-review", "Peer review return", ["external-dispatch"]))
+            evaluation_dependencies.append("peer-review")
+        graph.append(task(
+            "evaluation", "Evaluate return", ["evaluation", "contractor-evaluator"],
+            [*evaluation_dependencies, *acceptance_review_lanes],
+        ))
         adjudication_dependencies = ["evaluation"]
-        if model_synthesis_required:
-            acceptance_lanes.append(
-                {
-                    "title": f"Model synthesis: {title}",
-                    "type": "task",
-                    "lane": "model-synthesis",
-                    "labels": ["synthesis", "adjudication-support"],
-                    "depends_on_lanes": ["evaluation"],
-                    **lane_fields(
-                        "model-synthesis",
-                        route,
-                        metadata={"model_synthesis": route.get("model_synthesis")},
-                    ),
-                }
-            )
-            adjudication_dependencies = ["model-synthesis"]
-        acceptance_lanes.append(
-            {
-                "title": f"Architect adjudication: {title}",
-                "type": "task",
-                "lane": "architect-adjudication",
-                "labels": ["architect", "adjudication"],
-                "depends_on_lanes": adjudication_dependencies,
-                **lane_fields("architect-adjudication", route),
-            }
-        )
-        graph.extend(acceptance_lanes)
-        for item in graph:
-            if item.get("lane") == "implementation":
-                item.setdefault("depends_on_lanes", []).append("architect-adjudication")
     elif needs_internal_acceptance:
-        internal_gate_lanes: list[dict[str, Any]] = []
         adjudication_dependencies = ["architect"]
         if peer_review_required:
-            internal_gate_lanes.extend(
-                [
-                    {
-                        "title": f"Peer review return: {title}",
-                        "type": "task",
-                        "lane": "peer-review",
-                        "labels": [
-                            *(route.get("peer_review_labels")
-                              or ["peer-review-required", "contractor-peer-review", "sabotage-review", "no-codex-exec"]),
-                            "contract-jd-peer-review",
-                        ],
-                        "depends_on_lanes": ["architect"],
-                        **lane_fields(
-                            "peer-review",
-                            route,
-                            metadata={
-                                "job_description_label": "contract-jd-peer-review",
-                                "peer_review_count": route.get("peer_review_count", 1),
-                                "provider_diversity_required": route.get("provider_diversity_required", True),
-                                "provider_conflict_domains": route.get("provider_conflict_domains", []),
-                                "local_secure_review_executor": route.get("local_secure_review_executor"),
-                                "codex_pickup": "forbidden",
-                                "architect_review_required": True,
-                            },
-                        ),
-                    },
-                    {
-                        "title": f"Evaluate return: {title}",
-                        "type": "task",
-                        "lane": "evaluation",
-                        "labels": ["evaluation", "contractor-evaluator"],
-                        "depends_on_lanes": ["peer-review"],
-                        **lane_fields("evaluation", route),
-                    },
-                ]
-            )
+            graph.extend([
+                peer_review_task("peer-review", "Peer review return", ["architect"]),
+                task("evaluation", "Evaluate return", ["evaluation", "contractor-evaluator"], ["peer-review"]),
+            ])
             adjudication_dependencies = ["evaluation"]
-        if model_synthesis_required:
-            internal_gate_lanes.append(
-                {
-                    "title": f"Model synthesis: {title}",
-                    "type": "task",
-                    "lane": "model-synthesis",
-                    "labels": ["synthesis", "adjudication-support"],
-                    "depends_on_lanes": adjudication_dependencies,
-                    **lane_fields(
-                        "model-synthesis",
-                        route,
-                        metadata={"model_synthesis": route.get("model_synthesis")},
-                    ),
-                }
-            )
-            adjudication_dependencies = ["model-synthesis"]
-        internal_gate_lanes.append(
-            {
-                "title": f"Architect adjudication: {title}",
-                "type": "task",
-                "lane": "architect-adjudication",
-                "labels": ["architect", "adjudication"],
-                "depends_on_lanes": adjudication_dependencies,
-                **lane_fields("architect-adjudication", route),
-            }
-        )
-        graph.extend(internal_gate_lanes)
-        for item in graph:
-            if item.get("lane") == "implementation":
-                item.setdefault("depends_on_lanes", []).append("architect-adjudication")
-    elif model_synthesis_required:
-        graph.extend(
-            [
-                {
-                    "title": f"Model synthesis: {title}",
-                    "type": "task",
-                    "lane": "model-synthesis",
-                    "labels": ["synthesis", "adjudication-support"],
-                    "depends_on_lanes": ["architect", *implementation_blocker_lanes],
-                    **lane_fields(
-                        "model-synthesis",
-                        route,
-                        metadata={"model_synthesis": route.get("model_synthesis")},
-                    ),
-                },
-                {
-                    "title": f"Architect adjudication: {title}",
-                    "type": "task",
-                    "lane": "architect-adjudication",
-                    "labels": ["architect", "adjudication"],
-                    "depends_on_lanes": ["model-synthesis"],
-                    **lane_fields("architect-adjudication", route),
-                },
-            ]
-        )
-        for item in graph:
-            if item.get("lane") == "implementation":
-                item.setdefault("depends_on_lanes", []).append("architect-adjudication")
+    else:
+        adjudication_dependencies = ["architect", *implementation_blocker_lanes]
+
+    if model_synthesis_required:
+        graph.append(task(
+            "model-synthesis", "Model synthesis", ["synthesis", "adjudication-support"],
+            adjudication_dependencies, metadata={"model_synthesis": route.get("model_synthesis")},
+        ))
+        adjudication_dependencies = ["model-synthesis"]
+    if needs_external_acceptance or needs_internal_acceptance or model_synthesis_required:
+        graph.append(task(
+            "architect-adjudication", "Architect adjudication", ["architect", "adjudication"],
+            adjudication_dependencies,
+        ))
+        implementation_dependencies.append("architect-adjudication")
 
     graph.extend(expert_items)
     return graph
@@ -1520,25 +1255,9 @@ def main() -> None:
         action="store_true",
         help="Explicitly approve repo-readonly or patch-branch disclosure routing.",
     )
-    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
-    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
-    parser.add_argument("--local-profile", help="Require a named local executor profile, for example openshift-ai-vllm.")
-    parser.add_argument("--share-boundary", default="no-outside-sharing")
-    parser.add_argument(
-        "--data-sensitivity",
-        choices=["public", "redacted", "internal", "restricted"],
-        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
-    )
+    add_route_access_arguments(parser)
     parser.add_argument("--requested-role", action="append", default=[])
-    parser.add_argument(
-        "--execution-environment",
-        help="Select a CWO execution environment profile such as connected-codex-glm-primary.",
-    )
-    parser.add_argument(
-        "--model-synthesis",
-        action="store_true",
-        help="Treat model synthesis as accepted opt-in and activate the CWO-native synthesis lane.",
-    )
+    add_route_selection_arguments(parser)
     parser.add_argument(
         "--scaffold-size",
         choices=["full", "tight"],
@@ -1552,19 +1271,9 @@ def main() -> None:
         dest="scaffold_size",
         help="Shortcut for --scaffold-size tight.",
     )
-    parser.add_argument(
-        "--beads-context-depth",
-        choices=["none", "summary", "focused", "heavy", "audit"],
-        help="Override the autosized Beads context depth for internal Codex/subagent briefing.",
-    )
+    add_beads_context_depth_argument(parser)
     parser.add_argument("--dry-run", action="store_true")
-    parser.add_argument("--operative-capabilities", help="Trusted live operative capability evidence JSON.")
-    parser.add_argument("--operative-work-estimate", help="Validated native work-estimate v2 JSON.")
-    parser.add_argument("--operative-fallback-fit", help="Strict hash-bound fallback-fitness evidence JSON.")
-    parser.add_argument("--fallback-selection", help="Explicit user fallback selection JSON.")
-    parser.add_argument("--operative-context", help="Current Bead/wave/fresh-segment context JSON.")
-    parser.add_argument("--aggregate-budget", help="Original aggregate budget JSON; never reset on fallback.")
-    parser.add_argument("--operative-evaluated-at", help="ISO-8601 routing evaluation time for deterministic automation.")
+    add_operative_route_arguments(parser)
     parser.add_argument(
         "--format",
         choices=["cwo", "beads-graph", "markdown-workgraph"],
@@ -1602,25 +1311,7 @@ def main() -> None:
         route = classify_work(
             context,
             text_segments=context_segments,
-            external_ok=args.external_ok,
-            allow_disclosure_escalation=args.allow_disclosure_escalation,
-            local_ok=args.local_ok,
-            prefer_local=args.prefer_local,
-            local_profile=args.local_profile,
-            share_boundary=args.share_boundary,
-            data_sensitivity=args.data_sensitivity,
-            requested_roles=args.requested_role,
-            execution_environment=args.execution_environment,
-            model_synthesis=args.model_synthesis,
-            beads_context_depth=args.beads_context_depth,
-            operative_capabilities=load_optional_json(args.operative_capabilities),
-            operative_work_estimate=load_optional_json(args.operative_work_estimate),
-            operative_fallback_fit=load_optional_json(args.operative_fallback_fit),
-            fallback_selection=load_optional_json(args.fallback_selection),
-            operative_context=load_optional_json(args.operative_context),
-            aggregate_budget=load_optional_json(args.aggregate_budget),
-            operative_evaluated_at=args.operative_evaluated_at,
-            **current_authority_file_arguments(args.current_authority),
+            **routing_options(args),
         )
     except CWOError as exc:
         raise SystemExit(str(exc))
