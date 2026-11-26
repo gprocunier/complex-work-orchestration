@@ -105,7 +105,7 @@ class MalformedPolicyAtConsumersTests(unittest.TestCase):
 
         document = _read("model-roles")
         document["roles"]["cyber_fallback"] = {
-            "model": "gpt-daybreak-blue-latest",
+            "model": "gpt-6-sol",
             "required_access_program": "daybreakBlue",
             "codex_config": {"daybreak": True},
         }

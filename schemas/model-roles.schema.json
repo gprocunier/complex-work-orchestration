@@ -71,7 +71,9 @@
           "additionalProperties": false,
           "required": ["model", "required_access_program", "codex_config"],
           "properties": {
-            "model": {"type": "string", "const": "gpt-daybreak-blue-latest"},
+            "purpose": {"type": "string", "minLength": 1},
+            "model": {"type": "string", "minLength": 1},
+            "previous": {"type": ["string", "null"], "minLength": 1},
             "required_access_program": {"type": "string", "const": "daybreakBlue"},
             "codex_config": {
               "type": "object",

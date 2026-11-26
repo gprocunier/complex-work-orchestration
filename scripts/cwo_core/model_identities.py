@@ -16,7 +16,7 @@ LUNA_MODEL = "gpt-5.6-luna"
 MODEL_ROLES = ("sol", "astra", "luna", "terra")
 OPERATIVE_ROLES = ("luna", "terra", "sol")
 CYBER_FALLBACK_ROLE = "cyber_fallback"
-CYBER_FALLBACK_MODEL = "gpt-daybreak-blue-latest"
+# The optional role's model comes only from the installed policy entry (see references/native-supervision.md).
 CYBER_FALLBACK_ACCESS_PROGRAM = "daybreakBlue"
 CYBER_FALLBACK_CODEX_CONFIG = {"daybreak": True}
 _FAMILY_MODEL = re.compile(r"gpt-([1-9][0-9]*(?:\.(?:0|[1-9][0-9]*))*)-(sol|astra|luna|terra)")
@@ -52,16 +52,26 @@ def _validate_role(role: str, entry: Any) -> None:
         raise ValueError(f"model-roles {role} reviewer_rank must be a positive integer")
 
 
-def _validate_cyber_fallback(entry: Any) -> None:
-    expected = {
-        "model": CYBER_FALLBACK_MODEL,
-        "required_access_program": CYBER_FALLBACK_ACCESS_PROGRAM,
-        "codex_config": CYBER_FALLBACK_CODEX_CONFIG,
-    }
-    if not isinstance(entry, Mapping) or dict(entry) != expected:
-        raise ValueError(
-            "model-roles cyber_fallback must select the Daybreak Blue model, access program and daybreak=true"
-        )
+def is_cyber_fallback_model(model: Any) -> bool:
+    """Accept an exact canonical model ID for the optional Daybreak role."""
+    return model_family_role(model) is not None
+
+
+def _validate_cyber_fallback(entry: Any, sol: Mapping[str, Any]) -> None:
+    required = {"model", "required_access_program", "codex_config"}
+    if not isinstance(entry, Mapping) or not required <= set(entry) <= required | {"previous", "purpose"}:
+        raise ValueError("model-roles cyber_fallback fields are invalid")
+    if not is_cyber_fallback_model(entry["model"]):
+        raise ValueError("model-roles cyber_fallback model must be an exact model ID")
+    if entry.get("previous") is not None and not is_cyber_fallback_model(entry["previous"]):
+        raise ValueError("model-roles cyber_fallback previous must be an exact model ID or null")
+    if "purpose" in entry and (type(entry["purpose"]) is not str or not entry["purpose"]):
+        raise ValueError("model-roles cyber_fallback purpose is invalid")
+    if entry["model"] in {sol.get("current"), sol.get("pin")}:
+        raise ValueError("model-roles cyber_fallback must not combine daybreak with the sol role's model")
+    if (entry["required_access_program"] != CYBER_FALLBACK_ACCESS_PROGRAM
+            or entry["codex_config"] != CYBER_FALLBACK_CODEX_CONFIG):
+        raise ValueError("model-roles cyber_fallback must require Daybreak Blue access and daybreak=true")
 
 
 def validate_model_role_config(config: Any) -> None:
@@ -77,7 +87,7 @@ def validate_model_role_config(config: Any) -> None:
     if roles["astra"]["reviewer_rank"] <= roles["sol"]["reviewer_rank"]:
         raise ValueError("model-roles reviewer_rank must place astra above sol")
     if CYBER_FALLBACK_ROLE in roles:
-        _validate_cyber_fallback(roles[CYBER_FALLBACK_ROLE])
+        _validate_cyber_fallback(roles[CYBER_FALLBACK_ROLE], roles["sol"])
 
 
 def _role_config(config: Mapping[str, Any] | None) -> Mapping[str, Any]:

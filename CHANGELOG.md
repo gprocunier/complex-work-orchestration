@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Read the optional Daybreak Blue fallback model from `policy/model-roles.yaml` (documented default `gpt-6-sol` with `daybreak=true`, with `previous` for rollback) instead of the retired `gpt-daybreak-blue-latest` alias. Only a cyber-policy refusal triggers the single fallback attempt; other refusals and errors stop. If you enabled the role, change its `model` to `gpt-6-sol`.
+
 ## 1.47.0 - 2026-11-26
 
 - Recognize the exact `None.` disclosure declaration in outbound screening of contractor peer reviews.

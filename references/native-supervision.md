@@ -36,16 +36,26 @@ model stays fixed for that attempt. To roll back, select the explicit mode and
 use the model recorded in `previous`.
 
 The shipped policy does not contain a `cyber_fallback` role. A user who chooses
-to enable refusal recovery adds this exact entry under `roles` in their installed
+to enable refusal recovery adds this entry under `roles` in their installed
 `policy/model-roles.yaml`:
 
 ```json
 "cyber_fallback": {
-  "model": "gpt-daybreak-blue-latest",
+  "model": "gpt-6-sol",
+  "previous": null,
   "required_access_program": "daybreakBlue",
   "codex_config": {"daybreak": true}
 }
 ```
+
+The model is configuration: change `model` (and record the old one in
+`previous`) when the Daybreak Blue model changes. It must be an exact model ID
+and must differ from the `sol` role's model, so `daybreak=true` is never
+combined with the ordinary sol model. Only a cyber-policy refusal triggers
+recovery. Other refusals, errors and timeouts stop the task. Recovery makes one
+attempt with the same packet, effort and service tier. A second refusal, or an
+account without Daybreak Blue access, stops the task and records the blocker.
+Each attempt is recorded with the refusal that triggered it and its outcome.
 
 At startup, CWO reads the public Codex model catalog. The role is available only
 when the exact model is selectable and its `availableAccessPrograms.cyber` list
