@@ -2914,9 +2914,9 @@
 
 "xi":[155,"PoolWorkerContainment.launch_appserver",533,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
-"xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",565,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
+"xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",630,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
 
-"xk":[157,"build_pool_qualification_runtime",1441,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
+"xk":[157,"build_pool_qualification_runtime",1455,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
 
 "xl":[155,"PoolWorkerContainment.run_writer",593,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
 
@@ -3044,7 +3044,7 @@
 
 "z4":[77,"SelectedNativeProbe.__init__",244,"2F1Z6iUNCEF4gtmffQBOeA6h5KC1RmRW6J56HHmYojw"],
 
-"z5":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",397,"2pNX4WGhJ16yELyinNR73Hmw6ls8Xwat2t4rP8P3QcQ"],
+"z5":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",398,"2pNX4WGhJ16yELyinNR73Hmw6ls8Xwat2t4rP8P3QcQ"],
 
 "z6":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1403,"oJI0tM2ygXBHCkoYrxkZkaIG-rTlLffdcjcf44IEDVk"],
 
@@ -3094,7 +3094,7 @@
 
 "zT":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"A8gKF8grrSFM3l4p_rgbzGXhHmcErV2qw7A7Cfxvj7o"],
 
-"zU":[157,672,"self.wire.request(\"turn/start\", self.turn_parameters())",20,672,75],
+"zU":[157,685,"self.wire.request(\"turn/start\", self.turn_parameters())",20,685,75],
 
 "zV":[146,301,{"$":366},21,301,40],
 
@@ -3136,7 +3136,7 @@
 
 "zo":[146,439,"socket.socket()",54,439,69],
 
-"zp":[157,237,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,237,94],
+"zp":[157,250,"super().request(method, params, timeout=min(timeout, self.factory.remaining()))",15,250,94],
 
 "zq":[159,"SignedCalibrationPipeTests._run_calibration",265,"XxEketqySof3vD5zir__iIs7RUIHy3e-lIzXRmC_W-g"],
 
@@ -3154,9 +3154,9 @@
 
 "zx":[127,"FactoryTests.assert_terminal_worker_failure",1829,"osH5ulByQ7HU651Sb7wBNY402iq8B6v1Tq1oNutli60"],
 
-"zy":[157,611,"self.wire.request(\"thread/start\", selectors)",22,611,66],
+"zy":[157,624,"self.wire.request(\"thread/start\", selectors)",22,624,66],
 
-"zz":[157,245,"super().notify(method, params)",15,245,45]
+"zz":[157,258,"super().notify(method, params)",15,258,45]
 },
 
 "primitive_coverage":{
@@ -5141,21 +5141,21 @@
 
 [86,613,18,613,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
 
-[87,237,15,237,94,{"$":3},"k9v9TIBzAvfsm4g-p0xcA49hWoxqg8jO4SXZwJ4H1SU",["route","N4.3","zp"]],
+[87,250,15,250,94,{"$":3},"k9v9TIBzAvfsm4g-p0xcA49hWoxqg8jO4SXZwJ4H1SU",["route","N4.3","zp"]],
 
-[87,245,15,245,45,{"$":3},"zn2F8ic2CBXkGOU3-IAm68NPKRDdOD8VOJnhLuG1IWI",["route","N4.3","zz"]],
+[87,258,15,258,45,{"$":3},"zn2F8ic2CBXkGOU3-IAm68NPKRDdOD8VOJnhLuG1IWI",["route","N4.3","zz"]],
 
-[87,457,23,457,60,"dynamic",{"$":193},[{"$":9},"al"]],
+[87,470,23,470,60,"dynamic",{"$":193},[{"$":9},"al"]],
 
-[87,611,22,611,66,{"$":3},"ASrHBvTxXjo6EcL91WNjSV7qP4Up9zNEQrOXC0jRWNU",["route","N4.3","zy"]],
+[87,624,22,624,66,{"$":3},"ASrHBvTxXjo6EcL91WNjSV7qP4Up9zNEQrOXC0jRWNU",["route","N4.3","zy"]],
 
-[87,672,20,672,75,{"$":3},"oetzLYzEwzVftN11UnRUwmTpaRYOodkzp6eSS6H-Pa4",["route","N4.3","zU"]],
+[87,685,20,685,75,{"$":3},"oetzLYzEwzVftN11UnRUwmTpaRYOodkzp6eSS6H-Pa4",["route","N4.3","zU"]],
 
-[87,951,21,951,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
+[87,965,21,965,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
 
-[87,1158,20,1158,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
+[87,1172,20,1172,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
 
-[87,1166,43,1166,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
+[87,1180,43,1180,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
 
 [84,193,19,193,60,"network",{"$":348},["route","N3.7","zn"]],
 
@@ -6630,9 +6630,9 @@
 
 "@156":["wZOxycaJWn5zjwlaJ7XOb_7X4hNwZWq2Awqh5-PXNxg",420,24887],
 
-"@157":["Hlq5P_I74G3IaNbCpOr7128ZX178IyAu5frDZxcs7Xo",420,76253],
+"@157":["fPrfsXSYFNA8IO-K-QuhnIHPWWW8elqgLHXC4cCY-8Y",420,77124],
 
-"@158":["36nDW2ya9ZFXQ4kO_EGe7HrFFJugvNkVERwHJGulW54",420,43281],
+"@158":["1uVa9VRlkdZ3yGyTF2aTLBjzQCN_WdHpUwtTDDYyYy4",420,46321],
 
 "@159":["BO2Ka53KeZdLTIMRm8E3zCAzWklqR21YuxMB8ofYK3g",420,20167],
 

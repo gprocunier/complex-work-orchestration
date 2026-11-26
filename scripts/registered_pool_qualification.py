@@ -80,7 +80,7 @@ from registered_server_requests import RegisteredServerRequests
 _START_RPCS = frozenset({"thread/start", "turn/start"})
 _CONTROL_RPCS = frozenset({"turn/interrupt", "thread/archive"})
 _ROLLOUT_BYTES = 8_388_608
-_PARTIAL_ROLLOUT_RECHECK_SECONDS = .01
+_ROLLOUT_RECHECK_SECONDS = .01
 _CALLBACK_REPLY_BYTES = 4096
 _AUTHORITY_SCOPE = "stock-codex-contained-pool"
 _QUALIFICATION_MODE = "qualification"
@@ -99,6 +99,15 @@ _HOST_FIELDS = frozenset({"executable", "executable_sha256", "launcher", "launch
 
 class PoolQualificationAdapterError(ValueError):
     """The original qualification authority, observation or settlement differed."""
+
+
+class _CompleteRolloutGrowth(PoolQualificationAdapterError):
+    """The owned file grew beyond a complete, strictly parsed boundary."""
+
+    def __init__(self, boundary, source_identity_sha256):
+        super().__init__("pool-qualification-adapter-rollout-drift")
+        self.prefix = {key: boundary[key] for key in ("byte_offset", "boundary_sha256")}
+        self.source_identity_sha256 = source_identity_sha256
 
 
 _TRANSPORT_FAILURE_TYPES = {kind: kind.__name__ for kind in (
@@ -128,7 +137,7 @@ def _regular_rollout_stamp(path, *, allow_empty=False):
     return info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
-def _capture_rollout(path, thread_id, *, baseline=None, allow_empty=False):
+def _capture_rollout(path, thread_id, *, baseline=None, allow_empty=False, observe_growth=False):
     allow_empty = allow_empty and (baseline is None or baseline["byte_offset"] == 0)
     stamp = _regular_rollout_stamp(path, allow_empty=allow_empty)
     source = session_source_identity(path, thread_id)
@@ -139,7 +148,11 @@ def _capture_rollout(path, thread_id, *, baseline=None, allow_empty=False):
         same_stamp = stamp[:2] == _regular_rollout_stamp(path, allow_empty=True)[:2]
     else:
         boundary, records = capture_boundary(path, thread_id, baseline=baseline)
-        same_stamp = stamp == _regular_rollout_stamp(path)
+        after = _regular_rollout_stamp(path)
+        if observe_growth and stamp[:2] == after[:2] and stamp[2] <= boundary["byte_offset"] < after[2]:
+            _require(source == session_source_identity(path, thread_id), "rollout-drift")
+            raise _CompleteRolloutGrowth(boundary, source)
+        same_stamp = stamp == after
     _require(same_stamp and source == session_source_identity(path, thread_id),
              "rollout-drift")
     return {**boundary, "source_identity_sha256": source}, records
@@ -680,13 +693,14 @@ class _PoolWorker:
         self._turn_ready.set()
         return turn_id
 
-    def _capture_active_rollout(self, *, baseline=None, allow_empty=False):
+    def _capture_active_rollout(self, *, baseline=None, allow_empty=False, observe_growth=False):
         located = locate_unique_session(self.spool, self.thread_id, reported_path=self._rollout)
         _require(located.path == self._rollout and located.store == "sessions", "active-rollout-path-drift")
         try:
-            boundary, rows = _capture_rollout(located.path, self.thread_id, baseline=baseline, allow_empty=allow_empty)
-        except NativeSessionPartialRecordError as partial:
-            _require(located.source_identity_sha256 == partial.source_identity_sha256, "active-rollout-source-drift")
+            boundary, rows = _capture_rollout(located.path, self.thread_id, baseline=baseline,
+                                               allow_empty=allow_empty, observe_growth=observe_growth)
+        except (NativeSessionPartialRecordError, _CompleteRolloutGrowth) as advance:
+            _require(located.source_identity_sha256 == advance.source_identity_sha256, "active-rollout-source-drift")
             raise
         _require(located.source_identity_sha256 == boundary["source_identity_sha256"], "active-rollout-source-drift")
         return boundary, rows
@@ -724,13 +738,13 @@ class _PoolWorker:
 
     def _capture_pending_rollout(self, pending):
         try:
-            return self._capture_active_rollout(baseline=self._startup_prefix)
-        except NativeSessionPartialRecordError as partial:
+            return self._capture_active_rollout(baseline=self._startup_prefix, observe_growth=True)
+        except (NativeSessionPartialRecordError, _CompleteRolloutGrowth) as advance:
             # This callback may re-observe one append. The strict reader must verify all earlier bytes.
-            sleep(min(_PARTIAL_ROLLOUT_RECHECK_SECONDS, self.remaining()))
+            sleep(min(_ROLLOUT_RECHECK_SECONDS, self.remaining()))
             self._recheck_pending(pending)
-            boundary, records = self._capture_active_rollout(baseline=partial.prefix)
-            _require(boundary["source_identity_sha256"] == partial.source_identity_sha256,
+            boundary, records = self._capture_active_rollout(baseline=advance.prefix)
+            _require(boundary["source_identity_sha256"] == advance.source_identity_sha256,
                      "callback-rollout-replaced")
             self._recheck_pending(pending)
             return boundary, records
