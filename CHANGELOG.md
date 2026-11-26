@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Retire the legacy CDP launcher and browser Send and share transport. `cwo browser-review --dry-run` retains its local audit, and `cwo ingest-share --private-artifact` accepts saved private captures. Positional share URLs and HTML files receive an early refusal.
+
 ## 1.40.0 - 2026-11-25
 
 - Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.

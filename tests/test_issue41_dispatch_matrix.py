@@ -6,56 +6,26 @@ are fake-engine controls, not provider latency, tokenization or billing facts.
 from __future__ import annotations
 
 import copy
-import contextlib
 import hashlib
 import json
-import os
-import subprocess
 import sys
 import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
-from types import ModuleType, SimpleNamespace
-from unittest.mock import Mock, patch
+from types import SimpleNamespace
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 sys.path.insert(0, str(ROOT / "tests"))
 
-import chatgpt_browser_review as browser  # noqa: E402
 import dispatch_work as dispatch  # noqa: E402
 import prepare_local_admission as admission  # noqa: E402
 from test_route_feasibility_preparation import bind, record  # noqa: E402
-from tests.browser_connected_fixture import Page, admitted_runner  # noqa: E402
 
 planner = admission.planner
 ledger_api = admission.ledger_api
-
-
-@contextlib.contextmanager
-def matrix_browser_admission(runner, page, entry, prompt, model_observation):
-    """Keep matrix controls while real Send consumes the registered admission."""
-    edge = Page(reply="reply")
-    edge.url = page.url
-    page.query_selector_all.side_effect = edge.query_selector_all
-    if entry == "confirm_model_only":
-        yield edge
-        return
-    with admitted_runner(runner, prompt, lifecycle=True, timeout_ms=30000,
-                         model_observation=model_observation, conversation_url=page.url), \
-            patch.object(browser.secrets, "token_hex", return_value="0" * 32):
-        yield edge
-
-
-def matrix_model_observation():
-    """Expected attestation from the real Pro/Extended confirmation controls."""
-    return {"required": True, "status": "confirmed", "labels": {
-        key: {"expected": label, "confirmation_text": label, "selector": selector,
-              "attribute": None, "attribute_value": None}
-        for key, label, selector in (("model_label", "Pro", "model-status"),
-                                     ("reasoning_label", "Extended", "reasoning-status"))
-    }}
 
 
 class ExampleClock:
@@ -291,205 +261,13 @@ class Issue41DispatchMatrixTests(unittest.TestCase):
                 self.assertEqual(case.effect.calls, [])
                 self.assertFalse(case.ledger.root.exists())
 
-    def test_direct_custom_local_and_browser_modes_cannot_bypass_shipped_denials(self):
+    def test_direct_custom_local_mode_cannot_bypass_shipped_denials(self):
         self.assertIs(dispatch.LOCAL_INVOCATION_AVAILABLE, False)
-        self.assertIs(browser.BROWSER_DISPATCH_AVAILABLE, False)
         with patch.object(dispatch.request, "build_opener") as http:
             with self.assertRaises(SystemExit) as raised:
                 dispatch.execute_local_envelope({"ready": True, "timeout_seconds": 600}, {}, None)
             self.assertEqual(str(raised.exception), dispatch.LOCAL_INVOCATION_UNAVAILABLE)
         http.assert_not_called()
-        for mode in ("cdp", "profile"):
-            for entry in ("run", "_run", "confirm_model_only"):
-                with self.subTest(mode=mode, entry=entry):
-                    self.assert_browser_hold(mode, entry)
-        for entry in ("run", "_run", "confirm_model_only"):
-            self.assert_browser_source_controls(entry)
-
-    def assert_browser_source_controls(self, entry):
-        # Empty CDP contexts/pages reach the actual new-context/new-page and
-        # label/confirmation helpers. Only effects and response capture are fake.
-        for observed, refused in (("Pro Extended", False), ("Instant", True)):
-            with self.subTest(entry=entry, observed=observed):
-                effects = Mock()
-                locator = Mock()
-                locator.first = locator.last = locator
-                locator.inner_text.return_value = observed
-                locator.get_attribute.return_value = None
-                page = Mock(url="https://chatgpt.com/c/EXAMPLE")
-                page.locator.return_value = locator
-                context = SimpleNamespace(pages=[], new_page=Mock(return_value=page))
-                connection = SimpleNamespace(contexts=[], new_context=Mock(return_value=context))
-                playwright = SimpleNamespace(chromium=SimpleNamespace(
-                    connect_over_cdp=Mock(return_value=connection)), stop=Mock())
-                manager = SimpleNamespace(start=Mock(return_value=playwright))
-                api = ModuleType("playwright.sync_api")
-                api.TimeoutError = TimeoutError
-                api.sync_playwright = Mock(return_value=manager)
-                runner = browser.PlaywrightChatGPTRunner({
-                    "connect_over_cdp_url": "http://127.0.0.1:9222",
-                    "chatgpt_url": "https://chatgpt.com/",
-                    "model_label": "Pro", "reasoning_label": "Extended",
-                    "require_model_confirmation": True,
-                    "selectors": {"model_label_selector": "model-option",
-                        "reasoning_label_selector": "reasoning-option",
-                        "model_label_confirmation_selector": "model-status",
-                        "reasoning_label_confirmation_selector": "reasoning-status"},
-                })
-                # Count Send calls while retaining the real active-guard path.
-                effects.send.side_effect = runner._submit_prompt
-                with patch.dict(sys.modules, {"playwright": ModuleType("playwright"),
-                                             "playwright.sync_api": api}), \
-                        patch.object(browser, "BROWSER_DISPATCH_AVAILABLE", True), \
-                        patch.object(runner, "_conversation_text", return_value="before"), \
-                        patch.object(runner, "_message_snapshot", return_value={"available": True}), \
-                        patch.object(runner, "_submit_prompt", effects.send), \
-                        patch.object(runner, "_pin_conversation"), \
-                        patch.object(runner, "_wait_for_stable_response", return_value="reply"), \
-                        patch.object(runner, "_capture_assistant_response", return_value={
-                            "text": "reply", "extraction": "EXAMPLE", "message_id": "1",
-                            "conversation_url": page.url, "conversation_id": "EXAMPLE"}), \
-                        matrix_browser_admission(runner, page, entry, "EXAMPLE review",
-                                                 matrix_model_observation()) as edge:
-                    args = () if entry == "confirm_model_only" else ("EXAMPLE review",)
-                    if refused:
-                        # Effect assertion comes first so a bypass is attributed
-                        # to fake Send, not merely a changed diagnostic/refusal.
-                        failure = None
-                        try:
-                            getattr(runner, entry)(*args)
-                        except (SystemExit, browser.ChatGPTBrowserReviewError) as exc:
-                            failure = exc
-                        self.assertEqual(effects.send.call_count, 0)
-                        self.assertEqual((len(edge.filled), len(edge.sent)), (0, 0))
-                        self.assertIsNotNone(failure)
-                    else:
-                        result = getattr(runner, entry)(*args)
-                        self.assertEqual(effects.send.call_count, int(entry != "confirm_model_only"))
-                        self.assertEqual((len(edge.filled), len(edge.sent)),
-                                         (int(entry != "confirm_model_only"),) * 2)
-                        self.assertEqual(result["model_attestation"]["status"], "confirmed")
-                api.sync_playwright.assert_called_once_with()
-                manager.start.assert_called_once_with()
-                connection.new_context.assert_called_once_with()
-                context.new_page.assert_called_once_with()
-                page.goto.assert_called_once()
-                locator.click.assert_any_call(timeout=30000)
-                self.assertGreaterEqual(locator.click.call_count, 2)
-                self.assertIn(unittest.mock.call("model-status"), page.locator.call_args_list)
-                if not refused:
-                    self.assertIn(unittest.mock.call("reasoning-status"), page.locator.call_args_list)
-
-    def assert_browser_hold(self, mode, entry):
-        runner = browser.PlaywrightChatGPTRunner({
-            "selectors": {}, "chrome_user_data_dir": "/EXAMPLE-profile",
-            "chatgpt_url": "https://chatgpt.com/",
-            **({"connect_over_cdp_url": "http://127.0.0.1:9222"} if mode == "cdp" else {}),
-        })
-        effects = Mock()
-        page = Mock(url="https://chatgpt.com/c/EXAMPLE")
-        effects.attach_mock(page.goto, "navigate")
-        context = Mock()
-        effects.connect.return_value.contexts = [context]
-        effects.launch.return_value = context
-        playwright = SimpleNamespace(chromium=SimpleNamespace(
-            connect_over_cdp=effects.connect, launch_persistent_context=effects.launch), stop=Mock())
-        effects.start.return_value = playwright
-        effects.factory.return_value = SimpleNamespace(start=effects.start)
-        api = ModuleType("playwright.sync_api")
-        api.TimeoutError = TimeoutError
-        api.sync_playwright = effects.factory
-        effects.send.side_effect = runner._submit_prompt
-        with patch.dict(sys.modules, {"playwright": ModuleType("playwright"), "playwright.sync_api": api}), \
-                patch.object(runner, "_select_page", return_value=page) as held_select_page, \
-                patch.object(runner, "_wait_for_prompt"), patch.object(runner, "_select_configured_labels"), \
-                patch.object(runner, "_confirm_configured_labels", return_value={"status": "confirmed"}), \
-                patch.object(runner, "_conversation_text", return_value="before"), \
-                patch.object(runner, "_message_snapshot", return_value={"available": True, "messages": []}), \
-                patch.object(runner, "_submit_prompt", effects.send), \
-                patch.object(runner, "_pin_conversation"), patch.object(runner, "_wait_for_stable_response", return_value="reply"), \
-                patch.object(runner, "_capture_assistant_response", return_value={
-                    "text": "reply", "extraction": "EXAMPLE", "message_id": "1",
-                    "conversation_url": page.url, "conversation_id": "EXAMPLE",
-                }), \
-                matrix_browser_admission(runner, page, entry, "EXAMPLE custom/manual prompt",
-                                         {"status": "confirmed"}) as edge:
-            args = () if entry == "confirm_model_only" else ("EXAMPLE custom/manual prompt",)
-            with self.assertRaises(SystemExit) as raised:
-                getattr(runner, entry)(*args)
-            self.assertEqual(str(raised.exception), browser.BROWSER_DISPATCH_UNAVAILABLE)
-            self.assertEqual(len(effects.mock_calls), 0, "held entry reached a browser effect")
-            self.assertEqual((len(edge.filled), len(edge.sent)), (0, 0))
-            held_select_page.assert_not_called()
-            with patch.object(browser, "BROWSER_DISPATCH_AVAILABLE", True):
-                getattr(runner, entry)(*args)
-            effects.factory.assert_called_once_with()
-            effects.start.assert_called_once_with()
-            (effects.connect if mode == "cdp" else effects.launch).assert_called_once()
-            (effects.launch if mode == "cdp" else effects.connect).assert_not_called()
-            page.goto.assert_called_once()
-            self.assertEqual(effects.send.call_count, int(entry != "confirm_model_only"))
-            self.assertEqual((len(edge.filled), len(edge.sent)), (int(entry != "confirm_model_only"),) * 2)
-
-    def test_chrome_launcher_dry_run_and_operator_actions_use_only_expected_effects(self):
-        rows = (
-            ("dry", ["--dry-run"], [], False, False),
-            ("dry-config", ["--dry-run", "--write-config"], [], False, False),
-            ("dry-replace", ["--dry-run", "--replace"], [], False, False),
-            ("dry-combined", ["--dry-run", "--replace", "--write-config"], [], False, False),
-            ("dry-stop", ["--dry-run", "--stop"], [], False, False),
-            ("dry-print-config", ["--dry-run", "--print-chrome-command", "--write-config"], [], False, False),
-            ("print", ["--print-chrome-command"], [], False, False),
-            ("stop", ["--stop"], ["systemctl --user stop EXAMPLE.service"], False, False),
-            ("status", ["--status"], [], False, False),
-            ("dry-status", ["--dry-run", "--status"], [], False, False),
-            ("config-print", ["--write-config", "--print-chrome-command"], [], True, False),
-            ("launch", ["--replace", "--write-config"], ["systemctl --user stop EXAMPLE.service", "launch"], True, True),
-        )
-        for name, args, expected, config_written, profile_created in rows:
-            for existing_config in (False, True):
-                with self.subTest(row=name, existing_config=existing_config), tempfile.TemporaryDirectory() as directory:
-                    self.assert_chrome_actions(Path(directory), args, expected, config_written, profile_created, existing_config)
-
-    def assert_chrome_actions(self, root, args, expected, config_written, profile_created, existing_config):
-        bin_dir = root / "bin"
-        bin_dir.mkdir()
-        log = root / "effects"
-        reads = root / "reads"
-        for name, body in {
-            "systemctl": 'case "$*" in *is-active*) echo "$*" >>"$READS"; exit 1;; *status*) echo "$*" >>"$READS";; *) echo "systemctl $*" >>"$EFFECTS";; esac',
-            "ss": 'echo "$*" >>"$READS"',
-            "systemd-run": 'echo launch >>"$EFFECTS"',
-            "chrome": 'echo unexpected-chrome >>"$EFFECTS"',
-        }.items():
-            script = bin_dir / name
-            script.write_text("#!/bin/bash\n" + body + "\n")
-            script.chmod(0o700)
-        profile = root / "absent-profile"
-        config = root / "config.json"
-        if existing_config:
-            config.write_bytes(b"EXAMPLE existing config\n")
-            config.chmod(0o640)
-        before = (config.read_bytes(), config.stat().st_mode) if existing_config else None
-        result = subprocess.run([
-            "/bin/bash", str(ROOT / "scripts/launch_chatgpt_cdp_chrome.sh"),
-            "--chrome", str(bin_dir / "chrome"), "--unit", "EXAMPLE", "--profile", str(profile),
-            "--config", str(config), *args,
-        ], env={**os.environ, "PATH": f"{bin_dir}:/usr/bin:/bin", "EFFECTS": str(log), "READS": str(reads),
-                "HOME": str(root), "XDG_RUNTIME_DIR": str(root), "XAUTHORITY": str(root / "xauth")},
-            text=True, capture_output=True, timeout=10)
-        self.assertEqual(result.returncode, 0, result.stderr)
-        self.assertEqual(log.read_text().splitlines() if log.exists() else [], expected)
-        self.assertEqual(profile.exists(), profile_created)
-        if config_written:
-            self.assertEqual(json.loads(config.read_text())["connect_over_cdp_url"], "http://127.0.0.1:9222")
-            self.assertEqual(config.stat().st_mode & 0o777, 0o600)
-        else:
-            self.assertEqual((config.read_bytes(), config.stat().st_mode) if config.exists() else None, before)
-        if "--status" in args:
-            self.assertIn("status EXAMPLE.service", reads.read_text())
-        elif "--dry-run" in args or "--print-chrome-command" in args:
-            self.assertIn("Config path:" if "--stop" not in args else "systemctl", result.stdout)
 
     def test_tiny_work_keeps_one_role_and_no_extra_model_or_timeout_parameters(self):
         case = self.case("EXAMPLE-tiny", tiny=True)
