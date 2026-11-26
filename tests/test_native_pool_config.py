@@ -10,6 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+import uuid
 from unittest import mock
 
 
@@ -37,7 +38,6 @@ from cwo_core.native_tool_isolation import default_tool_policy  # noqa: E402
 from cwo_core.native_pool_leases import capture_owner_identity  # noqa: E402
 from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority  # noqa: E402
 from tests.test_native_pool_contracts import capability_payload, sha  # noqa: E402
-from tests import test_run_native_pool_live_canaries as live_test_helpers  # noqa: E402
 from tests.real_beads_fixture import configure_git_fixture
 from cwo_core import native_pool_workspace as pool_workspace
 from cwo_core import native_pool_config as pool_config
@@ -360,123 +360,38 @@ class NativePoolConfigTests(unittest.TestCase):
 
     def test_historical_manifest_versions_are_not_live_renderable(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            fixture = RenderFixture(root, 2)
-            authority_root = root / "authority"
-            authority_root.mkdir()
-            helper = live_test_helpers.FullAutoAuthorizationLauncherTests()
-            head, _orphan = helper.make_repo(authority_root)
-            authorization = helper.authorization(authority_root, head)
-            manifest = helper.manifest(
-                authorization,
-                head,
-                subprocess.run(
-                    ["git", "rev-parse", "HEAD^{tree}"],
-                    cwd=authority_root,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                ).stdout.strip(),
-            )
-            fixture.request["control_turn_id"] = manifest["control_turn_id"]
+            fixture = RenderFixture(Path(temporary), 2)
             owner = capture_owner_identity()
             payload = capability_payload()
             payload["host_identity"] = owner
-            payload["control_turn_id"] = manifest["control_turn_id"]
+            payload["control_turn_id"] = fixture.request["control_turn_id"]
             capability = seal_artifact(payload, "receipt_sha256")
             now = dt.datetime(2026, 7, 16, 0, 10, tzinfo=dt.timezone.utc)
-            with self.assertRaisesRegex(
-                NativePoolConfigError, "manifest-version-historical-only"
-            ):
-                build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=manifest,
-                    capability_receipt=capability,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
-            manifest["version"] = 7
-            manifest["schema"] = "schemas/native-live-campaign-manifest-v7.schema.json"
-            manifest.pop("manifest_sha256", None)
-            manifest["manifest_sha256"] = canonical_sha256(manifest)
-            with self.assertRaisesRegex(
-                NativePoolConfigError, "manifest-version-historical-only"
-            ):
-                build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=manifest,
-                    capability_receipt=capability,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
-            manifest["version"] = 5
-            manifest["schema"] = "schemas/native-live-campaign-manifest-v5.schema.json"
-            manifest.pop("manifest_sha256", None)
-            manifest["manifest_sha256"] = canonical_sha256(manifest)
-            with self.assertRaisesRegex(
-                NativePoolConfigError, "manifest-version-historical-only"
-            ):
-                build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=manifest,
-                    capability_receipt=capability,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
-            manifest["version"] = 3
-            manifest["schema"] = "schemas/native-live-campaign-manifest-v3.schema.json"
-            manifest.pop("manifest_sha256", None)
-            manifest["manifest_sha256"] = canonical_sha256(manifest)
-            with self.assertRaisesRegex(
-                NativePoolConfigError, "manifest-version-historical-only"
-            ):
-                build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=manifest,
-                    capability_receipt=capability,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
-            manifest["version"] = 4
-            manifest["schema"] = "schemas/native-live-campaign-manifest-v4.schema.json"
-            manifest.pop("manifest_sha256", None)
-            manifest["manifest_sha256"] = canonical_sha256(manifest)
-            with self.assertRaisesRegex(
-                NativePoolConfigError, "manifest-version-historical-only"
-            ):
-                build_live_canary_pool_contract(
-                    fixture.request,
-                    campaign_manifest=manifest,
-                    capability_receipt=capability,
-                    owner_pid=owner["pid"],
-                    now=now,
-                )
+            for version in range(2, 8):
+                with self.subTest(version=version), self.assertRaisesRegex(
+                    NativePoolConfigError, "manifest-version-historical-only"
+                ):
+                    build_live_canary_pool_contract(
+                        fixture.request,
+                        campaign_manifest={"version": version},
+                        capability_receipt=capability,
+                        owner_pid=owner["pid"],
+                        now=now,
+                    )
 
     def test_v8_manifest_requires_exact_full_binding_receipt(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             fixture = RenderFixture(root, 2)
-            authority_root = root / "authority"
-            authority_root.mkdir()
-            helper = live_test_helpers.FullAutoAuthorizationLauncherTests()
-            head, _orphan = helper.make_repo(authority_root)
-            authorization = helper.authorization(authority_root, head)
-            manifest = helper.manifest(
-                authorization,
-                head,
-                subprocess.run(
-                    ["git", "rev-parse", "HEAD^{tree}"],
-                    cwd=authority_root,
-                    check=True,
-                    capture_output=True,
-                    text=True,
-                ).stdout.strip(),
-            )
-            manifest["version"] = 8
-            manifest["schema"] = "schemas/native-live-campaign-manifest-v8.schema.json"
-            manifest.pop("manifest_sha256", None)
+            manifest = {
+                "version": 8,
+                "schema": "schemas/native-live-campaign-manifest-v8.schema.json",
+                "manifest_id": str(uuid.uuid4()),
+                "authorization_id": str(uuid.uuid4()),
+                "control_turn_id": fixture.request["control_turn_id"],
+                "candidate": {"commit": "a" * 40, "tree": "b" * 40},
+            }
             manifest["manifest_sha256"] = canonical_sha256(manifest)
-            fixture.request["control_turn_id"] = manifest["control_turn_id"]
             owner = capture_owner_identity()
             payload = capability_payload()
             payload["host_identity"] = owner

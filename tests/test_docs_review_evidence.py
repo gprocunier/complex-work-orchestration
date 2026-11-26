@@ -6,24 +6,26 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest.mock import patch
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from site_code import CodeBlocks
-from validate_site import validate_html
+import validate_site
 
 
 class ReviewEvidenceDocumentationTests(unittest.TestCase):
     def link_errors(self, url: str) -> list[str]:
-        with tempfile.TemporaryDirectory(dir=ROOT) as directory:
+        with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / "explanation.html"
             path.write_text(
                 '<html lang="en"><head><title>Test</title></head><body>'
                 '<header></header><nav></nav><main><h1>Test</h1>'
                 f'<a href="{url}">Source</a></main><footer></footer></body></html>'
             )
-            return [e for e in validate_html(path) if "non-source external URL" in e]
+            with patch.object(validate_site, "ROOT", path.parent):
+                return [e for e in validate_site.validate_html(path) if "non-source external URL" in e]
 
     def test_primary_ecosystem_links_allow_exact_pages_and_fragments_only(self):
         urls = [

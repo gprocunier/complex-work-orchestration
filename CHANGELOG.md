@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Retire the legacy native campaign launcher’s execution, preparation and claim code. The command retains its early refusal. Use `v1.37.0` for historical verification.
 - Retire the legacy CDP launcher and browser Send and share transport. `cwo browser-review --dry-run` retains its local audit, and `cwo ingest-share --private-artifact` accepts saved private captures. Positional share URLs and HTML files receive an early refusal.
 - Keep contained pool checks responsive while a registered writer is being released.
 

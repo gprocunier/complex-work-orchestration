@@ -592,12 +592,13 @@ class StrictJsonProofTests(unittest.TestCase):
     def test_tampered_binding_cannot_reach_worker_process_or_thread_consumers(self):
         import codex_tool_surface as surface
         import run_native_pool_live_canaries as live
+        from cwo_core.supervision.transport import app_server as transport
         proof = self.proof()
         proof['process_binding']['effective_thread']['networkAccess'] = 0
         self.reseal(proof)
         with mock.patch.object(surface, '_codex_binary', return_value=self.binary), \
                 mock.patch.object(surface, '_codex_version', return_value='test-version'), \
-                mock.patch.object(live.subprocess, 'Popen') as popen:
+                mock.patch.object(transport.subprocess, 'Popen') as popen:
             with self.assertRaises(live.AppServerError):
                 live.AppServer(requested_model=self.captured['model'], tool_surface_proof=proof)
             popen.assert_not_called()

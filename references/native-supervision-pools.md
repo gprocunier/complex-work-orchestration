@@ -448,19 +448,34 @@ v2 result.
 
 ## Historical Live Canary Gate
 
-The legacy campaign launcher and pool canary entry refuse before reading
-campaign inputs or allocating workers. The historical release canary used
-`scripts/run_native_pool_live_canaries.py` as a single-shot controller. Its
-evidence chain required the immutable campaign
+The current `scripts/run_native_pool_live_canaries.py` command keeps its
+historical arguments and refuses before reading inputs, claiming authority,
+allocating workers or writing evidence. The legacy pool entry points share that
+refusal. The release canary at `v1.37.0` used the same command as a single-shot
+controller. Its evidence chain required the immutable campaign
 authorization artifact, the active outer authority, the exact predecessor authorization
 and campaign manifest, an accepting independent Spark receipt, plus
-independently adjudicated pre-mutation and pre-live Sol steering receipts. All
-artifacts are private mode 0600. The launcher recomputes canonical receipt and
-predecessor artifact hashes, binds predecessor identity, generation, and exact
-candidate commit/tree, then rechecks their raw byte hashes immediately before
-allocation. Each steering receipt is validated against trusted session JSONL,
-consumed once under a private process lock, and cannot authorize repository
-work by itself.
+independently adjudicated pre-mutation and pre-live Sol steering receipts. The
+artifacts used private mode 0600. The launcher recomputed canonical receipt and
+predecessor artifact hashes, bound predecessor identity, generation, and exact
+candidate commit/tree, then rechecked their raw byte hashes before allocation.
+It validated each steering receipt against trusted session JSONL and consumed it
+once under a private process lock. A steering receipt alone granted no
+repository authority.
+
+From a checkout of `v1.37.0` (`a559a0bb2b9fc4e83b8acbef7b13b48172a47983`),
+run the archived launcher and Generation 8 proof witnesses offline:
+
+```sh
+PYTHONPATH=tests python3 -B -m unittest tests.test_run_native_pool_live_canaries \
+  tests.test_native_live_campaign_generation8
+```
+
+These tests exercise the retired claim, workspace and launch bindings and the
+Generation 8 predecessor proof, including a complete finite graph and rejection
+of dirty, partial, replayed and tampered evidence. The current Generation 8
+digest witness still checks the frozen V1 digest and V2's additional schema
+requirements against the installed contract engine.
 
 New steering writes use `cwo-steering-receipt:v2` and
 `schemas/native-steering-receipt-v2.schema.json`. The zero-tool critic prompt

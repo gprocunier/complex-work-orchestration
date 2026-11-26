@@ -15,7 +15,7 @@ is a private placeholder file and the operative authorization validator is
 stubbed to accept. The fixture spies on process launch, thread start, the
 global claim and every durable write. It allows read-only Git commands and
 checks before/after hashes of the case files. The current launcher refuses
-even the previously accepted tree before reaching the validator or any effect.
+even the previously accepted tree before reading inputs or reaching any effect.
 """
 
 from __future__ import annotations
@@ -422,26 +422,17 @@ _OUTPUTS = {
     "steering_registry_basename": "steering-registry.json",
     "allocation_ledger_basename": "allocation-ledger",
 }
-_SESSION_COUNTS = {
-    "failed_predecessor_contained_session": 5,
-    "predecessor_contained_session": 1,
-    "ancestor_contained_session": 1,
-    "grandancestor_contained_session": 1,
-}
-_DERIVED_OUTPUTS = {"output", "campaign_nonce", "authorization_state", "steering_registry"}
-# Durable writes main() can cause; the global claim is the first of them.
-_WRITE_EFFECTS = (
-    "acquire_global_campaign_claim", "write_private_artifact",
-    "transition_global_campaign_state", "consume_steering_receipt",
+_CURRENT_EFFECTS = (
+    "load_private_bytes",
+    "load_private_json",
+    "load_private_json_snapshot",
+    "build_pool_inputs",
+    "validate_and_acquire_global_campaign_claim",
+    "acquire_global_campaign_claim",
+    "write_private_artifact",
+    "_start_campaign_server",
+    "contain_started_threads",
 )
-# Preclaim checks after the gate. They need a complete Generation 12 proof chain,
-# so they are stubbed to pass; the gate must refuse before any of them runs.
-_PRECLAIM_STUBS = {
-    "validate_campaign_launch_bindings": {},
-    "plan_steering_receipt_consumptions": {},
-    "campaign_launch_claim_sha256": "c" * 64,
-    "seal_bound_manifest_validation": {},
-}
 
 
 def _tree_state(root: Path) -> dict[str, str]:
@@ -453,7 +444,7 @@ def _tree_state(root: Path) -> dict[str, str]:
     }
 
 
-def drive_current_launcher(directory: Path, repository: Path, tree: str) -> dict:
+def drive_current_launcher(directory: Path, tree: str) -> dict:
     """Run the current launcher offline with the formerly accepted fixture tree."""
 
     inputs = directory / "inputs"
@@ -471,86 +462,46 @@ def drive_current_launcher(directory: Path, repository: Path, tree: str) -> dict
         },
         "campaign_manifest": {"version": 8, "outputs": dict(_OUTPUTS), "candidate": {"tree": tree}},
     }
-    forbidden = {label.replace("-", "_") for label in LIVE.GENERATION8_FORBIDDEN_MIXED_PROOF_PATHS}
     real_parse_args = argparse.ArgumentParser.parse_args
     before: dict[str, str] = {}
-
-    def input_file(dest: str, index: int | None = None) -> str:
-        name = dest if index is None else f"{dest}-{index}"
-        path = inputs / f"{name}.json"
-        path.write_text(json.dumps(contents.get(dest, {"placeholder": name})), encoding="utf-8")
-        path.chmod(0o600)
-        return str(path)
 
     def parse_args(self, args=None, namespace=None):
         argv = ["--output", str(output), "--campaign-nonce", nonce]
         for action in self._actions:
-            if (not action.option_strings or action.dest == "help" or action.dest in _DERIVED_OUTPUTS
-                    or action.dest in forbidden):
+            if not action.required or action.dest in {"output", "campaign_nonce"}:
                 continue
-            if isinstance(action, argparse._AppendAction):
-                for index in range(_SESSION_COUNTS.get(action.dest, 0)):
-                    argv += [action.option_strings[0], input_file(action.dest, index)]
-            else:
-                argv += [action.option_strings[0], input_file(action.dest)]
+            path = inputs / f"{action.dest}.json"
+            path.write_text(json.dumps(contents.get(action.dest, {"placeholder": action.dest})), encoding="utf-8")
+            path.chmod(0o600)
+            argv.extend([action.option_strings[0], str(path)])
         before.update(_tree_state(directory))
         return real_parse_args(self, argv, namespace)
 
-    real_popen = subprocess.Popen
-    launches: list[str] = []
-    git_commands: list[str] = []
-
-    def popen(argv, *args, **kwargs):
-        if isinstance(argv, (list, tuple)) and argv and Path(str(argv[0])).name == "git":
-            command = read_only_git_command(argv)
-            if command is None:
-                launches.append(str(argv))
-                raise _EffectReached("unapproved-git-command")
-            git_commands.append(command)
-            return real_popen(argv, *args, **kwargs)
-        launches.append(str(argv))
-        raise _EffectReached("process-launch")
-
-    def accept(value, *_args, **_kwargs):  # the operative validator accepts
-        return str(value["authorization_id"]), "<HEAD>"
-
+    stdout = io.StringIO()
     stderr = io.StringIO()
     with ExitStack() as stack:
-        # this historical tree-gate fixture has no live process effects.
         stack.enter_context(mock.patch.multiple(LIVE.live_availability,
             N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True))
-        stack.enter_context(mock.patch.object(CONTRACTS, "_V6_PRE_MOVE_IDENTITY_PAIRS", FIXTURE.pairs))
-        stack.enter_context(mock.patch.object(LIVE, "ROOT", repository))
         stack.enter_context(mock.patch.object(argparse.ArgumentParser, "parse_args", parse_args))
-        stack.enter_context(mock.patch("subprocess.Popen", side_effect=popen))
+        spawn = stack.enter_context(mock.patch("subprocess.Popen", side_effect=_EffectReached))
         request = stack.enter_context(mock.patch.object(LIVE.AppServer, "request", side_effect=_EffectReached))
-        writes = {name: stack.enter_context(mock.patch.object(LIVE, name, side_effect=_EffectReached))
-                  for name in _WRITE_EFFECTS}
-        writes["CanaryAuthorizationStore.initialize"] = stack.enter_context(
-            mock.patch.object(LIVE.CanaryAuthorizationStore, "initialize", side_effect=_EffectReached))
-        validator = stack.enter_context(
-            mock.patch.object(LIVE, "validate_full_auto_authorization", side_effect=accept))
-        stubs = {name: stack.enter_context(mock.patch.object(LIVE, name, return_value=value))
-                 for name, value in _PRECLAIM_STUBS.items()}
+        server = stack.enter_context(mock.patch.object(LIVE, "AppServer", side_effect=_EffectReached))
+        effects = {name: stack.enter_context(mock.patch.object(LIVE, name, side_effect=_EffectReached))
+                   for name in _CURRENT_EFFECTS}
         stack.enter_context(redirect_stderr(stderr))
-        stack.enter_context(redirect_stdout(io.StringIO()))
-        try:
-            return_code = LIVE.main()
-        except SystemExit as exc:  # argparse refusal: recorded, never a pass
-            return_code = f"system-exit:{exc.code}"
-    lines = [line for line in stderr.getvalue().splitlines() if line.startswith("{")]
-    report = json.loads(lines[-1]) if lines else {}
+        stack.enter_context(redirect_stdout(stdout))
+        return_code = LIVE.main()
+    report = json.loads(stderr.getvalue())
     after = _tree_state(directory)
     return {
         "return_code": return_code,
         "failure_code": report.get("failure_code"),
         "failure_evidence_persisted": report.get("failure_evidence_persisted"),
-        "operative_validator_calls": validator.call_count,
-        "preclaim_stub_calls": {name: spy.call_count for name, spy in stubs.items()},
-        "process_launches": launches,
-        "git_commands": sorted(set(git_commands)),
+        "stdout": stdout.getvalue(),
+        "process_launches": spawn.call_count,
+        "server_constructions": server.call_count,
         "thread_start_requests": request.call_count,
-        "write_effect_calls": {name: spy.call_count for name, spy in sorted(writes.items())},
+        "effect_calls": {name: spy.call_count for name, spy in effects.items()},
         "files_created_or_changed": sorted(
             path for path in set(before) | set(after) if before.get(path) != after.get(path)),
     }
@@ -570,14 +521,6 @@ class PostMoveCampaignGateLauncherTests(unittest.TestCase):
     def tearDownClass(cls) -> None:
         cls._temporary.cleanup()
 
-    def assert_no_effect(self, record: dict) -> None:
-        self.assertEqual(record["return_code"], 1)
-        self.assertIs(record["failure_evidence_persisted"], False)
-        self.assertEqual(record["process_launches"], [])
-        self.assertEqual(record["thread_start_requests"], 0)
-        self.assertEqual(record["files_created_or_changed"], [])
-        self.assertLessEqual(set(record["git_commands"]), READ_ONLY_GIT)
-
     def test_pre_retirement_launcher_tree_gate_and_refusals(self) -> None:
         launcher_before_retirement()
         run_archived_cases(self, PRE_RETIREMENT,
@@ -585,14 +528,18 @@ class PostMoveCampaignGateLauncherTests(unittest.TestCase):
 
     def test_current_launcher_refuses_before_the_historical_gate(self) -> None:
         with tempfile.TemporaryDirectory() as directory:
-            record = drive_current_launcher(Path(directory) / "case", self.repository.root,
-                                            self.repository.trees["pre-move"])
-        self.assertEqual(record["failure_code"], "legacy-pool-execution-retired")
-        self.assert_no_effect(record)
-        self.assertEqual(record["operative_validator_calls"], 0)
-        self.assertEqual(record["git_commands"], [])
-        self.assertEqual(record["preclaim_stub_calls"], {name: 0 for name in _PRECLAIM_STUBS})
-        self.assertEqual(record["write_effect_calls"], {name: 0 for name in record["write_effect_calls"]})
+            record = drive_current_launcher(Path(directory) / "case", self.repository.trees["pre-move"])
+        self.assertEqual(record, {
+            "return_code": 1,
+            "failure_code": "legacy-pool-execution-retired",
+            "failure_evidence_persisted": False,
+            "stdout": "",
+            "process_launches": 0,
+            "server_constructions": 0,
+            "thread_start_requests": 0,
+            "effect_calls": {name: 0 for name in _CURRENT_EFFECTS},
+            "files_created_or_changed": [],
+        })
 
 
 if __name__ == "__main__":
