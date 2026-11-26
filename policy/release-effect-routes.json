@@ -2936,9 +2936,9 @@
 
 "xi":[155,"PoolWorkerContainment.launch_appserver",533,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
-"xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",397,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
+"xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",398,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
 
-"xk":[157,"build_pool_qualification_runtime",1371,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
+"xk":[157,"build_pool_qualification_runtime",1373,"tHUaRlYXk3oRgZjW4TF6sH_ewU2_U9Dpg_mS3g56Mxg"],
 
 "xl":[155,"PoolWorkerContainment.run_writer",593,"bbM0jbEJavxix4HVcqWyQFBfjM4KP0OvHkmF2RbRcOc"],
 
@@ -3066,7 +3066,7 @@
 
 "z4":[77,"SelectedNativeProbe.__init__",244,"2F1Z6iUNCEF4gtmffQBOeA6h5KC1RmRW6J56HHmYojw"],
 
-"z5":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",370,"2pNX4WGhJ16yELyinNR73Hmw6ls8Xwat2t4rP8P3QcQ"],
+"z5":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",371,"2pNX4WGhJ16yELyinNR73Hmw6ls8Xwat2t4rP8P3QcQ"],
 
 "z6":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1403,"oJI0tM2ygXBHCkoYrxkZkaIG-rTlLffdcjcf44IEDVk"],
 
@@ -5185,11 +5185,11 @@
 
 [88,638,20,638,75,{"$":3},"oetzLYzEwzVftN11UnRUwmTpaRYOodkzp6eSS6H-Pa4",["route","N4.3","zU"]],
 
-[88,898,21,898,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
+[88,900,21,900,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
 
-[88,1105,20,1105,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
+[88,1107,20,1107,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
 
-[88,1113,43,1113,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
+[88,1115,43,1115,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
 
 [85,193,19,193,60,"network",{"$":348},["route","N3.7","zn"]],
 
@@ -6668,9 +6668,9 @@
 
 "@156":["wZOxycaJWn5zjwlaJ7XOb_7X4hNwZWq2Awqh5-PXNxg",420,24887],
 
-"@157":["t1VKnuGqmddjLzePp_Vcg4ewchkB10OEjTLGbrGaJmY",420,72417],
+"@157":["YS2BIniehOEmxP14plHcaQgWMOHFBKve7r8CGQbPmzI",420,72576],
 
-"@158":["lR5QHmtkmniEIG1BYTVuPH9Mj-3bnyCqXqGfqA3NadE",420,31504],
+"@158":["x9TWxH1Jd6bJNFVzjqJP9NqfOzsH8f1A5UBo_5tke5Y",420,33269],
 
 "@159":["BO2Ka53KeZdLTIMRm8E3zCAzWklqR21YuxMB8ofYK3g",420,20167],
 
@@ -7300,7 +7300,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["w9_M9d6XKObLvSwT36elAq69KtWNVuK8_QIQGv_HGr8",420,136048],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Z_SeJv3dSrXEvCoMbt5E6YDTdRLPE7AVQEe-Z3vifxw",420,136048],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 

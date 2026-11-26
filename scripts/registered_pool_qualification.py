@@ -790,10 +790,12 @@ class _PoolWorker:
 
     def poll(self):
         self.require_effect()
+        # The reader publishes terminal status once under the request lock.
+        # A pending writer may hold that lock across its release checks.
+        if self.wire.terminal is None:
+            return None
         with self.wire.requests.lock:
             terminal = self.wire.terminal
-        if terminal is None:
-            return None
         if self._result is None:
             self._result = self._verify_result(terminal)
             self._end_ns = monotonic_ns()
