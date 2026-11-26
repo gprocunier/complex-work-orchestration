@@ -1418,29 +1418,6 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         self.assertEqual({str(p.relative_to(backups[0])): R.digest(p.read_bytes()) for p in backups[0].rglob("*") if p.is_file()}, snapshot)
 
 
-    def _git_pair(self):
-        from cwo_core import native_live_campaign_contracts as campaign
-        patch = b"EXAMPLE harmless fake patch"
-        manifest = {"candidate": {"commit": "EXAMPLE-commit", "tree": "EXAMPLE-before"},
-                    "release": {"patch_file_sha256": R.digest(patch), "prospective_tree": "EXAMPLE-after"}}
-        with mock.patch.object(campaign.subprocess, "run") as child, \
-             mock.patch.object(campaign, "_run_git", side_effect=["EXAMPLE-before", "EXAMPLE-after"]):
-            refused = campaign.validate_release_patch_result(self.root, None, manifest, patch_bytes=patch+b"!")
-            child.assert_not_called()
-            self.assertEqual(refused, ["release-patch-file-sha256-mismatch"])
-            self.assertEqual(campaign.validate_release_patch_result(self.root, None, manifest, patch_bytes=patch), [])
-        self.assertEqual(child.call_count, 4)
-        commands = [c.args[0] for c in child.call_args_list]
-        worktree = commands[0][4]
-        self.assertEqual(commands, [["git", "worktree", "add", "--detach", worktree, "EXAMPLE-commit"],
-                                   ["git", "apply", "--check", "-"], ["git", "apply", "--index", "-"],
-                                   ["git", "worktree", "remove", "--force", worktree]])
-        self.assertEqual([c.kwargs["cwd"] for c in child.call_args_list],
-                         [self.root, Path(worktree), Path(worktree), self.root])
-        self.assertEqual([c.kwargs.get("input") for c in child.call_args_list], [None, patch, patch, None])
-        self.assertEqual([c.kwargs["check"] for c in child.call_args_list], [True, True, True, False])
-
-
     def _driver_pair(self):
         import check_extended_code_health as health
         for name in (health.SUBJECT, health.DRIVER):
@@ -1519,7 +1496,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
     def test_remaining_boundary_pairs_at_actual_effects(self):
         with tempfile.TemporaryDirectory() as directory:
             self.root = Path(directory)
-            for row in (self._probe_listener_pair, self._installer_pair, self._git_pair, self._driver_pair, self._dns_pair, self._expert_pair):
+            for row in (self._probe_listener_pair, self._installer_pair, self._driver_pair, self._dns_pair, self._expert_pair):
                 with self.subTest(row=row.__name__):
                     row()
 

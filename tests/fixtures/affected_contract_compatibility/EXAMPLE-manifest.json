@@ -327,7 +327,7 @@
     "policy/expert-registry.yaml": "91161757dfda43cd2fef0218a58f6f28e54a1dc014b4890ebc08f65af58849e5",
     "policy/harness-registry.yaml": "c6f55fdb4d97d39e522c2aedf7c362c446c4f152eca796b669f42e011674da2c",
     "policy/install-projection.yaml": "d17b014bffa51e2bd74465d0d5c91826f1b2f93eaa5633119ea5cca0d08d0cbe",
-    "policy/model-identity-scope.yaml": "d536ca84f58b50254a78a1953d370182ae0c87ed18a208b8a472fb33b7899be2",
+    "policy/model-identity-scope.yaml": "d6b74a9487dfc5a1681232cefc7059b7fbc55dbfa1434fbd918f4a0e1d456411",
     "policy/model-profiles.yaml": "3c7f592fbfb15e5cbafd6f50f7dd008116df1cbad60ea1b9c2a2e0f644f7d44f",
     "policy/native-worker-execution.yaml": "6c2b9882e0ab7a70e611467db923771aab8bad4d7e0b7921f761cc4cc96ded51",
     "policy/outbound-screening.yaml": "94566e213284364be699123d155bb2a2d79d452482e4929f518b296ec31b5e33",
@@ -423,13 +423,13 @@
     "scripts/cwo_core/native_disposition.py": "e9d23c2d5afb74cec11e74a52e327867ac65ac6ddce9d33af82e87219782a012",
     "scripts/cwo_core/native_live_allocation_ledger.py": "503c274ff75ab385878d8663eb243e7e7c1d3c51d32555a9cf3bed0e4a39bef0",
     "scripts/cwo_core/native_live_availability.py": "def575e245658c8d0dcad42c545280bb73fb452ea419ddb11eeed72cea3de8c0",
-    "scripts/cwo_core/native_live_campaign_contracts.py": "28c8474a41701501e85adfee5d132af405f579e291a8055d4aef62a2f51c0aa1",
+    "scripts/cwo_core/native_live_campaign_contracts.py": "03e49b63d373a920ac3cee68051855f3fb9a672d9be9dbd9eb468e74b27fb009",
     "scripts/cwo_core/native_pool.py": "85f96d2be8cc31f1b48be905a97f02333832949fac63cdc9ef1ea63a3afbceea",
     "scripts/cwo_core/native_pool_admission.py": "f4f29487bcd26ecda0cf4cd361db5d3b78ad72880b003b5b19b9e1386d189cce",
     "scripts/cwo_core/native_pool_admitted.py": "4351cd67d57db3f9f3d7ed0df457a0b93d305287d6d297291981234097b8e61d",
     "scripts/cwo_core/native_pool_capacity.py": "ba981b5f7c4b9653c72b697dbe58c81fe76120267d518c0f1944908599fb39d2",
     "scripts/cwo_core/native_pool_capacity_compat.py": "7a2a7287deede1fc035f47ce6d863d90f392bb167962a1da2960cc48d48fa5be",
-    "scripts/cwo_core/native_pool_config.py": "35450f469b68e4650e228954376a8d6b9f81dd3a748812de8c79e2bfea5228fd",
+    "scripts/cwo_core/native_pool_config.py": "ba60f03f6ed567feb03811f0d666520a3f19fa52c388e191bbddf848e2fbb5e9",
     "scripts/cwo_core/native_pool_contracts.py": "1e0b99c7b5fb79546d31721b2cc826b4664959c8f65a667162778c6c2bda167e",
     "scripts/cwo_core/native_pool_leases.py": "050699e622afe1ab4280038d2d1633ef9d15afcf3d3eb5dcc7e2528c8d71e6e8",
     "scripts/cwo_core/native_pool_preflight.py": "4f880c11f49ea2d818264302698f57c8e1a3d91f1753eb0b1cef6a22e2703057",
@@ -555,7 +555,7 @@
     "tests/fixtures/registered-provider-network/EXAMPLE-local-tls.pem": "48bc9ff28b36e10206f4d2d8755b191a04e2a9f28ae6659a3b93c25cbce56ec7",
     "tests/fixtures/w20_affected_contract_w13/golden-b8f6251.json": "30e5c8c25946135c84d636b75cad81091395d006448f8b2e2e4f7b41858259af",
     "tests/fixtures/w20_affected_contract_w13/source-pins-2026-10-23.json": "0f2576ba8ed904551de6508ce98f639d445abe68c5d3261f3acb5d21536ecbe8",
-    "tests/historical_campaign_launcher.py": "3fd57e14dd351d04549a21a44e81959c6d528a8996d1a02e4843a0768847e083",
+    "tests/historical_campaign_launcher.py": "fe6a40a9cdba4126143893b332d642bdaf17531ec3f95b23efff2845573ccbdb",
     "tests/historical_policy_fixtures.py": "5a809bd26a65b6e7f818b7e8b79c3c9bb0bd3dc3de5e4d855a39f8c2210436ce",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
@@ -568,11 +568,11 @@
     "tests/test_maintenance_authority.py": "aa834050333ec749804ce51dc2cf51b343ae4cfb6348d95a02a98995c870641d",
     "tests/test_native_canary_contracts.py": "e0a4e3ec89d4af8e2e686da513ab37f6d04ee1755e2be47a22c0ad3782adc067",
     "tests/test_native_live_allocation_ledger.py": "cc8c7c74dd44e63425c31b7f72af6a130a77f5b595aa2b02c9b06b91d350bf60",
-    "tests/test_native_live_campaign_generation12.py": "ac3d04fa002e5b0134ebd1179e3507e3bd85244fca2cb127d38ebecd6bd7dddc",
+    "tests/test_native_live_campaign_generation12.py": "d4f4617302bab1ebeafdbf1a3fc59ffe3c88eae3898569999056b2d64ed673f5",
     "tests/test_native_pool.py": "c2817206e2867ffa80b7a7dd6f36d9ba0811a3e72507022fdd4be6f0c401cccf",
     "tests/test_native_pool_admission.py": "ff2f3205ad88d81bf9003c8209cb6da2d71b59b0ed77399426159bbeb9226701",
     "tests/test_native_pool_admission_contracts.py": "8ea38b5c763ad46265a73a521e4b2f1284d6dcec970b75b8be4600eaed55d7ad",
-    "tests/test_native_pool_config.py": "fa35d187a0cda970bfe9007a0b6f9e636aa5ee02a5cae5c32ab0cd4d65d70e50",
+    "tests/test_native_pool_config.py": "0c2bb801e6da8f6e3e23be1bfd0dcf1a7bfecc36d5df5412e4542f7af434d3a4",
     "tests/test_native_pool_contracts.py": "3439cbaedbf891e5b1baf903f721d28633bd7ea1c85386becbf7e9c6c8c5ca75",
     "tests/test_native_pool_preflight.py": "9652cc113f052b4a76812400aeb7a19deb478f4711075844313e69ccf5da47c0",
     "tests/test_native_pool_proportionality.py": "e3973deec1e9974bec982704fc84b85a9f6cb2bb342d588fb9cc25af0f0ae2bb",
@@ -601,7 +601,7 @@
     "tests/test_run_admitted_native_pool_transaction.py": "f670ae613b3fd959ea7c5792065f5d7a84f4f53e5fcdb763222ab0ef032e76cf",
     "tests/test_run_native_pool_live_canaries.py": "457faf170c21163beb3738d3a10d95c7a8e3d65d71523a351460bb05d34e9839",
     "tests/test_run_readiness_plan.py": "e6e91c1894e4ce096eba5e5e92501ea05a9f60804c0425552ae4f5a7f9ffb8b7",
-    "tests/test_w20_affected_contract_w13.py": "54206e4292e208b684fbb977c419e9a587f84c98b80db8e36f447afb79687675",
+    "tests/test_w20_affected_contract_w13.py": "fc05b007deb4cc97ddba9e628d60cfdf6fc79f108ddf3e59b3ac807fa7646bba",
     "tests/test_workflow_adjudication.py": "d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5",
     "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt": "264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566",
     "scripts/cwo_core/qualification_target.py": "75f7c8cb444f1d5ac1f6ac415ead7cd9f74064da37e9550a7bd45d4de69ecd55",
@@ -1082,10 +1082,6 @@
     "scripts/cwo_core/native_live_availability.py": [],
     "scripts/cwo_core/native_live_campaign_contracts.py": [
       "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/native_authority.py",
-      "scripts/cwo_core/native_canary_contracts.py",
-      "scripts/cwo_core/native_live_allocation_ledger.py",
-      "scripts/cwo_core/workspace.py",
       "scripts/cwo_core/workspace_capture.py"
     ],
     "scripts/cwo_core/native_pool.py": [
@@ -1132,10 +1128,8 @@
     "scripts/cwo_core/native_pool_config.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_control.py",
-      "scripts/cwo_core/native_live_campaign_contracts.py",
       "scripts/cwo_core/native_pool_admission.py",
       "scripts/cwo_core/native_pool_capacity.py",
-      "scripts/cwo_core/native_pool_capacity_compat.py",
       "scripts/cwo_core/native_pool_contracts.py",
       "scripts/cwo_core/native_pool_leases.py",
       "scripts/cwo_core/native_pool_schedulability.py",
@@ -2029,8 +2023,7 @@
       "scripts/cwo_core/native_turn_dispatch.py"
     ],
     "tests/test_native_live_campaign_generation12.py": [
-      "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/native_live_campaign_contracts.py"
+      "tests/historical_campaign_launcher.py"
     ],
     "tests/test_native_pool.py": [
       "scripts/cwo_core/__init__.py",
@@ -2331,7 +2324,6 @@
       "tests/historical_campaign_launcher.py",
       "tests/historical_policy_fixtures.py",
       "tests/test_codex_tool_surface.py",
-      "tests/test_native_live_campaign_generation12.py",
       "tests/test_native_pool_contracts.py"
     ],
     "tests/test_w20_affected_contract_w13.py::INSTALLED_PROBE": [
@@ -2512,22 +2504,22 @@
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 1207,
+      "line": 1054,
       "path": "tests/test_w20_affected_contract_w13.py"
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 789,
+      "line": 652,
       "path": "tests/test_w20_affected_contract_w13.py"
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 1209,
+      "line": 1056,
       "path": "tests/test_w20_affected_contract_w13.py"
     },
     {
       "kind": "computed import; explicit finite mapping retained",
-      "line": 795,
+      "line": 658,
       "path": "tests/test_w20_affected_contract_w13.py"
     }
   ]

@@ -191,13 +191,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     },
     "native_capability": {"native_authority"},
     "native_canary_contracts": {"native_stop_scope", "util"},
-    "native_live_campaign_contracts": {
-        "native_authority",
-        "native_canary_contracts",
-        "native_live_allocation_ledger",
-        "workspace",
-        "workspace_capture",
-    },
+    "native_live_campaign_contracts": {"workspace_capture"},
     "native_live_allocation_ledger": {
         "audit",
         "native_canary_contracts",
@@ -328,9 +322,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     },
     "native_pool_config": {
         "native_control",
-        "native_live_campaign_contracts",
         "native_pool_capacity",
-        "native_pool_capacity_compat",
         "native_pool_admission",
         "native_pool_contracts",
         "native_pool_schedulability",
