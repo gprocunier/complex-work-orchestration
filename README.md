@@ -141,6 +141,9 @@ contract sizes the task before selecting a model. Luna handles focused native
 work, Sol handles recorded coding escalation, and Terra handles assignments
 explicitly classified as interface, visual or computer-use work.
 `policy/model-roles.yaml` defines the current and previous model for each role.
+The Codex lead, workers and reviewers start at `high` reasoning effort. CWO can
+select `xhigh` for a worker or reviewer when the task calls for it and records
+the reason with the dispatch. See [reasoning effort routing](references/native-supervision.md#reasoning-effort-routing).
 Users with Daybreak Blue access may add the optional `cyber_fallback` role and
 mark authorized security work in a private file outside the lead and worker
 write roots. A structured provider refusal can then make one fully charged

@@ -106,7 +106,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "policy": {"errors", "model_identities", "paths", "policy_schema", "util"},
     "policy_schema": {"paths"},
     "model_identity_scope": {"model_identities", "policy", "policy_schema"},
-    "routing": {"access_profiles", "errors", "harness", "native_containment", "operative_routing", "policy", "risk_features", "routing_signals", "synthesis", "types", "util"},
+    "routing": {"access_profiles", "errors", "harness", "native_containment", "operative_routing", "policy", "reasoning_effort", "risk_features", "routing_signals", "synthesis", "types", "util"},
+    "reasoning_effort": {"policy", "risk_features", "routing_signals", "util"},
     "routing_signals": {"util"},
     "adjudication": {"policy", "synthesis_inputs"},
     "adjudication_binding": {"adjudication", "errors", "path_contract", "policy", "returns", "synthesis_inputs"},
@@ -139,7 +140,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "host_return_intake": {"errors", "peer_review", "policy_schema"},
     "codex_critic_capture": {"errors", "host_acceptance", "host_return_intake", "model_identities",
                              "native_session_boundary", "peer_review", "peer_review_identity", "policy",
-                             "policy_schema", "returns"},
+                             "policy_schema", "reasoning_effort", "returns"},
     "manual_gemini_critic": {"errors", "host_records", "host_return_intake", "peer_review_identity", "policy", "policy_schema"},
     "return_tripwires": {"policy", "return_language"},
     "risk_features": {"errors", "policy"},
@@ -207,7 +208,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_precommit": {"maintenance_authority", "audit", "model_identities", "native_session", "native_session_boundary", "operative_routing", "paths", "policy", "util", "workspace"},
     "native_release": {
         "maintenance_release", "model_identities", "work_sizing", "native_precommit", "operative_routing", "paths", "policy", "util"},
-    "operative_routing": {"model_identities", "policy", "work_sizing"},
+    "operative_routing": {"model_identities", "policy", "reasoning_effort", "work_sizing"},
     "proportional_execution": {"native_capability", "native_containment"},
     "native_recovery": set(),
     "native_recovery_authority": {

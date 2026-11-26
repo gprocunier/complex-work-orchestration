@@ -211,6 +211,25 @@ class PublicCurrentAuthorityTests(unittest.TestCase):
         schema = json.loads((ROOT/'schemas/operative-routing-state.schema.json').read_text())
         jsonschema.Draft202012Validator(schema).validate(route)
 
+    def test_current_native_worker_effort_is_sealed_to_original_scope(self):
+        authority = synthetic_authority()
+        source = authority['fit_inputs']['work_estimate']
+        authority['fit_inputs']['work_estimate'] = evaluate_work_estimate(
+            dict(source, primary_outcome="Update the container isolation policy for worker processes."))
+        route = routing.resolve_operative_route(current_authority=authority, evaluated_at=NOW)
+        self.assertTrue(route['dispatch_authorized'], route['stop_reason'])
+        self.assertEqual(route['reasoning_effort'], 'xhigh')
+        self.assertIn('security-or-containment', route['selection_reason'])
+        self.schema_check(route)
+        model = route['selected_model']
+        self.assertEqual(routing.validate_operative_route_for_model(
+            route, model, current_authority=authority, now=NOW), [])
+        route['reasoning_effort'] = 'high'
+        route['route_sha256'] = routing._canonical_sha256({key: value for key, value in route.items()
+                                                          if key != 'route_sha256'})
+        self.assertIn('task selected route does not match current authority evaluation',
+                      routing.validate_operative_route_for_model(route, model, current_authority=authority, now=NOW))
+
     def test_public_authorized_luna_positive_through_actual_evaluator(self):
         luna = resolve_model('luna')
         native = copy.deepcopy(load_policy('native-worker-execution'))

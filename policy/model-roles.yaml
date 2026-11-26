@@ -1,7 +1,7 @@
 {
   "version": 1,
   "roles": {
-    "sol": {"current": "gpt-6.2-sol", "previous": "gpt-6.1-sol", "selection": "explicit", "reviewer_rank": 1, "reasoning_effort": "xhigh", "service_tier": "default", "purpose": "Architecture, adjudication and recorded coding escalation"},
+    "sol": {"current": "gpt-6.2-sol", "previous": "gpt-6.1-sol", "selection": "explicit", "reviewer_rank": 1, "reasoning_effort": "high", "escalation_reasoning_effort": "xhigh", "service_tier": "default", "purpose": "Architecture, adjudication and recorded coding escalation"},
     "astra": {"current": "gpt-6.2-astra", "previous": "gpt-6-astra", "selection": "explicit", "reviewer_rank": 2, "purpose": "Independent architecture review"},
     "luna": {"current": "gpt-6-luna", "previous": "gpt-5.6-luna", "selection": "explicit", "purpose": "Focused native work after sizing"},
     "terra": {"current": "gpt-6.1-terra", "previous": "gpt-5.6-terra", "selection": "explicit", "purpose": "Interface, visual and computer-use work"}

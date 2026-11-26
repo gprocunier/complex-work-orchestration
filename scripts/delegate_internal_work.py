@@ -12,6 +12,7 @@ import registered_n1_factory as registered
 from prepare_native_worker import build_native_worker_packet, load_native_worker_policy
 from cwo_core.model_identities import resolve_model
 from cwo_core.native_authority import canonical_authority_sha256 as digest
+from cwo_core.reasoning_effort import EFFORT_REASONS, REASONING_EFFORTS
 from cwo_core.routing import classify_work
 from cwo_core.util import packet_payload_hash
 from cwo_core.workspace_capture import worktree_top_level
@@ -41,8 +42,10 @@ class StandingDelegation:
     cache_bytes: bytes
     project: str | None
     project_identity: tuple[int, int, int] | None
+    reasoning_bytes: bytes | None
 
-    def __init__(self, *, baseline_sha256, database_sha256, capability_evidence, cache_profile, project=None):
+    def __init__(self, *, baseline_sha256, database_sha256, capability_evidence, cache_profile, project=None,
+                 codex_reasoning=None):
         _need(type(baseline_sha256) is str and re.fullmatch(r'sha256:[0-9a-f]{64}', baseline_sha256),
               'Standing delegation requires the frozen delivery baseline digest.')
         _need(type(database_sha256) is str and re.fullmatch(r'[0-9a-f]{64}', database_sha256),
@@ -57,6 +60,10 @@ class StandingDelegation:
               'Standing delegation requires bounded original project coordinates.')
         object.__setattr__(self, 'project', project)
         object.__setattr__(self, 'project_identity', _project_identity(project) if project is not None else None)
+        object.__setattr__(self, 'reasoning_bytes', _reasoning_bytes(codex_reasoning))
+
+    def reasoning_metadata(self):
+        return {'codex_reasoning': json.loads(self.reasoning_bytes)} if self.reasoning_bytes is not None else {}
 
     def approval_scope(self, *, receipt, operation, publication):
         """Return the exact action for a protected operator standing directive."""
@@ -73,7 +80,17 @@ class StandingDelegation:
                 'target': publication['workspace'], 'admission_expires_at': receipt.expires_at}
         if self.project is not None:
             scope.update(project=self.project, project_identity=list(self.project_identity))
-        return scope
+        return {**scope, **self.reasoning_metadata()}
+
+
+def _reasoning_bytes(value):
+    if value is None:
+        return None
+    _need(type(value) is dict and set(value) == {'reasoning_effort', 'reasoning_effort_reason'}
+          and value['reasoning_effort'] in tuple(REASONING_EFFORTS)
+          and value['reasoning_effort_reason'] in tuple(EFFORT_REASONS),
+          'Standing delegation requires a configured reasoning effort and reason.')
+    return admission.reconciliation._encode(value)
 
 
 def _project_identity(project):
@@ -193,6 +210,9 @@ def _registered_packet(workflow, node, routing, scope, operation, amounts):
           and selected['provider_family'] == execution['provider'] == spec['provider'] == scope['provider']
           and selected['provider_key'] == 'internal_codex',
           'The internal route differs from the original registered delegation packet selection.')
+    reasoning = scope.get('codex_reasoning', {})
+    _need(reasoning.get('reasoning_effort', execution['effort']) == execution['effort'],
+          'The signed reasoning effort differs from the registered launch.')
     task = registered._model_task(config.receipt, spec, config.policy.report)
     project = {'project': scope['project']} if 'project' in scope else {}
     return {'packet_type': 'cwo-registered-delegation-packet', 'version': 1,

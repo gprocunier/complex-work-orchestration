@@ -20,6 +20,7 @@ import registered_delegation_entry as entry
 from cwo_core import host_records, manual_delivery, outbound_screen, requirement_baseline, workspace_capture
 from cwo_core.model_identities import resolve_model
 from cwo_core.paths import BLOCKED_OUTPUT_PATH_PARTS, _reject_secret_like_path
+from cwo_core.routing import classify_work
 
 workflow, runtime, authority = approval.workflow, approval.runtime, approval.authority
 admission = approval.admission
@@ -200,10 +201,10 @@ def _configuration(worker, model, effort):
         f'[features.code_mode]\nenabled = true\ndirect_only_tool_namespaces = {namespaces}\n')}
 
 
-def _specification(host, ledger, command, policy, policy_sha256):
+def _specification(host, ledger, command, policy, policy_sha256, effort):
     codex = shutil.which('codex')
     _need(codex is not None, 'The installed Codex CLI is required for delegation.')
-    model, effort = resolve_model('luna'), 'high'
+    model = resolve_model('luna')
     approval_policy = runtime.qualification.APPROVAL_POLICY
     spec = {'model': model, 'provider': runtime.qualification.PROVIDER, 'effort': effort,
             'command': command, 'validation_policy': policy, 'expected_token': 'CWO_DELEGATION_COMPLETE',
@@ -277,7 +278,7 @@ def _route(task, bead, path, identity, spec, policy, diff_lines):
     return route
 
 
-def _standing(route, chain, database, now, project):
+def _standing(route, chain, database, now, project, reasoning):
     unit = route['nodes'][0]['unit_estimate']
     cache = {'source': 'deterministic-context-plan', 'observed_at': datetime.fromtimestamp(now, timezone.utc).isoformat(),
              'total_context_tokens_p90': unit['estimates']['context_tokens_p90'], 'stable_context_tokens_p90': 0,
@@ -286,7 +287,8 @@ def _standing(route, chain, database, now, project):
              'context_plan_sha256': workflow.digest(unit['context_manifest']), 'telemetry_lineage_id': None}
     cache['evidence_sha256'] = workflow.digest(cache)
     return workflow.D.StandingDelegation(baseline_sha256=chain['digest'], database_sha256=database,
-                                        capability_evidence={}, cache_profile=cache, project=str(project))
+                                        capability_evidence={}, cache_profile=cache, project=str(project),
+                                        codex_reasoning=reasoning)
 
 
 def _mission(host, directory, identity, route, chain, model, key):
@@ -329,7 +331,9 @@ def prepare(*, project, database, task, chain, output_path, output_text) -> appr
         diff_lines = len(original.splitlines()) + len(data.splitlines())
         ledger = admission.ledger_api.InvocationLedger(control / 'ledger')
         policy_bytes = admission._read_policy_bytes()
-        spec = _specification(host, ledger, command, validation, sha256(policy_bytes).hexdigest())
+        reasoning = classify_work(task, text_segments=[task], file_paths=[output_path])['codex_reasoning']['worker']
+        spec = _specification(host, ledger, command, validation, sha256(policy_bytes).hexdigest(),
+                              reasoning['reasoning_effort'])
         identity = 'delegation-' + secrets.token_hex(16)
         route = _route(task, chain['bead_id'], output_path, identity, spec, json.loads(policy_bytes), diff_lines)
         workflow.D._route(route['nodes'][0], None)
@@ -338,7 +342,7 @@ def prepare(*, project, database, task, chain, output_path, output_text) -> appr
         now = ledger.current_time()
         pending = approval.prepare_assignment(verifier=verifier, mission_directive=mission, host=host, ledger=ledger,
             controller_state=control / 'controller', publication_state=control / 'publication', registered_specification=spec,
-            standing=_standing(route, chain, database, now, project), route=route, node_id=_NODE, native_operation_id=identity + '-native',
+            standing=_standing(route, chain, database, now, project, reasoning), route=route, node_id=_NODE, native_operation_id=identity + '-native',
             publication_operation_id=identity + '-publication', cleanup_seconds=15, expires_at=now + _DURATION_SECONDS)
         root = host.state.parent
         pending = replace(pending, _preparation_root=(root, tuple(runtime.native._identity(root)), project))

@@ -658,7 +658,8 @@ class RegisteredN1Workflow:
             return {}, {}
         delegation = self._current_evidence()
         scope = delegation['approval']['scope']
-        return delegation['dispatch'], {'delivery_baseline_sha256': scope['baseline_sha256'],
+        reasoning = self._standing_delegation.reasoning_metadata()
+        return delegation['dispatch'], {**reasoning, 'delivery_baseline_sha256': scope['baseline_sha256'],
                                         'delivery_database_sha256': scope['database_sha256'],
                                         'delivery_checkout': str(self.config.host.worker),
                                         'delivery_checkout_identity': self.config.initial['worker_identity']['root'],

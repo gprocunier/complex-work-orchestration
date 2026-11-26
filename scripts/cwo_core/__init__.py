@@ -119,6 +119,7 @@ __all__ = [
     "proportional_execution",
     "public_copy",
     "qualification_target",
+    "reasoning_effort",
     "return_boundary",
     "return_common",
     "return_evidence",

@@ -153,6 +153,27 @@ class DelegationPreparationTests(unittest.TestCase):
         self.assertFalse((pending._host.worker / 'result.txt').exists())
         self.assertFalse(pending._host.worker.is_relative_to(self.store.state_root))
 
+    def test_prepared_scope_retains_worker_effort_across_policy_changes(self):
+        pending = self.prepare(task="Review the network controls for the worker.")
+        self.addCleanup(preparation.discard_unretained, pending)
+        expected = {"reasoning_effort": "xhigh", "reasoning_effort_reason": "security-or-containment"}
+        plan, _ = json.loads(pending._plans)[0]
+        self.assertEqual(plan['registered_n1']['effort'], "xhigh")
+        self.assertIn('model_reasoning_effort = "xhigh"', plan['registered_n1']['configuration_files']['config.toml'])
+        self.assertEqual(pending.approval_scope['codex_reasoning'], expected)
+        from cwo_core.policy import load_policy
+
+        policy = load_policy("model-roles")
+        policy['roles']['sol']['escalation_reasoning_effort'] = "high"
+        with patch("cwo_core.reasoning_effort.load_policy", return_value=policy):
+            workflow = self.fixture_redeem(pending)
+            task = json.loads(pending._receipt.selected_node_bytes)['prompt']
+            native, publication = [bundle[1] for bundle in json.loads(pending._plans)]
+            delegation, packet = preparation.workflow.D.authorize(workflow, task, native, publication,
+                                                                    database=self.database)
+        self.assertEqual(packet['execution']['effort'], "xhigh")
+        self.assertEqual(delegation['approval']['scope']['codex_reasoning'], expected)
+
     def test_prepare_refuses_unbound_or_unsafe_requests_before_key_creation(self):
         failures = ({'database': '0' * 64}, {'output_path': '../result.txt'}, {'output_path': '.beads/data'},
                     {'output_path': '.env'}, {'output_text': '\0'}, {'output_text': 'a' * 2049})

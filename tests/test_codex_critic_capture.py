@@ -49,7 +49,7 @@ def response(role, kind, text, **payload):
 
 
 class OriginalCodexProcess:
-    def __init__(self, root, request, final, *, session="019a0000-0000-7000-8000-000000000001"):
+    def __init__(self, root, request, final, *, session="019a0000-0000-7000-8000-000000000001", effort="xhigh"):
         self.session = session
         self.turn = "019a0000-0000-7000-8000-000000000009"
         self.request, self.final = request, final
@@ -66,10 +66,10 @@ class OriginalCodexProcess:
             response("user", "input_text", "<environment_context>\n<shell>bash</shell>\n</environment_context>"),
             rollout_row("world_state"),
             rollout_row("turn_context", turn_id=self.turn, root_turn_id=self.turn, model=resolve_model("sol"),
-                        effort="xhigh", sandbox_policy={"type": "read-only"}),
+                        effort=effort, sandbox_policy={"type": "read-only"}),
             event("thread_settings_applied", thread_id=session,
                   thread_settings=dict(model=resolve_model("sol"), model_provider_id="openai",
-                                       reasoning_effort="xhigh", service_tier="default")),
+                                       reasoning_effort=effort, service_tier="default")),
             response("user", "input_text", request.decode("utf-8")),
             event("item_completed", thread_id=session, turn_id=self.turn,
                   item=dict(type="UserMessage", id="user", content=[dict(type="text", text=request.decode("utf-8"))])),

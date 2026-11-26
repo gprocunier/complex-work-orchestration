@@ -223,6 +223,8 @@ class RouteResult(TypedDict, total=False):
     blocking_review_failure_behavior: str | None
     blocking_review_required_evidence: list[str]
     architecture_review_complexity: str
+    codex_reasoning: dict[str, dict[str, str]]
+    codex_retry_evidence: dict[str, str]
     claude_architecture_effort: str
     requested_architecture_critic_executors: list[str]
     architecture_critic_contracts: list[dict[str, Any]]

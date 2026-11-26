@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Default Codex reasoning effort to `high` and record the reason when worker or reviewer routing selects `xhigh`.
+- Limit configured Sol routing effort to `xhigh` or lower.
+
 ## 1.45.0 - 2026-11-26
 
 - Recheck one verified rollout growth after a complete read before proving a pending contained-pool writer call.
