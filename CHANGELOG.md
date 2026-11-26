@@ -8,6 +8,10 @@
 - Retire the native campaign proof engine and `build_live_canary_pool_contract`. Use `v1.37.0` to verify historical campaign records or render older manifest-bound contracts. Current pool rendering applies the released capacity policy.
 - Split native session evidence, adapter, calibration, containment and timing code behind the existing imports. Give historical Git verification its own module and preserve the private snapshot type.
 
+### Tests
+
+- Pace the signed pool isolation fixture with a deterministic scheduler clock while its inert workers run on real pipes.
+
 ## 1.40.0 - 2026-11-25
 
 - Retire the archived study CLI's `digest`, `schedule`, `lock`, `score` and `template` commands. Use `v1.33.0` for those offline commands. The current CLI validates the frozen archive and continues to refuse `run`.
