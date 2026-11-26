@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Document the worker `--repo` and lead `--project` paths required to accept a registered delivery by hand.
 - Apply peer-review and provider-conflict requirements from the recorded manual contractor dispatch at the first return evaluation.
 - Let embedding hosts record original Codex and Gemini critic completions for synthesis. Peer review and architect adjudication still apply.
 

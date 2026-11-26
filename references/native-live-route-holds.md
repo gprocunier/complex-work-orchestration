@@ -194,10 +194,11 @@ The call checks the baseline reference on the open Bead, runs the registered
 worker's original finite command, and posts its exact validated worktree
 candidate for independent hand review. The registered worker receives a
 read-only checkout and can invoke only the preapproved command and empty polls.
-The host returns the arguments for the existing hand-close command. Keep the
-original worker checkout available for review. When that checkout does not
-resolve the project's Beads database, set the existing absolute `BEADS_DIR`
-selector to the original project database for the host and the reviewer.
+The host returns `repo` for the original worker checkout and `project` for the
+original lead checkout. Keep the worker checkout available and pass both paths
+to the hand-close command, even when `BEADS_DIR` selects the original database.
+[Hand acceptance procedure](run-readiness.md#accepting-a-delivery-by-hand).
+
 After an interrupted delivery write, the host can use `cwo delegate --resume`
 with the original task, baseline and summary in the same checkout. The command
 reopens the original protected configuration. Use the same CWO build that
@@ -205,7 +206,6 @@ prepared the assignment. Resumption requires signed
 completed custody and unchanged admission accounting. An expired
 dispatch admission permits only this completed-custody replay. An unknown or
 unfinished worker attempt requires reconciliation.
-[Hand acceptance procedure](run-readiness.md#accepting-a-delivery-by-hand).
 
 ## Registered single-worker host qualification
 

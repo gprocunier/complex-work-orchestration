@@ -327,16 +327,10 @@ authorizes completion.
 
 ### Accepting a delivery by hand
 
-For a registered assignment, the embedding host posts the candidate and
-delivery from the original worker checkout. It retains the original dispatch
-and return receipts and supplies the exact baseline, candidate and digest for
-the command below. Run the independent review against that checkout with the
-same project Beads database. [Configured host procedure](native-live-route-holds.md#standing-approved-delegation).
-
-Record the [requirement baseline and exact candidate](#candidate-identity) on
-the Bead first. A lead posting a delivery by hand uses the existing
-`pending-acceptance` command from the project checkout. In this example,
-`$CWO` is the path to the installed skill or its source checkout.
+For a delivery posted by hand, the lead first records the
+[requirement baseline and exact candidate](#candidate-identity) on the Bead,
+then uses the `pending-acceptance` command from the project checkout. `$CWO`
+is the path to the installed skill or its source checkout.
 
 ```bash
 python3 "$CWO/scripts/close_bead_with_summary.py" --bead "$bead" \
@@ -351,6 +345,8 @@ in the foreground of an ordinary Linux terminal, outside the delivering
 session and the Codex or Claude process tree. The terminal can use the same
 account and shell that launched Codex.
 
+For a delivery posted by hand, run this command from the candidate checkout.
+
 ```bash
 python3 "$CWO/scripts/cwo.py" accept-delivery --bead "$bead" \
   --baseline "$baseline" --candidate "$candidate" \
@@ -358,10 +354,31 @@ python3 "$CWO/scripts/cwo.py" accept-delivery --bead "$bead" \
   --note "Reviewed the changes and checked the baseline criteria."
 ```
 
-Both commands accept `--repo` to select a project from another directory and
-repeatable `--amendment` arguments in the order applied. They use the selected
-project's Beads database or the one selected by `BEADS_DIR`. A prior narrative
-summary can be left in place and the lead can post a bound delivery for review.
+For a delivery posted by hand, both commands accept `--repo` to select the
+checkout from another directory. They use that checkout's Beads database or
+the one selected by `BEADS_DIR`. A prior narrative summary can be left in place
+and the lead can post a bound delivery for review.
+
+For a registered assignment, the host posts the delivery and retains the
+original dispatch and return receipts. Use the `repo` and `project` paths
+returned by `cwo delegate`. `--repo` names the original worker checkout with
+the candidate. `--project` names the original lead checkout for the Beads
+database. Pass both paths even when `BEADS_DIR` selects the original database.
+If delegation used a `BEADS_DIR` override, use the same absolute path for
+acceptance. Take the Bead, baseline, candidate and digest from the returned
+`bead`, `baseline`, `candidate` and `candidate_sha256` fields.
+[Configured host procedure](native-live-route-holds.md#standing-approved-delegation).
+
+```bash
+python3 "$CWO/scripts/cwo.py" accept-delivery --bead "$bead" \
+  --repo "$repo" --project "$project" \
+  --baseline "$baseline" --candidate "$candidate" \
+  --reviewed-candidate "$reviewed_candidate_digest" \
+  --note "Reviewed the changes and checked the baseline criteria."
+```
+
+Posting and acceptance both accept repeatable `--amendment` arguments in the
+order applied.
 
 The command checks the current baseline and candidate references, live
 candidate identity, and the status of blockers and children. The host audit
