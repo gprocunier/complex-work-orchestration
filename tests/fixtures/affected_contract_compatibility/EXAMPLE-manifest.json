@@ -461,7 +461,7 @@
     "scripts/cwo_core/native_turn_dispatch.py": "9a8ecaacd04876a1378fb7b544619c1e69fcf67c4f012eb92ef7f6468408e1bb",
     "scripts/cwo_core/native_worker_contracts.py": "3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5",
     "scripts/cwo_core/operative_routing.py": "7eb92ac5bed52cb4722389a376a3c47d268691e36a301548f83d3c0b7066d913",
-    "scripts/cwo_core/outbound_screen.py": "cb160e0e0ee6967c5beef8a748daee9e73f7bcdd135f75481fbc0ec4c13482c6",
+    "scripts/cwo_core/outbound_screen.py": "9b98c5e40fc033cb388d9eea44be6d3facf713ff3b19183bce542b8c5edea464",
     "scripts/cwo_core/ownership_producer.py": "5829643ab1a5bba6999bd91b912fe8cf0f1a0115379b5b185296a2226f4478cd",
     "scripts/cwo_core/packet_provenance.py": "2b0486df948bf62941a2cc4be2f244ad5f92533af780950ffff9f6ff768e7e3b",
     "scripts/cwo_core/packets.py": "063e3b7654fa825cb47f6379617d4a893fd31615a58d3bec1bf41a09da15a1e8",

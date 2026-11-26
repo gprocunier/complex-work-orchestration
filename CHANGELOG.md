@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Recognize the exact `None.` disclosure declaration in outbound screening of contractor peer reviews.
+
 ## 1.46.0 - 2026-11-26
 
 - Document the observed single-worker and contained-pool qualifications, the architect prompt check, and the architect real-use trial in [Evaluation evidence](references/evaluation-evidence.md).

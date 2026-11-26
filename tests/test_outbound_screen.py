@@ -1626,6 +1626,47 @@ class RoundNineTests(_OutboundHelpers, unittest.TestCase):
                 self.assertTrue(findings)
                 only_injected(self, text, findings, [value])
 
+    def test_exact_negative_disclosure_report_passes_without_rewriting(self) -> None:
+        name = "Secret or personal-data spill"
+        report = f"Status: Completed\n{name}: None.\nScope compliance: Compliant."
+        evaluation = {"sections": {name: "None.", "Scope compliance": "Compliant."}}
+        peer_payload = json.dumps({"target_return": report, "pending_evaluation": evaluation})
+        for text, content_type in (
+            (report, "text/plain"),
+            ("Review the supplied return.\n\n" + peer_payload, "text/plain"),
+            (peer_payload, "text/plain"),
+            (peer_payload, "application/json"),
+        ):
+            with self.subTest(content_type=content_type, length=len(text)):
+                screened = require_clean(text, surface="peer-review-test", content_type=content_type)
+                self.assertEqual(screened.data, text.encode("utf-8"))
+
+    def test_negative_disclosure_report_exemption_requires_exact_scalar(self) -> None:
+        name = "Secret or personal-data spill"
+        for text in (
+            f"{name}: None. synthetic-value\nScope compliance: Compliant.",
+            f"{name}: None.\n  synthetic-value\nScope compliance: Compliant.",
+            f"{name}: synthetic-value\nScope compliance: Compliant.",
+            f"{name}: None.\nNext field: Complete.",
+            f"My {name}: None.\nScope compliance: Compliant.",
+            f'{name}: "None."\nScope compliance: Compliant.',
+            f'"{name}" = "None."',
+            f'"{name}": "None."',
+            f'"{name}": "None." + "synthetic-value"',
+            f'"{name}": "None."\n  synthetic-value',
+            json.dumps({name: "None. synthetic-value"}),
+            json.dumps({name: "None.\nsynthetic-value"}),
+            json.dumps({name: ["None."]}),
+            json.dumps({name: {"description": "None."}}),
+            json.dumps({f" {name} ": "None."}),
+            json.dumps({"password": "None."}),
+            json.dumps({"password": {name: "None."}}),
+            "password: None.",
+        ):
+            with self.subTest(text=text):
+                with self.assertRaises(OutboundRefused):
+                    require_clean(text, surface="peer-review-test")
+
     ACRONYM_NAMES = ("DBPassword", "DBPASSWORD", "dbPassword", "DbPassword", "db_password", "DB-Password", "dbpassword",
                      "HTTPToken", "HTTP_TOKEN", "httpToken", "HttpToken", "httptoken", "OAuth2Token", "AWSSecretAccessKey",
                      "awsaccesskey", "X509Pass", "SSLCookie", "UserPWD", "DBPasswords", "SMTPCredentials", "MyAPIKey")
