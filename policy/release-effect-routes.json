@@ -1050,7 +1050,7 @@
 
 "dD":[189,117,"with PrivateDirectory.open(store.state_root / \"browser-returns\", create=True) as directory:"],
 
-"dE":[190,738,"if args.audit:"],
+"dE":[190,780,"if args.audit:"],
 
 "dF":[12,868,"if args.write_manifest and target_dir.exists():"],
 
@@ -1082,7 +1082,7 @@
 
 "dU":[191,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",98,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
 
-"dV":[190,739,"record = _record_host_evaluation(return_text, result)"],
+"dV":[190,781,"record = _record_host_evaluation(return_text, result, tracked=tracked)"],
 
 "dW":[189,119,"directory.write(name, raw)"],
 
@@ -1848,7 +1848,7 @@
 
 "kc":[59,715,{"$":57}],
 
-"kd":[190,"main",489,"HfDStNx0PsOZXXzGnHL4d-GO_KeSt28-bpjteBn5DlQ"],
+"kd":[190,"main",531,"sL2-xf1bi9t4LEhnqMeg8CXysN8p2dA0gFNuwRXPWCM"],
 
 "ke":[188,106,"submitted = self.require_unchanged().decode(\"utf-8\")"],
 
@@ -2014,13 +2014,13 @@
 
 "mC":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",121,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"mD":[190,447,"record_received_return(configured_store(), dispatch_id, browser_return)"],
+"mD":[190,474,"record_received_return(configured_store(), dispatch_id, browser_return)"],
 
-"mE":[190,442,"if browser_return is not None:"],
+"mE":[190,469,"if browser_return is not None:"],
 
-"mF":[190,217,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
+"mF":[190,218,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
 
-"mG":[190,207,"if ("],
+"mG":[190,208,"if ("],
 
 "mH":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",221,"AZ6V16vtyNtTPMLVbrc4UPcl5xgbxqPl4HArCgjZ2-M"],
 
@@ -4883,7 +4883,7 @@
 
 [43,2257,63,2257,100,"dynamic","ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
 
-[44,606,19,606,44,"dynamic",{"$":192},[{"$":9},"dS"]],
+[44,648,19,648,44,"dynamic",{"$":192},[{"$":9},"dS"]],
 
 [91,70,4,70,53,"beads","tL-5k4gLzdn43GnJyjbm47nstYqCfzOB5L9s-GCvqN0",["route","B11.2","mz"]],
 
@@ -6704,7 +6704,7 @@
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
-"@190":["kz4rT0vN2gTO2pLo45gS07N8Y5yVB4V1wer_skduOo4",493,42675],
+"@190":["MhtxqQrKKJmGGmZOJKKMtSCXfEql7bhdOLIjUuRNGvI",493,44688],
 
 "@191":["SXu6Yj22_Ug5o_QrdX8p8qA_vos4YYSJ8eVwvYtRZ6k",420,9375],
 
@@ -7276,7 +7276,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["FgrD4SncMN_oQiwnp9sME35aV_zS_n2dL26j96fQbBs",420,141481],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["gKeo6oH1fYYVPLKBwMx6o-scm-Ec6Em_8kD7_qY4740",420,141481],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 

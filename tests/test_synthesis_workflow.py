@@ -311,7 +311,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         self.assertEqual(result["primary_input_count"], 1)
         self.assertIn("peer-review-pending", result["held_inputs"][0]["hold_reasons"])
 
-    def _manual_packet_input(self, report_path, *, peer_required=False):
+    def _manual_packet(self):
         bead = self._json_file("manual-task.json", {
             "id": "manual-critic", "title": "Review the retry plan", "description": "Review the public plan.",
             "labels": ["contractor-only", "no-codex-exec", "contract-jd-architecture-reasoning"],
@@ -320,7 +320,14 @@ class SynthesisWorkflowTests(unittest.TestCase):
             "--bead", "manual-critic", "--bead-json-file", bead, "--executor", "claude_architecture_critic",
             "--external-ok", "--epic", "example-synthesis", "--share-boundary", "redacted-packet",
             "--format", "json", "--dispatch-id", "built-manual-critic")
-        packet_path = self._json_file("manual-packet.json", packet)
+        return packet, self._json_file("manual-packet.json", packet)
+
+    def _evaluate_manual(self, packet_path, report_path, *flags):
+        return self._run_json("evaluate_return.py", evaluate_main,
+            "--contractor-packet", packet_path, "--file", report_path, "--json", *flags)
+
+    def _manual_packet_input(self, report_path, *, peer_required=False):
+        packet, packet_path = self._manual_packet()
         artifact = self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--json")
         self.assertEqual(artifact["dispatch_mode"], "manual_ui")
         self.assertIn("Review the retry plan", artifact["manual_prompt"])
@@ -328,9 +335,14 @@ class SynthesisWorkflowTests(unittest.TestCase):
             "--contractor-packet", packet_path, "--file", report_path)
         self.assertEqual(normalized["dispatch_id"], packet["dispatch_id"])
         peer_args = ["--peer-review-required", "--peer-review-status", "pending"] if peer_required else []
-        evaluation = self._run_json("evaluate_return.py", evaluate_main,
-            "--contractor-packet", packet_path, "--file", report_path, "--json", *peer_args)
-        self.assertEqual(evaluation["accepted_for_use"], not peer_required)
+        evaluation = self._evaluate_manual(packet_path, report_path, *peer_args)
+        self.assertFalse(evaluation["accepted_for_use"])
+        self.assertTrue(evaluation["peer_review_required"])
+        self.assertEqual(evaluation["peer_review_status"], "pending" if peer_required else "not-run")
+        self.assertTrue(evaluation["evidence_use_hold"])
+        self.assertIn("peer-review-pending", evaluation["hold_reasons"])
+        record, = self.store.find("evaluation", dispatch_id=packet["dispatch_id"])
+        self.assertEqual(record["evaluation"], evaluation)
         return {"return": report_path, "evaluation": self._json_file("manual-evaluation.json", evaluation)}
 
     def test_manual_packet_entry_points_ingest_and_preserve_the_original_hold(self):
@@ -341,6 +353,78 @@ class SynthesisWorkflowTests(unittest.TestCase):
         self.assertEqual(result["primary_input_count"], 1)
         self.assertEqual(result["held_inputs"][0]["lane"], "built-manual-critic")
         self.assertIn("peer-review-pending", result["held_inputs"][0]["hold_reasons"])
+
+    def test_tracked_manual_packet_requires_a_receipt_for_audit_and_preserves_canonical_alias(self):
+        inputs, _ = self._panel()
+        report_path = inputs[1]["return"]
+        packet, packet_path = self._manual_packet()
+        self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--json")
+        before = self.store.audit_events()
+        with self.assertRaisesRegex(SystemExit, "return receipt is missing"):
+            self._evaluate_manual(packet_path, report_path)
+        inspected = self._evaluate_manual(packet_path, report_path, "--no-audit", "--waiver-reason", "offline test")
+        self.assertFalse(inspected["accepted_for_use"])
+        self.assertIn("peer-review-pending", inspected["hold_reasons"])
+        self.assertEqual(self.store.audit_events(), before)
+
+        original = Path(report_path).read_bytes()
+        alias = original.replace(b"\n", b"\r\n")
+        self.store.write_return_received(packet["dispatch_id"], sha256(original).hexdigest(),
+            capture_provenance="manual-intake-v1", canonical_return_sha256=sha256(alias).hexdigest())
+        Path(report_path).write_bytes(alias)
+        evaluation = self._evaluate_manual(packet_path, report_path)
+        self.assertFalse(evaluation["accepted_for_use"])
+        self.assertIn("peer-review-pending", evaluation["hold_reasons"])
+
+    def test_tracked_manual_packet_requires_consistent_identity_and_review_metadata(self):
+        inputs, _ = self._panel()
+        report_path = inputs[1]["return"]
+        domain = "model-provider-competition"
+        cli_domain = "frontier-ai-development"
+        for label, metadata_change, identity_change, error in (
+            ("provider conflict", {"provider_conflict_domains": [domain]}, {}, None),
+            ("malformed conflicts", {"provider_conflict_domains": domain}, {}, "invalid review requirements"),
+            ("malformed peer review", {"peer_review_required": "true"}, {}, "invalid review requirements"),
+            ("wrong packet", {}, {"packet_sha256": "a" * 64}, "does not match the recorded manual dispatch"),
+        ):
+            store = HostRecordStore.for_tests(self.root / label)
+            with self.subTest(label=label), using_test_store(store):
+                packet, packet_path = self._manual_packet()
+                identity = {key: packet[key] for key in ("dispatch_id", "bead_id", "packet_sha256", "executor", "provider_key")}
+                store.write_dispatch(**(identity | identity_change), dispatch_role="executor", provider="anthropic",
+                    model_family=None, model_id=None, reasoning_effort=None, session_id=None,
+                    evaluation_metadata={"dispatch_mode": "manual_ui", "peer_review_required": True, **metadata_change})
+                record_manual_return(store, packet["dispatch_id"], Path(report_path).read_bytes())
+                if error:
+                    before = store.audit_events()
+                    with self.assertRaisesRegex(SystemExit, error):
+                        self._evaluate_manual(packet_path, report_path)
+                    self.assertEqual(store.audit_events(), before)
+                else:
+                    evaluation = self._evaluate_manual(packet_path, report_path,
+                        "--provider-conflict-domain", cli_domain)
+                    self.assertEqual(evaluation["provider_conflict_domains"], [domain, cli_domain])
+                    self.assertFalse(evaluation["accepted_for_use"])
+                    self.assertIn("provider-conflict-peer-review-pending", evaluation["hold_reasons"])
+
+    def test_legacy_packet_stays_unbound_when_dispatch_is_recorded_during_evaluation(self):
+        from evaluate_return import _evaluate_current_return
+
+        inputs, _ = self._panel()
+        report_path = inputs[1]["return"]
+        packet, packet_path = self._manual_packet()
+
+        def score(*args, **kwargs):
+            self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--json")
+            self._run_json("normalize_contractor_return.py", normalize_main,
+                "--contractor-packet", packet_path, "--file", report_path)
+            return _evaluate_current_return(*args, **kwargs)
+
+        with patch("evaluate_return._evaluate_current_return", side_effect=score):
+            legacy = self._evaluate_manual(packet_path, report_path)
+        self.assertTrue(legacy["accepted_for_use"])
+        self.assertEqual(self.store.find("evaluation", dispatch_id=packet["dispatch_id"]), [])
+        self.assertFalse(self._evaluate_manual(packet_path, report_path)["accepted_for_use"])
 
     def _operator_codex_input(self, report_path):
         captured = self.root / "operator-codex-return.md"

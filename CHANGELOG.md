@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Apply peer-review and provider-conflict requirements from the recorded manual contractor dispatch at the first return evaluation.
+
 ## 1.41.0 - 2026-11-26
 
 - Retire the legacy native campaign launcher’s execution, preparation and claim code. The command retains its early refusal. Use `v1.37.0` for historical verification.
