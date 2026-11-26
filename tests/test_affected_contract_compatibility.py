@@ -360,8 +360,10 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
 
         manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())
         unbound = ModuleType("neutral_unbound_source")
-        unbound.__file__ = str(ROOT / "tests/test_comparative_evaluation.py")
-        self.assertNotIn("tests/test_comparative_evaluation.py", manifest["files"])
+        unbound_path = "tests/test_model_role_resolution.py"
+        self.assertTrue((ROOT / unbound_path).is_file())
+        self.assertNotIn(unbound_path, manifest["files"])
+        unbound.__file__ = str(ROOT / unbound_path)
         with patch.dict(sys.modules, {unbound.__name__: unbound}):
             with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "loaded dependency missing/drifted"):
                 checkpoint.verify_fixture_checkpoint()

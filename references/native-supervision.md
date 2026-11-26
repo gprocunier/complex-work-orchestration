@@ -122,6 +122,34 @@ When that blocker belongs to marked work, the optional parent-side cyber fallbac
 contract above may consume it once. Reply wording never classifies a refusal and
 cannot authorize the retry.
 
+### Reasoning effort routing
+
+The `sol` role in `policy/model-roles.yaml` supplies `reasoning_effort`
+(`high`) and `escalation_reasoning_effort` (`xhigh`). The interactive lead
+launch reads the default. Existing worker and reviewer controls govern which
+routes can dispatch.
+
+| Signal | Eligible role |
+| --- | --- |
+| The host has recorded a rejected return from a default-effort attempt on the same delivery | Worker or reviewer preparing a fresh attempt |
+| Routing identifies security or containment work such as sandbox, network, credentials or approval controls | Worker or reviewer |
+| A change classified high or critical needs independent review or adjudication | Reviewer or adjudicator |
+| Architecture or planning work has wide consequences, such as a cross-cutting change or a public contract change | Worker or reviewer |
+
+`route_work.py --json` reports the effort and reason for each Codex role.
+For a fresh internal Codex dispatch preparation after an embedding host
+records a rejection through `record_received_evaluation`, give
+`dispatch_work.py --retry-dispatch` the original dispatch ID and its `--bead`,
+submit the same task and use a new dispatch ID. CWO checks the original request
+digest, recorded effort, host-captured return receipt and evaluation. The
+evaluation must reject the delivery on its merits and clear screening and
+review holds. Preparation prints the Codex effort argument and records the
+choice. The next attempt still needs its usual approval. Standing delegation uses the selected effort in the
+signed worker configuration and records it with the worker dispatch. A recorded
+Codex peer request supplies its effort argument to the embedding host and
+completion checks that effort against the original session.
+
+
 ## Current host tool profiles
 
 Tool policy version 2 explicitly binds the current core-resource profiles.

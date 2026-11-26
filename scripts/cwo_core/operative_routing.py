@@ -11,6 +11,7 @@ from .model_identities import (
     cyber_fallback_availability, model_family_role, operative_models,
 )
 from .policy import RISK_ORDER, load_policy, project_executor_model
+from .reasoning_effort import REASONING_EFFORTS, worker_effort_for_estimate
 
 
 FALLBACK_MODELS = (GPT55_MODEL, TERRA_MODEL, LUNA_MODEL)
@@ -1475,7 +1476,8 @@ def _validate_authorized_route_shape(route: Mapping[str, Any], version: int, err
                        "authorized route executor does not match model")
     _route_shape_error(errors, route.get("role") == role_label,
                        "authorized route role does not match model")
-    _route_shape_error(errors, route.get("reasoning_effort") == "high", "authorized route reasoning_effort is invalid")
+    efforts = REASONING_EFFORTS if route.get("selector_version") == _TASK_SELECTED_SELECTOR_VERSION else ("high",)
+    _route_shape_error(errors, route.get("reasoning_effort") in tuple(efforts), "authorized route reasoning_effort is invalid")
     required = {"work_estimate_sha256", "neutral_work_estimate_sha256", "fit_evidence", "fit_sha256",
                 "capability_evidence_sha256", "provenance", "attempt"}
     if version == TASK_SELECTED_VERSION:
@@ -2037,6 +2039,14 @@ def _sol_escalation_refusal(role: str, escalation: Any, fit_sha256: str) -> str 
     return None
 
 
+def _operative_worker_reasoning(inputs: Mapping[str, Any], risk: str, qualification: Any) -> tuple[str, str]:
+    if qualification is not None:
+        return "high", ""
+    reasoning = worker_effort_for_estimate(_mapping(inputs.get("work_estimate")), risk)
+    reason = reasoning["reasoning_effort_reason"]
+    return reasoning["reasoning_effort"], "" if reason == "default" else f" Reasoning effort selection: {reason}."
+
+
 def _selected_task_route(
     *,
     authority: Mapping[str, Any],
@@ -2084,6 +2094,7 @@ def _selected_task_route(
         or attempt.get("work_lineage_id") != fit_context.get("work_lineage_id")
     ):
         return None, "current-authority-attempt-context-mismatch"
+    effort, effort_reason = _operative_worker_reasoning(inputs, risk_level, qualification)
     route = {
         "route_type": "cwo-operative-route",
         "version": TASK_SELECTED_VERSION,
@@ -2113,12 +2124,12 @@ def _selected_task_route(
         "aggregate_budget": deepcopy(_mapping(inputs.get("aggregate_budget"))),
         "budget_reset": False,
         "role": TASK_SELECTED_ROLES[role],
-        "reasoning_effort": "high",
+        "reasoning_effort": effort,
         "selection_reason": {
             "luna": "Luna selection for focused work.",
             "terra": "Terra selection for interface, visual or computer-use work.",
             "sol": "Sol selection with recorded escalation.",
-        }[role],
+        }[role] + effort_reason,
         "candidate_exclusions": [
             {"model": item["model"], "exclusion_reasons": deepcopy(item["exclusion_reasons"])}
             for item in fit["candidates"] if item.get("eligible") is not True

@@ -30,6 +30,32 @@
   "properties": {
     "route": {"type": "string"},
     "task_class": {"type": "string"},
+    "codex_reasoning": {
+      "type": "object",
+      "description": "Configured effort and routing reason for each Codex role. This projection does not authorize dispatch.",
+      "required": ["lead", "worker", "reviewer", "adjudicator"],
+      "additionalProperties": false,
+      "patternProperties": {
+        "^(lead|worker|reviewer|adjudicator)$": {
+          "type": "object",
+          "required": ["reasoning_effort", "reasoning_effort_reason"],
+          "additionalProperties": false,
+          "properties": {
+            "reasoning_effort": {"enum": ["low", "medium", "high", "xhigh"]},
+            "reasoning_effort_reason": {"enum": ["default", "delivery-failed-at-default-effort", "security-or-containment", "high-risk-review", "wide-architecture-or-planning"]}
+          }
+        }
+      }
+    },
+    "codex_retry_evidence": {
+      "type": "object",
+      "required": ["dispatch_record_sha256", "evaluation_record_sha256"],
+      "additionalProperties": false,
+      "properties": {
+        "dispatch_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+        "evaluation_record_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"}
+      }
+    },
     "risk_level": {"type": "string"},
     "risk_assessment": {
       "type": "object",

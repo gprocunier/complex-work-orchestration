@@ -36,6 +36,7 @@ from cwo_core.local_invocation import reserved_local_invocation
 from cwo_core.host_records import configured_store
 from cwo_core.prepared_outbound import PreparedSource
 from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, refuse_attachments, screen_request, withheld_diagnostics
+from cwo_core.reasoning_effort import effort_arguments, failed_default_delivery
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import classify_work
 from cwo_core.audit import (
@@ -49,7 +50,7 @@ from cwo_core.access_profiles import (
     access_profile_runtime_status,
     sanitized_access_profile,
 )
-from cwo_core.policy import executor_config
+from cwo_core.policy import GEMINI_CRITIC_EXECUTOR, executor_config
 from cwo_core.return_language import analyze_return_language, default_expected_return_language
 from cwo_core.util import (
     artifact_hash,
@@ -2250,6 +2251,56 @@ def record_local_execution(envelope: dict[str, Any], selected: dict[str, Any], r
     )
 
 
+def codex_dispatch_reasoning(route: dict[str, Any]) -> dict[str, str] | None:
+    selected = route["selected_executor"]
+    if selected.get("provider_key") != "internal_codex":
+        return None
+    role = {"codex_worker": "worker", "main_thread_review": "reviewer", "main_thread": "lead"}.get(
+        selected.get("dispatch_mode"))
+    return (route.get("codex_reasoning") or {}).get(role)
+
+
+def codex_peer_effort_metadata(packet: dict[str, Any]) -> dict[str, Any]:
+    if packet["executor"] != GEMINI_CRITIC_EXECUTOR:
+        return {}
+    summary = packet["bead_summary"]
+    segments = [str(summary.get(key, "")) for key in ("title", "description", "acceptance_criteria")]
+    route = classify_work("\n".join(segments), text_segments=segments)
+    return {"codex_review_reasoning": route["codex_reasoning"]["reviewer"]}
+
+
+def codex_dispatch_metadata(route: dict[str, Any]) -> dict[str, Any]:
+    reasoning = codex_dispatch_reasoning(route)
+    if reasoning is None:
+        return {}
+    metadata = {"codex_reasoning": reasoning}
+    if route.get("codex_retry_evidence"):
+        metadata["codex_retry_evidence"] = route["codex_retry_evidence"]
+    return metadata
+
+
+def codex_dispatch_command_settings(route: dict[str, Any]) -> dict[str, tuple[str, str]]:
+    reasoning = codex_dispatch_reasoning(route)
+    return {"codex_effort_arguments": effort_arguments(reasoning["reasoning_effort"])} if reasoning else {}
+
+
+def _retry_evidence(args: argparse.Namespace, task: str) -> dict[str, Any]:
+    if args.retry_dispatch is None:
+        return {}
+    if not args.bead or args.retry_dispatch == args.dispatch_id:
+        raise SystemExit("--retry-dispatch requires the original --bead and a new dispatch ID")
+    evidence = failed_default_delivery(configured_store(), args.retry_dispatch, args.bead,
+                                       hashlib.sha256(task.encode("utf-8")).hexdigest())
+    if evidence is None:
+        raise SystemExit("No rejected default-effort return matches the original dispatch, Bead and request")
+    return {"failed_delivery": evidence}
+
+
+def _check_retry_options(args: argparse.Namespace) -> None:
+    if args.retry_dispatch is not None and (args.packet or args.execute_local):
+        raise SystemExit("--retry-dispatch is available for internal Codex task preparation")
+
+
 def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], task: str,
                              dispatch_id: str, manual_prompt: str | None,
                              local_envelope: dict[str, Any] | None, *, manual_phase: bool = False,
@@ -2270,6 +2321,7 @@ def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], ta
             'dispatch_mode': route['selected_executor']['dispatch_mode'],
             'peer_review_required': route.get('peer_review_required', True),
             'provider_conflict_domains': route.get('provider_conflict_domains', []),
+            **codex_dispatch_metadata(route),
             **(outbound_metadata or {}),
         },
     )
@@ -2367,6 +2419,7 @@ def _main() -> None:
     parser.add_argument("--bead")
     parser.add_argument("--epic")
     parser.add_argument("--dispatch-id")
+    parser.add_argument("--retry-dispatch", help="Reference the original rejected default-effort Codex delivery.")
     parser.set_defaults(audit=True)
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
@@ -2377,6 +2430,7 @@ def _main() -> None:
     args = parser.parse_args()
     refuse_risk_narrowing_arguments(args, source="dispatch_work.py")
     require_requested_local_execution(args)
+    _check_retry_options(args)
     if not args.audit and not args.rehearsal:
         raise SystemExit("--no-audit is allowed only with --rehearsal for local tests or rehearsals")
     require_waiver_reason(
@@ -2452,6 +2506,7 @@ def _main() -> None:
                     "dispatch_mode": "manual_ui", "peer_review_required": True,
                     "expected_return_language": expected_language,
                     "expected_return_language_source": expected_language_source,
+                    **codex_peer_effort_metadata(packet),
                     **prepared.metadata(),
                 },
             )
@@ -2516,6 +2571,7 @@ def _main() -> None:
             share_boundary=args.share_boundary,
             data_sensitivity=args.data_sensitivity,
             requested_roles=args.requested_role,
+            **_retry_evidence(args, task),
             **current_authority_file_arguments(args.current_authority),
         )
     except CWOError as exc:
@@ -2573,6 +2629,7 @@ def _main() -> None:
         "manual_prompt": manual_prompt,
         "local_envelope": local_envelope,
         "local_response": local_response,
+        **codex_dispatch_command_settings(route),
         **quota_info,
     }
     screened_output = None

@@ -16,7 +16,7 @@ import stat
 from .errors import CWOPolicyError
 from .host_acceptance import _host_inputs
 from .host_return_intake import MAX_RETURN_BYTES, record_received_return
-from .model_identities import resolve_model
+from .model_identities import model_family_role, resolve_model
 from .native_session_boundary import (
     NativeSessionBoundaryError,
     locate_unique_session,
@@ -28,6 +28,7 @@ from .peer_review import pending_evaluation_sha256, validate_peer_review_request
 from .peer_review_identity import identity_token, review_identity, separation_level
 from .policy import configured_gemini_critic, load_policy
 from .policy_schema import strict_json_loads
+from .reasoning_effort import REASONING_EFFORTS, effort_arguments
 from .returns import make_acceptance_decision
 
 
@@ -58,6 +59,13 @@ class CodexPeerReviewRequest:
     target_dispatch_record_sha256: str
     target_return_record_sha256: str
     request: bytes
+    launch_identity: tuple[str, str, str] | None = None
+    effort_reason: str | None = None
+
+    @property
+    def command_effort_arguments(self) -> tuple[str, str]:
+        identity = self.launch_identity or _launch_identity()
+        return effort_arguments(identity[1])
 
     @property
     def target(self) -> dict[str, str]:
@@ -299,20 +307,23 @@ def _rollout_messages(groups: dict, context_index: int, terminal_index: int, ses
               "legacy rollout messages differ from the original request or stdout")
 
 
-def _launch_identity() -> tuple[str, str, str]:
-    model = resolve_model("sol")
+def _launch_identity(effort: str = "xhigh", model: str | None = None) -> tuple[str, str, str]:
+    # Captures prepared without an effort decision used the original fixed Sol effort.
+    model = model or resolve_model("sol")
     policy = load_policy("model-roles")["roles"]["sol"]
-    effort, tier = policy.get("reasoning_effort"), policy.get("service_tier")
-    _need(type(effort) is str and bool(effort) and tier == "default", "Sol launch policy is unavailable")
+    tier = policy.get("service_tier")
+    _need(type(effort) is str and effort in REASONING_EFFORTS and tier == "default",
+          "Sol launch policy is unavailable")
     return model, effort, tier
 
 
-def _observe(request: bytes, stdout: bytes, codex_home: Path, exit_code: int) -> _Observation:
+def _observe(request: bytes, stdout: bytes, codex_home: Path, exit_code: int,
+             launch_identity: tuple[str, str, str]) -> _Observation:
     _need(type(exit_code) is int and exit_code == 0, "original process did not exit successfully")
     request_text = _utf8(request, MAX_CODEX_CAPTURE_BYTES)
     stdout_rows = _jsonl(stdout)
     session_id, messages = _stdout_messages(stdout_rows)
-    model, effort, tier = _launch_identity()
+    model, effort, tier = launch_identity
     for row in stdout_rows:
         _need(row.get("thread_id") in (None, session_id), "stdout reports a foreign thread")
         _check_reported_identity(row, model, effort, tier)
@@ -341,6 +352,14 @@ def _finish(store, dispatch_id: str, record_id: str, observation: _Observation) 
     return CodexCriticCompletion(record_id, receipt_id, observation.session_id, observation.final)
 
 
+def _critic_launch_identity(dispatch: dict) -> tuple[str, str, str]:
+    selected = dispatch["evaluation_metadata"].get("codex_reasoning", {})
+    model = dispatch.get("model_id")
+    if model is not None:
+        _need(model_family_role(model) == "sol", "recorded Codex critic model must be in the Sol family")
+    return _launch_identity(selected.get("reasoning_effort", dispatch.get("reasoning_effort") or "xhigh"), model)
+
+
 def record_codex_critic_completion(store, dispatch_id: str, *, request: bytes, stdout: bytes,
                                    codex_home: Path, exit_code: int) -> CodexCriticCompletion:
     """Complete the prepared internal critic dispatch with its original CLI observation."""
@@ -351,7 +370,7 @@ def record_codex_critic_completion(store, dispatch_id: str, *, request: bytes, s
           "dispatch is not the prepared Codex critic executor")
     _utf8(request, MAX_CODEX_CAPTURE_BYTES)
     _need(dispatch.get("request_sha256") == _sha(request), "original request differs from the prepared dispatch")
-    observation = _observe(request, stdout, codex_home, exit_code)
+    observation = _observe(request, stdout, codex_home, exit_code, _critic_launch_identity(dispatch))
     _distinct_session(store, dispatch_id, observation.session_id)
     if dispatch.get("stage") == "observed":
         _need(dispatch.get("observation_sha256") == observation.sha256
@@ -383,7 +402,9 @@ def prepare_codex_peer_review_request(store, dispatch_id: str, *, target_dispatc
     pending = make_acceptance_decision(text, peer_review_status="pending",
         **_host_inputs(dispatch, dispatch.get("bead_id"), target_dispatch_id))
     evaluation_digest = pending_evaluation_sha256(pending)
-    model, effort, _ = _launch_identity()
+    selected = dispatch["evaluation_metadata"].get("codex_review_reasoning")
+    launch_identity = _launch_identity(selected["reasoning_effort"]) if selected else None
+    model, effort, _ = launch_identity or _launch_identity()
     reviewer = dict(provider="openai", model_family="gpt", model_id=model, reasoning_effort=effort, dispatch_id=dispatch_id)
     passed = dict(record_type="cwo-peer-review", version=2, decision="passed", reviewer_identity=reviewer,
                   return_sha256=return_digest, evaluation_sha256=evaluation_digest)
@@ -396,7 +417,8 @@ def prepare_codex_peer_review_request(store, dispatch_id: str, *, target_dispatc
     request = prompt.encode("utf-8")
     _utf8(request, MAX_CODEX_CAPTURE_BYTES)
     return CodexPeerReviewRequest(dispatch_id, target_dispatch_id, return_digest, evaluation_digest,
-                                  dispatch["_record_sha256"], receipt["_record_sha256"], request)
+                                  dispatch["_record_sha256"], receipt["_record_sha256"], request,
+                                  launch_identity, selected["reasoning_effort_reason"] if selected else None)
 
 
 def _peer_response(final: bytes, identity: dict, request: CodexPeerReviewRequest) -> None:
@@ -409,6 +431,14 @@ def _peer_response(final: bytes, identity: dict, request: CodexPeerReviewRequest
           "peer return differs from the exact review target")
 
 
+def _peer_dispatch_metadata(request: CodexPeerReviewRequest, observation: _Observation) -> dict:
+    metadata = dict(dispatch_mode=_MODE, capture_observation_sha256=observation.sha256)
+    if request.effort_reason is not None:
+        metadata["codex_reasoning"] = {"reasoning_effort": observation.effort,
+                                       "reasoning_effort_reason": request.effort_reason}
+    return metadata
+
+
 def record_codex_peer_review_completion(store, request: CodexPeerReviewRequest, *, target_return: bytes,
                                         stdout: bytes, codex_home: Path, exit_code: int) -> CodexCriticCompletion:
     """Record a distinct original reviewer session against the exact verified target."""
@@ -416,7 +446,8 @@ def record_codex_peer_review_completion(store, request: CodexPeerReviewRequest, 
     actual = prepare_codex_peer_review_request(store, request.dispatch_id,
         target_dispatch_id=request.target_dispatch_id, target_return=target_return)
     _need(actual == request, "original peer request or pending evaluation changed")
-    observation = _observe(request.request, stdout, codex_home, exit_code)
+    identity = request.launch_identity or _launch_identity()
+    observation = _observe(request.request, stdout, codex_home, exit_code, identity)
     _distinct_session(store, request.dispatch_id, observation.session_id)
     target = store.require_dispatch(request.target_dispatch_id)
     reviewer = review_identity(dict(dispatch_id=request.dispatch_id,
@@ -424,9 +455,10 @@ def record_codex_peer_review_completion(store, request: CodexPeerReviewRequest, 
     target_identity = review_identity({key: target[key] for key in reviewer})
     separation_level(target_identity, reviewer, target["session_id"], observation.session_id)
     _peer_response(observation.final, reviewer, request)
+    metadata = _peer_dispatch_metadata(request, observation)
     expected = dict(dispatch_id=request.dispatch_id, dispatch_role="peer-review", **observation.identity,
         request_sha256=_sha(request.request), review_target=request.target, executor=_EXECUTOR, provider_key=_PROVIDER,
-        evaluation_metadata=dict(dispatch_mode=_MODE, capture_observation_sha256=observation.sha256))
+        evaluation_metadata=metadata)
     if store.find("dispatch", dispatch_id=request.dispatch_id):
         prior = store.require_dispatch(request.dispatch_id)
         _need(all(prior.get(key) == value for key, value in expected.items()), "prior peer completion differs")

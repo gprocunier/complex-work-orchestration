@@ -38,7 +38,7 @@ def _validate_role(role: str, entry: Any) -> None:
     required = {"current", "previous", "selection"}
     if role in ("sol", "astra"):
         required.add("reviewer_rank")
-    launch_fields = {"reasoning_effort", "service_tier"} if role == "sol" else set()
+    launch_fields = {"reasoning_effort", "escalation_reasoning_effort", "service_tier"} if role == "sol" else set()
     if not isinstance(entry, Mapping) or not required <= set(entry) <= required | {"pin", "purpose"} | launch_fields:
         raise ValueError(f"model-roles {role} fields are invalid")
     if entry["selection"] not in ("explicit", "latest-in-family"):

@@ -225,6 +225,13 @@ def _panel_entry(item: dict[str, Any]) -> dict[str, Any]:
     return entry
 
 
+def _counter_review_effort(route: dict[str, Any], executor: str) -> dict[str, Any]:
+    contract = next((item for item in route.get("architecture_critic_contracts", [])
+                     if isinstance(item, dict) and item.get("executor") == executor), {})
+    return {key: contract[key] for key in ("reasoning_effort", "reasoning_effort_reason", "codex_effort_arguments")
+            if key in contract}
+
+
 def synthesis_panel_for_route(
     policy: dict[str, Any],
     route: dict[str, Any],
@@ -254,6 +261,7 @@ def synthesis_panel_for_route(
                 "provider_camp": "codex",
                 "effort": resolve_model("astra"),
                 "external": False,
+                **_counter_review_effort(route, counter_review),
             },
         ]
     default_panel = [_panel_entry(item) for item in policy.get("default_panel", [])]

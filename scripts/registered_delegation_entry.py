@@ -87,7 +87,7 @@ def _approval_data(config):
             'publication_state': _coordinates(config.publication_state),
             'standing_delegation': {'baseline_sha256': standing.baseline_sha256,
                 'database_sha256': standing.database_sha256, 'capability_evidence': json.loads(standing.capability_bytes),
-                'cache_profile': json.loads(standing.cache_bytes), **project},
+                'cache_profile': json.loads(standing.cache_bytes), **standing.reasoning_metadata(), **project},
             'standing_directive': json.loads(config._standing_directive)}
 
 

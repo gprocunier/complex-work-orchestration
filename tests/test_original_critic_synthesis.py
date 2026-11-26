@@ -113,14 +113,15 @@ class OriginalCriticSynthesisTests(unittest.TestCase):
         self.assertIn('peer-review-pending', pending['hold_reasons'])
         self.assertFalse(pending['accepted_for_use'])
         request = prepare_codex_peer_review_request(self.store, 'peer', target_dispatch_id='gemini', target_return=raw)
+        self.assertEqual(request.command_effort_arguments, ('-c', 'model_reasoning_effort="high"'))
         reviewer = dict(provider='openai', model_family='gpt', model_id=resolve_model('sol'),
-                        reasoning_effort='xhigh', dispatch_id='peer')
+                        reasoning_effort='high', dispatch_id='peer')
         decision = dict(record_type='cwo-peer-review', version=2, decision='passed', reviewer_identity=reviewer,
                         return_sha256=sha(raw), evaluation_sha256=pending_evaluation_sha256(pending))
         self.assertEqual(request.target, dict(dispatch_id='gemini', return_sha256=sha(raw),
                                               evaluation_sha256=decision['evaluation_sha256']))
         original = OriginalCodexProcess(self.root, request.request, json.dumps(decision),
-                                        session='019a0000-0000-7000-8000-000000000002')
+                                        session='019a0000-0000-7000-8000-000000000002', effort='high')
         record_codex_peer_review_completion(self.store, request, target_return=raw, **original.inputs())
         evaluated = self._run_cli('evaluate_return.py', evaluate_main, *evaluator, '--peer-review-status', 'passed',
             '--peer-review-reviewer', json.dumps(reviewer), '--peer-review-record', self._write_json('peer.json', decision))

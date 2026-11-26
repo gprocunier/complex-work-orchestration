@@ -43,6 +43,7 @@ from .policy import (
     route_requires_peer_review,
     validate_peer_review_controls,
 )
+from .reasoning_effort import FailedDelivery, effort_arguments, failed_delivery_metadata, routing_efforts
 from .routing_signals import (
     architecture_critic_intent_conflicts,
     architecture_review_complexity,
@@ -168,7 +169,7 @@ GLM_PRIMARY_EXECUTION_ENVIRONMENT = "connected-codex-glm-primary"
 GLM_BF16_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_hardened_architecture_critic"
 GLM_5_3_ARCHITECTURE_CRITIC_EXECUTOR = "rhoai_glm_compact_architecture_critic"
 GLM_BF16_PRIMARY_ARCHITECT_EXECUTOR = "rhoai_glm_primary_architect"
-CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR = "codex_architecture_critic"
+CODEX_ARCHITECTURE_CRITIC_EXECUTOR = "codex_architecture_critic"
 LOCAL_DISPATCH_MODES = {"local_openai_compatible", "local_secure_review"}
 
 
@@ -927,7 +928,7 @@ def score_executors(
         if executor.get("cost_tier") in ["low", "medium"]:
             score += scoring.get("cost_fit", 2)
         is_architecture_review_task = task_class == "architecture-review"
-        if key == CODEX_XHIGH_ARCHITECTURE_CRITIC_EXECUTOR:
+        if key == CODEX_ARCHITECTURE_CRITIC_EXECUTOR:
             score -= 100
             reasons.append("reserved for explicit architecture counter-review lanes")
         if is_architecture_review_task and key == "gemini_architecture_critic" and explicit_gemini_architect_critique_requested(text):
@@ -1080,6 +1081,7 @@ def classify_work(
     risk_scope: dict[str, Any] | None = None,
     risk_evidence_dir: str | None = None,
     risk_use: Any = None,
+    failed_delivery: FailedDelivery | None = None,
 ) -> RouteResult:
     """Classify work for routing.
 
@@ -1223,6 +1225,9 @@ def classify_work(
     selected = route_primary.get("selected_executor") or ranked_executors[0]
     recommended_executor = route_primary.get("recommended_executor", selected["key"])
     architecture_complexity = architecture_review_complexity(text, risk)
+    codex_reasoning = routing_efforts(text, segments=text_segments, task_class=task_class, risk=risk,
+        risk_features=risk_assessment.features, architecture_complexity=architecture_complexity,
+        failed_delivery=failed_delivery)
     claude_effort = configured_claude_critic()["effort"]
     requested_critic_keys = requested_architecture_critic_executor_keys(text)
     critic_intent_conflicts = architecture_critic_intent_conflicts(text)
@@ -1299,6 +1304,9 @@ def classify_work(
             contract["model_profile"] = candidate.get("model_profile")
         elif default_command:
             contract["manual_command"] = default_command
+        if key == CODEX_ARCHITECTURE_CRITIC_EXECUTOR:
+            contract.update(codex_reasoning["reviewer"],
+                codex_effort_arguments=list(effort_arguments(codex_reasoning["reviewer"]["reasoning_effort"])))
         architecture_critic_contracts.append(contract)
 
     chatgpt_master_review_required = explicit_chatgpt_master_plan_review_requested(text)
@@ -1496,6 +1504,8 @@ def classify_work(
             list(CHATGPT_MASTER_REVIEW_REQUIRED_EVIDENCE) if chatgpt_master_review_required else []
         ),
         "architecture_review_complexity": architecture_complexity,
+        "codex_reasoning": codex_reasoning,
+        **failed_delivery_metadata(failed_delivery),
         "claude_architecture_effort": claude_effort,
         "requested_architecture_critic_executors": requested_critic_keys,
         "architecture_critic_contracts": architecture_critic_contracts,
