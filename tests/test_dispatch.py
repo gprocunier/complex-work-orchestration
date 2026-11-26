@@ -6,6 +6,8 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from types import SimpleNamespace
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -13,6 +15,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from generate_manual_dispatch_prompt import render_packet_prompt, render_prompt  # noqa: E402
 from dispatch_work import local_executor_fallback  # noqa: E402
 from build_contractor_packet import build_packet  # noqa: E402
+from cwo_core import policy  # noqa: E402
 from cwo_core.policy import executor_config  # noqa: E402
 from cwo_core.routing import classify_work  # noqa: E402
 from cwo_core.packets import (  # noqa: E402
@@ -285,6 +288,74 @@ class DispatchTests(unittest.TestCase):
         with malformed_policy("executor-registry", set_critic_transport):
             self._assert_claude_critic_command("claude-opus-9-9", "medium")
 
+    def test_claude_critic_defaults_to_calling_users_cli(self) -> None:
+        self.assertEqual(
+            policy.claude_critic_argv(),
+            ["claude", "--model", "claude-opus-5-5", "--effort", "high", "-p"],
+        )
+
+    def test_claude_critic_run_as_is_local_to_the_invocation(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            folder = Path(tmpdir)
+            executable = folder / "trusted Claude"
+            executable.write_text('#!/bin/sh\nprintf "%s\\n" "$PWD" "$@"\n/bin/cat\n', encoding="utf-8")
+            executable.chmod(0o700)
+            sudo = folder / "sudo"
+            sudo.write_text('#!/bin/sh\nprintf "%s\\n" "$1" "$2" "$3" "$4" "$5"\nshift 5\nexec "$@"\n', encoding="utf-8")
+            sudo.chmod(0o700)
+            run_as = {"user": "review-account", "executable": str(executable)}
+
+            def set_critic_transport(registry):
+                transport = registry["executors"]["claude_architecture_critic"]["transport"]
+                transport.update(model="claude-opus-9-9", effort="medium", run_as=run_as)
+
+            with malformed_policy("executor-registry", set_critic_transport):
+                with mock.patch("pwd.getpwnam", return_value=SimpleNamespace(pw_uid=1234)) as get_account:
+                    argv = policy.claude_critic_argv()
+                    get_account.assert_called_once_with("review-account")
+                    self.assertEqual(argv, policy.claude_critic_argv(run_as=run_as))
+                self.assertNotIn("run_as", executor_config("claude_architecture_critic")["transport"])
+                self._assert_claude_critic_command("claude-opus-9-9", "medium")
+
+            result = subprocess.run(
+                argv, input="Screened assignment\n", cwd=folder,
+                env={**os.environ, "PATH": str(folder)}, capture_output=True, text=True, check=True,
+            )
+            self.assertEqual(result.stdout.splitlines(), [
+                "-n", "-u", "review-account", "-H", "--",
+                str(folder), "--model", "claude-opus-9-9", "--effort", "medium", "-p", "Screened assignment",
+            ])
+
+    def test_claude_critic_refuses_invalid_run_as_policy(self) -> None:
+        settings = (
+            ({"user": "-root", "executable": "/opt/claude"}, "user"),
+            ({"user": "9", "executable": "/opt/claude"}, "user"),
+            ({"user": "review-account", "executable": "claude"}, "executable"),
+            ({"user": "review-account"}, "executable"),
+            ({"user": "review-account", "executable": "/opt/claude", "args": []}, "run_as"),
+        )
+        with mock.patch("pwd.getpwnam", return_value=SimpleNamespace(pw_uid=1234)):
+            for run_as, message in settings:
+                with self.subTest(run_as=run_as), self.assertRaisesRegex(SystemExit, message):
+                    policy.claude_critic_argv(run_as=run_as)
+
+        run_as = {"user": "review-account", "executable": "/opt/claude"}
+        with mock.patch("pwd.getpwnam", side_effect=KeyError), self.assertRaisesRegex(SystemExit, "account"):
+            policy.claude_critic_argv(run_as=run_as)
+        with mock.patch("pwd.getpwnam", return_value=SimpleNamespace(pw_uid=0)):
+            with self.assertRaisesRegex(SystemExit, "non-root"):
+                policy.claude_critic_argv(run_as=run_as)
+
+    def test_executor_registry_rejects_run_as_on_another_executor(self) -> None:
+        def set_other_transport(registry):
+            registry["executors"]["gemini_architecture_critic"]["transport"]["run_as"] = {
+                "user": "review-account", "executable": "/opt/claude",
+            }
+
+        with malformed_policy("executor-registry", set_other_transport):
+            with self.assertRaisesRegex(SystemExit, "run_as.*claude_architecture_critic"):
+                policy.load_policy("executor-registry")
+
     def _assert_claude_critic_command(self, model: str, effort: str) -> None:
         command = f"claude --model {model} --effort {effort} -p"
         route = classify_work(
@@ -299,6 +370,7 @@ class DispatchTests(unittest.TestCase):
         self.assertEqual(route["architecture_review_complexity"], "high")
         self.assertEqual(route["claude_architecture_effort"], effort)
         self.assertEqual(route["architecture_critic_contracts"][0]["manual_command"], command)
+        self.assertNotIn("run_as", route["architecture_critic_contracts"][0]["selected_executor"]["transport"])
         self.assertEqual(registered_review_model("anthropic", model)["model_family"], "claude")
 
         packet = build_packet(
@@ -320,6 +392,7 @@ class DispatchTests(unittest.TestCase):
         require_valid_contractor_packet(packet)
         self.assertEqual(packet["provider_key"], "anthropic_manual")
         self.assertEqual(packet["manual_command"], command)
+        self.assertNotIn("run_as", packet["executor_transport"])
         packet_prompt = render_packet_prompt(packet)
         self.assertIn("claude_architecture_critic", packet_prompt)
         self.assertIn(f"Manual dispatch command: {command}", packet_prompt)

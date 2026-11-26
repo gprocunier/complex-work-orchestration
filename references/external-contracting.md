@@ -240,6 +240,18 @@ critic executors. The Claude architecture critic uses the model and effort
 configured for `claude_architecture_critic` in
 `policy/executor-registry.yaml`. Use the `Manual dispatch command` shown in
 the rendered prompt and give the Claude CLI that prompt as input.
+
+When the critic uses a separate local account, set `transport.run_as` for
+`claude_architecture_critic` in trusted local executor policy. Set `user` to
+an existing non-root account and `executable` to the absolute path to that
+account's Claude CLI. Keep the account and executable in local policy.
+An embedding host can pass that same settings object to
+`cwo_core.policy.claude_critic_argv(run_as=settings)`. Use the returned
+arguments for the manual invocation from a directory readable by that
+account, with the screened prompt on stdin. The host needs an existing
+noninteractive sudo grant for the account. Routes and contractor prompts
+show the portable Claude command.
+
 The Gemini architecture critic uses Antigravity in plan mode from the trusted
 `working_directory` configured with its `model` and `effort` under
 `gemini_architecture_critic` in the same registry. The Antigravity model ID

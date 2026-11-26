@@ -202,6 +202,47 @@ def configured_gemini_critic() -> dict[str, Any]:
     return load_policy("executor-registry")["executors"][GEMINI_CRITIC_EXECUTOR]["transport"]
 
 
+def _claude_critic_options(transport: dict[str, Any]) -> list[str]:
+    return ["--model", transport["model"], "--effort", transport["effort"], "-p"]
+
+
+def _claude_run_as_prefix(run_as: dict[str, Any]) -> list[str]:
+    if not isinstance(run_as, dict) or run_as.keys() - {"user", "executable"}:
+        raise SystemExit("Claude critic run_as must contain only user and executable")
+    user = run_as.get("user")
+    if not isinstance(user, str) or not re.fullmatch(r"[A-Za-z_][A-Za-z0-9_.-]*[$]?", user):
+        raise SystemExit("Claude critic run_as user must be a local account name")
+    executable = run_as.get("executable")
+    if (
+        not isinstance(executable, str)
+        or not Path(executable).is_absolute()
+        or executable.endswith("/")
+        or re.search(r"[\x00-\x1f\x7f]", executable)
+    ):
+        raise SystemExit("Claude critic run_as executable must be an absolute path to the CLI")
+
+    try:
+        import pwd
+    except ImportError:
+        raise SystemExit("Claude critic run_as requires local Unix accounts") from None
+
+    try:
+        account = pwd.getpwnam(user)
+    except KeyError:
+        raise SystemExit("Claude critic run_as account does not exist on this host") from None
+    if account.pw_uid == 0:
+        raise SystemExit("Claude critic run_as requires a non-root account")
+    return ["sudo", "-n", "-u", user, "-H", "--", executable]
+
+
+def claude_critic_argv(*, run_as: dict[str, Any] | None = None) -> list[str]:
+    """Resolve a manual invocation from trusted host policy for use outside the prompt."""
+    transport = configured_claude_critic()
+    settings = transport.get("run_as") if run_as is None else run_as
+    prefix = ["claude"] if settings is None else _claude_run_as_prefix(settings)
+    return [*prefix, *_claude_critic_options(transport)]
+
+
 def project_executor_model(executor_key: str, executor: dict[str, Any]) -> dict[str, Any]:
     """Project configured model metadata for current executor consumers."""
     value = dict(executor)
@@ -210,9 +251,11 @@ def project_executor_model(executor_key: str, executor: dict[str, Any]) -> dict[
         role, display_name = binding
         value.update(model_label=resolve_model(role), display_name=display_name)
     if executor_key == CLAUDE_CRITIC_EXECUTOR:
-        transport = value["transport"]
-        command = shlex.join(["claude", "--model", transport["model"], "--effort", transport["effort"], "-p"])
-        value["transport"] = {**transport, "default_command": command}
+        transport = dict(value["transport"])
+        # Projected transport is shared in routes and contractor packets.
+        transport.pop("run_as", None)
+        transport["default_command"] = shlex.join(["claude", *_claude_critic_options(transport)])
+        value["transport"] = transport
     elif executor_key == GEMINI_CRITIC_EXECUTOR:
         transport = value["transport"]
         command = shlex.join(["agy", "--model", transport["model"], "--mode", "plan", "-p"])
@@ -296,6 +339,10 @@ def _load_policy_cached(filename: str) -> dict[str, Any]:
     value = load_json_compatible_yaml(path)
     # A file with a registered schema reaches no consumer unless it matches the schema.
     validate_policy_document(filename, value)
+    if filename == "executor-registry.yaml":
+        for key, executor in value["executors"].items():
+            if key != CLAUDE_CRITIC_EXECUTOR and "run_as" in executor.get("transport", {}):
+                raise SystemExit(f"executor-registry transport.run_as is only supported for {CLAUDE_CRITIC_EXECUTOR}")
     return value
 
 
