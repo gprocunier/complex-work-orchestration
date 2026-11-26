@@ -5,6 +5,7 @@ import argparse
 import json
 import re
 import sys
+from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
@@ -92,6 +93,22 @@ def _dict(value: Any) -> dict[str, Any]:
     return value if isinstance(value, dict) else {}
 
 
+def _indexed_rows(name: str, rows: list[Any]) -> Iterator[tuple[str, dict[str, Any]]]:
+    for index, item in enumerate(rows):
+        yield f"{name}[{index}]", _dict(item)
+
+
+def _require_strings(errors: list[str], prefix: str, item: dict[str, Any], *fields: str) -> None:
+    errors.extend(f"{prefix}.{field} is required" for field in fields if not _nonempty_string(item.get(field)))
+
+
+def _check_choice(errors: list[str], name: str, value: Any, allowed: set[str]) -> bool:
+    if value in allowed:
+        return True
+    errors.append(f"{name} must be one of: " + ", ".join(sorted(allowed)))
+    return False
+
+
 def validate_plan(plan: dict[str, Any]) -> list[str]:
     errors: list[str] = []
     for field in REQUIRED_TOP_LEVEL:
@@ -108,32 +125,24 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     beads_scope = _dict(plan.get("beads_scope"))
     if beads_scope.get("canonical_source") != "beads":
         errors.append("beads_scope.canonical_source must be beads")
-    if not _nonempty_string(beads_scope.get("epic_id")):
-        errors.append("beads_scope.epic_id is required")
+    _require_strings(errors, "beads_scope", beads_scope, "epic_id")
 
     authority = _dict(plan.get("artifact_authority"))
-    if authority.get("canonical_source") != "beads":
-        errors.append("artifact_authority.canonical_source must be beads")
-    if authority.get("external_returns") != "evidence":
-        errors.append("artifact_authority.external_returns must be evidence")
-    if authority.get("final_authority") != "architect-adjudication":
-        errors.append("artifact_authority.final_authority must be architect-adjudication")
+    for field, expected in (
+        ("canonical_source", "beads"),
+        ("external_returns", "evidence"),
+        ("final_authority", "architect-adjudication"),
+    ):
+        if authority.get(field) != expected:
+            errors.append(f"artifact_authority.{field} must be {expected}")
     projection_types: set[str] = set()
-    for index, item in enumerate(_list(authority.get("projections"))):
-        projection = _dict(item)
-        prefix = f"artifact_authority.projections[{index}]"
-        if not _nonempty_string(projection.get("name")):
-            errors.append(f"{prefix}.name is required")
+    for prefix, projection in _indexed_rows("artifact_authority.projections", _list(authority.get("projections"))):
+        _require_strings(errors, prefix, projection, "name")
         if projection.get("authority") != "projection":
             errors.append(f"{prefix}.authority must be projection")
         projection_type = projection.get("type")
-        if projection_type in REQUIRED_PROJECTION_TYPES:
+        if _check_choice(errors, f"{prefix}.type", projection_type, REQUIRED_PROJECTION_TYPES):
             projection_types.add(str(projection_type))
-        else:
-            errors.append(
-                f"{prefix}.type must be one of: "
-                + ", ".join(sorted(REQUIRED_PROJECTION_TYPES))
-            )
         if projection.get("canonical_source") != "beads":
             errors.append(f"{prefix}.canonical_source must be beads")
         if not _nonempty_string(projection.get("source_command")) and not _nonempty_string(projection.get("source_bead")):
@@ -145,25 +154,17 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     workstreams = _list(plan.get("workstreams"))
     if not workstreams:
         errors.append("workstreams must contain at least one workstream")
-    for index, item in enumerate(workstreams):
-        workstream = _dict(item)
-        prefix = f"workstreams[{index}]"
-        for field in ["name", "owner", "exit_condition"]:
-            if not _nonempty_string(workstream.get(field)):
-                errors.append(f"{prefix}.{field} is required")
-        if not _list(workstream.get("validation_refs")):
-            errors.append(f"{prefix}.validation_refs must not be empty")
-        if not _list(workstream.get("handoff_evidence")):
-            errors.append(f"{prefix}.handoff_evidence must not be empty")
+    for prefix, workstream in _indexed_rows("workstreams", workstreams):
+        _require_strings(errors, prefix, workstream, "name", "owner", "exit_condition")
+        for field in ("validation_refs", "handoff_evidence"):
+            if not _list(workstream.get(field)):
+                errors.append(f"{prefix}.{field} must not be empty")
 
     rubric = _dict(plan.get("rubric"))
-    for field in ["version", "owner", "schema_ref"]:
-        if not _nonempty_string(rubric.get(field)):
-            errors.append(f"rubric.{field} is required")
-    if rubric.get("immutable_per_run") is not True:
-        errors.append("rubric.immutable_per_run must be true")
-    if rubric.get("evaluation_uses_version") is not True:
-        errors.append("rubric.evaluation_uses_version must be true")
+    _require_strings(errors, "rubric", rubric, "version", "owner", "schema_ref")
+    for field in ("immutable_per_run", "evaluation_uses_version"):
+        if rubric.get(field) is not True:
+            errors.append(f"rubric.{field} must be true")
     rubric_criterion_ids = {
         str(item).strip()
         for item in _list(rubric.get("criterion_ids"))
@@ -176,12 +177,8 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     if not matrix:
         errors.append("criterion_evidence_matrix must contain at least one criterion")
     matrix_criteria: set[str] = set()
-    for index, item in enumerate(matrix):
-        criterion = _dict(item)
-        prefix = f"criterion_evidence_matrix[{index}]"
-        for field in ["criterion", "evidence", "owner"]:
-            if not _nonempty_string(criterion.get(field)):
-                errors.append(f"{prefix}.{field} is required")
+    for prefix, criterion in _indexed_rows("criterion_evidence_matrix", matrix):
+        _require_strings(errors, prefix, criterion, "criterion", "evidence", "owner")
         if _nonempty_string(criterion.get("criterion")):
             matrix_criteria.add(str(criterion.get("criterion")).strip())
         if criterion.get("evidence_type") not in {"artifact", "validator", "review-gate"}:
@@ -195,63 +192,35 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
 
     if not _list(plan.get("provider_provenance")):
         errors.append("provider_provenance must record at least one provider or internal source")
-    for index, item in enumerate(_list(plan.get("provider_provenance"))):
-        source = _dict(item)
-        prefix = f"provider_provenance[{index}]"
-        for field in ["provider_key", "provider_family"]:
-            if not _nonempty_string(source.get(field)):
-                errors.append(f"{prefix}.{field} is required")
-        if source.get("provenance_class") not in ALLOWED_PROVIDER_PROVENANCE_CLASSES:
-            errors.append(
-                f"{prefix}.provenance_class must be one of: "
-                + ", ".join(sorted(ALLOWED_PROVIDER_PROVENANCE_CLASSES))
-            )
-        if source.get("disposition") not in ALLOWED_PROVIDER_DISPOSITIONS:
-            errors.append(
-                f"{prefix}.disposition must be one of: "
-                + ", ".join(sorted(ALLOWED_PROVIDER_DISPOSITIONS))
-            )
+    for prefix, source in _indexed_rows("provider_provenance", _list(plan.get("provider_provenance"))):
+        _require_strings(errors, prefix, source, "provider_key", "provider_family")
+        _check_choice(errors, f"{prefix}.provenance_class", source.get("provenance_class"), ALLOWED_PROVIDER_PROVENANCE_CLASSES)
+        _check_choice(errors, f"{prefix}.disposition", source.get("disposition"), ALLOWED_PROVIDER_DISPOSITIONS)
 
     quarantine_rules = _list(plan.get("quarantine_rules"))
     if not quarantine_rules:
         errors.append("quarantine_rules must contain at least one rule")
-    for index, item in enumerate(quarantine_rules):
-        rule = _dict(item)
-        prefix = f"quarantine_rules[{index}]"
-        if not _nonempty_string(rule.get("trigger")):
-            errors.append(f"{prefix}.trigger is required")
+    for prefix, rule in _indexed_rows("quarantine_rules", quarantine_rules):
+        _require_strings(errors, prefix, rule, "trigger")
         if rule.get("disposition") != "quarantine-until-adjudicated":
             errors.append(f"{prefix}.disposition must be quarantine-until-adjudicated")
-        if not _nonempty_string(rule.get("release_condition")):
-            errors.append(f"{prefix}.release_condition is required")
+        _require_strings(errors, prefix, rule, "release_condition")
 
     boundary_inputs = {
         str(item.get("prohibited_input"))
         for item in _list(plan.get("boundary_negative_tests"))
         if isinstance(item, dict)
     }
-    for index, item in enumerate(_list(plan.get("boundary_negative_tests"))):
-        boundary_test = _dict(item)
-        prefix = f"boundary_negative_tests[{index}]"
-        for field in ["name", "validator"]:
-            if not _nonempty_string(boundary_test.get(field)):
-                errors.append(f"{prefix}.{field} is required")
-        if boundary_test.get("expected_result") not in ALLOWED_BOUNDARY_EXPECTED_RESULTS:
-            errors.append(
-                f"{prefix}.expected_result must be one of: "
-                + ", ".join(sorted(ALLOWED_BOUNDARY_EXPECTED_RESULTS))
-            )
+    for prefix, boundary_test in _indexed_rows("boundary_negative_tests", _list(plan.get("boundary_negative_tests"))):
+        _require_strings(errors, prefix, boundary_test, "name", "validator")
+        _check_choice(errors, f"{prefix}.expected_result", boundary_test.get("expected_result"), ALLOWED_BOUNDARY_EXPECTED_RESULTS)
     missing_boundary = sorted(REQUIRED_BOUNDARY_TEST_INPUTS - boundary_inputs)
     if missing_boundary:
         errors.append("boundary_negative_tests missing prohibited input(s): " + ", ".join(missing_boundary))
 
-    for index, item in enumerate(_list(plan.get("next_version_rail"))):
-        entry = _dict(item)
-        prefix = f"next_version_rail[{index}]"
-        if entry.get("reason_type") not in ALLOWED_NEXT_VERSION_REASONS:
-            errors.append(f"{prefix}.reason_type must be one of: " + ", ".join(sorted(ALLOWED_NEXT_VERSION_REASONS)))
-        if not _nonempty_string(entry.get("followup_bead")):
-            errors.append(f"{prefix}.followup_bead is required")
+    for prefix, entry in _indexed_rows("next_version_rail", _list(plan.get("next_version_rail"))):
+        _check_choice(errors, f"{prefix}.reason_type", entry.get("reason_type"), ALLOWED_NEXT_VERSION_REASONS)
+        _require_strings(errors, prefix, entry, "followup_bead")
 
     patrol = _dict(plan.get("patrol_stopping_rule"))
     if patrol.get("research_only_until_accepted") is not True:
@@ -294,16 +263,9 @@ def validate_plan(plan: dict[str, Any]) -> list[str]:
     evidence_refs = _list(adjudication.get("evidence_refs"))
     if adjudicated_findings and not evidence_refs:
         errors.append("adjudication_record.evidence_refs must bind adjudicated findings to evaluator/adjudication artifacts")
-    for index, item in enumerate(evidence_refs):
-        ref = _dict(item)
-        prefix = f"adjudication_record.evidence_refs[{index}]"
-        if not _nonempty_string(ref.get("artifact")):
-            errors.append(f"{prefix}.artifact is required")
-        if ref.get("artifact_type") not in ALLOWED_ADJUDICATION_EVIDENCE_TYPES:
-            errors.append(
-                f"{prefix}.artifact_type must be one of: "
-                + ", ".join(sorted(ALLOWED_ADJUDICATION_EVIDENCE_TYPES))
-            )
+    for prefix, ref in _indexed_rows("adjudication_record.evidence_refs", evidence_refs):
+        _require_strings(errors, prefix, ref, "artifact")
+        _check_choice(errors, f"{prefix}.artifact_type", ref.get("artifact_type"), ALLOWED_ADJUDICATION_EVIDENCE_TYPES)
         if not re.fullmatch(r"[0-9a-f]{64}", str(ref.get("sha256", ""))):
             errors.append(f"{prefix}.sha256 must be a lowercase SHA-256 hex digest")
 
@@ -379,12 +341,11 @@ def baseline_continuity_errors(plan: dict[str, Any], chain: dict[str, Any] | Non
             )
         elif criterion_id not in required:
             errors.append(f"rubric.criterion_ids has {criterion_id}, which the baseline marks not-applicable")
-    for index, item in enumerate(_list(plan.get("criterion_evidence_matrix"))):
-        row = _dict(item)
+    for prefix, row in _indexed_rows("criterion_evidence_matrix", _list(plan.get("criterion_evidence_matrix"))):
         criterion = criteria.get(str(row.get("criterion", "")).strip())
         if criterion and row.get("evidence_type") != criterion["evidence_kind"]:
             errors.append(
-                f"criterion_evidence_matrix[{index}].evidence_type is {row.get('evidence_type')!r}, but the baseline "
+                f"{prefix}.evidence_type is {row.get('evidence_type')!r}, but the baseline "
                 f"requires {criterion['evidence_kind']!r} evidence for {criterion['id']}"
             )
     return errors

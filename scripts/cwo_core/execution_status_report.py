@@ -28,18 +28,6 @@ STATUS_KEYS = (
     "unavailable",
 )
 WORKERBEE_ACCOUNTABILITY_STATUS_KEYS = ("started", "completed", "skipped", "deferred", "unavailable")
-METRIC_KEYS = (
-    "agent_model_calls",
-    "retries",
-    "input_tokens",
-    "output_tokens",
-    "total_tokens",
-    "active_seconds",
-    "elapsed_seconds",
-    "accepted_findings",
-    "rejected_findings",
-    "followup_beads",
-)
 TELEMETRY_GAP_KEYS = (
     "agent_model_calls",
     "retries",
@@ -49,6 +37,7 @@ TELEMETRY_GAP_KEYS = (
     "active_seconds",
     "elapsed_seconds",
 )
+METRIC_KEYS = TELEMETRY_GAP_KEYS + ("accepted_findings", "rejected_findings", "followup_beads")
 SYNTHESIS_DISPOSITIONS = (
     "primary",
     "salvage-only",
@@ -131,9 +120,8 @@ def load_json_documents(paths: list[Path]) -> list[dict[str, Any]]:
 def load_audit_events(paths: list[Path] | None = None) -> list[dict[str, Any]]:
     if paths is None:
         return iter_audit_events()
-    audit_paths = paths
     events: list[dict[str, Any]] = []
-    for path in audit_paths:
+    for path in paths:
         events.extend(iter_audit_events(path))
     return events
 
@@ -237,9 +225,9 @@ def build_execution_status_report(
         "executive_summary": _executive_summary(records),
         "workerbee_delegation_accountability": _workerbee_accountability(records),
         "expert_profile_utilization": _expert_profile_rows(records),
-        "expert_profile_utilization_details": _expert_profile_detail_rows(records),
+        "expert_profile_utilization_details": _expert_profile_rows(records, detail=True),
         "agent_model_utilization": _agent_model_rows(records),
-        "agent_model_utilization_details": _agent_model_detail_rows(records),
+        "agent_model_utilization_details": _agent_model_rows(records, detail=True),
         "main_thread_architect_productivity": _main_thread_summary(records),
         "workerbee_delegation_summary": _workerbee_delegation_summary(records),
         "workerbee_delegation_details": _workerbee_delegation_detail_rows(records),
@@ -258,7 +246,7 @@ def build_execution_status_report(
         ),
         "sol_breakfix_summary": _sol_breakfix_summary(records),
         "second_opinion_review_lane_productivity": _second_opinion_rows(records),
-        "second_opinion_review_lane_productivity_details": _second_opinion_detail_rows(records),
+        "second_opinion_review_lane_productivity_details": _second_opinion_rows(records, detail=True),
         "telemetry_gaps": _telemetry_gaps(records, source_counts),
         "quality_malpractice_sabotage_summary": _quality_summary(records),
         "evidence_disposition_summary": _evidence_disposition_summary(records),
@@ -442,260 +430,135 @@ def _coerce_pair(value: Any, keys: tuple[str, ...]) -> dict[str, int]:
 
 
 def render_terminal(report: dict[str, Any], *, width: int | None = None, layout: str = "dashboard") -> str:
-    term_width = width or shutil.get_terminal_size((100, 24)).columns
-    term_width = max(48, min(term_width, 160))
+    term_width = max(48, min(width or shutil.get_terminal_size((100, 24)).columns, 160))
     if layout == "dashboard":
-        lines: list[str] = []
-        lines.extend(_header("CWO Execution Status Report", "dashboard projection", term_width))
+        lines = _header("CWO Execution Status Report", "dashboard projection", term_width)
         lines.extend(_dashboard_lines(report, term_width))
         return "\n".join(lines) + "\n"
+
     expanded = layout != "summary"
-    lines: list[str] = []
-    lines.extend(_header("CWO Execution Status Report", "explicit artifact projection", term_width))
+    lines = _header("CWO Execution Status Report", "explicit artifact projection", term_width)
     lines.extend(_executive_lines(report, term_width))
     lines.extend(_call_category_lines(report.get("call_category_summary"), term_width))
     lines.extend(_convergence_lines(report.get("epic_convergence_summary"), term_width))
+
+    expert_columns = [("Profile", "profile"), ("Role", "role")]
     if expanded:
-        lines.extend(
-            _detail_rows(
-                "Expert Profile Utilization",
-                [
-                    ("Profile", "profile"),
-                    ("Role", "role"),
-                    ("Agent/Model", "agent_model"),
-                    ("Participation", "participation"),
-                    ("Work", "work_units"),
-                    ("Done", "completed"),
-                    ("Fail", "failed"),
-                    ("Calls", "agent_model_calls"),
-                    ("Tokens", "total_tokens"),
-                    ("Time", "elapsed_seconds"),
-                ],
-                report.get("expert_profile_utilization_details", []),
-                term_width,
-            )
-        )
-        lines.extend(
-            _detail_rows(
-                "Agent / Model Utilization",
-                [
-                    ("Agent/Model", "agent_model"),
-                    ("Provider", "provider"),
-                    ("Provider family", "provider_family"),
-                    ("Provenance", "provenance_class"),
-                    ("Lane", "lane"),
-                    ("Dispatches", "dispatches"),
-                    ("Calls", "agent_model_calls"),
-                    ("Retries", "retries"),
-                    ("Tokens", "total_tokens"),
-                    ("Use", "recommended_synthesis_use"),
-                ],
-                report.get("agent_model_utilization_details", []),
-                term_width,
-            )
-        )
-    else:
-        lines.extend(
-            _table(
-                "Expert Profile Utilization",
-                ["Profile", "Role", "Work", "Done", "Fail", "Calls", "Tokens", "Time", "Agents/Models"],
-                [
-                    [
-                        row.get("profile"),
-                        row.get("role"),
-                        row.get("work_units"),
-                        row.get("completed"),
-                        row.get("failed"),
-                        row.get("agent_model_calls"),
-                        row.get("total_tokens"),
-                        row.get("elapsed_seconds"),
-                        row.get("agents_models"),
-                    ]
-                    for row in report.get("expert_profile_utilization", [])
-                ],
-                term_width,
-            )
-        )
-        lines.extend(
-            _table(
-                "Agent / Model Utilization",
-                ["Agent/Model", "Provider", "Prov.", "Lane", "Dispatches", "Calls", "Retries", "Tokens", "Use"],
-                [
-                    [
-                        row.get("agent_model"),
-                        row.get("provider"),
-                        row.get("provenance_class"),
-                        row.get("lane"),
-                        row.get("dispatches"),
-                        row.get("agent_model_calls"),
-                        row.get("retries"),
-                        row.get("total_tokens"),
-                        row.get("recommended_synthesis_use"),
-                    ]
-                    for row in report.get("agent_model_utilization", [])
-                ],
-                term_width,
-            )
-        )
-    lines.extend(_key_value_box("Main Thread / Architect Productivity", report.get("main_thread_architect_productivity", {}), term_width))
-    lines.extend(_key_value_box("Workerbee Delegation Summary", report.get("workerbee_delegation_summary", {}), term_width))
-    lines.extend(_key_value_box("Native Session / Artifact Disposition", report.get("native_disposition_summary", {}), term_width))
-    lines.extend(
-        _key_value_box(
-            "Native Worker Live Supervision",
-            report.get("native_supervision_summary", {}),
-            term_width,
-            label_overrides={
-                "first_attempt_completion_rate_percent": "First attempt completion %",
-            },
-        )
-    )
-    lines.extend(_key_value_box("Sol Break-Fix Exceptions", report.get("sol_breakfix_summary", {}), term_width))
+        expert_columns.extend([("Agent/Model", "agent_model"), ("Participation", "participation")])
+    expert_columns.extend([
+        ("Work", "work_units"), ("Done", "completed"), ("Fail", "failed"),
+        ("Calls", "agent_model_calls"), ("Tokens", "total_tokens"), ("Time", "elapsed_seconds"),
+    ])
+    if not expanded:
+        expert_columns.append(("Agents/Models", "agents_models"))
+    model_columns = [("Agent/Model", "agent_model"), ("Provider", "provider")]
     if expanded:
-        lines.extend(
-            _detail_rows(
-                "Workerbee Delegation Details",
-                [
-                    ("Dispatch", "dispatch_id"),
-                    ("Bead", "bead_id"),
-                    ("Lane", "lane"),
-                    ("Planned", "planned"),
-                    ("Actual", "actual"),
-                    ("Status", "status"),
-                    ("Gaps", "gap_reasons"),
-                ],
-                report.get("workerbee_delegation_details", []),
-                term_width,
-            )
-        )
-        lines.extend(
-            _detail_rows(
-                "Native Disposition Details",
-                [
-                    ("Dispatch", "dispatch_id"),
-                    ("Bead", "bead_id"),
-                    ("Lane", "lane"),
-                    ("Session", "session_disposition"),
-                    ("Artifact", "artifact_disposition"),
-                    ("Validation", "validation"),
-                ],
-                report.get("native_disposition_details", []),
-                term_width,
-            )
-        )
-        lines.extend(
-            _detail_rows(
-                "Native Supervision Details",
-                [
-                    ("State", "state_id"),
-                    ("Bead", "bead_id"),
-                    ("Lane", "lane"),
-                    ("Model", "model"),
-                    ("Status", "status"),
-                    ("Decision", "decision"),
-                    ("Calls actual/interrupt/hard", "calls"),
-                    ("Runtime actual/interrupt/hard", "runtime"),
-                    ("Compactions", "compactions"),
-                    ("Full suites", "full_suite_runs"),
-                    ("Armed before dispatch", "armed_before_dispatch"),
-                    ("Arm to dispatch ms", "arm_to_dispatch_ms"),
-                    ("First poll ms", "first_poll_ms"),
-                    ("Max poll gap ms", "max_poll_gap_ms"),
-                    ("Late polls", "late_polls"),
-                    ("Receipts", "control_receipts"),
-                    ("Reasons", "reasons"),
-                ],
-                report.get("native_supervision_details", []),
-                term_width,
-            )
-        )
+        model_columns.append(("Provider family", "provider_family"))
+    model_columns.extend([
+        ("Provenance" if expanded else "Prov.", "provenance_class"),
+        ("Lane", "lane"), ("Dispatches", "dispatches"), ("Calls", "agent_model_calls"),
+        ("Retries", "retries"), ("Tokens", "total_tokens"), ("Use", "recommended_synthesis_use"),
+    ])
+    suffix = "_details" if expanded else ""
+    for title, key, columns in (
+        ("Expert Profile Utilization", "expert_profile_utilization", expert_columns),
+        ("Agent / Model Utilization", "agent_model_utilization", model_columns),
+    ):
+        lines.extend(_render_rows(title, columns, report.get(key + suffix, []), term_width, expanded=expanded))
+
+    for title, key in (
+        ("Main Thread / Architect Productivity", "main_thread_architect_productivity"),
+        ("Workerbee Delegation Summary", "workerbee_delegation_summary"),
+        ("Native Session / Artifact Disposition", "native_disposition_summary"),
+        ("Native Worker Live Supervision", "native_supervision_summary"),
+        ("Sol Break-Fix Exceptions", "sol_breakfix_summary"),
+    ):
+        overrides = {"first_attempt_completion_rate_percent": "First attempt completion %"} if key == "native_supervision_summary" else None
+        lines.extend(_key_value_box(title, report.get(key, {}), term_width, label_overrides=overrides))
     if expanded:
-        lines.extend(
-            _detail_rows(
-                "Second-Opinion Review Lane Productivity",
-                [
-                    ("Lane", "lane"),
-                    ("Profile", "profile"),
-                    ("Agent/Model", "agent_model"),
-                    ("Calls", "agent_model_calls"),
-                    ("Accepted", "accepted_findings"),
-                    ("Rejected", "rejected_findings"),
-                    ("Quality", "evidence_quality_scores"),
-                    ("Use", "recommended_synthesis_use"),
-                    ("Signals", "signals"),
-                ],
-                report.get("second_opinion_review_lane_productivity_details", []),
-                term_width,
-            )
-        )
-    else:
-        lines.extend(
-            _table(
-                "Second-Opinion Review Lane Productivity",
-                ["Lane", "Profile", "Calls", "Accepted", "Rejected", "Quality", "Use", "Signals"],
-                [
-                    [
-                        row.get("lane"),
-                        row.get("profile"),
-                        row.get("agent_model_calls"),
-                        row.get("accepted_findings"),
-                        row.get("rejected_findings"),
-                        row.get("evidence_quality_scores"),
-                        row.get("recommended_synthesis_use"),
-                        row.get("signals"),
-                    ]
-                    for row in report.get("second_opinion_review_lane_productivity", [])
-                ],
-                term_width,
-            )
-        )
+        lines.extend(_expanded_native_lines(report, term_width))
+
+    review_columns = [("Lane", "lane"), ("Profile", "profile")]
+    if expanded:
+        review_columns.append(("Agent/Model", "agent_model"))
+    review_columns.extend([
+        ("Calls", "agent_model_calls"), ("Accepted", "accepted_findings"),
+        ("Rejected", "rejected_findings"), ("Quality", "evidence_quality_scores"),
+        ("Use", "recommended_synthesis_use"), ("Signals", "signals"),
+    ])
+    lines.extend(_render_rows(
+        "Second-Opinion Review Lane Productivity", review_columns,
+        report.get("second_opinion_review_lane_productivity" + suffix, []), term_width, expanded=expanded,
+    ))
     lines.extend(_telemetry_gap_lines(report.get("telemetry_gaps", {}), term_width))
     quality = report.get("quality_malpractice_sabotage_summary", {})
     lines.extend(_key_value_box("Quality / Malpractice / Sabotage Summary", quality.get("totals", {}), term_width))
-    lines.extend(
-        _workerbee_accountability_lines(
-            report.get("workerbee_delegation_accountability", {}),
-            term_width,
-        )
-    )
-    if expanded:
-        lines.extend(
-            _detail_rows(
-                "Quality Events",
-                [
-                    ("Dispatch", "dispatch_id"),
-                    ("Bead", "bead_id"),
-                    ("Provider", "provider"),
-                    ("Signals", "signals"),
-                    ("Disposition", "recommended_disposition"),
-                ],
-                quality.get("events", []),
-                term_width,
-            )
-        )
-    else:
-        lines.extend(
-            _table(
-                "Quality Events",
-                ["Dispatch", "Bead", "Provider", "Signals", "Disposition"],
-                [
-                    [
-                        row.get("dispatch_id"),
-                        row.get("bead_id"),
-                        row.get("provider"),
-                        row.get("signals"),
-                        row.get("recommended_disposition"),
-                    ]
-                    for row in quality.get("events", [])
-                ],
-                term_width,
-            )
-        )
+    lines.extend(_workerbee_accountability_lines(report.get("workerbee_delegation_accountability", {}), term_width))
+    lines.extend(_render_rows(
+        "Quality Events",
+        [
+            ("Dispatch", "dispatch_id"), ("Bead", "bead_id"), ("Provider", "provider"),
+            ("Signals", "signals"), ("Disposition", "recommended_disposition"),
+        ],
+        quality.get("events", []), term_width, expanded=expanded,
+    ))
     lines.extend(_key_value_box("Evidence Disposition Summary", report.get("evidence_disposition_summary", {}), term_width))
     warnings = _strings(report.get("warnings"))
     if warnings:
         lines.extend(_text_box("Warnings", [f"! {warning}" for warning in warnings], term_width))
     return "\n".join(lines) + "\n"
+
+
+def _render_rows(
+    title: str, columns: list[tuple[str, str]], rows: Any, width: int, *, expanded: bool,
+) -> list[str]:
+    if expanded:
+        return _detail_rows(title, columns, rows, width)
+    headers = [label for label, _ in columns]
+    cells = [[row.get(key) for _, key in columns] for row in rows]
+    return _table(title, headers, cells, width)
+
+
+def _expanded_native_lines(report: dict[str, Any], width: int) -> list[str]:
+    identity_columns = [("Dispatch", "dispatch_id"), ("Bead", "bead_id"), ("Lane", "lane")]
+    lines = _detail_rows(
+        "Workerbee Delegation Details",
+        identity_columns + [
+            ("Planned", "planned"), ("Actual", "actual"), ("Status", "status"), ("Gaps", "gap_reasons"),
+        ],
+        report.get("workerbee_delegation_details", []), width,
+    )
+    lines.extend(_detail_rows(
+        "Native Disposition Details",
+        identity_columns + [
+            ("Session", "session_disposition"), ("Artifact", "artifact_disposition"), ("Validation", "validation"),
+        ],
+        report.get("native_disposition_details", []), width,
+    ))
+    lines.extend(_detail_rows(
+        "Native Supervision Details",
+        [
+            ("State", "state_id"),
+            ("Bead", "bead_id"),
+            ("Lane", "lane"),
+            ("Model", "model"),
+            ("Status", "status"),
+            ("Decision", "decision"),
+            ("Calls actual/interrupt/hard", "calls"),
+            ("Runtime actual/interrupt/hard", "runtime"),
+            ("Compactions", "compactions"),
+            ("Full suites", "full_suite_runs"),
+            ("Armed before dispatch", "armed_before_dispatch"),
+            ("Arm to dispatch ms", "arm_to_dispatch_ms"),
+            ("First poll ms", "first_poll_ms"),
+            ("Max poll gap ms", "max_poll_gap_ms"),
+            ("Late polls", "late_polls"),
+            ("Receipts", "control_receipts"),
+            ("Reasons", "reasons"),
+        ],
+        report.get("native_supervision_details", []), width,
+    ))
+    return lines
 
 
 def _workerbee_accountability_lines(accountability: Any, width: int) -> list[str]:
@@ -729,6 +592,10 @@ def _workerbee_accountability_lines(accountability: Any, width: int) -> list[str
         )
     )
     return lines
+
+
+def _optional_bool(value: Any) -> bool | None:
+    return value if isinstance(value, bool) else None
 
 
 def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
@@ -767,8 +634,8 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
     for field, value in list(metrics.items()):
         if value is None and not _telemetry_metric_expected(record, source_kind, telemetry_kind, field):
             metrics[field] = NOT_APPLICABLE
-    workerbee_planned = _workerbee_planned_from_record(record)
-    workerbee_actual = _workerbee_actual_from_record(record)
+    workerbee_planned = _workerbee_from_record(record, "planned")
+    workerbee_actual = _workerbee_from_record(record, "actual")
     view = {
         "source_kind": source_kind,
         "telemetry_kind": telemetry_kind,
@@ -809,22 +676,14 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "research_evidence_score": _numeric(record, ("research_evidence_score",)),
         "sabotage_score": _numeric(record, ("sabotage_score",)),
         "malpractice_score": _numeric(record, ("malpractice_score",)),
-        "quarantine_recommended": record.get("quarantine_recommended") if isinstance(record.get("quarantine_recommended"), bool) else None,
-        "sabotage_review_recommended": record.get("sabotage_review_recommended")
-        if isinstance(record.get("sabotage_review_recommended"), bool)
-        else None,
-        "malpractice_review_recommended": record.get("malpractice_review_recommended")
-        if isinstance(record.get("malpractice_review_recommended"), bool)
-        else None,
-        "peer_review_required": record.get("peer_review_required") if isinstance(record.get("peer_review_required"), bool) else None,
-        "implementation_blocked": record.get("implementation_blocked")
-        if isinstance(record.get("implementation_blocked"), bool)
-        else None,
+        "quarantine_recommended": _optional_bool(record.get("quarantine_recommended")),
+        "sabotage_review_recommended": _optional_bool(record.get("sabotage_review_recommended")),
+        "malpractice_review_recommended": _optional_bool(record.get("malpractice_review_recommended")),
+        "peer_review_required": _optional_bool(record.get("peer_review_required")),
+        "implementation_blocked": _optional_bool(record.get("implementation_blocked")),
         "hold_reasons": _strings(record.get("hold_reasons")),
         "hold_classification": _clean(record.get("hold_classification")),
-        "human_adjudication_required": record.get("human_adjudication_required")
-        if isinstance(record.get("human_adjudication_required"), bool)
-        else None,
+        "human_adjudication_required": _optional_bool(record.get("human_adjudication_required")),
         "recommended_disposition": _clean(record.get("recommended_disposition") or record.get("disposition")),
         "recommended_synthesis_use": _synthesis_use(record),
         "workerbee_planned_mode": workerbee_planned["mode"],
@@ -848,9 +707,7 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         ),
         "sol_breakfix_scope": _clean(record.get("sol_breakfix_scope")),
         "sol_breakfix_expiry": _clean(record.get("sol_breakfix_expiry")),
-        "sol_breakfix_automatic_selection_forbidden": record.get("automatic_selection_forbidden")
-        if isinstance(record.get("automatic_selection_forbidden"), bool)
-        else None,
+        "sol_breakfix_automatic_selection_forbidden": _optional_bool(record.get("automatic_selection_forbidden")),
         "native_supervision_state_id": _clean(record.get("native_supervision_state_id")),
         "native_supervision_status": _clean(record.get("native_supervision_status")),
         "native_supervision_decision": _clean(record.get("native_supervision_decision")),
@@ -866,9 +723,7 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "observed_runtime_seconds": _numeric(record, ("observed_runtime_seconds",)),
         "observed_context_compactions": _numeric(record, ("observed_context_compactions",)),
         "observed_full_suite_runs": _numeric(record, ("observed_full_suite_runs",)),
-        "monitor_armed_before_dispatch": record.get("monitor_armed_before_dispatch")
-        if isinstance(record.get("monitor_armed_before_dispatch"), bool)
-        else None,
+        "monitor_armed_before_dispatch": _optional_bool(record.get("monitor_armed_before_dispatch")),
         "arm_to_dispatch_ms": _numeric(record, ("arm_to_dispatch_ms",)),
         "dispatch_to_first_poll_ms": _numeric(record, ("dispatch_to_first_poll_ms",)),
         "max_poll_gap_ms": _numeric(record, ("max_poll_gap_ms",)),
@@ -1167,12 +1022,12 @@ def _readiness_records(plan: dict[str, Any]) -> list[dict[str, Any]]:
 
 
 def _executive_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
-    group = _new_group("executive")
+    group = _new_group()
     for record in records:
         _add_record(group, record)
     summary = _finalize_group(group)
-    main = _new_group("main")
-    second = _new_group("second-opinion")
+    main = _new_group()
+    second = _new_group()
     for record in records:
         _add_record(second if _is_second_opinion(record) else main, record)
     summary.update(
@@ -1185,190 +1040,112 @@ def _executive_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
     return summary
 
 
-def _expert_profile_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[str, dict[str, Any]] = {}
-    for record in records:
-        key = record.get("expert_profile") or record.get("job_description_label") or UNAVAILABLE
-        if not key:
-            key = UNAVAILABLE
-        group = groups.setdefault(str(key), _new_group(str(key)))
-        _add_record(group, record)
-        _collect(group, "roles", record.get("lane"))
-        _collect(group, "labels", record.get("job_description_label"))
-        _collect(group, "agents_models", record.get("agent_model"))
-        _collect(group, "participation", "second-opinion" if _is_second_opinion(record) else "main-thread")
-    rows: list[dict[str, Any]] = []
-    for key, group in sorted(groups.items()):
-        row = _finalize_group(group)
-        row.update(
-            {
-                "profile": key,
-                "role": _joined(group, "roles"),
-                "job_description_labels": _joined(group, "labels"),
-                "agents_models": _joined(group, "agents_models"),
-                "participation": _joined(group, "participation"),
-            }
-        )
-        rows.append(row)
-    return rows
+def _group_record(
+    groups: dict[str, dict[str, Any]], key: tuple[str, ...], record: dict[str, Any],
+) -> dict[str, Any]:
+    # Preserve the report's pipe-joined grouping and last detail key for each group.
+    group = groups.setdefault("|".join(key), _new_group())
+    group["detail_key"] = key
+    _add_record(group, record)
+    return group
 
 
-def _expert_profile_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _expert_profile_rows(records: list[dict[str, Any]], *, detail: bool = False) -> list[dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
     for record in records:
-        profile = _present(record.get("expert_profile") or record.get("job_description_label"))
-        role = _present(record.get("lane"))
-        agent_model = _present(record.get("agent_model"))
+        profile = record.get("expert_profile") or record.get("job_description_label")
+        lane = record.get("lane")
+        agent_model = record.get("agent_model")
         participation = "second-opinion" if _is_second_opinion(record) else "main-thread"
-        key = (profile, role, agent_model, participation)
-        group = groups.setdefault("|".join(key), _new_group("|".join(key)))
-        group["detail_key"] = key
-        _add_record(group, record)
+        if detail:
+            key = (_present(profile), _present(lane), _present(agent_model), participation)
+        else:
+            key = (str(profile or UNAVAILABLE),)
+        group = _group_record(groups, key, record)
         _collect(group, "labels", record.get("job_description_label"))
-    rows: list[dict[str, Any]] = []
+        if not detail:
+            _collect(group, "roles", lane)
+            _collect(group, "agents_models", agent_model)
+            _collect(group, "participation", participation)
+    rows = []
     for group in sorted(groups.values(), key=lambda item: item["detail_key"]):
-        profile, role, agent_model, participation = group["detail_key"]
+        key = group["detail_key"]
         row = _finalize_group(group)
-        row.update(
-            {
-                "profile": profile,
-                "role": role,
-                "job_description_labels": _joined(group, "labels"),
-                "agent_model": agent_model,
-                "agents_models": agent_model,
-                "participation": participation,
-            }
-        )
+        row["profile"] = key[0]
+        row["role"] = key[1] if detail else _joined(group, "roles")
+        row["job_description_labels"] = _joined(group, "labels")
+        if detail:
+            row["agent_model"] = key[2]
+        row["agents_models"] = key[2] if detail else _joined(group, "agents_models")
+        row["participation"] = key[3] if detail else _joined(group, "participation")
         rows.append(row)
     return rows
 
 
-def _agent_model_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _agent_model_rows(records: list[dict[str, Any]], *, detail: bool = False) -> list[dict[str, Any]]:
+    fields = ("provider", "provider_family", "provenance_class", "lane", "recommended_synthesis_use")
     groups: dict[str, dict[str, Any]] = {}
     for record in records:
-        key = str(record.get("agent_model") or UNAVAILABLE)
-        group = groups.setdefault(key, _new_group(key))
-        _add_record(group, record)
-        _collect(group, "providers", record.get("provider"))
-        _collect(group, "families", record.get("provider_family"))
-        _collect(group, "provenance", record.get("provenance_class"))
-        _collect(group, "lanes", record.get("lane"))
-        _collect(group, "synthesis", record.get("recommended_synthesis_use"))
-    rows: list[dict[str, Any]] = []
-    for key, group in sorted(groups.items()):
-        row = _finalize_group(group)
-        row.update(
-            {
-                "agent_model": key,
-                "provider": _joined(group, "providers"),
-                "provider_family": _joined(group, "families"),
-                "provenance_class": _joined(group, "provenance"),
-                "lane": _joined(group, "lanes"),
-                "recommended_synthesis_use": _joined(group, "synthesis"),
-            }
-        )
-        rows.append(row)
-    return rows
-
-
-def _agent_model_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[str, dict[str, Any]] = {}
-    for record in records:
-        agent_model = _present(record.get("agent_model"))
-        provider = _present(record.get("provider"))
-        provider_family = _present(record.get("provider_family"))
-        provenance_class = _present(record.get("provenance_class"))
-        lane = _present(record.get("lane"))
-        synthesis_use = _present(record.get("recommended_synthesis_use"))
-        key = (agent_model, provider, provider_family, provenance_class, lane, synthesis_use)
-        group = groups.setdefault("|".join(key), _new_group("|".join(key)))
-        group["detail_key"] = key
-        _add_record(group, record)
-    rows: list[dict[str, Any]] = []
+        agent_model = record.get("agent_model")
+        if detail:
+            key = (_present(agent_model), *(_present(record.get(field)) for field in fields))
+        else:
+            key = (str(agent_model or UNAVAILABLE),)
+        group = _group_record(groups, key, record)
+        if not detail:
+            for field in fields:
+                _collect(group, field, record.get(field))
+    rows = []
     for group in sorted(groups.values(), key=lambda item: item["detail_key"]):
-        agent_model, provider, provider_family, provenance_class, lane, synthesis_use = group["detail_key"]
+        key = group["detail_key"]
         row = _finalize_group(group)
-        row.update(
-            {
-                "agent_model": agent_model,
-                "provider": provider,
-                "provider_family": provider_family,
-                "provenance_class": provenance_class,
-                "lane": lane,
-                "recommended_synthesis_use": synthesis_use,
-            }
-        )
+        row["agent_model"] = key[0]
+        if detail:
+            row.update(zip(fields, key[1:]))
+        else:
+            row.update({field: _joined(group, field) for field in fields})
         rows.append(row)
     return rows
 
 
 def _main_thread_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
-    group = _new_group("main-thread")
+    group = _new_group()
     for record in records:
         if not _is_second_opinion(record):
             _add_record(group, record)
     return _finalize_group(group)
 
 
-def _second_opinion_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _second_opinion_rows(records: list[dict[str, Any]], *, detail: bool = False) -> list[dict[str, Any]]:
     groups: dict[str, dict[str, Any]] = {}
     for record in records:
         if not _is_second_opinion(record):
             continue
-        key = str(record.get("agent_model") or record.get("lane") or UNAVAILABLE)
-        group = groups.setdefault(key, _new_group(key))
-        _add_record(group, record)
-        _collect(group, "profiles", record.get("expert_profile") or record.get("job_description_label"))
-        _collect(group, "synthesis", record.get("recommended_synthesis_use"))
+        lane = record.get("agent_model") or record.get("lane")
+        profile = record.get("expert_profile") or record.get("job_description_label")
+        synthesis_use = record.get("recommended_synthesis_use")
+        if detail:
+            key = (_present(lane), _present(profile), _present(record.get("agent_model")), _present(synthesis_use))
+        else:
+            key = (str(lane or UNAVAILABLE),)
+        group = _group_record(groups, key, record)
+        if not detail:
+            _collect(group, "profiles", profile)
+            _collect(group, "synthesis", synthesis_use)
         _collect_numeric(group, "evidence_quality_scores", record.get("evidence_quality_score"))
         for signal in _record_quality_signals(record):
             _collect(group, "signals", signal)
-    rows: list[dict[str, Any]] = []
-    for key, group in sorted(groups.items()):
-        row = _finalize_group(group)
-        row.update(
-            {
-                "lane": key,
-                "profile": _joined(group, "profiles"),
-                "recommended_synthesis_use": _joined(group, "synthesis"),
-                "evidence_quality_scores": _joined(group, "evidence_quality_scores"),
-                "signals": _joined(group, "signals"),
-            }
-        )
-        rows.append(row)
-    return rows
-
-
-def _second_opinion_detail_rows(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    groups: dict[str, dict[str, Any]] = {}
-    for record in records:
-        if not _is_second_opinion(record):
-            continue
-        lane = _present(record.get("agent_model") or record.get("lane"))
-        profile = _present(record.get("expert_profile") or record.get("job_description_label"))
-        agent_model = _present(record.get("agent_model"))
-        synthesis_use = _present(record.get("recommended_synthesis_use"))
-        key = (lane, profile, agent_model, synthesis_use)
-        group = groups.setdefault("|".join(key), _new_group("|".join(key)))
-        group["detail_key"] = key
-        _add_record(group, record)
-        _collect_numeric(group, "evidence_quality_scores", record.get("evidence_quality_score"))
-        for signal in _record_quality_signals(record):
-            _collect(group, "signals", signal)
-    rows: list[dict[str, Any]] = []
+    rows = []
     for group in sorted(groups.values(), key=lambda item: item["detail_key"]):
-        lane, profile, agent_model, synthesis_use = group["detail_key"]
+        key = group["detail_key"]
         row = _finalize_group(group)
-        row.update(
-            {
-                "lane": lane,
-                "profile": profile,
-                "agent_model": agent_model,
-                "recommended_synthesis_use": synthesis_use,
-                "evidence_quality_scores": _joined(group, "evidence_quality_scores"),
-                "signals": _joined(group, "signals"),
-            }
-        )
+        row["lane"] = key[0]
+        row["profile"] = key[1] if detail else _joined(group, "profiles")
+        if detail:
+            row["agent_model"] = key[2]
+        row["recommended_synthesis_use"] = key[3] if detail else _joined(group, "synthesis")
+        row["evidence_quality_scores"] = _joined(group, "evidence_quality_scores")
+        row["signals"] = _joined(group, "signals")
         rows.append(row)
     return rows
 
@@ -1506,62 +1283,47 @@ def _native_disposition_records(records: list[dict[str, Any]]) -> list[dict[str,
 
 
 def _native_supervision_states(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    field_defaults = {
+        "bead_id": UNAVAILABLE,
+        "dispatch_id": UNAVAILABLE,
+        "lane": UNAVAILABLE,
+        "model": UNAVAILABLE,
+        "status": UNAVAILABLE,
+        "decision": UNAVAILABLE,
+        "planned_tool_calls_hard": None,
+        "interrupt_tool_calls_threshold": None,
+        "observed_tool_calls": None,
+        "planned_runtime_seconds_hard": None,
+        "interrupt_runtime_seconds_threshold": None,
+        "observed_runtime_seconds": None,
+        "compactions": 0,
+        "validation_lineage_attempt": None,
+        "full_suite_runs": 0,
+        "monitor_armed_before_dispatch": None,
+        "arm_to_dispatch_ms": None,
+        "dispatch_to_first_poll_ms": None,
+        "max_poll_gap_ms": None,
+        "late_poll_count": 0,
+    }
+    source_aliases = {
+        "status": "native_supervision_status",
+        "decision": "native_supervision_decision",
+        "compactions": "observed_context_compactions",
+        "full_suite_runs": "observed_full_suite_runs",
+    }
     grouped: dict[str, dict[str, Any]] = {}
     for record in records:
         state_id = _clean(record.get("native_supervision_state_id"))
         if not state_id:
             continue
-        row = grouped.setdefault(
-            state_id,
-            {
-                "state_id": state_id,
-                "bead_id": UNAVAILABLE,
-                "dispatch_id": UNAVAILABLE,
-                "lane": UNAVAILABLE,
-                "model": UNAVAILABLE,
-                "status": UNAVAILABLE,
-                "decision": UNAVAILABLE,
-                "planned_tool_calls_hard": None,
-                "interrupt_tool_calls_threshold": None,
-                "observed_tool_calls": None,
-                "planned_runtime_seconds_hard": None,
-                "interrupt_runtime_seconds_threshold": None,
-                "observed_runtime_seconds": None,
-                "compactions": 0,
-                "validation_lineage_attempt": None,
-                "full_suite_runs": 0,
-                "monitor_armed_before_dispatch": None,
-                "arm_to_dispatch_ms": None,
-                "dispatch_to_first_poll_ms": None,
-                "max_poll_gap_ms": None,
-                "late_poll_count": 0,
-                "control_receipts": [],
-                "reasons": [],
-            },
-        )
-        for source, target in (
-            ("bead_id", "bead_id"),
-            ("dispatch_id", "dispatch_id"),
-            ("lane", "lane"),
-            ("model", "model"),
-            ("native_supervision_status", "status"),
-            ("native_supervision_decision", "decision"),
-            ("planned_tool_calls_hard", "planned_tool_calls_hard"),
-            ("interrupt_tool_calls_threshold", "interrupt_tool_calls_threshold"),
-            ("observed_tool_calls", "observed_tool_calls"),
-            ("validation_lineage_attempt", "validation_lineage_attempt"),
-            ("planned_runtime_seconds_hard", "planned_runtime_seconds_hard"),
-            ("interrupt_runtime_seconds_threshold", "interrupt_runtime_seconds_threshold"),
-            ("observed_runtime_seconds", "observed_runtime_seconds"),
-            ("observed_context_compactions", "compactions"),
-            ("observed_full_suite_runs", "full_suite_runs"),
-            ("monitor_armed_before_dispatch", "monitor_armed_before_dispatch"),
-            ("arm_to_dispatch_ms", "arm_to_dispatch_ms"),
-            ("dispatch_to_first_poll_ms", "dispatch_to_first_poll_ms"),
-            ("max_poll_gap_ms", "max_poll_gap_ms"),
-            ("late_poll_count", "late_poll_count"),
-        ):
-            value = record.get(source)
+        row = grouped.setdefault(state_id, {
+            "state_id": state_id,
+            **field_defaults,
+            "control_receipts": [],
+            "reasons": [],
+        })
+        for target in field_defaults:
+            value = record.get(source_aliases.get(target, target))
             if value not in (None, "", []):
                 row[target] = value
         if row["validation_lineage_attempt"] is None:
@@ -1726,16 +1488,8 @@ def _sol_breakfix_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
 def _workerbee_delegation_detail_rows(records: list[dict[str, Any]], *, include_internal: bool = False) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for record in records:
-        planned = {
-            "mode": record.get("workerbee_planned_mode"),
-            "model": record.get("workerbee_planned_model"),
-            "lanes": record.get("workerbee_planned_lanes"),
-        }
-        actual = {
-            "mode": record.get("workerbee_actual_mode"),
-            "model": record.get("workerbee_actual_model"),
-            "lanes": record.get("workerbee_actual_lanes"),
-        }
+        planned = _workerbee_fields(record, "planned")
+        actual = _workerbee_fields(record, "actual")
         status = _clean(record.get("workerbee_delegation_status"))
         gap_reasons = _strings(record.get("workerbee_delegation_gap_reasons"))
         if _workerbee_plan_present(planned) and not _workerbee_actual_present(actual, status):
@@ -1766,28 +1520,24 @@ def _workerbee_delegation_detail_rows(records: list[dict[str, Any]], *, include_
     return rows
 
 
-def _workerbee_planned_from_record(record: dict[str, Any]) -> dict[str, Any]:
-    nested = record.get("workerbee_planned_delegation")
-    mode = _clean(record.get("workerbee_planned_mode"))
-    model = _clean(record.get("workerbee_planned_model"))
-    lanes = _strings(record.get("workerbee_planned_lanes"))
-    if isinstance(nested, dict):
-        mode = mode or _clean(nested.get("mode") or nested.get("recommended_mode"))
-        model = model or _clean(nested.get("model") or nested.get("recommended_model"))
-        lanes = lanes or _strings(nested.get("lanes") or nested.get("suggested_lanes"))
-    return {"mode": mode, "model": model, "lanes": lanes}
+def _workerbee_fields(record: dict[str, Any], kind: str) -> dict[str, Any]:
+    return {field: record.get(f"workerbee_{kind}_{field}") for field in ("mode", "model", "lanes")}
 
 
-def _workerbee_actual_from_record(record: dict[str, Any]) -> dict[str, Any]:
-    nested = record.get("workerbee_actual_delegation")
-    mode = _clean(record.get("workerbee_actual_mode"))
-    model = _clean(record.get("workerbee_actual_model"))
-    lanes = _strings(record.get("workerbee_actual_lanes"))
-    if isinstance(nested, dict):
-        mode = mode or _clean(nested.get("mode"))
-        model = model or _clean(nested.get("model"))
-        lanes = lanes or _strings(nested.get("lanes"))
-    return {"mode": mode, "model": model, "lanes": lanes}
+def _workerbee_from_record(record: dict[str, Any], kind: str) -> dict[str, Any]:
+    fields = _workerbee_fields(record, kind)
+    nested = _report_dict(record.get(f"workerbee_{kind}_delegation"))
+    if kind == "planned":
+        nested = {
+            "mode": nested.get("mode") or nested.get("recommended_mode"),
+            "model": nested.get("model") or nested.get("recommended_model"),
+            "lanes": nested.get("lanes") or nested.get("suggested_lanes"),
+        }
+    return {
+        "mode": _clean(fields["mode"]) or _clean(nested.get("mode")),
+        "model": _clean(fields["model"]) or _clean(nested.get("model")),
+        "lanes": _strings(fields["lanes"]) or _strings(nested.get("lanes")),
+    }
 
 
 def _workerbee_plan_present(value: dict[str, Any]) -> bool:
@@ -1796,13 +1546,7 @@ def _workerbee_plan_present(value: dict[str, Any]) -> bool:
 
 
 def _workerbee_actual_present(value: dict[str, Any], status: Any = None) -> bool:
-    mode = _clean(value.get("mode"))
-    return bool(
-        (mode and mode != "none")
-        or _strings(value.get("lanes"))
-        or _clean(value.get("model"))
-        or _clean(status)
-    )
+    return _workerbee_plan_present(value) or bool(_clean(status))
 
 
 def _workerbee_format(value: dict[str, Any]) -> str:
@@ -1951,9 +1695,8 @@ def _evidence_disposition_summary(records: list[dict[str, Any]]) -> dict[str, An
     return summary
 
 
-def _new_group(name: str) -> dict[str, Any]:
+def _new_group() -> dict[str, Any]:
     return {
-        "name": name,
         "work_units": set(),
         "dispatches": set(),
         "records": 0,
@@ -2281,11 +2024,11 @@ def _executive_lines(report: dict[str, Any], width: int) -> list[str]:
 
 
 def _call_category_lines(summary: Any, width: int) -> list[str]:
-    summary = summary if isinstance(summary, dict) else {}
-    categories = summary.get("categories") if isinstance(summary.get("categories"), dict) else {}
+    summary = _report_dict(summary)
+    categories = _report_dict(summary.get("categories"))
     rows = []
     for category in CALL_CATEGORIES:
-        values = categories.get(category) if isinstance(categories.get(category), dict) else {}
+        values = _report_dict(categories.get(category))
         rows.append(
             [
                 category,
@@ -2304,12 +2047,12 @@ def _call_category_lines(summary: Any, width: int) -> list[str]:
 
 
 def _convergence_lines(summary: Any, width: int) -> list[str]:
-    summary = summary if isinstance(summary, dict) else {}
-    targets = summary.get("targets") if isinstance(summary.get("targets"), dict) else {}
-    results = targets.get("results") if isinstance(targets.get("results"), dict) else {}
-    nonaccepted = summary.get("nonaccepted") if isinstance(summary.get("nonaccepted"), dict) else {}
-    preventable = summary.get("preventable") if isinstance(summary.get("preventable"), dict) else {}
-    protected = summary.get("protected_stops") if isinstance(summary.get("protected_stops"), dict) else {}
+    summary = _report_dict(summary)
+    targets = _report_dict(summary.get("targets"))
+    results = _report_dict(targets.get("results"))
+    nonaccepted = _report_dict(summary.get("nonaccepted"))
+    preventable = _report_dict(summary.get("preventable"))
+    protected = _report_dict(summary.get("protected_stops"))
     values = {
         "available": summary.get("available"),
         "sources": summary.get("source_count"),
@@ -2330,93 +2073,61 @@ def _convergence_lines(summary: Any, width: int) -> list[str]:
     return _key_value_box("Epic Convergence", values, width)
 
 
-def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
-    summary = report.get("executive_summary", {}) if isinstance(report.get("executive_summary"), dict) else {}
-    quality = report.get("quality_malpractice_sabotage_summary", {})
-    quality_totals = quality.get("totals", {}) if isinstance(quality, dict) and isinstance(quality.get("totals"), dict) else {}
-    evidence = report.get("evidence_disposition_summary", {})
-    evidence = evidence if isinstance(evidence, dict) else {}
-    workerbees = report.get("workerbee_delegation_summary", {})
-    workerbees = workerbees if isinstance(workerbees, dict) else {}
-    dispositions = report.get("native_disposition_summary", {})
-    dispositions = dispositions if isinstance(dispositions, dict) else {}
-    sol_breakfix = report.get("sol_breakfix_summary", {})
-    sol_breakfix = sol_breakfix if isinstance(sol_breakfix, dict) else {}
-    supervision = report.get("native_supervision_summary", {})
-    supervision = supervision if isinstance(supervision, dict) else {}
-    gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
-    progress = report.get("native_progress_summary", {}) if isinstance(report.get("native_progress_summary"), dict) else {}
-    commands = report.get("checked_command_summary", {}) if isinstance(report.get("checked_command_summary"), dict) else {}
-    category_summary = report.get("call_category_summary", {})
-    category_summary = category_summary if isinstance(category_summary, dict) else {}
-    category_values = category_summary.get("categories", {})
-    category_values = category_values if isinstance(category_values, dict) else {}
-    convergence = report.get("epic_convergence_summary", {})
-    convergence = convergence if isinstance(convergence, dict) else {}
+def _report_dict(value: Any) -> dict[str, Any]:
+    return value if isinstance(value, dict) else {}
 
-    status_line = "  ".join(
-        [
-            f"Work {_cell(summary.get('work_units'))}",
-            f"Done {_cell(summary.get('completed'))}",
-            f"Fail {_cell(summary.get('failed'))}",
-            f"Block {_cell(summary.get('blocked'))}",
-            f"Calls {_cell(summary.get('agent_model_calls'))}",
-            f"Missing {_cell(summary.get('missing_telemetry_cells'))}",
-        ]
+
+def _dashboard_metrics(
+    values: dict[str, Any], *fields: tuple[str, str], prefix: str = "",
+) -> str:
+    return prefix + "  ".join(f"{label} {_cell(values.get(key))}" for label, key in fields)
+
+
+def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
+    summary = _report_dict(report.get("executive_summary"))
+    quality = _report_dict(report.get("quality_malpractice_sabotage_summary"))
+    evidence = _report_dict(report.get("evidence_disposition_summary"))
+    workerbees = _report_dict(report.get("workerbee_delegation_summary"))
+    dispositions = _report_dict(report.get("native_disposition_summary"))
+    sol_breakfix = _report_dict(report.get("sol_breakfix_summary"))
+    supervision = _report_dict(report.get("native_supervision_summary"))
+    gaps = _top_gap_summaries(report.get("telemetry_gaps", {}), limit=2)
+    progress = _report_dict(report.get("native_progress_summary"))
+    commands = _report_dict(report.get("checked_command_summary"))
+    category_summary = _report_dict(report.get("call_category_summary"))
+    category_values = _report_dict(category_summary.get("categories"))
+    convergence = _report_dict(report.get("epic_convergence_summary"))
+
+    status_line = _dashboard_metrics(
+        summary, ("Work", "work_units"), ("Done", "completed"), ("Fail", "failed"),
+        ("Block", "blocked"), ("Calls", "agent_model_calls"), ("Missing", "missing_telemetry_cells"),
     )
-    resource_line = "  ".join(
-        [
-            f"Tokens {_cell(summary.get('total_tokens'))}",
-            f"Elapsed {_cell(summary.get('elapsed_seconds'))}",
-            f"Retries {_cell(summary.get('retries'))}",
-            f"Main {_cell(summary.get('main_thread_calls'))}",
-            f"Review {_cell(summary.get('second_opinion_calls'))}",
-        ]
+    resource_line = _dashboard_metrics(
+        summary, ("Tokens", "total_tokens"), ("Elapsed", "elapsed_seconds"),
+        ("Retries", "retries"), ("Main", "main_thread_calls"), ("Review", "second_opinion_calls"),
     )
-    if gaps:
-        gap_line = "Top gaps: " + "; ".join(gaps)
-    else:
-        gap_line = "Top gaps: none recorded"
-    quality_line = "Quality: " + "  ".join(
-        [
-            f"sabotage {_cell(quality_totals.get('sabotage_concerns'))}",
-            f"malpractice {_cell(quality_totals.get('malpractice_concerns'))}",
-            f"quarantine {_cell(quality_totals.get('quarantine_recommended'))}",
-            f"peer {_cell(quality_totals.get('peer_review_required'))}",
-            f"hold {_cell(quality_totals.get('implementation_blocked'))}",
-            f"adjudicate {_cell(quality_totals.get('human_adjudication_required'))}",
-        ]
+    gap_line = "Top gaps: " + ("; ".join(gaps) if gaps else "none recorded")
+    quality_line = _dashboard_metrics(
+        _report_dict(quality.get("totals")), ("sabotage", "sabotage_concerns"),
+        ("malpractice", "malpractice_concerns"), ("quarantine", "quarantine_recommended"),
+        ("peer", "peer_review_required"), ("hold", "implementation_blocked"),
+        ("adjudicate", "human_adjudication_required"), prefix="Quality: ",
     )
-    evidence_line = "Evidence: " + "  ".join(
-        [
-            f"primary {_cell(evidence.get('primary'))}",
-            f"salvage {_cell(evidence.get('salvage-only'))}",
-            f"hold {_cell(evidence.get('process-hold'))}",
-            f"reject {_cell(evidence.get('reject'))}",
-            f"quarantine {_cell(evidence.get('quarantine'))}",
-            f"unavailable {_cell(evidence.get('unavailable'))}",
-        ]
+    evidence_line = _dashboard_metrics(
+        evidence, ("primary", "primary"), ("salvage", "salvage-only"), ("hold", "process-hold"),
+        ("reject", "reject"), ("quarantine", "quarantine"), ("unavailable", "unavailable"),
+        prefix="Evidence: ",
     )
-    workerbee_line = "Workerbees: " + "  ".join(
-        [
-            f"planned {_cell(workerbees.get('planned_records'))}",
-            f"actual {_cell(workerbees.get('actual_records'))}",
-            f"unfulfilled {_cell(workerbees.get('unfulfilled_lane_count'))}",
-            f"status {_cell(workerbees.get('status_summary'))}",
-        ]
+    workerbee_line = _dashboard_metrics(
+        workerbees, ("planned", "planned_records"), ("actual", "actual_records"),
+        ("unfulfilled", "unfulfilled_lane_count"), ("status", "status_summary"), prefix="Workerbees: ",
     )
-    disposition_line = "Dispositions: " + "  ".join(
-        [
-            f"session ok {_cell(dispositions.get('session_accepted'))}",
-            f"warn {_cell(dispositions.get('session_warning'))}",
-            f"quarantine {_cell(dispositions.get('session_quarantined'))}",
-            f"artifact ok {_cell(dispositions.get('artifact_accepted'))}",
-            f"validate {_cell(dispositions.get('artifact_validation_required'))}",
-            f"adjudicate {_cell(dispositions.get('artifact_adjudication_required'))}",
-            f"reject {_cell(dispositions.get('artifact_rejected'))}",
-            f"Sol break-fix {_cell(sol_breakfix.get('authorization_count'))}",
-        ]
-    )
+    disposition_line = _dashboard_metrics(
+        dispositions, ("session ok", "session_accepted"), ("warn", "session_warning"),
+        ("quarantine", "session_quarantined"), ("artifact ok", "artifact_accepted"),
+        ("validate", "artifact_validation_required"), ("adjudicate", "artifact_adjudication_required"),
+        ("reject", "artifact_rejected"), prefix="Dispositions: ",
+    ) + f"  Sol break-fix {_cell(sol_breakfix.get('authorization_count'))}"
     supervision_line = "Supervision: " + "  ".join(
         [
             f"workers {_cell(supervision.get('workers_supervised'))}",
@@ -2433,7 +2144,11 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
         ]
     )
     autonomy_line = "Autonomy: " + "  ".join([f"records {_cell(progress.get('records'))}", f"realign {_cell(progress.get('outcomes', {}).get('pm-realignment'))}", f"protected {_cell(progress.get('outcomes', {}).get('protected-stop'))}", f"calls {_cell(progress.get('actual_tool_calls'))}/{_cell(progress.get('planned_tool_calls_p90'))}", f"retained {_cell(progress.get('retained_productive_artifacts'))}", f"waste {_cell(progress.get('pure_waste_records'))}"])
-    command_line = "Commands: " + "  ".join([f"checked {_cell(commands.get('commands'))}", f"preflight {_cell(commands.get('preflight_passed'))}", f"prevented {_cell(commands.get('quoting_errors_prevented'))}", f"avoided retries {_cell(commands.get('avoided_retry_cycles'))}", f"quarantine {_cell(commands.get('quarantined'))}"])
+    command_line = _dashboard_metrics(
+        commands, ("checked", "commands"), ("preflight", "preflight_passed"),
+        ("prevented", "quoting_errors_prevented"), ("avoided retries", "avoided_retry_cycles"),
+        ("quarantine", "quarantined"), prefix="Commands: ",
+    )
     category_line = "Calls by category: " + "  ".join(
         f"{category} {_cell((category_values.get(category) or {}).get('agent_model_calls'))}"
         for category in CALL_CATEGORIES
@@ -2445,21 +2160,20 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     convergence_line = _convergence_dashboard_line(convergence)
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
-    lines = [_section_top("Dashboard", width)]
-    for line in [status_line, resource_line, category_line, convergence_line, gap_line, quality_line, evidence_line, workerbee_line, supervision_line, disposition_line, autonomy_line, command_line, next_line]:
-        lines.extend(_wrapped_box_lines(line, width))
-    lines.append(_section_bottom(width))
-    return lines
+    return _text_box("Dashboard", [
+        status_line, resource_line, category_line, convergence_line, gap_line, quality_line, evidence_line,
+        workerbee_line, supervision_line, disposition_line, autonomy_line, command_line, next_line,
+    ], width)
 
 
 def _convergence_dashboard_line(summary: dict[str, Any]) -> str:
     if not summary.get("available"):
         return "Convergence: replay summary unavailable"
-    nonaccepted = summary.get("nonaccepted") if isinstance(summary.get("nonaccepted"), dict) else {}
-    preventable = summary.get("preventable") if isinstance(summary.get("preventable"), dict) else {}
-    protected = summary.get("protected_stops") if isinstance(summary.get("protected_stops"), dict) else {}
-    targets = summary.get("targets") if isinstance(summary.get("targets"), dict) else {}
-    results = targets.get("results") if isinstance(targets.get("results"), dict) else {}
+    nonaccepted = _report_dict(summary.get("nonaccepted"))
+    preventable = _report_dict(summary.get("preventable"))
+    protected = _report_dict(summary.get("protected_stops"))
+    targets = _report_dict(summary.get("targets"))
+    results = _report_dict(targets.get("results"))
     return "Convergence: " + "  ".join(
         [
             f"records {_cell(summary.get('record_count'))}",

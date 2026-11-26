@@ -257,6 +257,26 @@ def _schema_documents(
     return documents
 
 
+def _contract_capacity_rule(capacity: int) -> dict[str, Any]:
+    properties: dict[str, Any] = {
+        "children": {"minItems": capacity, "maxItems": capacity},
+    }
+    if capacity == 1:
+        properties["scheduler"] = {
+            "properties": {
+                "certified_max_check_ms": {"type": "null"},
+                "certified_max_scheduler_overhead_ms": {"type": "null"},
+            },
+        }
+        properties["capability_receipt_sha256"] = {"type": "null"}
+    else:
+        properties["capability_receipt_sha256"] = {"$ref": "#/$defs/sha256"}
+    return {
+        "if": {"properties": {"max_active_workers": {"const": capacity}}},
+        "then": {"properties": properties},
+    }
+
+
 def _set_capacity_constraints(
     documents: Mapping[str, dict[str, Any]],
     limits: PoolCapacityLimits,
@@ -264,90 +284,20 @@ def _set_capacity_constraints(
     hard = limits.hard_max_active_workers
     capacities = list(limits.supported_capacities)
 
-    contract = documents["schemas/native-supervision-pool-contract.schema.json"]
-    contract["properties"]["children"]["maxItems"] = hard
-    contract["properties"]["max_active_workers"] = {"enum": capacities}
-    contract["$defs"]["child"]["properties"]["ordinal"]["maximum"] = hard - 1
-    contract["allOf"] = [
-        {
-            "if": {"properties": {"max_active_workers": {"const": capacity}}},
-            "then": {
-                "properties": {
-                    "children": {"minItems": capacity, "maxItems": capacity},
-                    **(
-                        {
-                            "scheduler": {
-                                "properties": {
-                                    "certified_max_check_ms": {"type": "null"},
-                                    "certified_max_scheduler_overhead_ms": {
-                                        "type": "null"
-                                    },
-                                }
-                            },
-                            "capability_receipt_sha256": {"type": "null"},
-                        }
-                        if capacity == 1
-                        else {"capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}
-                    ),
-                }
-            },
-        }
-        for capacity in capacities
-    ]
+    # Both contract versions support the bounded offline N=3 fixture.
+    # Productive admission remains gated by the live released limit.
+    versions = ("", "-v2")
+    for version in versions:
+        contract = documents[f"schemas/native-supervision-pool-contract{version}.schema.json"]
+        contract["properties"]["children"]["maxItems"] = hard
+        contract["properties"]["max_active_workers"] = {"enum": capacities}
+        contract["$defs"]["child"]["properties"]["ordinal"]["maximum"] = hard - 1
+        contract["allOf"] = [_contract_capacity_rule(capacity) for capacity in capacities]
 
-    # Admission-bound artifacts structurally support the bounded offline N=3
-    # fixture. Productive admission remains gated by the live released limit.
-    admitted_capacities = capacities
-    admitted_contract = documents[
-        "schemas/native-supervision-pool-contract-v2.schema.json"
-    ]
-    admitted_contract["properties"]["children"]["maxItems"] = (
-        hard
-    )
-    admitted_contract["properties"]["max_active_workers"] = {
-        "enum": admitted_capacities
-    }
-    admitted_contract["$defs"]["child"]["properties"]["ordinal"]["maximum"] = (
-        hard - 1
-    )
-    admitted_contract["allOf"] = [
-        {
-            "if": {"properties": {"max_active_workers": {"const": capacity}}},
-            "then": {
-                "properties": {
-                    "children": {"minItems": capacity, "maxItems": capacity},
-                    **(
-                        {
-                            "scheduler": {
-                                "properties": {
-                                    "certified_max_check_ms": {"type": "null"},
-                                    "certified_max_scheduler_overhead_ms": {
-                                        "type": "null"
-                                    },
-                                }
-                            },
-                            "capability_receipt_sha256": {"type": "null"},
-                        }
-                        if capacity == 1
-                        else {"capability_receipt_sha256": {"$ref": "#/$defs/sha256"}}
-                    ),
-                }
-            },
-        }
-        for capacity in admitted_capacities
-    ]
-
-    render = documents["schemas/native-supervision-pool-render-request.schema.json"]
-    render["properties"]["max_active_workers"] = {"enum": capacities}
-    render["properties"]["children"]["maxItems"] = hard
-
-    admitted_render = documents[
-        "schemas/native-supervision-pool-render-request-v2.schema.json"
-    ]
-    admitted_render["properties"]["max_active_workers"] = {"enum": admitted_capacities}
-    admitted_render["properties"]["children"]["maxItems"] = (
-        hard
-    )
+    for version in versions:
+        render = documents[f"schemas/native-supervision-pool-render-request{version}.schema.json"]
+        render["properties"]["max_active_workers"] = {"enum": capacities}
+        render["properties"]["children"]["maxItems"] = hard
 
     state = documents["schemas/native-supervision-pool-state.schema.json"]
     state["properties"]["scheduler_cursor"]["maximum"] = hard - 1
@@ -357,59 +307,36 @@ def _set_capacity_constraints(
     decision = documents["schemas/native-supervision-pool-decision.schema.json"]
     decision["properties"]["deadlines"]["maxItems"] = hard
 
-    receipt = documents["schemas/native-supervision-pool-receipt.schema.json"]
-    for field in (
-        "admission_order",
-        "terminal_order",
-        "child_dispositions",
-        "child_terminal_receipts",
-        "lease_evidence",
-    ):
-        receipt["properties"][field]["maxItems"] = hard
+    for version in versions:
+        receipt = documents[f"schemas/native-supervision-pool-receipt{version}.schema.json"]
+        for field in (
+            "admission_order",
+            "terminal_order",
+            "child_dispositions",
+            "child_terminal_receipts",
+            "lease_evidence",
+        ):
+            receipt["properties"][field]["maxItems"] = hard
 
-    admitted_receipt = documents[
-        "schemas/native-supervision-pool-receipt-v2.schema.json"
-    ]
-    for field in (
-        "admission_order",
-        "terminal_order",
-        "child_dispositions",
-        "child_terminal_receipts",
-        "lease_evidence",
-    ):
-        admitted_receipt["properties"][field]["maxItems"] = hard
-
-    preflight = documents[
-        "schemas/native-supervision-pool-preflight-request.schema.json"
-    ]
-    preflight["properties"]["released_capacity"]["maximum"] = hard
+    preflight = documents["schemas/native-supervision-pool-preflight-request.schema.json"]["properties"]
+    preflight["released_capacity"]["maximum"] = hard
 
     admitted_preflight = documents[
         "schemas/native-supervision-pool-preflight-request-v2.schema.json"
-    ]
-    admitted_preflight["properties"]["requested_workers"]["maximum"] = (
-        hard
-    )
-    admitted_preflight["properties"]["released_capacity"]["maximum"] = (
-        hard
-    )
-    admitted_preflight["properties"]["children"]["maxItems"] = (
-        hard
-    )
+    ]["properties"]
+    for field in ("requested_workers", "released_capacity"):
+        admitted_preflight[field]["maximum"] = hard
+    admitted_preflight["children"]["maxItems"] = hard
 
     reservation = documents["schemas/native-pool-admission-reservation.schema.json"]
-    for field in ("issue_ids", "child_bindings"):
+    admission_fields = ("issue_ids", "child_bindings")
+    for field in (*admission_fields, "retained_owned_issue_ids"):
         reservation["properties"][field]["maxItems"] = hard
-    reservation["properties"]["retained_owned_issue_ids"]["maxItems"] = hard
     for rule in reservation["allOf"]:
         condition = rule.get("if", {}).get("properties", {}).get("status", {})
         if condition.get("const") == "admitted":
-            rule["then"]["properties"]["issue_ids"]["maxItems"] = (
-                hard
-            )
-            rule["then"]["properties"]["child_bindings"]["maxItems"] = (
-                hard
-            )
+            for field in admission_fields:
+                rule["then"]["properties"][field]["maxItems"] = hard
 
     capability = documents[
         "schemas/native-supervision-adapter-capability-receipt.schema.json"

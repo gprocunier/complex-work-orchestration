@@ -19,160 +19,86 @@ def _affirmative_provider_hit(text: str, terms: list[str]) -> bool:
     return affirmative and not excluded
 
 
+_ARCHITECTURE_CONTEXT = ["architect", "architecture", "design"]
+_CRITIQUE_CONTEXT = [
+    "second opinion",
+    "second opinions",
+    "2nd opinion",
+    "2nd opinions",
+    "independent opinion",
+    "independent opinions",
+    "peer opinion",
+    "peer opinions",
+    "critique",
+    "critiques",
+    "critic",
+    "critics",
+    "review",
+    "reviews",
+]
+_GLM_ARCHITECTURE_CONTEXT = [*_ARCHITECTURE_CONTEXT, "synthesis"]
+_GLM_CRITIQUE_CONTEXT = [*_CRITIQUE_CONTEXT, "synthesis", "synthesize"]
+_GEMINI_TERMS = ["gemini", "agy", "antigravity"]
+_CLAUDE_TERMS = ["claude", "opus", "anthropic"]
+_GLM_5_3_TERMS = ["glm 5.3", "glm-5.3", "glm53"]
+_GLM_TERMS = ["glm", "glm 5.2", "glm-5.2", "glm52", *_GLM_5_3_TERMS]
+
+
 def explicit_gemini_architect_critique_requested(text: str) -> bool:
     """Return true only for the opt-in Gemini/Agy design-critic pattern."""
-    return bool(
-        _affirmative_provider_hit(text, ["gemini", "agy", "antigravity"])
-        and _hits(text, ["architect", "architecture", "design"])
-        and _hits(
-            text,
-            [
-                "second opinion",
-                "second opinions",
-                "2nd opinion",
-                "2nd opinions",
-                "independent opinion",
-                "independent opinions",
-                "peer opinion",
-                "peer opinions",
-                "critique",
-                "critiques",
-                "critic",
-                "critics",
-                "review",
-                "reviews",
-            ],
-        )
+    return (
+        _affirmative_provider_hit(text, _GEMINI_TERMS)
+        and _hits(text, _ARCHITECTURE_CONTEXT)
+        and _hits(text, _CRITIQUE_CONTEXT)
     )
 
 
 def explicit_claude_architect_critique_requested(text: str) -> bool:
     """Return true only for the opt-in Claude Opus design-critic pattern."""
-    return bool(
-        _affirmative_provider_hit(text, ["claude", "opus", "anthropic"])
-        and _hits(text, ["architect", "architecture", "design"])
-        and _hits(
-            text,
-            [
-                "second opinion",
-                "second opinions",
-                "2nd opinion",
-                "2nd opinions",
-                "independent opinion",
-                "independent opinions",
-                "peer opinion",
-                "peer opinions",
-                "critique",
-                "critiques",
-                "critic",
-                "critics",
-                "review",
-                "reviews",
-            ],
-        )
+    return (
+        _affirmative_provider_hit(text, _CLAUDE_TERMS)
+        and _hits(text, _ARCHITECTURE_CONTEXT)
+        and _hits(text, _CRITIQUE_CONTEXT)
+    )
+
+
+def _explicit_glm_critique_requested(text: str, terms: list[str]) -> bool:
+    return (
+        _affirmative_provider_hit(text, terms)
+        and _hits(text, _GLM_ARCHITECTURE_CONTEXT)
+        and _hits(text, _GLM_CRITIQUE_CONTEXT)
     )
 
 
 def explicit_glm_architect_critique_requested(text: str) -> bool:
     """Return true only for the opt-in GLM design-critic pattern."""
-    return bool(
-        _affirmative_provider_hit(
-            text,
-            ["glm", "glm 5.2", "glm-5.2", "glm52", "glm 5.3", "glm-5.3", "glm53"],
-        )
-        and _hits(text, ["architect", "architecture", "design", "synthesis"])
-        and _hits(
-            text,
-            [
-                "second opinion",
-                "second opinions",
-                "2nd opinion",
-                "2nd opinions",
-                "independent opinion",
-                "independent opinions",
-                "peer opinion",
-                "peer opinions",
-                "critique",
-                "critiques",
-                "critic",
-                "critics",
-                "review",
-                "reviews",
-                "synthesis",
-                "synthesize",
-            ],
-        )
-    )
+    return _explicit_glm_critique_requested(text, _GLM_TERMS)
 
 
 def explicit_glm_5_3_architect_critique_requested(text: str) -> bool:
     """Return true only when the GLM-5.3 critic generation is explicit."""
-    return bool(
-        _affirmative_provider_hit(text, ["glm 5.3", "glm-5.3", "glm53"])
-        and _hits(text, ["architect", "architecture", "design", "synthesis"])
-        and _hits(
-            text,
-            [
-                "second opinion",
-                "second opinions",
-                "2nd opinion",
-                "2nd opinions",
-                "independent opinion",
-                "independent opinions",
-                "peer opinion",
-                "peer opinions",
-                "critique",
-                "critiques",
-                "critic",
-                "critics",
-                "review",
-                "reviews",
-                "synthesis",
-                "synthesize",
-            ],
-        )
-    )
+    return _explicit_glm_critique_requested(text, _GLM_5_3_TERMS)
 
 
 def architecture_critic_intent_conflicts(text: str) -> list[str]:
     """Return critic executors that are both affirmatively requested and prohibited."""
 
-    architecture_context = _hits(text, ["architect", "architecture", "design", "synthesis"])
-    critique_context = _hits(
-        text,
-        [
-            "second opinion",
-            "second opinions",
-            "2nd opinion",
-            "2nd opinions",
-            "independent opinion",
-            "independent opinions",
-            "peer opinion",
-            "peer opinions",
-            "critique",
-            "critiques",
-            "critic",
-            "critics",
-            "review",
-            "reviews",
-            "synthesis",
-            "synthesize",
-        ],
-    )
+    architecture_context = _hits(text, _GLM_ARCHITECTURE_CONTEXT)
+    critique_context = _hits(text, _GLM_CRITIQUE_CONTEXT)
     if not (architecture_context and critique_context):
         return []
     conflicts: list[str] = []
     glm_5_3_requested = explicit_glm_5_3_architect_critique_requested(text)
     for executor, terms in [
-        ("claude_architecture_critic", ["claude", "opus", "anthropic"]),
-        ("gemini_architecture_critic", ["gemini", "agy", "antigravity"]),
+        ("claude_architecture_critic", _CLAUDE_TERMS),
+        ("gemini_architecture_critic", _GEMINI_TERMS),
         (
             (
                 "rhoai_glm_compact_architecture_critic"
                 if glm_5_3_requested
                 else "rhoai_glm_hardened_architecture_critic"
             ),
-            ["glm", "glm 5.2", "glm-5.2", "glm52", "glm 5.3", "glm-5.3", "glm53"],
+            _GLM_TERMS,
         ),
     ]:
         affirmative, excluded = provider_term_intent(text, terms)

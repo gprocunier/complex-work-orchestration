@@ -87,13 +87,7 @@ FIT_ACCEPTANCE_CHECKS_MAX_ITEMS = 6
 FIT_ABSOLUTE_PATH_RE = re.compile(r"(?:^|\s)(?:/[^\s]+|[A-Za-z]:[\\/][^\s]+)")
 FIT_COMMAND_FRAGMENT_RE = re.compile(r"(?:```|`|\$\(|&&|\|\||;\s*(?:sudo|sh|bash|python\d*|git)\b)")
 
-STATE_FIELDS = {
-    "state_type",
-    "version",
-    "schema",
-    "validation_rule_version",
-    "state_id",
-    "state_file",
+_SESSION_IDENTITY_FIELDS = (
     "packet_id",
     "work_unit_id",
     "bead_id",
@@ -104,26 +98,25 @@ STATE_FIELDS = {
     "requested_model",
     "attested_model",
     "attestation_source",
+)
+_REQUIRED_IDENTITY_TEXT = (
+    "state_id", "state_file", *_SESSION_IDENTITY_FIELDS, "control_execution_handle", "control_topology",
+)
+_PRECOMMIT_SHARED_FIELDS = {
+    *_REQUIRED_IDENTITY_TEXT,
+    "version",
+    "schema",
+    "validation_rule_version",
     "work_plan_sha256",
     "operative_routing_sha256",
-    "fit_prompt",
     "fit_prompt_sha256",
-    "workdir",
     "workspace_baseline",
     "baseline",
     "terminal",
-    "owner_pid",
     "owner_identity",
-    "control_execution_handle",
-    "control_topology",
     "control_turn_id",
     "submission_id",
-    "status",
-    "decision",
-    "reasons",
-    "interrupt_requested",
     "closure_outcome",
-    "poll_config",
     "polling",
     "observed",
     "final_response_sha256",
@@ -131,6 +124,19 @@ STATE_FIELDS = {
     "fit_result",
     "control_receipts",
     "audit_event_hashes",
+}
+
+STATE_FIELDS = {
+    *_PRECOMMIT_SHARED_FIELDS,
+    "state_type",
+    "fit_prompt",
+    "workdir",
+    "owner_pid",
+    "status",
+    "decision",
+    "reasons",
+    "interrupt_requested",
+    "poll_config",
     "audit_file",
     "created_at",
     "updated_at",
@@ -138,45 +144,12 @@ STATE_FIELDS = {
 }
 
 RECEIPT_FIELDS = {
+    *_PRECOMMIT_SHARED_FIELDS,
     "receipt_type",
-    "version",
-    "schema",
     "receipt_id",
-    "state_id",
-    "state_file",
     "state_sha256",
-    "packet_id",
-    "work_unit_id",
-    "bead_id",
-    "attempt_nonce",
-    "session_id",
-    "session_file",
-    "agent_id",
-    "requested_model",
-    "attested_model",
-    "attestation_source",
-    "owner_identity",
-    "control_execution_handle",
-    "control_topology",
-    "control_turn_id",
-    "submission_id",
-    "work_plan_sha256",
-    "operative_routing_sha256",
-    "fit_prompt_sha256",
-    "workspace_baseline",
-    "baseline",
-    "terminal",
     "token_telemetry",
-    "observed",
-    "polling",
-    "control_receipts",
-    "audit_event_hashes",
-    "final_response_sha256",
-    "semantic_status",
-    "fit_result",
-    "closure_outcome",
     "disposition",
-    "validation_rule_version",
     "provenance",
     "accepting",
     "receipt_sha256",
@@ -1569,16 +1542,7 @@ def _issue_precommit_receipt_locked(
         "state_id": state["state_id"],
         "state_file": str(state_path),
         "state_sha256": canonical_sha256(state),
-        "packet_id": state["packet_id"],
-        "work_unit_id": state["work_unit_id"],
-        "bead_id": state["bead_id"],
-        "attempt_nonce": state["attempt_nonce"],
-        "session_id": state["session_id"],
-        "session_file": state["session_file"],
-        "agent_id": state["agent_id"],
-        "requested_model": state["requested_model"],
-        "attested_model": state["attested_model"],
-        "attestation_source": state["attestation_source"],
+        **{field: state[field] for field in _SESSION_IDENTITY_FIELDS},
         "owner_identity": dict(state["owner_identity"]),
         "control_execution_handle": state["control_execution_handle"],
         "control_topology": state["control_topology"],
@@ -1738,6 +1702,13 @@ def _validate_control_receipts(
     return receipts
 
 
+def _validate_workspace_baseline(value: Any) -> None:
+    workspace = _require_exact_fields(value, WORKSPACE_BASELINE_FIELDS, "workspace_baseline")
+    _require_string(workspace.get("path"), "workspace_baseline.path")
+    _require_string(workspace.get("workdir"), "workspace_baseline.workdir")
+    _require_hash(workspace.get("sha256"), "workspace_baseline.sha256")
+
+
 def validate_precommit_state(value: Any) -> list[str]:
     errors: list[str] = []
     try:
@@ -1749,20 +1720,7 @@ def validate_precommit_state(value: Any) -> list[str]:
         if state.get("status") not in LIFECYCLE_STATES:
             raise ValueError("precommit state lifecycle status is invalid")
         for field in (
-            "state_id",
-            "state_file",
-            "packet_id",
-            "work_unit_id",
-            "bead_id",
-            "attempt_nonce",
-            "session_id",
-            "session_file",
-            "agent_id",
-            "requested_model",
-            "attested_model",
-            "attestation_source",
-            "control_execution_handle",
-            "control_topology",
+            *_REQUIRED_IDENTITY_TEXT,
             "workdir",
             "audit_file",
             "created_at",
@@ -1787,10 +1745,7 @@ def validate_precommit_state(value: Any) -> list[str]:
         _validate_boundary_shape(state.get("baseline"), "baseline")
         if state.get("terminal") is not None:
             _validate_boundary_shape(state.get("terminal"), "terminal")
-        workspace = _require_exact_fields(state.get("workspace_baseline"), WORKSPACE_BASELINE_FIELDS, "workspace_baseline")
-        _require_string(workspace.get("path"), "workspace_baseline.path")
-        _require_string(workspace.get("workdir"), "workspace_baseline.workdir")
-        _require_hash(workspace.get("sha256"), "workspace_baseline.sha256")
+        _validate_workspace_baseline(state.get("workspace_baseline"))
         config = _require_exact_fields(state.get("poll_config"), POLL_CONFIG_FIELDS, "poll_config")
         for key in POLL_CONFIG_FIELDS:
             current = config.get(key)
@@ -1865,20 +1820,7 @@ def validate_precommit_receipt(
             raise ValueError("precommit receipt validation rule version is invalid")
         for field in (
             "receipt_id",
-            "state_id",
-            "state_file",
-            "packet_id",
-            "work_unit_id",
-            "bead_id",
-            "attempt_nonce",
-            "session_id",
-            "session_file",
-            "agent_id",
-            "requested_model",
-            "attested_model",
-            "attestation_source",
-            "control_execution_handle",
-            "control_topology",
+            *_REQUIRED_IDENTITY_TEXT,
             "control_turn_id",
             "submission_id",
             "closure_outcome",
@@ -1920,10 +1862,7 @@ def validate_precommit_receipt(
             raise ValueError("precommit receipt canonical hash mismatch")
         baseline = _validate_boundary_shape(receipt.get("baseline"), "baseline")
         terminal = _validate_boundary_shape(receipt.get("terminal"), "terminal")
-        workspace = _require_exact_fields(receipt.get("workspace_baseline"), WORKSPACE_BASELINE_FIELDS, "workspace_baseline")
-        _require_string(workspace.get("path"), "workspace_baseline.path")
-        _require_string(workspace.get("workdir"), "workspace_baseline.workdir")
-        _require_hash(workspace.get("sha256"), "workspace_baseline.sha256")
+        _validate_workspace_baseline(receipt.get("workspace_baseline"))
         telemetry = _require_exact_fields(receipt.get("token_telemetry"), TOKEN_FIELDS, "token_telemetry")
         if telemetry.get("availability") not in {"available", "unavailable"}:
             raise ValueError("token_telemetry.availability must be available or unavailable")
