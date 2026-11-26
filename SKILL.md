@@ -112,8 +112,7 @@ three units or six reads warn; four or eleven require replanning.
 - Current dispatch needs verified model, tool profile, workspace, ownership,
   qualification, source image and attempt bindings. Caller JSON is evidence,
   not a grant. Omitted authority must not revive historical Spark dispatch.
-- Stop the assignment on a structured provider safety refusal and preserve the
-  blocker in the failure report.
+- Stop on a structured provider safety refusal and record the blocker.
 - Historical version-2 records remain inspectable. They cannot authorize new
   dispatch once the current routing policy is activated.
 - Preserve ordinary finite budgets. Explicit mission-scoped maintenance may
