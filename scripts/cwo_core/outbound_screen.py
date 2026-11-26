@@ -982,6 +982,9 @@ def _parse_json(view: _View, limit: int) -> Any:
 
 
 _OPENERS = {"(": ")", "[": "]", "{": "}"}
+_DISCLOSURE_REPORT_FIELD = "Secret or personal-data spill"
+_NO_DISCLOSURE_REPORTED = "None."
+_DISCLOSURE_ASSIGNMENT_CANDIDATE = "disclosure-assignment-candidate"
 
 
 # Code that refers to a secret held elsewhere, recognized by shape: an
@@ -1074,6 +1077,11 @@ class _Detector:
     def generated_quantity(self, name: str, value: str) -> bool:
         """Whether ``name`` is exactly a field the product generates as a count and ``value`` a non-negative integer."""
         return name in self.GENERATED_QUANTITY_FIELDS and self._QUANTITY.fullmatch(value) is not None
+
+    @staticmethod
+    def generated_disclosure_report(name: str, value: str) -> bool:
+        """Recognize the exact negative declaration under the contractor return label."""
+        return name == _DISCLOSURE_REPORT_FIELD and value == _NO_DISCLOSURE_REPORTED
 
     # Where a name splits into parts: lower case or a digit before upper case (dbPassword), the last
     # capital of an upper-case run before a capitalized word (DBPassword, HTTPToken), and letters
@@ -1399,8 +1407,8 @@ class _Detector:
             backslashes += 1
         return backslashes % 2 == 1
 
-    def assignment_names(self, text: str) -> Iterator[tuple[str, int]]:
-        """Each name written before a ``:`` or ``=``, and where that separator ends.
+    def assignment_names(self, text: str) -> Iterator[tuple[str, str, int]]:
+        """Each name written before a separator, its quote if present, and where the separator ends.
 
         Names are read back from the separator, with no length limit. A name that ends in a quote
         is a quoted key (JSON, a dict literal, YAML): it is read whole back to its opening quote on
@@ -1416,23 +1424,34 @@ class _Detector:
                 while opening >= 0 and text[opening] != "\n" and (text[opening] != quote or self.escaped(text, opening)):
                     opening -= 1
                 if opening >= 0 and text[opening] == quote:
-                    yield text[opening + 1:index - 1], separator.end()
+                    yield text[opening + 1:index - 1], quote, separator.end()
                 continue
             begin = index
             while begin > 0 and (text[begin - 1].isalnum() or text[begin - 1] in "_.- "):
                 begin -= 1
-            yield text[begin:index], separator.end()
+            yield text[begin:index], "", separator.end()
 
     # Product-generated text recognized exactly, never by the shape of a value. The contractor return
     # template (RETURN_TEMPLATE_SECTIONS in generate_manual_dispatch_prompt) writes each section as an
-    # empty "Section:" line; its only section with a credential word is always followed by the next
-    # section. Written with a line break or, in JSON-encoded text, its escape, at the start of a line
-    # or of a JSON string.
-    _GENERATED_LABEL = re.compile(r"(?:^|(?<=\n)|(?<=\\n)|(?<=\"))(Secret or personal-data spill):(?:\n|\\n)Scope compliance:")
+    # empty "Section:" line. The completed disclosure report can also declare "None." as the
+    # entire value before the next standard section. Match real or JSON-encoded line breaks.
+    _GENERATED_LABEL = re.compile(
+        rf'(?:^|(?<=\n)|(?<=\\n)|(?<="))({_DISCLOSURE_REPORT_FIELD}):'
+        rf'(?:[ \t]+{re.escape(_NO_DISCLOSURE_REPORTED)}[ \t]*)?(?:\n|\\n)Scope compliance:'
+    )
+
+    def quoted_assignment_rule(self, text: str, name: str, key_quote: str, separator_end: int,
+                               start: int, span: tuple[int, int]) -> str:
+        """Tag only a complete quoted disclosure scalar for later JSON confirmation."""
+        if (key_quote == text[start] == '"' and text[separator_end - 1] == ":"
+                and self.generated_disclosure_report(name, text[span[0]:span[1]])
+                and self.continued(text, span[1] + 1, literal=True) is None):
+            return _DISCLOSURE_ASSIGNMENT_CANDIDATE
+        return "assignment"
 
     def assignments(self, text: str) -> Iterator[tuple[str, str, int, int]]:
         generated = {match.end(1) + 1 for match in self._GENERATED_LABEL.finditer(text)}
-        for raw_name, separator_end in self.assignment_names(text):
+        for raw_name, key_quote, separator_end in self.assignment_names(text):
             name = raw_name.strip()
             if not name or not self.secret_name(name) or separator_end in generated:
                 continue
@@ -1474,7 +1493,8 @@ class _Detector:
                     line_end = text.find("\n", start)
                     yield ("assignment-unreadable", "uncertain", start, len(text) if line_end == -1 else line_end)
                 elif not self.placeholder(text[span[0]:span[1]]):
-                    yield ("assignment", "certain", span[0], span[1])
+                    rule = self.quoted_assignment_rule(text, raw_name, key_quote, separator_end, start, span)
+                    yield (rule, "certain", span[0], span[1])
                 elif (rest_end := self.continued(text, span[1] + (2 if text[start] == "\\" else 1), literal=True)) is not None:
                     yield ("assignment", "certain", span[0], rest_end)
                 continue
@@ -1739,6 +1759,9 @@ class _Screen:
         self.detector = _Detector(rules)
         self.confusables = rules.get("confusables", {})
         self.findings: dict[tuple[str, int, int], Finding] = {}
+        # A lexical candidate needs a parsed JSON member at the same literal raw span.
+        self.disclosure_candidates: dict[tuple[int, int], Finding] = {}
+        self.disclosure_reports: set[tuple[int, int]] = set()
         self.views = 0
         self.json_depth = int(rules.get("limits", {}).get("max_json_depth", 64))
         # JSON already read structurally, by any entry point: (raw start, raw end, text); and the
@@ -1901,11 +1924,38 @@ class _Screen:
         for index in view.undecodable:
             self.record(view, "encoded-content", "uncertain", index, index + 1)
 
+    @staticmethod
+    def literal_span(view: _View, start: int, end: int) -> tuple[int, int] | None:
+        """A direct raw span, excluding decoded characters with shared or expanded ranges."""
+        raw_start, raw_end = view.raw_span(start, end)
+        if all(view.raw_range(index) == (raw_start + offset, raw_start + offset + 1)
+               for offset, index in enumerate(range(start, end))):
+            return raw_start, raw_end
+        return None
+
+    def record_disclosure_candidate(self, view: _View, start: int, end: int) -> None:
+        span = self.literal_span(view, start, end)
+        if span is None:
+            self.record(view, "assignment", "certain", start, end)
+            return
+        self.disclosure_candidates.setdefault(
+            span, Finding("assignment", "certain", view.name, *span, _fingerprint(view.text[start:end]))
+        )
+
     def record(self, view: _View, rule: str, certainty: str, start: int, end: int) -> None:
+        if rule == _DISCLOSURE_ASSIGNMENT_CANDIDATE:
+            self.record_disclosure_candidate(view, start, end)
+            return
         raw_start, raw_end = view.raw_span(start, end)
         key = (rule, raw_start, raw_end)
         if key not in self.findings:
             self.findings[key] = Finding(rule, certainty, view.name, raw_start, raw_end, _fingerprint(view.text[start:end]))
+
+    def resolved_findings(self) -> tuple[Finding, ...]:
+        for span, finding in self.disclosure_candidates.items():
+            if span not in self.disclosure_reports:
+                self.findings.setdefault(("assignment", *span), finding)
+        return tuple(sorted(self.findings.values(), key=lambda finding: (finding.start, finding.rule)))
 
     DECODING_DEPTH = 3
     # Decoded views per payload; more is refused as opaque rather than scanned slowly.
@@ -1985,13 +2035,21 @@ class _Screen:
         self._scan_json(value, depth, limit)
         self.mark_read("tree", span, depth)
 
+    def generated_json_member(self, name: str, item: Any) -> bool:
+        """Recognize the direct scalar values of typed product fields."""
+        if isinstance(item, _JsonNumber):
+            return self.detector.generated_quantity(name, item.value)
+        if not isinstance(item, _JsonString) or not self.detector.generated_disclosure_report(name, item.value):
+            return False
+        if (span := self.literal_span(item.view, 0, len(item.value))) is not None:
+            self.disclosure_reports.add(span)
+        return True
+
     def _scan_json(self, value: Any, depth: int, limit: int) -> None:
         if isinstance(value, _JsonObject):
             for key, item in value.members:
                 self.scan_string(key, depth, limit)
-                # A field the product generates as a count is a quantity only with a non-negative integer.
-                quantity = isinstance(item, _JsonNumber) and self.detector.generated_quantity(key.value, item.value)
-                secret = self.detector.secret_name(key.value) and not quantity
+                secret = self.detector.secret_name(key.value) and not self.generated_json_member(key.value, item)
                 header = self.detector.header_name(key.value)
                 # Every string and number under the member, through lists and objects
                 # at any depth: nesting a value does not take it out of the field.
@@ -2091,8 +2149,7 @@ def screen_outbound(payload: bytes | str, *, surface: str, content_type: str = "
             if content_type == "application/json":
                 raise OutboundRefused(f"outbound screening refused {surface}: declared JSON payload does not parse") from None
     screen.scan_text(raw)
-    findings = tuple(sorted(screen.findings.values(), key=lambda f: (f.start, f.rule)))
-    return ScreenedPayload(data=data, sha256=digest, surface=surface, findings=findings)
+    return ScreenedPayload(data=data, sha256=digest, surface=surface, findings=screen.resolved_findings())
 
 
 def _refusal(screened: ScreenedPayload) -> OutboundRefused:
