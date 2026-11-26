@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## 1.48.0 - 2026-11-26
+
 - Treat a structured provider cyber-policy refusal as terminal. Record the refusal against the original charged attempt without reserving or dispatching a fallback. Existing version 1 policies can still contain the retired role.
 
 ## 1.47.0 - 2026-11-26
