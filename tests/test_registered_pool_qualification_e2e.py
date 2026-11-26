@@ -25,7 +25,6 @@ from tests.test_native_pool_contained_stage import _approve_accounting
 from tests.test_native_pool_qualification_budget import record_fixture_starts
 from cwo_core import beads, native_live_availability as availability  # noqa: E402
 from cwo_core import native_pool_qualification_stage as stage  # noqa: E402
-from cwo_core import native_pool_transaction as transaction  # noqa: E402
 from cwo_core.beads_ready_set import build_ready_set_evidence  # noqa: E402
 from cwo_core.invocation_ledger import InvocationLedger  # noqa: E402
 from cwo_core.native_pool_admission import BeadsClaimAdapter, PoolAdmissionReservation  # noqa: E402
@@ -282,7 +281,7 @@ class AdmittedRegisteredPoolTests(unittest.TestCase):
 
         stack.enter_context(patch.object(host, "PoolWorkerContainment", Peer))
         stack.enter_context(patch.object(availability, "POOL_QUALIFICATION_AVAILABLE", False))
-        for module in (availability, stage, transaction):
+        for module in (availability, stage):
             stack.enter_context(patch.object(module, "require_pool_qualification", require_test_boundary))
         bd = _FixtureBeads()
         stack.enter_context(patch.object(beads, "require_bd", lambda: None))

@@ -125,7 +125,18 @@ def callback_adapter_scope_sha256(parent: object) -> str:
     parent_type, *_ = _protected_types()
     _require(type(parent) is parent_type and parent.plan["selected_model"] == QUALIFICATION_MODEL,
              "original-calibration-adapter-required")
-    return _adapter_scope_sha256(parent.plan, parent.authority, len(parent.children))
+    base = _adapter_scope_sha256(parent.plan, parent.authority, len(parent.children))
+    return _ordinary_adapter_scope(getattr(parent, "_ordinary", None), base)
+
+
+def _ordinary_adapter_scope(ordinary, base: str) -> str:
+    if ordinary is None:
+        return base
+    root = Path(__file__).resolve().parent
+    sources = {name: _source_file_sha256(root / name) for name in (
+        "registered_contained_pool_host.py", "registered_pool_ordinary_runtime.py",
+    )}
+    return canonical_sha256({"adapter_scope": base, "ordinary_scope": ordinary.binding_sha256, "sources": sources})
 
 
 def calibration_adapter_scope_sha256(plan: Mapping[str, Any], authority: Mapping[str, Any]) -> str:
@@ -160,6 +171,7 @@ class _CalibrationOpportunity:
     expires_at: int
     runtime_seconds: int
     controller: tuple[tuple[str, Any], ...]
+    ordinary: object | None = None
 
 
 def _verify_opportunity(protected_parent: object, manifest: dict[str, Any], directive: Mapping[str, Any]) -> _CalibrationOpportunity:
@@ -201,11 +213,38 @@ def verify_connected_callback_calibration_opportunity(parent: object, protected_
 
 
 def _charged_start(parent: object, opportunity: _CalibrationOpportunity) -> tuple[InvocationLedger, str]:
-    custody = _active_campaign_start(parent)
+    custody = _active_calibration_start(parent)
     _require_calibration_scope(parent, opportunity)
     _require(parent.limits._intent["amount"]["runtime_seconds"] == opportunity.runtime_seconds,
              "calibration-opportunity-runtime-mismatch")
     return custody
+
+
+def _active_calibration_start(parent: object) -> tuple[InvocationLedger, str]:
+    if getattr(parent, "_ordinary", None) is None:
+        return _active_campaign_start(parent)
+    return _active_ordinary_start(parent)
+
+
+def _active_ordinary_start(parent: object) -> tuple[InvocationLedger, str]:
+    from cwo_core.native_pool_deferred_context import _ContainedPoolAdmission
+    from registered_pool_ordinary_runtime import calibration_limits, ordinary_budget_id, require_ordinary_custody
+
+    parent_type, _, _, limits_type, _ = _protected_types()
+    _require(type(parent) is parent_type and type(parent.limits) is limits_type and parent.calibration_only,
+             "original-calibration-stage-required")
+    approval = parent._ordinary
+    require_ordinary_custody(approval)
+    parent.require_effect()
+    limits = parent.limits
+    admission = limits._contained_admission
+    _require(type(admission) is _ContainedPoolAdmission and admission._claimed and admission._plan == parent.plan
+             and limits._allowance.ordinary is approval, "original-calibration-stage-required")
+    intent = limits._intent
+    ledger = limits._allowance.accounting.ledger
+    _require(ledger is approval.ledger and intent["budget_id"] == ordinary_budget_id(approval)
+             and intent["amount"] == calibration_limits(approval), "calibration-ordinary-budget-unverified")
+    return ledger, intent["reservation_id"]
 
 
 def _require_campaign_cap(ledger: InvocationLedger, budget_id: str) -> None:
@@ -240,6 +279,25 @@ def begin_connected_callback_calibration(parent: object, protected_parent: objec
                                          manifest: dict[str, Any], directive: Mapping[str, Any]) -> ConnectedCallbackCalibration:
     """Attach measurement to an already charged, separately signed original cohort."""
     opportunity = _verify_opportunity(protected_parent, manifest, directive)
+    return _begin_calibration(parent, opportunity)
+
+
+def begin_ordinary_connected_callback_calibration(parent: object, operation: str) -> ConnectedCallbackCalibration:
+    """Measure the cohort retained by the original signed ordinary controller."""
+    from registered_pool_ordinary_runtime import ordinary_calibration_operation, require_ordinary_custody
+
+    parent_type, *_ = _protected_types()
+    _require(type(parent) is parent_type and parent.calibration_only, "original-calibration-adapter-required")
+    ordinary = parent._ordinary
+    require_ordinary_custody(ordinary)
+    _require(ordinary_calibration_operation(ordinary, parent.plan) == operation,
+             "calibration-ordinary-opportunity-mismatch")
+    opportunity = _CalibrationOpportunity(operation, parent.plan["plan_sha256"], callback_adapter_scope_sha256(parent),
+        ordinary.expires_at, ordinary.calibration_seconds, tuple(sorted(capture_owner_identity().items())), ordinary)
+    return _begin_calibration(parent, opportunity)
+
+
+def _begin_calibration(parent, opportunity):
     ledger, reservation = _charged_start(parent, opportunity)
     with _CLAIMS_LOCK:
         _require(opportunity.operation_sha256 not in _CLAIMS and reservation not in _CLAIMS, "calibration-already-claimed")
@@ -362,7 +420,7 @@ class ConnectedCallbackCalibration:
                  and _now().timestamp() < self._opportunity.expires_at
                  and tuple(sorted(capture_owner_identity().items())) == self._opportunity.controller,
                  "calibration-closed-expired-or-owner-changed")
-        _require(_active_campaign_start(self._parent) == self._custody, "calibration-campaign-custody-changed")
+        _require(_active_calibration_start(self._parent) == self._custody, "calibration-start-custody-changed")
 
     def observe_callback(self, control: object, name: str, /, **arguments):
         """Invoke and time a known callback using its original bound control."""
@@ -500,12 +558,25 @@ def require_connected_callback_capability(value: object, parent: object, opportu
              and parent.authority.get("capability_opportunity_sha256") == opportunity_sha256
              and tuple(sorted(capture_owner_identity().items())) == opportunity.controller,
              "connected-capability-scope-or-owner-drift")
+    _require(opportunity.ordinary is getattr(parent, "_ordinary", None), "connected-capability-ordinary-custody-drift")
     parent._verify_artifacts()
-    charged = ledger.attempt(reservation)
-    _require(charged["state"] == "terminal" and charged["outcome"] == "completed" and charged["charge"] == {"starts": 1},
-             "calibration-campaign-start-unsettled")
-    _require_campaign_cap(ledger, charged["budget_id"])
+    _require_settled_calibration(ledger, reservation, opportunity.ordinary)
     _require(not validate_capability_receipt(receipt, now=_now())
              and receipt["certification"]["adapter_implementation_sha256"] == _source_digest(),
              "connected-capability-receipt-stale-or-changed")
     return deepcopy(receipt)
+
+
+def _require_settled_calibration(ledger, reservation, ordinary):
+    charged = ledger.attempt(reservation)
+    if ordinary is None:
+        _require(charged["state"] == "terminal" and charged["outcome"] == "completed" and charged["charge"] == {"starts": 1},
+                 "calibration-campaign-start-unsettled")
+        _require_campaign_cap(ledger, charged["budget_id"])
+        return
+    from registered_pool_ordinary_runtime import calibration_limits, ordinary_budget_id, require_ordinary_custody
+
+    require_ordinary_custody(ordinary)
+    _require((charged["state"], charged["outcome"]) == ("terminal", "completed")
+             and ledger is ordinary.ledger and charged["budget_id"] == ordinary_budget_id(ordinary)
+             and charged["charge"] == calibration_limits(ordinary), "calibration-ordinary-start-unsettled")

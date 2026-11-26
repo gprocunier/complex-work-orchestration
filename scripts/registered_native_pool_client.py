@@ -1,7 +1,10 @@
-"""Finite offline ingress; client data never selects code or grants authority."""
+"""Finite pool ingress; client data never selects code or grants authority."""
 from __future__ import annotations
 
 import re
+from types import MethodType
+
+CONTAINED_EXECUTION_ROUTE = "registered-contained-pool"
 
 
 def validate_structure(request):
@@ -32,9 +35,12 @@ def submit(request, *, host=None):
         if request['mode'] == 'validate-only':
             return structural
         raise ValueError('registered-pool-host-required')
-    import registered_native_pool_host as pool
-    if type(host) is not pool.RegisteredNativePoolHost:
+    from registered_contained_pool_host import RegisteredContainedPoolHost
+    from registered_native_pool_host import RegisteredNativePoolHost
+
+    if type(host) not in (RegisteredNativePoolHost, RegisteredContainedPoolHost):
         raise ValueError('The exact original registered pool host is required.')
-    if getattr(host.run, '__func__', None) is not pool.RegisteredNativePoolHost.run:
+    run = host.run
+    if type(run) is not MethodType or run.__self__ is not host or run.__func__ is not type(host).run:
         raise ValueError('The original bound pool host method is required.')
-    return host.run(dict(request, workers=list(request['workers'])))
+    return run(dict(request, workers=list(request['workers'])))

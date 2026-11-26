@@ -168,14 +168,18 @@ def main(argv: list[str] | None = None, *, host=None) -> int:
     args = build_parser().parse_args(argv)
     try:
         if args.pool_request is not None:
-            from registered_native_pool_client import submit, validate_structure
+            from registered_native_pool_client import CONTAINED_EXECUTION_ROUTE, submit, validate_structure
             request = _load_pool_request(args.pool_request)
             validate_structure(request)
             if args.journal is not None or args.output is not None:
                 raise ValueError("pool journals and evidence are owned by the protected host")
             if args.validate_only:
                 request = dict(request, mode="validate-only")
-            print(json.dumps(submit(request, host=host), indent=2, sort_keys=True))
+            result = submit(request, host=host)
+            print(json.dumps(result, indent=2, sort_keys=True))
+            if (request["mode"] == "execute" and result.get("execution_route") == CONTAINED_EXECUTION_ROUTE
+                    and result.get("accepted") is not True):
+                return 2
             return 0
         plan = _load_json(args.plan.expanduser().resolve(), "transaction plan")
         errors = validate_transaction_plan(plan)

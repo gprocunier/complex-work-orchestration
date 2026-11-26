@@ -105,9 +105,9 @@ matched package, scope and identity refusal controls passed all six tests
 with zero skips under the unchanged package pin and configuration. This
 offline rerun did not repeat the historical configuration RPC checks. It
 does not qualify native model-worker/server/callback PID reuse or production
-ownership/accounting/restart recovery, which remain unperformed. The selected
-profile and native pool remain unqualified and held; confidential workloads
-remain unsupported.
+ownership/accounting/restart recovery, which remained unperformed in that
+check. The later registered contained route has its own two- and three-worker
+live record. [Native Supervision Pools](native-supervision-pools.md)
 
 The current implementation uses disposable user, PID, mount and network
 namespaces with private procfs. A single fixed bubblewrap

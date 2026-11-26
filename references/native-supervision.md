@@ -4,15 +4,13 @@ The registered single-worker route requires the original signed workflow,
 explicit provider disclosure consent and separately supplied production
 authentication. A trusted embedding host can send an eligible assignment on
 this route and post its exact candidate for separate hand acceptance. The
-lead-run supervision checks in this reference are advisory. Concurrent pools,
-live campaigns, activation preview and
-new worker-surface qualification remain held. See the
+lead-run supervision checks in this reference are advisory. See the
 [registered production requirements](native-live-route-holds.md#standing-approved-delegation).
 
-Running multiple supervised native workers concurrently is experimental and disabled by default.
-The concurrent routes retain default-off source decisions and require a trusted
-controller. Plans, receipts, environment settings and CLI switches supply no
-launch authority.
+Single-worker execution is the default. A trusted controller can admit a fixed
+group of two or three workers through the [registered contained pool](native-supervision-pools.md).
+The controller requires exact approval and fresh callback calibration on the
+same host.
 
 For a new assignment, estimate the whole task before selecting a worker. Luna
 is the first choice for focused native work. Sol handles escalation when the
@@ -384,18 +382,14 @@ corrected, quarantined, deferred, or accepted after validation. CWO does not
 turn an interrupted artifact into implementation authority through an automatic
 salvage chain.
 
-## Multi-Worker Concurrency Tech Preview
+## Multi-Worker Concurrency
 
-Concurrent pool and campaign routes retain their source holds. The following
-capacity contract describes the approved single-worker route and the limits of
-any future concurrent route.
-
-| Capacity | Status | Additional requirements |
+| Capacity | Registered route | Requirements |
 | --- | --- | --- |
-| One worker | Registered route available | Original signed workflow, provider disclosure adoption and separate production authentication |
-| Two workers | Live route held | Source restoration, fresh same-host capability receipt and safe fixed cohort |
-| Three workers | Live route held | Same requirements; contract hard ceiling |
-| Four or more | Blocked | Not represented by the operative contract |
+| One worker | Single-worker execution | Original signed workflow, provider disclosure adoption and separate production authentication |
+| Two workers | Contained pool | Exact approved cohort, separate configured logins and fresh same-host callback capability |
+| Three workers | Contained pool | Same requirements and the current capacity ceiling |
+| Four or more | Unavailable | The policy supports up to three workers |
 
 A concurrent pool also requires deterministic admission, an economical and
 schedulable cohort, immutable child bindings, isolated mutable worktrees or
@@ -406,9 +400,9 @@ retry, replay, or publication concurrent.
 Do not run several single-worker supervisors in parallel by hand. Serialized
 contracts, hashes, receipts, proportionality assessments, and preflight results
 are evidence; none of them can replace the one-use admission capability held by
-the trusted process. Any future productive concurrent execution must use the
-admitted pool launcher, `run_admitted_native_pool`, after source restoration
-and admission; direct `NativePoolCoordinator` construction cannot enable it.
+the trusted process. The registered controller uses the admitted pool launcher,
+`run_admitted_native_pool`, after approval and admission. A direct
+`NativePoolCoordinator` instance carries no such authority.
 
 A protected pool fault interrupts affected admitted children and makes the pool
 receipt non-accepting. An isolated child failure may allow healthy peers to

@@ -6,6 +6,7 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import shlex
 import stat
 import sys
 from uuid import uuid4
@@ -14,6 +15,7 @@ import everyday_delegation as everyday
 import registered_delegation_approval as approval
 import registered_delegation_entry as entry
 from cwo_core import manual_delivery, workspace_capture
+from cwo_core import native_live_availability
 
 
 _TOOL = {
@@ -149,8 +151,12 @@ def _cancelled(params, tool_call):
 
 
 def _ask(source, sink, pending, proposal, tool_call):
+    return _ask_decision(source, sink, _prompt(pending, proposal), tool_call)
+
+
+def _ask_decision(source, sink, message, tool_call):
     request_id = 'cwo-standing-' + uuid4().hex
-    params = {'message': _prompt(pending, proposal), 'requestedSchema': _QUESTION,
+    params = {'message': message, 'requestedSchema': _QUESTION,
               '_meta': {'codex_requires_user_input': True}}
     _write(sink, id=request_id, method='elicitation/create', params=params)
     response = _decision_frame(source, tool_call)
@@ -198,6 +204,40 @@ def _authorize(source, sink, project, message, elicitation):
         return _text(str(failure), error=True)
 
 
+def _pool_prompt(pending):
+    scope = json.loads(pending.manifest)
+    limits = scope["productive_limits"]
+    model, effort, tier = scope["selection"]
+    rows = [
+        f"Approve this contained pool of {len(scope['children'])} registered Codex workers?",
+        f"Project {json.dumps(scope['project'])}",
+        f"Model {model}, effort {effort}, tier {tier}. Provider-only access to OpenAI.",
+        f"Worker run budget {limits['tool_calls']} tool calls and {limits['runtime_seconds']} seconds.",
+        f"Shared maximum for calibration and execution is {scope['limits']['sessions']} sessions, "
+        f"{scope['limits']['tool_calls']} tool calls and {scope['limits']['runtime_seconds']} seconds.",
+        f"Writer-held callback calibration reserves up to {scope['calibration_seconds']} seconds.",
+    ]
+    for child in scope["children"]:
+        rows.extend((f"Bead {json.dumps(child['bead_id'])}", f"Task {json.dumps(child['task'])}",
+                     f"Fresh file {json.dumps(child['write_path'])}", f"Exact contents {json.dumps(child['expected_utf8'])}"))
+    rows.append("Review each output before integrating it.")
+    return "\n".join(rows)
+
+
+def _authorize_pool(source, sink, project, message, elicitation):
+    try:
+        if not elicitation or project is None:
+            raise ValueError("Open the original project in the local cwo-codex foreground to approve the pool.")
+        from registered_contained_pool_preparation import prepare_pool, retain_approved_pool
+
+        with prepare_pool(project, message["params"].get("arguments")) as pending:
+            request_id = _ask_decision(source, sink, _pool_prompt(pending), message["id"])
+            path = retain_approved_pool(pending, request_id)
+        return _text(f"Pool approval retained. Run cwo delegate-pool --pool-request {shlex.quote(str(path))} from this project.")
+    except (OSError, RuntimeError, ValueError, SystemExit) as failure:
+        return _text(str(failure), error=True)
+
+
 def _initialize(params):
     version = params.get('protocolVersion')
     capabilities = params.get('capabilities', {})
@@ -211,9 +251,16 @@ def _initialize(params):
 def _request(source, sink, project, message, elicitation):
     request_id, method = message['id'], message.get('method')
     if method == 'tools/list':
-        _write(sink, id=request_id, result={'tools': [_TOOL]})
+        tools = [_TOOL]
+        if native_live_availability.REGISTERED_CONTAINED_POOL_LIVE_AVAILABLE is True:
+            from registered_contained_pool_preparation import TOOL as POOL_TOOL
+
+            tools.append(POOL_TOOL)
+        _write(sink, id=request_id, result={'tools': tools})
     elif method == 'tools/call':
-        _write(sink, id=request_id, result=_authorize(source, sink, project, message, elicitation))
+        params = message.get("params")
+        authorize = _authorize_pool if type(params) is dict and params.get("name") == "authorize_pool" else _authorize
+        _write(sink, id=request_id, result=authorize(source, sink, project, message, elicitation))
     elif method == 'ping':
         _write(sink, id=request_id, result={})
     else:

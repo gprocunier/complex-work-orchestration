@@ -1,18 +1,19 @@
 # Native Supervision Pools
 
-A pool lets one trusted host supervise a fixed group of workers. Pool and
-campaign execution remain held by their source decisions. The contract bounds groups
-to N=1..3; it does not make assignment preparation, integration or publication
-concurrent. Ordinary productive pool plans additionally require trusted-controller
-launcher authority, and no such controller ships. Supplying a controller or
-receipt cannot override the source holds. Start with
-[the delegation guide](../docs/native-supervision.html), then use this reference
-for admission, monitoring, interruption and cleanup.
+A registered contained pool lets one trusted host supervise two or three
+workers on independent, approved assignments. Each app server has a read-only
+checkout, a dedicated worker login and provider-only connectivity. Only the
+registered writer may put the approved bytes in its assigned worker checkout.
+Assignment preparation, integration and publication remain separate steps.
+Start with [the delegation guide](../docs/native-supervision.html).
 
-The selected `constrained-integrity` profile and the native pool remain
-unqualified. `POOL_LIVE_AVAILABLE` stays `False`. Confidential operation
-remains unsupported. The app-server integration supports Codex CLI 0.163.0 and
-later releases whose schemas provide the required protocol capabilities.
+The live containment record on CWO v1.45.0 used stock Codex CLI 0.172.0,
+`gpt-6.2-sol`, xhigh effort and the default tier. It passed both cohort widths,
+shared accounting, cleanup and isolation of an individual writer failure after
+the cohort had proved and charged its pending calls. Earlier cohort-wide
+refusals contain every affected worker. Tool declarations are recorded as
+observations. The host checks its Codex CLI for the protocol capabilities
+required from version 0.163.0 onward. Confidential operation is unsupported.
 See the [protocol compatibility and qualification evidence](codex-protocol-capability-matrix.md).
 
 Current v3 routing selects a qualified exact Luna worker first. Historical Spark
@@ -62,17 +63,12 @@ the policy ceiling; it does not make packet construction, precommit, critics,
 integration, retry, replay, or
 publication concurrent.
 
-Every delegated native worker is supervised; there is no unsupervised mode or
-opt-out. The single-worker contract remains the default topology, but its live route is
-held. The two- and three-worker preview contracts are also held in this release.
-The concurrency contract requires one fresh same-host capability receipt, a
-fixed cohort, and either isolated mutable worktrees or a shared
-read-only topology. The canonical policy records a contract hard ceiling of
-three; N>=4 remains blocked pending Phase 2 architecture and recertification.
-Start with the reader-facing
-[Native Supervision guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html#concurrency-preview),
-then review the [deferred hardening](#experimental-status-and-deferred-hardening).
-No opt-in switch restores live execution in this release.
+Every delegated native worker is supervised. The single-worker contract is the
+default. The registered two- and three-worker route requires a fixed approved
+cohort, individual write ownership and a fresh callback capability from the
+same host. The canonical policy ceiling is three workers.
+Start with the [Native Supervision guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html#concurrency-preview)
+and review the [deferred hardening](#experimental-status-and-deferred-hardening).
 
 The public contract is deliberately small:
 
@@ -93,16 +89,39 @@ The public contract is deliberately small:
   requires an explicit operator activation; structural support alone is not an
   operative release.
 
+## Start an approved cohort
+
+Configure two or three existing dedicated login homes from the installed skill
+directory. Use a separate home for each work slot.
+
+```bash
+python3 scripts/setup_delegation.py \
+  --pool-worker-home ~/.cwo-pool-worker-a \
+  --pool-worker-home ~/.cwo-pool-worker-b
+```
+
+From the original project checkout, use `authorize_pool` in the foreground
+`cwo-delegation` tool to approve the ordered group and its shared allowance.
+Each assignment needs its own Bead, worktree and exact output. The registered
+contained selection is `gpt-6.2-sol` at xhigh effort on the default tier. The
+operator approves the whole selection and the provider disclosure together.
+
+The approval tool returns a private pool request path. Run
+`cwo delegate-pool --pool-request <request-path>` from the same project checkout.
+Add `--validate-only` to check the request and retained project authority before
+execution. The controller checks the separate configured worker logins and
+calibrates its callbacks using the same approved shared allowance. Productive
+work starts after successful calibration and original cohort admission.
+
 ## Readiness-first transaction launcher
 
-**Current status:** the launcher's command line refuses every ordinary plan,
-including `--validate-only`, with `transaction-controller-adapter-authority-missing`.
-Any future ordinary-plan execution requires source restoration and a trusted
-controller embedding the launcher with its adapter registry; no such controller
-ships. Maintenance (version 8) capabilities cannot override the live source
-holds either. The fixed-profile activation preview described below has its own
-default-off hold. The rest of this section describes the transaction contract
-for a future restored route with the required controller authority.
+The registered controller retains the exact cohort approval and passes the
+pool request to the finite launcher with the original bound host. A standalone
+pool request can validate its shape. Execution requires the protected host.
+A raw `--plan` with no trusted runtime registry refuses
+`transaction-controller-adapter-authority-missing` before loading an adapter.
+The version 8 maintenance and fixed-profile activation routes are separate and
+retain their source decisions.
 
 `scripts/run_admitted_native_pool_transaction.py` composes productive N=1, N=2,
 or N=3 launches. The launcher accepts one hash-sealed transaction

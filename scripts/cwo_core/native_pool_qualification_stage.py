@@ -23,7 +23,13 @@ from weakref import WeakSet
 
 from .invocation_ledger import LEDGER_FILE, MAX_UNITS, InvocationLedger, add_failure_note, request_sha256
 from .model_identities import resolve_model
-from .native_live_availability import require_n1_live, require_pool_live, require_pool_qualification, require_registered_n1_live
+from .native_live_availability import (
+    require_n1_live,
+    require_pool_live,
+    require_pool_qualification,
+    require_registered_contained_pool_live,
+    require_registered_n1_live,
+)
 from .native_pool_contracts import (
     canonical_sha256,
     pool_capacity_limits,
@@ -98,6 +104,7 @@ class PoolQualificationRun:
     bind_limits: Callable[[PoolQualificationRunLimits], None] | None = None
     cleanup: Callable[[float], bool] | None = None
     contained_selection: ContainedPoolSelection | None = None
+    ordinary_policy_children: Mapping[str, _ContainedPoolChild] | None = None
 
 
 @dataclass(eq=False, frozen=True, slots=True, weakref_slot=True)
@@ -236,7 +243,7 @@ def _require_contained_availability() -> None:
 def select_contained_pool_runtime(plan: Mapping[str, Any], create_runtime: Callable[..., tuple], /,
                                   **factory_inputs: Any) -> ContainedPoolSelection:
     """Check the installed adapter and retain the exact runtime it assembles without effects."""
-    _require_contained_availability()
+    _contained_route(factory_inputs.get("ordinary"))()
     module = sys.modules.get(_FACTORY_MODULE)
     _require(module is not None and type(create_runtime) is FunctionType
              and vars(module).get(_FACTORY_ENTRY) is create_runtime,
@@ -256,7 +263,12 @@ def select_contained_pool_runtime(plan: Mapping[str, Any], create_runtime: Calla
     runtime, bind_limits, cleanup = assembled
     _require(type(runtime) is TransactionRuntime and callable(bind_limits) and callable(cleanup),
              "contained-runtime-required")
-    return ContainedPoolSelection(selected["plan_sha256"], path, digest, runtime, bind_limits, cleanup, _RUNTIME_TOKEN)
+    return ContainedPoolSelection(selected["plan_sha256"], path, digest, runtime, bind_limits, cleanup, _RUNTIME_TOKEN,
+                                  factory_inputs.get("ordinary"))
+
+
+def _contained_route(ordinary):
+    return _require_contained_availability if ordinary is None else require_registered_contained_pool_live
 
 
 def make_pool_qualification_run(plan: Mapping[str, Any], selection: ContainedPoolSelection, *,
@@ -697,6 +709,7 @@ class _StageAllowance:
     campaign_intent: Mapping[str, Any] | None = None
     calibration: _QualificationCalibration | None = None
     isolation_target: str | None = None
+    ordinary: object | None = None
 
     def check_custody(self) -> None:
         _require(self.accounting.ledger.root == self.root
@@ -768,11 +781,17 @@ class PoolQualificationRunLimits:
         return self._time_left()
 
     def _require_intent(self) -> None:
-        if self._allowance.campaign_intent is not None:
-            _require_contained_availability()
-            _require_campaign_approval(self._allowance.accounting)
+        self._require_effect_authority()
         self._check_intent_custody()
         self._time_left()
+
+    def _require_effect_authority(self) -> None:
+        if self._allowance.ordinary is not None:
+            require_registered_contained_pool_live()
+            self._allowance.ordinary.require_current()
+        elif self._allowance.campaign_intent is not None:
+            _require_contained_availability()
+            _require_campaign_approval(self._allowance.accounting)
 
     def _check_intent_custody(self) -> None:
         self._allowance.check_custody()
@@ -1171,14 +1190,14 @@ class _ActiveRun:
 
 def _open_stage_allowance(accounting: PoolQualificationAccounting, root: Path, binding: str,
                           ceiling: Mapping[str, int], runs: Sequence[PoolQualificationRun],
-                          roots: frozenset[Path], require_route: Callable[[], None]) -> _StageAllowance:
+                          roots: frozenset[Path], require_route: Callable[[], None], *,
+                          budget_prefix: str = "pool-qualification:") -> _StageAllowance:
     require_route()
     ledger_custody = frozenset({root})
     _require(_outside_fixtures(root, roots) and all(_outside_fixtures(path, ledger_custody) for path in roots),
              "accounting-fixture-overlap")
     _require(all(_outside_fixtures(run.journal_path, ledger_custody) for run in runs), "accounting-journal-overlap")
-    allowance = _StageAllowance(accounting, root, _custody_binding(root / LEDGER_FILE), binding,
-                                "pool-qualification:" + binding)
+    allowance = _StageAllowance(accounting, root, _custody_binding(root / LEDGER_FILE), binding, budget_prefix + binding)
     allowance.check_custody()
     ledger = accounting.ledger
     _require(accounting.expires_at > ledger.current_time(), "accounting-expired")
@@ -1482,14 +1501,7 @@ def _open_active_run(run: PoolQualificationRun, allowance: _StageAllowance, rese
     try:
         intent = ledger.begin_invocation(reservation_id, request_bytes)
         limits = PoolQualificationRunLimits(allowance, intent, run, deadline)
-        selection = run.contained_selection
-        if selection is not None:
-            limits._contained_admission = _ContainedPoolAdmission(
-                _ADMISSION_TOKEN, selection=selection, plan=run.plan, journal_path=run.journal_path,
-                check_custody=limits._require_intent,
-                check_source=lambda: _check_active_source(selection, limits),
-                check_availability=_require_contained_availability, policy_children=_contained_policy_children(run),
-                deadline=deadline, calibration=allowance.calibration)
+        _bind_active_admission(run, allowance, limits)
         return _ActiveRun(limits, run.cleanup)
     except BaseException as failure:
         try:
@@ -1501,12 +1513,31 @@ def _open_active_run(run: PoolQualificationRun, allowance: _StageAllowance, rese
         raise
 
 
+def _bind_active_admission(run, allowance, limits):
+    selection = run.contained_selection
+    if selection is None:
+        return
+    _require(selection.ordinary is allowance.ordinary
+             and (run.ordinary_policy_children is None) == (allowance.ordinary is None), "contained-route-scope-mismatch")
+    limits._contained_admission = _ContainedPoolAdmission(
+        _ADMISSION_TOKEN, selection=selection, plan=run.plan, journal_path=run.journal_path,
+        check_custody=limits._require_intent, check_source=lambda: _check_active_source(selection, limits),
+        check_availability=_contained_route(allowance.ordinary), policy_children=_contained_policy_children(run),
+        deadline=limits.deadline, calibration=allowance.calibration)
+
+
 def _check_active_source(selection: ContainedPoolSelection, limits: PoolQualificationRunLimits) -> None:
     _registered_factory_source(selection.factory_path, selection.factory_sha256)
     limits._time_left()
 
 
 def _contained_policy_children(run: PoolQualificationRun) -> dict[str, _ContainedPoolChild]:
+    if run.ordinary_policy_children is not None:
+        return dict(run.ordinary_policy_children)
+    return _qualification_policy_children(run)
+
+
+def _qualification_policy_children(run: PoolQualificationRun) -> dict[str, _ContainedPoolChild]:
     tasks = {task["write_path"]: task for cohort in fixed_pool_qualification_cohorts() for task in cohort["tasks"]}
     bindings = {}
     for child in run.plan["children"]:
@@ -1671,7 +1702,8 @@ def _run_stage(preparation, runs, *, approved_binding, accounting, require_activ
 
 def _validate_route_selections(runs, *, contained):
     if contained:
-        _require(all(type(run.contained_selection) is ContainedPoolSelection for run in runs),
+        _require(all(type(run.contained_selection) is ContainedPoolSelection and run.contained_selection.ordinary is None
+                     and run.ordinary_policy_children is None for run in runs),
                  "contained-runtime-required")
     else:
         _require(all(run.contained_selection is None for run in runs), "contained-stage-approval-required")

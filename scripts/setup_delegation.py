@@ -13,7 +13,7 @@ import sys
 from cwo_core import host_records
 from cwo_core.paths import REPO_ROOT
 import registered_n1_qualification as qualification
-from registered_worker_login_config import read_worker_login_home, write_worker_login_home
+from registered_worker_login_config import read_worker_login_home, write_worker_login_home, write_pool_worker_login_homes
 from selected_native_containment import SelectedNativeProbe
 
 
@@ -108,14 +108,34 @@ def setup_delegation(home: Path, primary: Path) -> Path:
     return home
 
 
+def setup_pool_delegation(homes: list[Path], primary: Path) -> None:
+    if len(homes) not in (2, 3):
+        raise ValueError("Provide two or three existing, separate pool worker login homes.")
+    selected = tuple(_worker_home(home, primary) for home in homes)
+    mounts = tuple(qualification.WorkerLoginMount(home, qualification.worker_login_state()) for home in selected)
+    if len({mount.identity for mount in mounts}) != len(selected):
+        raise ValueError("The pool worker login homes share a directory identity.")
+    if any(qualification._login_overlap(home, peer)
+           for index, home in enumerate(selected) for peer in selected[index + 1:]):
+        raise ValueError("The configured pool worker login homes overlap.")
+    write_pool_worker_login_homes(selected)
+
+
 def main(argv: list[str] | None = None) -> int:
     cli = argparse.ArgumentParser(description=__doc__)
     cli.add_argument("--codex-home", type=Path, help="Main Codex home to leave untouched.")
-    cli.add_argument("--worker-home", type=Path, help="Dedicated sign-in home for the worker.")
+    worker_choice = cli.add_mutually_exclusive_group()
+    worker_choice.add_argument("--worker-home", type=Path, help="Dedicated sign-in home for the worker.")
+    worker_choice.add_argument("--pool-worker-home", type=Path, action="append",
+                               help="Existing dedicated pool sign-in home. Give this two or three times.")
     args = cli.parse_args(argv)
     account = qualification._controller_home()
     primary = args.codex_home or Path(os.environ.get("CODEX_HOME") or account / ".codex")
     try:
+        if args.pool_worker_home is not None:
+            setup_pool_delegation(args.pool_worker_home, primary.expanduser().absolute())
+            print(f"Configured {len(args.pool_worker_home)} dedicated pool worker logins.")
+            return 0
         home = args.worker_home or read_worker_login_home() or account / ".cwo-worker-codex"
         selection = setup_delegation(home, primary.expanduser().absolute())
     except (OSError, ValueError) as exc:

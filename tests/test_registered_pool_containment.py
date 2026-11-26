@@ -1,23 +1,26 @@
 """Check the contained pool host with synthetic files and inert stdio peers."""
 
+from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 import json
+import os
 from pathlib import Path
 import select
 import socket
 import sys
 import tempfile
-from threading import RLock
+from threading import Barrier, RLock
 import time
 import tomllib
 import unittest
-from unittest.mock import patch
+from unittest.mock import PropertyMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
 import registered_pool_configuration as config
 import registered_pool_containment as containment
 import registered_n1_qualification as qualification
+import registered_pool_qualification as pool
 from cwo_core import native_live_availability as availability
 
 
@@ -41,6 +44,16 @@ class PoolConfigurationTests(unittest.TestCase):
               self.assertRaisesRegex(config.PoolContainmentError, 'Original retained pool writer required')):
             worker.run_writer('fixture', authorize=lambda release: release(), deadline=time.monotonic() + 1)
         launch.assert_not_called()
+
+    def test_production_login_selection_requires_the_original_effect_check(self):
+        parent = object.__new__(pool._PoolParent)
+        worker = pool._PoolWorker(parent, {'child_id': 'fixture'}, {}, None, None, 1)
+        parent.workers = {worker.child_id: worker}
+        with (patch.object(pool._PoolParent, 'require_effect', side_effect=ValueError('effect refused')),
+              patch.object(pool._PoolWorker, 'production_login_home', new_callable=PropertyMock) as select_login,
+              self.assertRaisesRegex(ValueError, 'effect refused')):
+            containment._require_original_worker(worker.require_effect, worker.child_id, None, None, 1)
+        select_login.assert_not_called()
 
     def test_immutable_configuration_and_writer_registration(self):
         worker, spool = Path('/fixture/worker'), Path('/fixture/private-spool')
@@ -148,6 +161,8 @@ class PoolWorkerContainmentTests(unittest.TestCase):
             auth.write_text(f'synthetic marker {slot}\n')
             auth.chmod(0o600)
         self.state = self.root / 'campaign'
+        self.production_home = None
+        self.login_state = self.root / 'worker-login-state'
         self.launcher = Path('/usr/bin/bwrap').resolve()
         self.validator = Path('/usr/bin/python3').resolve()
         self.peer = self.root / 'inert-appserver'
@@ -166,12 +181,26 @@ assert sys.stdin.read() == ''
         self.peer.chmod(0o700)
         self.enterContext(patch.object(qualification, 'managed_login_home', side_effect=lambda slot=1: self.slots[slot]))
         self.enterContext(patch.object(qualification, '_campaign_directory', return_value=self.state))
+        self.enterContext(patch.object(qualification, 'worker_login_state', return_value=self.login_state))
         self.enterContext(patch.object(availability, 'require_registered_n1_live'))
+        self.enterContext(patch.object(availability, 'require_registered_contained_pool_live', create=True))
         self.enterContext(patch.object(availability, 'require_pool_qualification', create=True))
         self.enterContext(patch.object(qualification, 'require_executable_schema'))
-        self.enterContext(patch.object(containment, '_require_original_worker', side_effect=lambda effect, *_: effect()))
+        self.enterContext(patch.object(containment, '_require_original_worker', side_effect=self._original_effect))
         self.enterContext(patch.object(containment, '_require_original_writer'))
         qualification.initialize_campaign()
+
+    def _original_effect(self, effect, *_):
+        effect()
+        return self.production_home
+
+    def _select_production_login(self, name='configured-login'):
+        self.production_home = self.root / name
+        self.production_home.mkdir(mode=0o700)
+        auth = self.production_home / 'auth.json'
+        auth.write_text('synthetic configured account\n')
+        auth.chmod(0o600)
+        return self.production_home
 
     def _paths(self, slot):
         worktree, custody = self.root / f'worker-{slot}', self.root / f'custody-{slot}'
@@ -271,10 +300,146 @@ assert sys.stdin.read() == ''
         self.assertEqual(released, {'stage': 'login-released', 'observation': {'slot': 1}})
         self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
 
+    def test_production_projection_uses_the_same_login_interlock_as_n1(self):
+        login = self._select_production_login()
+        with (patch.object(qualification, 'campaign_directory', side_effect=AssertionError('campaign state touched')),
+              patch.object(availability, 'require_pool_qualification', side_effect=AssertionError('qualification gate'))):
+            worker = self._worker(1, self._paths(1))
+            self.assertTrue(worker.production_live)
+            worker._prepare_home()
+            self.assertIs(type(worker._managed_login), containment._PoolLoginMount)
+            self.assertEqual(worker._managed_login.home, login)
+            n1_mount = qualification.WorkerLoginMount(login, self.login_state)
+            with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+                n1_mount.claim()
+            worker.close()
+            self.assertEqual(set(path.name for path in login.iterdir()), {'auth.json'})
+            n1_mount.release(n1_mount.claim())
+            self.assertEqual(list(self.login_state.iterdir()), [])
+        self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
+
+    def test_production_provider_requires_managed_login(self):
+        self._select_production_login()
+        worker = self._worker(1, self._paths(1))
+        lifetime = containment._PoolLifetime(worker, 'appserver', [])
+        with patch.object(containment.n1.provider_network, 'ProviderBroker') as create_broker:
+            with self.assertRaisesRegex(ValueError, 'production worker login is unavailable'):
+                lifetime._provider_network_fds()
+            create_broker.assert_not_called()
+
+    def test_production_projection_conflict_keeps_original_worker_overlay(self):
+        login = self._select_production_login()
+        conflict = login / 'installation_id'
+        conflict.write_text('synthetic existing installation')
+        worker = self._worker(1, self._paths(1))
+        worker._prepare_home()
+        mount = worker._managed_login
+        self.assertIs(type(mount), qualification.WorkerLoginMount)
+        self.assertEqual(mount.home, login)
+        self.assertEqual(mount.work.parent, self.login_state)
+        self.assertTrue(mount.work.is_dir())
+        worker.close()
+        self.assertFalse(mount.work.exists())
+        self.assertEqual(conflict.read_text(), 'synthetic existing installation')
+        self.assertEqual(list(self.login_state.iterdir()), [])
+
+    def test_concurrent_production_workers_can_create_shared_interlock_state(self):
+        self._select_production_login()
+        first = self._worker(1, self._paths(1))
+        self._select_production_login('another-configured-login')
+        second = self._worker(2, self._paths(2))
+        contenders = Barrier(2)
+        mkdir = os.mkdir
+
+        def create(path, mode, *, dir_fd=None):
+            if path == self.login_state.name and dir_fd is not None:
+                contenders.wait(timeout=5)
+            mkdir(path, mode, dir_fd=dir_fd)
+
+        with patch.object(os, 'mkdir', side_effect=create), ThreadPoolExecutor(max_workers=2) as executor:
+            preparing = [executor.submit(worker._prepare_home) for worker in (first, second)]
+            for completed in preparing:
+                completed.result(timeout=10)
+        self.assertEqual(len(list(self.login_state.glob('login-*.lock'))), 2)
+        for worker in (first, second):
+            worker.close()
+        self.assertEqual(list(self.login_state.iterdir()), [])
+
+    def test_production_gate_applies_before_private_worker_reads(self):
+        self._select_production_login()
+        with (patch.object(availability, 'require_registered_contained_pool_live',
+                           side_effect=availability.NativeLiveUnavailable, create=True),
+              patch.object(containment.native, '_path', side_effect=AssertionError('private path reached'))):
+            with self.assertRaises(availability.NativeLiveUnavailable):
+                self._worker(1, self._paths(1))
+
+    def test_production_refuses_untrusted_login_location_and_non_path(self):
+        login = self._select_production_login()
+        paths = self._paths(1)
+        self.production_home = str(login)
+        with self.assertRaisesRegex(config.PoolContainmentError, 'configured worker login'):
+            self._worker(1, paths)
+        self.production_home = self.slots[1]
+        with self.assertRaisesRegex(qualification.QualificationError, 'qualification homes'):
+            self._worker(1, paths)
+        self.assertEqual(list(paths[1].iterdir()), [])
+        self.assertFalse(self.login_state.exists())
+
+    def test_production_login_and_interlock_cannot_overlap_protected_roots(self):
+        login = self._select_production_login()
+        paths = self._paths(1)
+        for root in (login, self.login_state):
+            with (self.subTest(root=root),
+                  self.assertRaisesRegex(config.PoolContainmentError, 'separate from other protected roots')):
+                self._worker(1, paths, protected=(root,))
+        self.assertEqual(list(paths[1].iterdir()), [])
+        self.assertFalse(self.login_state.exists())
+
+    def test_production_fences_refuse_selected_path_or_inode_drift(self):
+        login = self._select_production_login()
+        worker = self._worker(1, self._paths(1))
+        with (patch.object(worker, '_prepare_home') as prepare,
+              patch.object(containment._PoolLifetime, 'launch', side_effect=AssertionError('unexpected launch'))):
+            self.production_home = self.root / 'foreign-login'
+            with self.assertRaisesRegex(config.PoolContainmentError, 'configured worker login changed'):
+                worker.launch_appserver()
+            self.production_home = login
+            original = login.rename(self.root / 'retained-login')
+            try:
+                login.mkdir(mode=0o700)
+                auth = login / 'auth.json'
+                auth.write_text('synthetic foreign account\n')
+                auth.chmod(0o600)
+                with self.assertRaisesRegex(qualification.QualificationError, 'login directory changed'):
+                    worker.launch_appserver()
+                auth.unlink()
+                login.rmdir()
+            finally:
+                original.rename(login)
+            prepare.assert_not_called()
+
+    def test_production_uncertain_cleanup_keeps_the_original_n1_lease(self):
+        login = self._select_production_login()
+        worker = self._worker(1, self._paths(1))
+        worker._prepare_home()
+        worker._managed_lifetime = containment._PoolLifetime(worker, 'appserver', [])
+        worker._managed_lifetime._managed_mount_started = True
+        with self.assertRaisesRegex(config.PoolContainmentError, 'cleanup is unresolved'):
+            worker.close()
+        self.assertFalse(worker.receipt()['cleanup_confirmed'])
+        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+            qualification.WorkerLoginMount(login, self.login_state).claim()
+
     @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
     def test_pool_login_round_trip(self):
+        self._assert_login_round_trip(self.slots[1])
+
+    @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
+    def test_production_login_round_trip(self):
+        self._assert_login_round_trip(self._select_production_login())
+
+    def _assert_login_round_trip(self, login):
         self._replace_provider()
-        login = self.slots[1]
         original = {}
         for name in ('tmp', 'log'):
             directory = login / name

@@ -203,7 +203,11 @@ def _directory(path: Path, *, create: bool = False, private: bool = False) -> in
             except FileNotFoundError:
                 if not create:
                     raise
-                os.mkdir(part, 0o700, dir_fd=fd)
+                try:
+                    os.mkdir(part, 0o700, dir_fd=fd)
+                except FileExistsError:
+                    # A concurrent caller may have created this component.
+                    pass
                 child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC,
                                 dir_fd=fd)
             os.close(fd)
