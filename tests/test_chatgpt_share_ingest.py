@@ -4,7 +4,6 @@ import contextlib
 import io
 import json
 import os
-import subprocess
 import sys
 import tempfile
 import time
@@ -17,25 +16,8 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import ingest_chatgpt_share_return  # noqa: E402
 from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
-from tests.browser_provenance_fixture import publish_return  # noqa: E402
+from tests.browser_provenance_fixture import publish_return, saved_capture  # noqa: E402
 from cwo_core.private_artifact import sha256_bytes  # noqa: E402
-from ingest_chatgpt_share_return import (  # noqa: E402
-    extract_assistant_text,
-    is_chatgpt_share_source,
-    locate_reader,
-    render_contractor_return,
-    run_reader,
-)
-
-
-class FakeCompletedProcess:
-    returncode = 0
-    stderr = ""
-
-    def __init__(self, stdout: str) -> None:
-        self.stdout = stdout
-
-
 CAPTURE_CHECKS = ("request_turn", "response_turn", "completion_confirmed", "content_stable", "conversation_stable", "assistant_extraction")
 
 
@@ -52,104 +34,12 @@ class ChatGPTShareIngestTests(unittest.TestCase):
     def setUp(self) -> None:
         temp = tempfile.TemporaryDirectory()
         self.addCleanup(temp.cleanup)
-        context = using_test_store(HostRecordStore.for_tests(Path(temp.name) / "host"))
+        self.store = HostRecordStore.for_tests(Path(temp.name) / "host")
+        self.directory = Path(temp.name)
+        context = using_test_store(self.store)
         context.__enter__()
         self.addCleanup(context.__exit__, None, None, None)
         PRIVATE_SELECTIONS.clear()
-
-    def test_source_validation_accepts_chatgpt_shares_only(self) -> None:
-        self.assertTrue(is_chatgpt_share_source("https://chatgpt.com/s/t_abc"))
-        self.assertTrue(is_chatgpt_share_source("https://chatgpt.com/share/abc"))
-        self.assertFalse(is_chatgpt_share_source("https://example.com/s/t_abc"))
-
-    def test_locate_reader_prefers_explicit_path(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            reader = Path(tmpdir) / "reader.py"
-            reader.write_text("# test\n", encoding="utf-8")
-            self.assertEqual(locate_reader(str(reader)), reader.resolve())
-
-    def test_run_reader_invokes_local_reader_json_mode(self) -> None:
-        payload = {
-            "messages": [{"role": "assistant", "text": "Plan looks ready.", "content_type": "text"}],
-            "meta": {"method": "react-router-stream"},
-        }
-        with tempfile.TemporaryDirectory() as tmpdir:
-            reader = Path(tmpdir) / "reader.py"
-            reader.write_text("# test\n", encoding="utf-8")
-            pins = frozenset({sha256_bytes(reader.read_bytes())})
-            with patch(
-                "ingest_chatgpt_share_return.subprocess.run",
-                return_value=FakeCompletedProcess(json.dumps(payload)),
-            ) as mocked:
-                parsed = run_reader(reader, "https://chatgpt.com/s/t_abc", 30, pins=pins)
-        self.assertEqual(parsed["messages"][0]["text"], "Plan looks ready.")
-        self.assertIn("--format", mocked.call_args.args[0])
-        self.assertIn("json", mocked.call_args.args[0])
-        self.assertEqual(mocked.call_args.kwargs["timeout"], 30)
-
-    def test_run_reader_times_out_wedged_reader(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            reader = Path(tmpdir) / "reader.py"
-            reader.write_text("# test\n", encoding="utf-8")
-            pins = frozenset({sha256_bytes(reader.read_bytes())})
-            with patch(
-                "ingest_chatgpt_share_return.subprocess.run",
-                side_effect=subprocess.TimeoutExpired(["reader.py"], 1),
-            ):
-                with self.assertRaises(SystemExit) as exc:
-                    run_reader(reader, "https://chatgpt.com/s/t_abc", 1, pins=pins)
-        self.assertIn("timed out", str(exc.exception))
-
-    def test_extract_assistant_text_preserves_all_assistant_messages(self) -> None:
-        payload = {
-            "title": "Review",
-            "meta": {"method": "react-router-stream"},
-            "messages": [
-                {"role": "user", "text": "Please review."},
-                {"role": "assistant", "text": "First answer."},
-                {"role": "assistant", "text": "Final answer.", "id": "m2"},
-            ],
-        }
-        text, provenance = extract_assistant_text(payload)
-        self.assertIn("## Primary assistant message (id=m2)", text)
-        self.assertLess(text.index("Final answer."), text.index("First answer."))
-        self.assertIn("## Earlier Assistant Message Archive", text)
-        self.assertIn("### Earlier assistant message 1 of 1", text)
-        self.assertIn("First answer.", text)
-        self.assertIn("---", text)
-        self.assertIn("Final answer.", text)
-        self.assertEqual(provenance["message_id"], "m2")
-        self.assertEqual(provenance["assistant_message_ids"], ["m2"])
-        self.assertEqual(provenance["assistant_message_count"], 2)
-
-    def test_extract_assistant_text_records_string_message_ids_only(self) -> None:
-        payload = {
-            "messages": [
-                {"role": "assistant", "text": "First answer.", "id": {"unexpected": "object"}},
-                {"role": "assistant", "text": "Final answer.", "id": "m2"},
-            ],
-        }
-        _text, provenance = extract_assistant_text(payload)
-        self.assertEqual(provenance["assistant_message_ids"], ["m2"])
-
-    def test_rendered_return_contains_required_sections_and_fenced_evidence(self) -> None:
-        rendered = render_contractor_return(
-            "Plan looks ready.\nStatus: not a section inside evidence.",
-            source="https://chatgpt.com/s/t_abc",
-            reader=Path("/tmp/reader.py"),
-            provenance={"method": "react-router-stream", "message_id": "m2", "message_count": 2},
-            bead_id="cwo-1",
-            dispatch_id="dispatch-1",
-            share_boundary="redacted-packet",
-            job_description="contract-jd-master-plan-review",
-            packet_sha256="packet-sha",
-            executor="chatgpt_pro_browser_master_reviewer",
-        )
-        self.assertIn("Contractor job description: contract-jd-master-plan-review", rendered)
-        self.assertIn("Evidence:\n```text\nPlan looks ready.", rendered)
-        self.assertIn("Share-boundary conformance:", rendered)
-        self.assertIn("Peer-review disposition: Pending", rendered)
-
 
     def run_ingest_main(self, argv: list[str], *, with_expectations: bool = True) -> tuple[str, BaseException | None]:
         if with_expectations and "--private-artifact" in argv:
@@ -430,39 +320,41 @@ class ChatGPTShareIngestTests(unittest.TestCase):
         self.assertIn("verdict", decision)
         self.assertIn("architect_review_required", decision)
 
-    def test_reader_admission_never_blocks(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            fifo = Path(tmpdir) / "read_chatgpt_share.py"
-            os.mkfifo(fifo)
-            started = time.monotonic()
-            with self.assertRaisesRegex(SystemExit, "share-reader-not-pinned"):
-                ingest_chatgpt_share_return.require_trusted_reader(fifo)  # no pins: nothing is read
-            with self.assertRaisesRegex(SystemExit, "share-reader-not-pinned"):
-                ingest_chatgpt_share_return.require_trusted_reader(fifo, frozenset({"0" * 64}))  # pins: non-blocking, not regular
-            self.assertLess(time.monotonic() - started, 5)
+    def test_saved_capture_metadata_and_explicit_output_use_independent_audit(self) -> None:
+        path, response, packet, source_sha256, event = saved_capture(self.directory / "capture", self.store)
+        original_audit = self.store.audit_file.read_bytes()
+        selection = ["--private-artifact", str(path), "--packet", str(packet),
+                     "--packet-source-sha256", source_sha256, "--capture-event", event["event_hash"]]
+        out, raised = self.run_ingest_main(selection, with_expectations=False)
+        self.assertIsNone(raised)
+        self.assertEqual(json.loads(out)["response_sha256"], sha256_bytes(response))
+        self.assertNotIn(response.decode().strip(), out)
+        target = self.directory / "return.md"
+        out, raised = self.run_ingest_main([*selection, "--output", str(target)], with_expectations=False)
+        self.assertIsNone(raised)
+        self.assertEqual(out, "")
+        self.assertIn(response, target.read_bytes())
+        self.assertEqual(self.store.audit_file.read_bytes(), original_audit)
 
-    def test_unpinned_reader_never_runs(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            marker = Path(tmpdir) / "READER_RAN"
-            reader = Path(tmpdir) / "read_chatgpt_share.py"
-            reader.write_text(f"from pathlib import Path\nPath({str(marker)!r}).touch()\nprint('{{}}')\n", encoding="utf-8")
-            with patch.object(ingest_chatgpt_share_return.os, "open", wraps=os.open) as opened:
-                with self.assertRaisesRegex(SystemExit, "share-reader-not-pinned"):
-                    ingest_chatgpt_share_return.run_reader(reader, "https://chatgpt.com/share/abc", 5, pins=frozenset())
-                opened.assert_not_called()
-            self.assertFalse(marker.exists(), "an unpinned reader is never executed")
-            # A caller-chosen hash is not a pin: only CWO's own constant counts.
-            rendered, raised = self.run_ingest_main(["https://chatgpt.com/share/abc", "--reader", str(reader)])
-            self.assertIsNotNone(raised)
-            self.assertFalse(marker.exists())
-
-    def test_pinned_reader_runs_its_verified_bytes(self) -> None:
-        with tempfile.TemporaryDirectory() as tmpdir:
-            reader = Path(tmpdir) / "read_chatgpt_share.py"
-            reader.write_text("import json\nprint(json.dumps({'messages': [{'role': 'assistant', 'text': 'ok'}]}))\n", encoding="utf-8")
-            pins = frozenset({sha256_bytes(reader.read_bytes())})
-            payload = ingest_chatgpt_share_return.run_reader(reader, "https://chatgpt.com/share/abc", 10, pins=pins)
-            self.assertEqual(payload["messages"][0]["text"], "ok")
+    def test_retired_sources_refuse_before_reads_or_writes(self) -> None:
+        html = self.directory / "share.html"
+        html.write_text("Example saved page", encoding="utf-8")
+        target = self.directory / "return.md"
+        target.write_text("Existing return", encoding="utf-8")
+        for source in ("https://chatgpt.com/share/example", str(html), str(html.with_suffix(".missing"))):
+            with self.subTest(source=source), patch.object(Path, "is_file") as stat_file, \
+                    patch.object(Path, "read_text") as read_file, \
+                    patch.object(ingest_chatgpt_share_return, "private_capture_expectation") as select, \
+                    patch.object(ingest_chatgpt_share_return, "atomic_write_text") as write:
+                out, raised = self.run_ingest_main(
+                    [source, "--reader", "/missing/reader", "--timeout", "1", "--packet", "/missing/packet",
+                     "--output", str(target), "--json"], with_expectations=False)
+                self.assertEqual(str(raised), "share URL and HTML intake is retired; use --private-artifact for browser returns")
+                self.assertEqual(out, "")
+                for effect in (stat_file, read_file, select, write):
+                    effect.assert_not_called()
+            self.assertEqual(target.read_text(encoding="utf-8"), "Existing return")
+        self.assertFalse(self.store.audit_file.exists())
 
     def test_exactly_one_source_is_required(self) -> None:
         for argv in ([], ["https://chatgpt.com/share/abc", "--private-artifact", "/nonexistent/p.json"]):

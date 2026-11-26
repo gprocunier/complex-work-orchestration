@@ -16,11 +16,11 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import build_contractor_packet  # noqa: E402
-from cwo_core import audit, browser_capture, host_records  # noqa: E402
-from cwo_core.outbound_screen import OutboundRefused, require_clean  # noqa: E402
-from cwo_core.prepared_outbound import PreparedSource  # noqa: E402
-from cwo_core.private_artifact import sha256_bytes  # noqa: E402
+from cwo_core import audit, host_records  # noqa: E402
+from cwo_core.outbound_screen import OutboundRefused  # noqa: E402
+from cwo_core.private_artifact import sha256_bytes, write_private_artifact  # noqa: E402
 from cwo_core.util import artifact_hash, packet_payload_hash  # noqa: E402
+from tests.browser_provenance_fixture import capture_record, saved_capture  # noqa: E402
 
 
 def production_packet() -> dict:
@@ -48,30 +48,8 @@ class BrowserProvenanceTests(unittest.TestCase):
         self.addCleanup(self.context.__exit__, None, None, None)
         self.packet = production_packet()
         audit.record_audit_event({"event_type": "packet_built", **self.identity()})
-        self.prompt = "Review retry semantics."
-        submitted = self.prompt + "\nRequest ID: " + "1" * 32
-        source = PreparedSource.capture({"packet": self.packet, "load_options": {"review": True}})
-        self.packet_source = source.sha256
-        prepared = PreparedSource.capture({"prompt": self.prompt, "inputs": [source.sha256]})
-        self.prepared = prepared.bind(prepared.value(), require_clean(submitted, surface="ChatGPT browser Send"))
         self.text = " \nRésumé — 雪\r\n  "
-        self.browser = {
-            "response_text": self.text, "capture_complete": True,
-            "capture_checks": dict.fromkeys(browser_provenance.CAPTURE_CHECKS, True),
-            "capture_incomplete_reasons": [], "request_id": "1" * 32,
-            "submitted_sha256": artifact_hash(submitted), **self.prepared.metadata(),
-            "send_admission_sha256": "d" * 64,
-            "pinned_conversation_id": "conv-0001", "observed_document_request_id": "1" * 32,
-            "observed_user_sha256": sha256_bytes(submitted.strip().encode()),
-            "submitted_user_sha256": sha256_bytes(submitted.strip().encode()),
-            "user_text_normalization": "crlf-strip-v1", "conversation_id": "conv-0001",
-            "conversation_url": "https://chatgpt.com/c/conv-0001", "user_message_id": "user-1",
-            "assistant_message_id": "assistant-1", "response_extraction": "assistant-message",
-        }
-        self.record = browser_provenance.build_private_provenance(
-            {**self.packet, "packet_source_sha256": source.sha256}, self.prompt, self.browser,
-            response_file="response.txt", captured_at="2026-11-14T00:00:00Z",
-        )
+        self.record, self.packet_source = capture_record(self.packet, self.text)
         self.raw = (json.dumps(self.record, sort_keys=True) + "\n").encode()
         self.fields = browser_provenance.capture_audit_fields(self.record, sha256_bytes(self.raw))
         self.event = audit.record_audit_event({"event_type": "chatgpt_browser_dispatch", **self.identity(), **self.fields,
@@ -103,41 +81,46 @@ class BrowserProvenanceTests(unittest.TestCase):
         self.assertFalse(self.text in self.store.audit_file.read_text(), "response body entered audit")
         self.assertIn("same-user", self.expected().access_limit)
 
-    def test_trusted_host_publishes_exact_response_for_independent_intake(self):
+    def test_saved_capture_without_independent_audit_refuses(self):
         from ingest_chatgpt_share_return import load_private_response
 
-        metadata = {**self.packet, "packet_source_sha256": self.packet_source}
-        directory = browser_capture.resolve_response_dir(str(self.base / "returns"))
-        artifact = browser_capture.write_private_response(
-            directory, metadata=metadata, prompt=self.prompt, browser_result=self.browser,
-        )
-        provenance_path = Path(artifact["provenance_path"])
-        with self.assertRaisesRegex(SystemExit, "independently selected"):
-            load_private_response(provenance_path)
-        with self.assertRaisesRegex(SystemExit, "independent audit provenance digest"):
-            load_private_response(provenance_path, expected=self.expected())
+        store = host_records.HostRecordStore.for_tests(self.base / "saved-host")
+        provenance, response, packet_path, source, event = saved_capture(self.base / "saved-returns", store)
+        packet = json.loads(packet_path.read_bytes())
+        with host_records.using_test_store(store):
+            with self.assertRaisesRegex(SystemExit, "independently selected"):
+                load_private_response(provenance)
+            expected = self.api.select_private_capture(
+                packet, packet_source_sha256=source, capture_event_hash=event["event_hash"],
+            )
+            text, record, digest = load_private_response(provenance, expected=expected)
+            self.assertEqual(text.encode("utf-8"), response)
+            self.assertTrue(record["capture_complete"])
+            self.assertEqual(digest, event["private_provenance_sha256"])
+            self.assertNotIn(text.strip(), store.audit_file.read_text())
+            store.state_root.rename(self.base / "disconnected-host")
+            with self.assertRaisesRegex(SystemExit, "absent or ambiguous in the independent audit store"):
+                load_private_response(provenance, expected=expected)
 
-        result = {**metadata, "epic_id": metadata.get("epic_id"), "prompt_sha256": artifact_hash(self.prompt),
-                  "status": "completed", "response_artifact": artifact,
-                  "response_text": self.text, "conversation_url": self.browser["conversation_url"]}
-        event = browser_capture.record_browser_dispatch(result, quota_info={})
-        self.assertEqual(event["event_type"], "chatgpt_browser_dispatch")
-        self.assertEqual(artifact["capture_event_hash"], event["event_hash"])
-        expected = self.expected(capture_event_hash=event["event_hash"])
-        text, provenance, digest = load_private_response(provenance_path, expected=expected)
-        self.assertEqual(text.encode("utf-8"), self.text.encode("utf-8"))
-        self.assertTrue(provenance["capture_complete"])
-        self.assertEqual(digest, event["private_provenance_sha256"])
-        self.assertEqual(event["response_sha256"], sha256_bytes(self.text.encode("utf-8")))
-        self.assertIsNone(provenance["model_attestation"])
-        self.assertFalse(provenance["share"]["created"])
-        persisted = self.store.audit_events()[-1]
-        self.assertEqual(persisted, event)
-        self.assertNotIn("response_text", persisted)
-        self.assertNotIn("conversation_url", persisted)
-        audit_text = json.dumps(persisted, ensure_ascii=False)
-        self.assertNotIn(self.text.strip(), audit_text)
-        self.assertNotIn(self.browser["conversation_url"], audit_text)
+    def test_evaluate_saved_capture_uses_observed_release_dispatch(self):
+        from cwo import main
+
+        store = host_records.HostRecordStore.for_tests(self.base / "saved-host")
+        provenance, response, packet, _, event = saved_capture(self.base / "saved-returns", store)
+        dispatch = store.require_dispatch(event["dispatch_id"])
+        self.assertEqual(dispatch["observation_sha256"], event["event_hash"])
+        out = io.StringIO()
+        with host_records.using_test_store(store), contextlib.redirect_stdout(out):
+            main(["evaluate", "--private-artifact", str(provenance), "--contractor-packet", str(packet), "--json"])
+        receipt = store.require_return(event["dispatch_id"], sha256_bytes(response))
+        result = json.loads(out.getvalue())
+        self.assertEqual(result["return_sha256"], sha256_bytes(response))
+        self.assertEqual(receipt["dispatch_record_sha256"], dispatch["_record_sha256"])
+        self.assertTrue(result["peer_review_required"])
+        self.assertTrue(result["architect_review_required"])
+        self.assertFalse(result["execution_permitted"])
+        self.assertNotIn("Résumé", out.getvalue())
+        self.assertNotIn("Résumé", store.audit_file.read_text())
 
     def private_evaluation_args(self, *, observed=True, observation=None, explicit_pins=True, **capture):
         from browser_request import prepare_browser_packet_request
@@ -159,28 +142,36 @@ class BrowserProvenanceTests(unittest.TestCase):
         user_sha256 = artifact_hash(submitted.decode("utf-8").replace("\r\n", "\n").strip())
         self.assertNotEqual(sha256_bytes(submitted), user_sha256)
         self.assertEqual(dispatch["evaluation_metadata"]["submitted_user_sha256"], user_sha256)
-        attestation = {"required": True, "status": "confirmed"}
-        browser = {
-            **self.browser, **request.outbound.metadata(), "model_attestation": attestation,
-            "request_id": request.request_id, "observed_document_request_id": request.request_id,
-            "submitted_sha256": sha256_bytes(submitted), "observed_user_sha256": user_sha256,
-            "submitted_user_sha256": user_sha256, **capture,
-        }
-        artifact = browser_capture.write_private_response(
-            self.base / "returns", metadata=request.metadata, prompt=request.prompt, browser_result=browser,
+        model_attestation = capture.pop("model_attestation", {"required": True, "status": "confirmed"})
+        share_created = bool(capture.pop("share_url", None))
+        record, _ = capture_record(self.packet, self.text)
+        record.update(
+            **request.outbound.metadata(), model_attestation=model_attestation, share={"created": share_created},
+            packet_source_sha256=request.packet_source.sha256, prompt_sha256=artifact_hash(request.prompt),
+            request_id=request.request_id, observed_document_request_id=request.request_id,
+            submitted_sha256=sha256_bytes(submitted), observed_user_sha256=user_sha256,
+            submitted_user_sha256=user_sha256,
         )
-        event = browser_capture.record_browser_dispatch(
-            {**request.metadata, "prompt_sha256": artifact_hash(request.prompt), "status": "completed",
-             "response_artifact": artifact, "model_attestation": browser["model_attestation"],
-             "share_url": browser.get("share_url")}, quota_info={},
-        )
+        record.update(capture)
+        raw = (json.dumps(record, sort_keys=True) + "\n").encode()
+        directory = self.base / "returns"
+        write_private_artifact(directory, record["response_file"], self.text.encode())
+        provenance_path = write_private_artifact(directory, "run.provenance.json", raw)
+        event = audit.record_audit_event({
+            "event_type": "chatgpt_browser_dispatch", **self.identity(),
+            "telemetry_status": "completed", "telemetry_kind": "browser_dispatch",
+            "model_attestation_required": model_attestation.get("required"),
+            "model_attestation_status": model_attestation.get("status"),
+            "share_url_present": share_created,
+            **self.api.capture_audit_fields(record, sha256_bytes(raw)),
+        })
         if observed:
             self.store.write_observed_dispatch(
                 dispatch_id, prepared_record_sha256=prepared, observation_sha256=observation or event["event_hash"],
                 provider=self.packet["provider_family"], model_family="fixture-family", model_id="fixture-model",
                 reasoning_effort="fixture-effort", session_id="fixture-session",
             )
-        argv = ["evaluate_return.py", "--private-artifact", artifact["provenance_path"],
+        argv = ["evaluate_return.py", "--private-artifact", str(provenance_path),
                 "--contractor-packet", str(packet_path), "--json"]
         if explicit_pins:
             argv.extend(["--packet-source-sha256", request.packet_source.sha256,
@@ -232,7 +223,6 @@ class BrowserProvenanceTests(unittest.TestCase):
 
         self.text = (" \r\nStatus: completed\r\nSummary: PRIVATE_CAPTURE_SENTINEL Résumé 雪\r\n"
                      "Sources inspected: PRIVATE_CAPTURE_SENTINEL\r\n  ")
-        self.browser["response_text"] = self.text
         explicit_argv = self.private_evaluation_args()
         argv = explicit_argv.copy()
         for flag in ("--packet-source-sha256", "--capture-event"):
@@ -392,16 +382,19 @@ class BrowserProvenanceTests(unittest.TestCase):
         with self.assertRaises(SystemExit):
             self.api.packet_subject(self.packet, candidate_record={"candidate": "label"})
 
-    def test_omitted_chain_is_incomplete_and_historical_is_never_upgraded(self):
-        for field in ("send_admission_sha256", "outbound_source_sha256", "observed_user_sha256"):
-            browser = {key: value for key, value in self.browser.items() if key != field}
-            record = self.api.build_private_provenance(self.packet, self.prompt, browser,
-                                                      response_file="response.txt", captured_at="now")
-            self.assertFalse(record["capture_complete"])
-        for version in (1, 2, 3, 4):
-            changed = {**self.record, "version": version}
-            with self.subTest(version=version), self.assertRaises(SystemExit):
-                self.validate(changed, json.dumps(changed).encode())
+    def test_missing_capture_fields_and_historical_versions_refuse_even_when_pinned(self):
+        missing = [{key: value for key, value in self.record.items() if key != field}
+                   for field in ("send_admission_sha256", "outbound_source_sha256", "observed_user_sha256")]
+        historical = [{**self.record, "version": version} for version in (1, 2, 3, 4)]
+        for changed in missing + historical:
+            raw = json.dumps(changed, sort_keys=True).encode()
+            event = audit.record_audit_event({
+                "event_type": "chatgpt_browser_dispatch", **self.identity(),
+                **self.api.capture_audit_fields(changed, sha256_bytes(raw)),
+            })
+            expectation = self.expected(capture_event_hash=event["event_hash"])
+            with self.assertRaisesRegex(SystemExit, "incomplete or mismatched"):
+                self.validate(changed, raw, expected=expectation)
 
     def test_malformed_screen_metadata_produces_safe_validation_errors(self):
         for value in (float("nan"), float("inf"), [], {}, True):

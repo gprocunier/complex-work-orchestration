@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Retire the legacy CDP launcher and browser Send and share transport. `cwo browser-review --dry-run` retains its local audit, and `cwo ingest-share --private-artifact` accepts saved private captures. Positional share URLs and HTML files receive an early refusal.
 - Keep contained pool checks responsive while a registered writer is being released.
 
 ## 1.40.0 - 2026-11-25

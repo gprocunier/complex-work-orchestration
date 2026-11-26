@@ -1,0 +1,58 @@
+{
+  "access_limit": "Private files and audit bindings do not authenticate against same-user access to both stores.",
+  "artifact_type": "chatgpt-browser-private-response",
+  "assistant_message_id": "msg-1",
+  "bead_id": "cwo-1",
+  "capture_checks": {
+    "assistant_extraction": true,
+    "completion_confirmed": true,
+    "content_stable": true,
+    "conversation_stable": true,
+    "request_turn": true,
+    "response_turn": true
+  },
+  "capture_complete": true,
+  "capture_incomplete_reasons": [],
+  "captured_at": "2026-11-14T00:00:00Z",
+  "conversation_id": "conv-0001",
+  "conversation_text_sha256": null,
+  "conversation_url": "https://chatgpt.com/c/conv-0001",
+  "dispatch_id": "dispatch-1",
+  "epic_id": null,
+  "executor": "chatgpt_pro_browser_master_reviewer",
+  "model_attestation": {
+    "required": true,
+    "status": "confirmed"
+  },
+  "observed_document_request_id": "11111111111111111111111111111111",
+  "observed_user_sha256": "979d2d0b3d22926acd62c5d5bc865ebeab29ee85fbbc3630cf11ce847ce9c2cc",
+  "outbound_export_sha256": "979d2d0b3d22926acd62c5d5bc865ebeab29ee85fbbc3630cf11ce847ce9c2cc",
+  "outbound_prepared_sha256": "f48752031d7acea22a9ce5666eb3ac4e5b5c4c4d9a8e460bc444b8e60013d68c",
+  "outbound_screen_version": 2,
+  "outbound_source_sha256": "96d6d2019c839edb3223ecd19b8843917f4c07d1720dbabff6ba8b38d5db1538",
+  "packet_sha256": "496d04691c5cec9729972bb006aee8855b2123d63efbbded83e64a6bc9c19770",
+  "packet_source_sha256": "11692f1b0a9375907c7ae04aa2aa39d57ccbc0f18b64b696bd2e7d43f097a9c7",
+  "pinned_conversation_id": "conv-0001",
+  "prompt_sha256": "352dabc8b18db5263ec064e8d094fad0b389403843e4d692b016808782d029c8",
+  "provider_key": "openai_manual",
+  "request_id": "11111111111111111111111111111111",
+  "response_bytes": 50,
+  "response_chars": 44,
+  "response_extraction": "assistant-message",
+  "response_file": "run.response.txt",
+  "response_sha256": "7c665ac02fc0acec3060dc6ee72cf909746e603594f70c84bed5fdac8bcd58cd",
+  "send_admission_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd",
+  "share": {
+    "created": false
+  },
+  "share_boundary": "redacted-packet",
+  "subject": {
+    "kind": "packet-input",
+    "source_sha256": "e30c7bc081a70f73914b29bc75856f999793b5a4e4ad8a40de1a94e83980c822"
+  },
+  "submitted_sha256": "979d2d0b3d22926acd62c5d5bc865ebeab29ee85fbbc3630cf11ce847ce9c2cc",
+  "submitted_user_sha256": "979d2d0b3d22926acd62c5d5bc865ebeab29ee85fbbc3630cf11ce847ce9c2cc",
+  "user_message_id": "msg-0",
+  "user_text_normalization": "crlf-strip-v1",
+  "version": 5
+}

@@ -1053,8 +1053,6 @@ class SchemaAndContainmentTests(unittest.TestCase):
 
         self.assertIs(dispatch_work.LOCAL_INVOCATION_AVAILABLE, False)
         self.assertEqual(self.importers_of("invocation_ledger"), [
-            "scripts/browser_action_dispatch.py",
-            "scripts/chatgpt_browser_review.py",
             # The optional parent fallback records a same-budget child attempt.
             "scripts/cwo_core/cyber_fallback.py",
             "scripts/cwo_core/local_invocation.py",

@@ -611,15 +611,15 @@ class RouteAccountingTests(RouteTestCase):
 class ShippedGuardTests(unittest.TestCase):
     """The shipped state in fresh interpreters: every flag is off, and the route refuses before the ledger."""
 
-    def test_f5_held_route_five_shipped_flags_are_off(self) -> None:
+    def test_f5_held_route_four_shipped_flags_are_off(self) -> None:
         completed = subprocess.run(
             [sys.executable, "-I", "-c", f"import sys; sys.path.insert(0, {str(ROOT / 'scripts')!r}); "
-             "import dispatch_work, chatgpt_browser_review, run_native_pool_activation_preview as preview; "
-             "print(dispatch_work.LOCAL_INVOCATION_AVAILABLE, chatgpt_browser_review.BROWSER_DISPATCH_AVAILABLE, "
+             "import dispatch_work, run_native_pool_activation_preview as preview; "
+             "print(dispatch_work.LOCAL_INVOCATION_AVAILABLE, "
              "preview.live_availability.N1_LIVE_AVAILABLE, preview.live_availability.POOL_LIVE_AVAILABLE, "
              "preview.live_availability.CAMPAIGN_LIVE_AVAILABLE)"],
             capture_output=True, text=True, timeout=120, cwd=ROOT)
-        self.assertEqual((completed.returncode, completed.stdout), (0, "False False False False False\n"), completed.stderr[-400:])
+        self.assertEqual((completed.returncode, completed.stdout), (0, "False False False False\n"), completed.stderr[-400:])
 
     def test_the_shipped_route_refuses_before_reserving_or_touching_the_ledger(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:

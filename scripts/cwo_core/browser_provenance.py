@@ -14,13 +14,8 @@ from typing import Any
 from urllib.parse import urlparse
 from weakref import WeakValueDictionary
 
-from .audit import iter_audit_events
-from .candidate_identity import candidate_binding, candidate_errors, verify_candidate
-from .outbound_screen import SCREEN_VERSION
 from .chatgpt_urls import approved_chatgpt_origin
-from .packet_provenance import require_production_contractor_packet
 from .private_artifact import sha256_bytes
-from .util import artifact_hash
 
 PRIVATE_RESPONSE_ARTIFACT_TYPE = "chatgpt-browser-private-response"
 PRIVATE_RESPONSE_VERSION = 5
@@ -96,6 +91,8 @@ def packet_subject(packet: dict[str, Any], *, candidate_record=None, candidate_r
         return subject
     if candidate_root is None:
         raise SystemExit("candidate subject requires the current repository")
+    from .candidate_identity import candidate_binding, candidate_errors, verify_candidate
+
     if candidate_errors(candidate_record) or verify_candidate(candidate_record, candidate_root):
         raise SystemExit("candidate subject is malformed, stale or does not match current source")
     if candidate_record["bead_id"] != packet.get("bead_id"):
@@ -164,6 +161,8 @@ def _conversation_errors(record: dict[str, Any]) -> list[str]:
 
 
 def _prepared_errors(record: dict[str, Any]) -> list[str]:
+    from .outbound_screen import SCREEN_VERSION
+
     errors = []
     version = record.get("outbound_screen_version")
     if type(version) is not int or version != SCREEN_VERSION:
@@ -187,30 +186,6 @@ def provenance_errors(record: dict[str, Any]) -> list[str]:
         if type(record.get(key)) is not int or record[key] < 1:
             errors.append(f"{key} must be a positive integer")
     return errors
-
-
-def build_private_provenance(metadata: dict[str, Any], prompt: str, browser_result: dict[str, Any], *,
-                             response_file: str, captured_at: str) -> dict[str, Any]:
-    """Construct the existing writer's v5 record; missing binding keeps diagnostic captures incomplete."""
-    text = browser_result.get("response_text")
-    if not isinstance(text, str) or not text.strip():
-        raise SystemExit("browser response capture is empty; no private response artifact was written")
-    record = {**_projection(metadata, (*_PACKET_FIELDS, "epic_id", "subject", "packet_source_sha256")),
-              **_projection(browser_result, (*_PREPARED_FIELDS, *_OBSERVATION_FIELDS, "request_id",
-                                            "submitted_sha256", "send_admission_sha256", "model_attestation",
-                                            "conversation_text_sha256")),
-              "artifact_type": PRIVATE_RESPONSE_ARTIFACT_TYPE, "version": PRIVATE_RESPONSE_VERSION,
-              "captured_at": captured_at, "prompt_sha256": artifact_hash(prompt),
-              "response_file": response_file, "response_sha256": sha256_bytes(text.encode("utf-8")),
-              "response_chars": len(text), "response_bytes": len(text.encode("utf-8")),
-              "share": {"created": bool(browser_result.get("share_url"))}}
-    errors = provenance_errors(record)
-    reasons = list(browser_result.get("capture_incomplete_reasons") or [])
-    if browser_result.get("capture_complete") is not True:
-        reasons.append("capture-checks-missing")
-    reasons += errors
-    record.update(capture_complete=not reasons, capture_incomplete_reasons=reasons, access_limit=ACCESS_LIMIT)
-    return record
 
 
 def capture_audit_fields(record: dict[str, Any], provenance_sha256: str) -> dict[str, Any]:
@@ -237,6 +212,8 @@ class PrivateCaptureExpectation:
 
 
 def _capture_event(capture_event_hash: str, audit_file: Path | None) -> dict[str, Any]:
+    from .audit import iter_audit_events
+
     if not _digest(capture_event_hash):
         raise SystemExit("private intake requires an independently selected capture event hash")
     matches = [event for event in iter_audit_events(audit_file)
@@ -250,6 +227,8 @@ def select_private_capture(packet: dict[str, Any], *, packet_source_sha256: str,
                            audit_file: Path | None = None, candidate_record=None,
                            candidate_root=None) -> PrivateCaptureExpectation:
     """Select expectations from current source and the real independently chosen persisted event."""
+    from .packet_provenance import require_production_contractor_packet
+
     require_production_contractor_packet(packet, audit_file=audit_file)
     subject = packet_subject(packet, candidate_record=candidate_record, candidate_root=candidate_root)
     if subject_errors(packet.get("subject")) or packet["subject"] != subject:

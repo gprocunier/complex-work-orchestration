@@ -39,9 +39,14 @@ CWO links the dispatch, private return and evaluator record in the host audit.
 The evaluator reports the score and review status. The reply text stays in the
 private artifact. For a candidate-bound packet, supply `--candidate` and
 `--candidate-root` at evaluation. Complete any required peer review and
-adjudication before using the findings. Share-link ingestion remains held.
+adjudication before using the findings. Share URL and HTML intake is retired.
 
 If an assignment requires this reviewer and the route or required evidence is
 unavailable, record the missing prerequisite and obtain the operator's decision
 before dependent implementation. For saved CDP captures, see
 [Private browser returns](private-browser-artifacts.md).
+
+For a redacted rehearsal of a saved legacy browser configuration, use
+`cwo browser-review --dry-run`. The command validates the packet and config
+locally and logs the rehearsal by default. Calls without `--dry-run`, including
+`--confirm-only`, refuse before loading the packet or config.

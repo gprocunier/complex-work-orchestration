@@ -154,7 +154,8 @@ class PlanningNarrativeTests(unittest.TestCase):
         workflow = (ROOT / 'references/chatgpt-pro-browser.md').read_text()
         for phrase in ('@Chrome', 'prepare-browser', '--browser-reply',
                        '--request-id', '--model-label', "operator's decision",
-                       'visible message text', 'private run directory', 'Share-link ingestion remains held'):
+                       'visible message text', 'private run directory',
+                       'Share URL and HTML intake is retired'):
             self.assertIn(phrase, workflow)
 
 
