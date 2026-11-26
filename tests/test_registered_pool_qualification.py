@@ -25,9 +25,10 @@ from registered_pool_qualification_capability import (  # noqa: E402
     CallbackCalibrationError,
     ConnectedPoolCallbackCapability,
 )
-from cwo_core.native_pool_contracts import MAX_CERTIFIED_CHECK_MS, canonical_sha256  # noqa: E402
+from cwo_core.native_pool_contracts import MAX_CERTIFIED_CHECK_MS, canonical_sha256, zero_token_usage  # noqa: E402
 from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts  # noqa: E402
 from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits  # noqa: E402
+from cwo_core.native_pool_scheduler import AggregateUsageLedger  # noqa: E402
 from cwo_core.native_pool_transaction import TransactionJournal, TransactionRuntime, seal_transaction_plan  # noqa: E402
 from cwo_core.native_pool_workspace import capture_workspace_snapshot  # noqa: E402
 from prepare_native_pool_qualification import _materialize_fixtures, _prepare  # noqa: E402
@@ -86,6 +87,11 @@ def finish_answer(marker):
     if behavior != 'missing-marker-phase':
         final['phase'] = 'finalAnswer' if behavior == 'wrong-marker-phase' else 'final_answer'
     notify('item/started', dict(thread_scope, item=final))
+    if behavior == 'terminal-token-counters':
+        counters = {'input_tokens': 9, 'cached_input_tokens': 4 if inputs['existing'] else 0,
+                    'output_tokens': 3, 'reasoning_output_tokens': 1 if inputs['existing'] else 0,
+                    'total_tokens': 12}
+        append([event('token_count', info={'total_token_usage': counters})])
     append([event('task_complete', last_agent_message=marker, error=None)])
     notify('item/completed', dict(thread_scope, item=dict(final, text=marker)))
     notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'completed', 'items': []}})
@@ -394,6 +400,41 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         self.assertTrue(parent.cleanup(monotonic() + 2))
         status = [kind for _, kind in parent.limits.rows]
         self.assertLess(max(index for index, kind in enumerate(status) if kind == "tool-debit"), status.index("writer-gate"))
+
+    def test_terminal_token_telemetry_remains_in_the_archived_boundary(self):
+        parent = self._prepare_workers(2, ("terminal-token-counters", "terminal-token-counters"))
+        first, second = parent.workers.values()
+        ledger = AggregateUsageLedger(list(parent.workers))
+
+        def observe(control, sequence):
+            evidence = control.evidence("inert-state")
+            return ledger.observe(child_id=control.worker.child_id, child_state_sha256=evidence["state_sha256"],
+                                  decision_sequence=sequence, cumulative_usage=evidence["usage"])
+
+        controls = [adapter._WorkerControl(worker, {"state_file": "inert-state"}) for worker in (first, second)]
+        first.start_turn()
+        self.assertEqual(controls[0].check(), {"decision": "continue"})
+        self.assertEqual(observe(controls[0], 1).aggregate["tokens"], zero_token_usage())
+        second.start_turn()
+        self._wait(lambda: all(worker.poll() for worker in (first, second)))
+
+        for control, cached, reasoning in zip(controls, (0, 4), (0, 1), strict=True):
+            worker = control.worker
+            with self.subTest(child=worker.child_id):
+                self.assertEqual(control.check(), {"decision": "complete"})
+                terminal = worker._result["boundary"]
+                expected = {"input": 9, "cached_input": cached, "output": 3, "reasoning": reasoning, "total": 12}
+                self.assertEqual(terminal["token_snapshot"], expected)
+                self.assertEqual(observe(control, 2).delta["tokens"], zero_token_usage())
+                worker.archive()
+                original = adapter.locate_unique_session(worker.spool, worker.thread_id)
+                self.assertEqual(original.store, "archived_sessions")
+                archived, _ = adapter._capture_rollout(original.path, worker.thread_id, baseline=terminal)
+                self.assertEqual(archived["token_snapshot"], expected)
+        usage = ledger.aggregate
+        self.assertEqual((usage["tool_calls"], usage["mutations"]), (2, 2))
+        self.assertGreater(usage["runtime_seconds"], 0)
+        self.assertEqual(usage["tokens"], zero_token_usage())
 
     def test_bad_callback_never_reaches_the_barrier_or_writer(self):
         parent, worker = self._refused_writer("wrong-command")

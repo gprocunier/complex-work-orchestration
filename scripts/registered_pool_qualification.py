@@ -956,14 +956,14 @@ class _WorkerControl:
             elif not worker.parent.calibration_only:
                 # The coordinator closes an unsuccessful worker as interrupted.
                 session_disposition, artifact_disposition = "quarantined", "rejected"
+        # Verified provider counters belong to the terminal rollout boundary.
+        # Pool accounting requires stable token availability through settlement.
         usage = zero_usage()
         refused = worker.isolation_target and worker.limits._isolation_refused
         usage.update(tool_calls=int(worker._writer_done or refused), mutations=int(worker._writer_done))
         if worker._start_ns is not None:
             elapsed = (worker._end_ns or monotonic_ns()) - worker._start_ns
             usage["runtime_seconds"] = (elapsed + 999_999_999) // 1_000_000_000
-        if result is not None and (tokens := result["boundary"].get("token_snapshot")) is not None:
-            usage["tokens"] = {**tokens, "availability": "available", "unavailable_reason": None}
         return {"state_sha256": canonical_sha256({"terminal": result, "archive": worker._archived}),
                 "usage": usage, "protected_fault": False, "control_loss": False, "failure_class": None,
                 "recovery_evidence_sha256": None, "reasons": [],
