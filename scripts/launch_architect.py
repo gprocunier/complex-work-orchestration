@@ -12,13 +12,16 @@ from manage_instruction_profile import PROFILE_NAME
 from model_catalog_startup import configure_cli_model_catalog
 
 
+_DIRECTORY_OPTIONS = {'-C', '--cd'}
+
+
 def _launch_directory(arguments):
     directory = Path.cwd()
     remaining = iter(arguments)
     for argument in remaining:
         if argument == '--':
             break
-        if argument in ('-C', '--cd'):
+        if argument in _DIRECTORY_OPTIONS:
             directory = Path(next(remaining, '.'))
         elif argument.startswith('--cd='):
             directory = Path(argument.removeprefix('--cd='))
@@ -27,9 +30,22 @@ def _launch_directory(arguments):
     return str(directory.resolve())
 
 
-def _delegation_settings(arguments):
+def _has_excluded_launch_argument(arguments):
     excluded = {'--remote', '--remote-auth-token-env', '--worktree', 'agents'}
-    if not (sys.stdin.isatty() and sys.stdout.isatty()) or any(arg.split('=', 1)[0] in excluded for arg in arguments):
+    directory_value = False
+    parse_options = True
+    for argument in arguments:
+        name = argument.partition('=')[0]
+        if name in excluded and not (name == 'agents' and directory_value):
+            return True
+        if argument == '--':
+            parse_options = False
+        directory_value = parse_options and not directory_value and argument in _DIRECTORY_OPTIONS
+    return False
+
+
+def _delegation_settings(arguments):
+    if not (sys.stdin.isatty() and sys.stdout.isatty()) or _has_excluded_launch_argument(arguments):
         return {}
     prefix = 'mcp_servers.cwo-delegation.'
     script = Path(__file__).resolve().with_name('registered_delegation_foreground.py')

@@ -3064,7 +3064,7 @@
 
 "zE":[155,542,"self._appserver.launch(command, self.home)",23,542,65],
 
-"zF":[144,67,"os.execvp(\"codex\", command + arguments)",8,67,47],
+"zF":[144,83,"os.execvp(\"codex\", command + arguments)",8,83,47],
 
 "zG":[151,"ServerRequestPreparationTests.test_timestamped_notification_preserves_the_actual_frame",344,"AtzQIfiZYU8q4Z74MNPUybtWaQHjkUg_nYzOPejpD-c"],
 
@@ -4931,7 +4931,7 @@
 
 [48,498,0,498,22,"beads",{"$":219},[{"$":9},"i"]],
 
-[83,67,8,67,47,"process","NdppeZRW5Cvb36OQbx6XPY4DDdDEcPdaSDo6VVrpQs4",["route","N12.1","zF"]],
+[83,83,8,83,47,"process","NdppeZRW5Cvb36OQbx6XPY4DDdDEcPdaSDo6VVrpQs4",["route","N12.1","zF"]],
 
 [49,108,34,108,65,"dynamic","fFERagDLCqlzxpkrONgSzaqdQV-5FWKzIulOlbgiUTM",[{"$":9},"d6"]],
 
@@ -6602,7 +6602,7 @@
 
 "@143":["HijO0EyKQ5KHF54YpoPkvgdtIuwj7Wylu9Cby8XCBvI",420,1996],
 
-"@144":["Iie4oVRalUBp8W4Nq-Wv07Y_2LwsNPl8Y_evQoudVro",420,2839],
+"@144":["BjJnd2rhcH-kCfqWOeodt5aCYUhySAmu218zbuvayz0",420,3316],
 
 "@145":["N2XzdWb9Kl-4SLoM-cGPjnjNzy9SQW-340KZDfU4IT4",420,11195],
 
