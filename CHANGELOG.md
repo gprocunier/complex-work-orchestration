@@ -11,6 +11,7 @@
 - Retire the fixed contained-pool qualification campaign, including `scripts/prepare_native_pool_qualification.py` and its protected controller. The original procedure is archived in CWO v1.45.0. Use `cwo delegate-pool` to run an approved cohort.
 - Check published site prose for stale availability claims against the claims register.
 - Consolidate duplicated routing, reporting, and validation code.
+- Redact recognizable credentials and personal details from packet text, check for residual content independently, and expand outbound screening to addresses, international phone numbers, payment cards, and hex- or base64-encoded secrets.
 
 ## 1.48.0 - 2026-11-26
 

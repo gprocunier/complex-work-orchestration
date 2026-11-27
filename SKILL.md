@@ -169,9 +169,9 @@ three units or six reads warn; four or eleven require replanning.
 
 ## Contractor And Local Worker Gates
 
-Outside contractor packets require explicit opt-in, one primary
-`contract-jd-*` label, guard labels, share boundary, provider metadata, packet
-validation, audit, return normalization, evaluation, and architect adjudication:
+Outside packets require explicit opt-in, one primary `contract-jd-*` label, guard labels,
+share boundary, provider metadata, redaction, screening, validation, audit,
+return normalization, evaluation and architect adjudication.
 
 ```bash
 python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --external-ok --format json --output contractor-packet.json

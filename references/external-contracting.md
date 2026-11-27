@@ -100,22 +100,24 @@ manual sharing or local mutation happened elsewhere.
 Packet redaction is structure-aware. Secret-like fields in assignments and
 bounded JSON/YAML-style structures are removed aggressively. For fields that are
 structurally present, even short alphabetic values (for example `safe`) are
-redacted by design to keep disclosure conservative. In ordinary prose, a
-secret-like word is removed only when the following value has a strong credential
-shape. Do not place real credentials in source text or rely on redaction as the
-only disclosure control; inspect the rendered packet before dispatch.
+redacted by design to keep disclosure conservative. Packet redaction also
+removes credentials from URLs, recognized AWS keys in prose, email addresses,
+formatted phone numbers and recognizable personal names. If a private-key
+block has no closing marker, redaction removes the rest of that text field.
+An independent check looks for sensitive content left after redaction. Keep
+credentials out of source text and inspect the rendered packet before dispatch.
 
 A separate outbound screen (`cwo_core.outbound_screen`, rules in
 `policy/outbound-screening.yaml`) then inspects the exact bytes about to leave:
 the printed manual export and the local HTTP request body. It reads the raw
-text, a normalized view (NFKC, common confusable letters folded, zero-width
-and other format characters removed) and every decoded JSON string, and it
-refuses on any finding, certain or uncertain, without repeating the matched
-value. Manual export refuses before quota or audit effects and prints exactly
-the screened bytes; local HTTP sends the screened body and refuses if it
-changed after screening. The screen is a second, separately maintained check,
-not a promise to find every secret, and there is no exception mechanism yet:
-remove or reword flagged content.
+text, normalized and decoded views, and JSON strings. Its checks include
+recognizable personal names, street addresses, international phone
+numbers, payment-card numbers and recognizable secrets in bounded hex and
+base64 text. Any finding, certain or uncertain, stops disclosure without
+repeating the matched value. Manual export stops before quota or audit effects
+and prints exactly the screened bytes on success. Local HTTP sends the screened
+body and refuses if it changed after screening. Review the packet for sensitive
+information the screen may miss, and remove or reword flagged content.
 
 Supported disclosure formats are finite: manual export accepts plain text or
 JSON, the browser composer accepts plain text, and local HTTP requests accept

@@ -37,6 +37,9 @@ The maintained offline witnesses cover these boundaries:
 | Native/process launch | The registered single-worker route requires exact signed workflow and disclosure adoption, production authentication and provider-only egress. The contained pool has a separate approved cohort route. Raw native, generic pool plans, campaigns, new surface qualification and activation retain source holds. A precommit packet receipt supplies no launch authority or aggregate accounting. [Native route requirements](native-live-route-holds.md) |
 | Manual preparation/export | [Outbound screening](../tests/test_outbound_screen.py) checks the exact emitted text. Export proves preparation/disclosure only; a packet or preparation receipt grants no remote invocation, billing or cancellation allowance. |
 
+Local HTTP request bodies use the same [outbound checks for sensitive content](external-contracting.md#trust-model-and-enforcement-boundary)
+as manual exports. A finding stops the request before transport.
+
 For a one-use local invocation, racing consumers cannot both enter its registered
 effect. Browser probes may repeat only after a definite waiting observation that
 confirms no Send occurred. At-most-one local invocation does not establish

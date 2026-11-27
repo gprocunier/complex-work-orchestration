@@ -88,10 +88,12 @@ unrestricted process under the controller account can access the login home.
 | ChatGPT Pro | The shipped integration prepares the screened request for a Codex architect thread in the ChatGPT desktop app. With the operator present, the thread uses the paired `@Chrome` profile to send the request and capture the reply. The operator reported a successful desktop round trip with matching reply and evaluator digests. | CWO binds the prepared request ID, private reply bytes, sender-confirmed model picker label and evaluation. The sender supplies the browser and model observations. Legacy CDP dispatch and share-link intake remain held. [Desktop integration](https://github.com/gprocunier/complex-work-orchestration/pull/163) · [Desktop workflow](chatgpt-pro-browser.md) |
 
 Packet helpers enforce external opt-in, the approved disclosure boundary and
-exact exported-byte screening when invoked. Redaction and screening check for
-known patterns. They can miss sensitive information and depend on the operator
-to inspect what will be shared. The operator or lead runs external CLI calls
-under that environment's controls. An exported prompt records preparation.
+exact exported-byte screening when invoked. Packet redaction and its separate
+residual check look for credentials and recognizable personal details. Outbound
+screening also examines bounded hex and base64 text for sensitive content.
+These checks can miss patterns, so inspect what will be shared. The operator or
+lead runs external CLI calls under that environment's controls. An exported
+prompt records preparation.
 Observed peer-review evidence is still required when policy calls for it.
 A required review stays open until the original evidence is available.
 [Contractor dispatch](external-contracting.md#dispatch-flow) ·
