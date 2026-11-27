@@ -3,7 +3,8 @@
 Scope. The lint reads every file under ``scripts/`` (current runtime code) and
 every ``policy/*.yaml`` document (current policy) except the register itself
 and ``policy/model-roles.yaml``, the authority for configured model identities.
-The latter is checked by its closed schema and role validator. The lint does not read archived or historical
+The latter is checked by its closed schema and role validator. The exact native
+preferred-model field can mirror the configured Luna model. The lint does not read archived or historical
 records: ``schemas/`` (versioned record contracts, including frozen const
 identities), ``tests/`` and their fixtures, ``calibration/``, ``docs/``,
 ``references/``, ``examples/`` and ``CHANGELOG.md``. A historical record is
@@ -51,6 +52,7 @@ from .policy_schema import policy_document_errors
 IDENTITY_PATTERN = re.compile(r"(?<![a-z0-9])gpt-[0-9]+(?:\.[0-9]+)*(?:-[a-z0-9]+)*", re.IGNORECASE)
 REGISTER_FILE = "model-identity-scope.yaml"
 ROLE_POLICY_FILE = "model-roles.yaml"
+NATIVE_POLICY_FILE = "native-worker-execution.yaml"
 SOURCE_ROOT = "scripts"
 POLICY_ROOT = "policy"
 OUT_OF_SCOPE = ("schemas", "tests", "calibration", "docs", "references", "examples", "CHANGELOG.md")
@@ -75,6 +77,18 @@ def _policy_findings(value: Any, pointer: str, out: list[tuple[str, str]]) -> No
             _policy_findings(item, f"{pointer}/{index}", out)
     elif isinstance(value, str):
         out.extend((pointer, literal) for literal in find_identities(value))
+
+
+def _registered_policy_findings(document: Any, filename: str, luna_model: str) -> list[tuple[str, str]]:
+    findings: list[tuple[str, str]] = []
+    _policy_findings(document, "", findings)
+    if filename != NATIVE_POLICY_FILE or not isinstance(document, dict):
+        return findings
+    governance = document.get("governance")
+    worker = governance.get("native_operative_worker") if isinstance(governance, dict) else None
+    if isinstance(worker, dict) and worker.get("preferred_model") == luna_model:
+        findings.remove(("/governance/native_operative_worker/preferred_model", luna_model))
+    return findings
 
 
 def _contains(location: str, pointer: str) -> bool:
@@ -134,7 +148,7 @@ def lint_model_identities(repo_root: Path) -> list[str]:
     try:
         register = load_json_compatible_yaml(policy_dir / REGISTER_FILE)
         roles = load_json_compatible_yaml(policy_dir / ROLE_POLICY_FILE)
-        native = load_json_compatible_yaml(policy_dir / "native-worker-execution.yaml")
+        native = load_json_compatible_yaml(policy_dir / NATIVE_POLICY_FILE)
         schema_errors = _lint_policy_errors(register, roles)
     except SystemExit as exc:
         return [f"model identity lint cannot load policy: {exc}"]
@@ -157,8 +171,7 @@ def lint_model_identities(repo_root: Path) -> list[str]:
         except SystemExit as exc:
             errors.append(str(exc))
             continue
-        findings: list[tuple[str, str]] = []
-        _policy_findings(document, "", findings)
+        findings = _registered_policy_findings(document, path.name, roles["roles"]["luna"]["current"])
         for pointer, literal in findings:
             owners = [key for key in locations if key[0] == path.name and _contains(key[1], pointer)]
             if not owners:

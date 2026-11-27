@@ -35,6 +35,7 @@ from .paths import REPO_ROOT
 
 
 SCHEMA_DIR = REPO_ROOT / "schemas"
+_PROVIDER_REGISTRY_V1_SCHEMA = "provider-registry.schema.json"
 _PROVIDER_REGISTRY_V2_SCHEMA = "provider-registry-v2.schema.json"
 _PROVIDER_REGISTRY_V2_MAX_UNDERLYING = 32
 _PROVIDER_REGISTRY_V2_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9_-]{0,127}")
@@ -74,7 +75,7 @@ POLICY_SCHEMAS = {'acceptance-policy.yaml': 'acceptance-policy.schema.json',
  'native-worker-execution.yaml': 'native-worker-execution-policy.schema.json',
  'outbound-screening.yaml': 'outbound-screening.schema.json',
  'peer-review-policy.yaml': 'peer-review-policy.schema.json',
- 'provider-registry.yaml': 'provider-registry.schema.json',
+ 'provider-registry.yaml': _PROVIDER_REGISTRY_V1_SCHEMA,
  'return-tripwires.yaml': 'return-tripwires.schema.json',
  'risk-features.yaml': 'risk-features.schema.json',
  'routing-policy.yaml': 'routing-policy.schema.json',
@@ -159,6 +160,7 @@ POLICY_VALIDATION_BOUNDARIES = {
         "schema",
         "schemas/provider-registry.schema.json is the closed V1 default; exact integer version 2 selects "
         "schemas/provider-registry-v2.schema.json and bounded direct-provider references at load; "
+        "both versions check the host Codex access class; "
         "reliability metadata grants no data access, output trust or execution authority",
     ),
     "return-tripwires.yaml": ("schema", "schemas/return-tripwires.schema.json"),
@@ -525,15 +527,19 @@ def _provider_registry_v2_errors(value: dict[str, Any]) -> list[str]:
 
 
 def _policy_instance_errors(value: Any, schema_name: str) -> list[str]:
-    """Apply the selected schema and bounded V2 reliability references."""
+    """Apply the selected schema and provider-specific loader checks."""
     schema = load_policy_schema(schema_name)
-    if schema_name != _PROVIDER_REGISTRY_V2_SCHEMA:
-        return validate_instance(value, schema)
-    bounds = _provider_registry_v2_size_errors(value)
-    if bounds:
-        return bounds
+    if schema_name == _PROVIDER_REGISTRY_V2_SCHEMA:
+        bounds = _provider_registry_v2_size_errors(value)
+        if bounds:
+            return bounds
     errors = validate_instance(value, schema)
-    return errors or _provider_registry_v2_errors(value)
+    if errors or schema_name not in (_PROVIDER_REGISTRY_V1_SCHEMA, _PROVIDER_REGISTRY_V2_SCHEMA):
+        return errors
+    codex = value["providers"].get("internal_codex")
+    if codex is not None and codex["trust_tier"] != "host-internal":
+        return ["$.providers.internal_codex.trust_tier: must equal \"host-internal\""]
+    return _provider_registry_v2_errors(value) if schema_name == _PROVIDER_REGISTRY_V2_SCHEMA else []
 
 
 def policy_document_errors(filename: str, value: Any) -> list[str]:

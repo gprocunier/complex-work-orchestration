@@ -35,6 +35,11 @@ at startup. The optional `pin` takes precedence over discovery. The selected
 model stays fixed for that attempt. To roll back, select the explicit mode and
 use the model recorded in `previous`.
 
+The shipped worker policy records `gpt-6-luna` as its preferred model, matching
+the shipped Luna role. Active routing resolves the role for each new attempt.
+Older Spark-first records use the historical routing policy and its exact-model
+rosters.
+
 The shipped policy does not contain a `cyber_fallback` role. A user who chooses
 to enable refusal recovery adds this entry under `roles` in their installed
 `policy/model-roles.yaml`:

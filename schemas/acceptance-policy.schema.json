@@ -74,12 +74,13 @@
       "additionalProperties": false,
       "properties": {
         "thresholds": {
+          "description": "Compatibility mirror of the production sabotage thresholds in policy/contracting-controls.yaml. The repository validator checks agreement.",
           "type": "object",
           "additionalProperties": false,
           "properties": {
-            "review": {"type": "number"},
-            "architect_escalation": {"type": "number"},
-            "quarantine": {"type": "number"}
+            "review": {"type": "integer", "minimum": 1, "maximum": 100},
+            "architect_escalation": {"type": "integer", "minimum": 1, "maximum": 100},
+            "quarantine": {"type": "integer", "minimum": 1, "maximum": 100}
           }
         },
         "signal_notes": {

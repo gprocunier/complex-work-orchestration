@@ -49,21 +49,28 @@ Use the policy files as the source of truth for contractor routing:
   terms.
 - `policy/executor-registry.yaml`: registered internal and outside executors
   with provider bindings.
-- `policy/provider-registry.yaml`: provider trust tiers, retention classes, and
-  conflict-risk domains.
+- `policy/provider-registry.yaml`: configured provider access classes, retention
+  classes, and conflict-risk domains. Host Codex is `host-internal`. Provider
+  metadata records provenance and generated output requires validation. Both
+  registry versions require `host-internal` for the host Codex entry. Update
+  `providers.internal_codex.trust_tier` in any custom registry that still uses
+  `trusted-internal`.
 - `policy/expert-registry.yaml`: discipline triggers, job-description labels,
   and expected reasoning lenses.
 - `policy/share-boundaries.yaml`: allowed sharing modes and disclosure-stage
   escalation rules.
 - `policy/peer-review-policy.yaml`: when contractor results require independent
   peer review.
-- `policy/acceptance-policy.yaml`: required contractor return sections,
-  sabotage/malpractice scoring, and quarantine.
+- `policy/acceptance-policy.yaml`: required contractor return sections, scoring
+  rubric, and verdicts.
 - `policy/zero-trust-consensus-policy.yaml`: independent trust-domain counting,
   structured claim comparison, divergence thresholds, and no-positive-confidence
   states for synthesis work that needs cross-domain security review.
-- `policy/contracting-controls.yaml`: manual dispatch, audit, and
-  adjudication requirements.
+- `policy/contracting-controls.yaml`: manual dispatch, audit, adjudication, and
+  production sabotage and malpractice scoring. A sabotage score of 20
+  recommends peer review, 35 recommends architect escalation, and 50 recommends
+  quarantine. The repository validator checks the matching values in the
+  acceptance and peer-review policies.
 - `schemas/`: machine-readable shapes for route results, contractor packets,
   returns, acceptance decisions, Beads metadata, and audit events.
 

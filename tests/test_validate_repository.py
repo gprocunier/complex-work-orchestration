@@ -30,8 +30,10 @@ from validate_repository import (  # noqa: E402
     validate_waiver_conventions,
 )
 from cwo_core import release_effect_routes
+from cwo_core.policy import load_policy
 from cwo_core.waivers import require_waiver_reason  # noqa: E402
 from tests.real_beads_fixture import configure_git_fixture
+from tests.test_policy_current_effects import current_policy
 
 
 class ValidateRepositoryTests(unittest.TestCase):
@@ -75,6 +77,36 @@ class ValidateRepositoryTests(unittest.TestCase):
 
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
+
+    def test_repository_refuses_schema_valid_policy_contradictions(self) -> None:
+        cases = (
+            (
+                "native-worker-execution",
+                lambda d: d["governance"]["native_operative_worker"].update(preferred_model="gpt-5.3-codex-spark"),
+                "native-worker-execution governance.native_operative_worker.preferred_model must match",
+            ),
+            (
+                "acceptance-policy",
+                lambda d: d["sabotage"]["thresholds"].update(quarantine=61),
+                "acceptance-policy sabotage.thresholds.quarantine must match",
+            ),
+            (
+                "peer-review-policy",
+                lambda d: d["sabotage_thresholds"].update(quarantine=61),
+                "peer-review-policy sabotage_thresholds.quarantine must match",
+            ),
+        )
+        with current_policy() as root:
+            for name, mutate, _expected in cases:
+                path = root / "policy" / f"{name}.yaml"
+                document = json.loads(path.read_text(encoding="utf-8"))
+                mutate(document)
+                path.write_text(json.dumps(document), encoding="utf-8")
+                self.assertEqual(load_policy(name), document)
+            errors = validate_repository()
+        for name, _mutate, expected in cases:
+            with self.subTest(policy=name):
+                self.assertTrue(any(error.startswith(expected) for error in errors), errors)
 
     def test_python_line_ceiling_counts_tracked_recursive_sources(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -18,7 +18,7 @@
     },
     "native_operative_worker": {
       "role": "operative-worker",
-      "preferred_model": "gpt-5.3-codex-spark",
+      "preferred_model": "gpt-6-luna",
       "authorized_models": [
         "gpt-5.3-codex-spark",
         "gpt-5.5",

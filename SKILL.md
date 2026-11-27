@@ -186,12 +186,12 @@ or the operator explicitly changes that requirement. For ChatGPT Pro, follow the
 [ChatGPT desktop app workflow](references/chatgpt-pro-browser.md). Local inference
 requires `--local-ok`. Use `--prefer-local` only for an intended low-risk local review lane.
 
-Current native workers use the exact configured model selected for the assignment.
-The attested actual model must exactly match that immutable request;
-missing or mismatched identity stops the affected dispatch. Do not substitute another model.
-Spark records are historical compatibility material, not a new dispatch route.
+Use the configured Luna model first for focused native work. Each assignment fixes its exact model.
+Stop on missing or mismatched attestation. Do not substitute another model.
+Spark records remain available for historical inspection.
 
-Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, and boundary-tainted returns until peer review and architect adjudication complete.
+Use `scripts/workspace_mutation_guard.py` around external CLIs with checkout access.
+Quarantine returns for sabotage scores of 50 or higher, high malpractice, provider conflict, or boundary taint pending peer review and architect adjudication.
 
 ## Run Readiness And Closeout
 

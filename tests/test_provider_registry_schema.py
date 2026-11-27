@@ -38,6 +38,16 @@ def edit(path: tuple[str, ...], value: Any = _MISSING) -> Callable[[dict[str, An
 
 
 class ProviderRegistrySchemaTests(unittest.TestCase):
+    def test_both_registry_versions_refuse_the_retired_host_codex_access_class(self) -> None:
+        def mutate(document: dict[str, Any], version: int) -> None:
+            document["version"] = version
+            document["providers"]["internal_codex"]["trust_tier"] = "trusted-internal"
+
+        for version in (1, 2):
+            with self.subTest(version=version):
+                self.assert_refused(lambda document: mutate(document, version),
+                                    fragment="$.providers.internal_codex.trust_tier")
+
     def test_r6_optional_review_model_table_is_closed_and_typed(self) -> None:
         self.assert_refused(edit(('review_models', 'openai', 'gpt-6-astra', 'stronger_than'), True),
                             fragment='stronger_than')

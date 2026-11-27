@@ -16,7 +16,19 @@
       "properties": {
         "sol": {"type": "object", "additionalProperties": false, "properties": {"role": {"type": "string"}, "may_authorize_worker_packets": {"type": "boolean"}, "may_execute_operative_work": {"type": "boolean"}, "can_assign_continuation": {"type": "boolean"}}},
         "spark": {"type": "object", "additionalProperties": false, "properties": {"role": {"type": "string"}, "exact_model": {"type": "string"}, "session_type": {"type": "string"}, "tool_gate_required": {"type": "boolean"}}},
-        "native_operative_worker": {"type": "object", "additionalProperties": false, "properties": {"role": {"type": "string"}, "preferred_model": {"type": "string"}, "authorized_models": {"type": "array", "items": {"type": "string"}}, "authorized_fallback_models": {"type": "array", "items": {"type": "string"}}, "fallback_selection": {"type": "string"}, "session_type": {"type": "string"}, "tool_gate_required": {"type": "boolean"}}}
+        "native_operative_worker": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "role": {"type": "string"},
+            "preferred_model": {"type": "string", "description": "Shipped model for the primary native role. The repository validator checks agreement with policy/model-roles.yaml."},
+            "authorized_models": {"type": "array", "items": {"type": "string"}, "description": "Historical exact-model roster."},
+            "authorized_fallback_models": {"type": "array", "items": {"type": "string"}, "description": "Historical Spark fallback roster."},
+            "fallback_selection": {"type": "string"},
+            "session_type": {"type": "string"},
+            "tool_gate_required": {"type": "boolean"}
+          }
+        }
       }
     },
     "rollout_mode": {"type": "string"},
