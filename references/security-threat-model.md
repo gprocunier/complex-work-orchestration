@@ -148,10 +148,10 @@ refusal. The embedding host selects the adjudication callable and records its
 identity. The record depends on that host's integrity. The shipped original
 review-host producer remains held. The narrative CLI records
 `pending-acceptance`. Verified production success requires the library. The
-independently held activation preview uses a different pool receipt mechanism
-with no verified production closure authority.
+retired activation executor's historical pool receipts apply to the original
+preview attempt. The current preview validates plans and approvals offline.
 [Verified closure library](run-readiness.md#verified-closure-library) ·
-[Activation hold](native-live-route-holds.md).
+[Activation preview refusal](native-live-route-holds.md).
 
 ## Instruction-only controls and remaining trust
 

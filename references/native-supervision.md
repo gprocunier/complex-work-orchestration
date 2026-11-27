@@ -432,17 +432,15 @@ admission, scheduling, inspection, lease, and rollback details.
 ## Separate Activation Preview
 
 Exact server-side tool allowlisting is required for ordinary operative work.
-The disabled `trusted-detect-and-contain` activation preview explores a weaker
-boundary in which an unlisted built-in could act before detection. It is not the
-normal N=1 path and is not equivalent to server-side prevention.
+The offline `trusted-detect-and-contain` activation preview records risk intent
+for a historical boundary in which an unlisted built-in could act before
+detection.
 
 The preview accepts only the fixed `n1-read-only`, `n2-read-only`, and
-`n1-mutable` profiles. A serialized override records risk intent but cannot
-authorize dispatch. Live use requires an exact prepared plan, a signed and
-unexpired operator approval, a permanent one-use claim, and explicit
-`--enable-tech-preview`; live use is currently refused before any claim or RPC
-(see [Native Supervision Pools](native-supervision-pools.md)). Use `--dry-run`
-for non-consuming validation.
+`n1-mutable` profiles. Use `--dry-run` for non-consuming validation of the
+prepared plan and operator approval. Live execution is retired.
+`--enable-tech-preview` refuses before input reads, claims or RPCs.
+[Native Supervision Pools](native-supervision-pools.md#temporary-audited-tool-boundary).
 
 Live canary campaign artifacts prove a specific certification run. They do not
 grant general authority, convert historical schemas into current dispatch

@@ -368,17 +368,20 @@ class ReviewRoundTwoTests(unittest.TestCase):
             execute(args(disposition="pending-acceptance", what_changed=["the why of the change", "disposition of old code"]))
         run_bd.assert_called_once()
 
-    def test_the_only_other_closing_writer_is_the_live_activation_preview(self) -> None:
-        """Supporting evidence for the closure survey, not proof: close_owned, the other path that closes Beads,
-        is referred to only by the activation preview runner, whose plan must name its private database."""
-        referrers = set()
+    def test_pool_close_owned_has_one_production_declaration_and_no_references(self) -> None:
+        """Audit static references to the pool closure helper after activation retirement."""
+        declarations = []
+        references = []
         for path in sorted((ROOT / "scripts").rglob("*.py")):
+            relative = path.relative_to(ROOT).as_posix()
             for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) and node.name == "close_owned":
+                    declarations.append(relative)
                 if (isinstance(node, ast.Attribute) and node.attr == "close_owned") or \
-                        (isinstance(node, ast.FunctionDef) and node.name == "close_owned"):
-                    referrers.add(path.relative_to(ROOT).as_posix())
-        self.assertEqual(referrers, {"scripts/cwo_core/native_pool_admission.py",
-                                     "scripts/run_native_pool_activation_preview.py"})
+                        (isinstance(node, ast.Name) and node.id == "close_owned"):
+                    references.append(f"{relative}:{node.lineno}")
+        self.assertEqual(declarations, ["scripts/cwo_core/native_pool_admission.py"])
+        self.assertEqual(references, [])
 
     def test_partial_persistence_is_reported_when_close_fails_after_the_comment(self) -> None:
         import contextlib

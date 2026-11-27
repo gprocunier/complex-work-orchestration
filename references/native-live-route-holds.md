@@ -3,10 +3,8 @@
 `scripts/cwo_core/native_live_availability.py` enables the registered
 single-worker and contained-pool production decisions. The generic N1, pool
 and campaign source decisions remain held. These decisions come from installed
-source. Activation preview retains its independent `LIVE_ACTIVATION_AVAILABLE`
-hold in `run_native_pool_activation_preview.py`. Its accepted-child close route
-uses pool receipts and would require a separate closure review before claiming
-verified acceptance.
+source. Activation preview execution is retired. Its CLI retains the refusal
+for live requests and continues to support offline preparation and validation.
 
 | Route | Required source decisions | Enforcement before effects |
 | --- | --- | --- |
@@ -17,15 +15,14 @@ verified acceptance.
 | Registered contained pool | `REGISTERED_CONTAINED_POOL_LIVE_AVAILABLE` and `REGISTERED_N1_LIVE_AVAILABLE` | The original host checks the approved cohort, exact model and limits, and distinct configured login custody before admission. Execution uses the same host's fresh callback capability and original registered writer. |
 | Fixed contained-pool qualification | Retired | The preparation command and protected controller are archived in [v1.45.0](https://github.com/gprocunier/complex-work-orchestration/blob/v1.45.0/references/native-supervision-pools.md#contained-qualification-on-stock-codex). |
 | Legacy serial pool and retry | Retired | The serial host refuses execution before recording intent, claiming work or reserving budget. Signed status readers check the original configuration and source image. See the [v1.46.0 serial integration record](https://github.com/gprocunier/complex-work-orchestration/blob/v1.46.0/references/codex-protocol-capability-matrix.md#protected-serial-pool-integration). |
-| Activation preview | Dedicated `LIVE_ACTIVATION_AVAILABLE` plus N1 for `n1-read-only` and `n1-mutable`; additionally pool for `n2-read-only` | Run entry checks the dedicated hold and N1 before loading inputs; the loaded profile is checked before claims, ledger creation, reservation or launch. Server creation, ledger transport RPC entry points, worker-contract allocation and accepted-child closure recheck the dedicated hold and selected profile. |
+| Activation preview | Retired | `run --enable-tech-preview` and the direct library entry points refuse before loading plans or approvals, claiming work, creating a ledger or allocating a worker. |
 | Retired campaign | Campaign, pool and N1, in that order | The CLI and library entry points check the three decisions and then refuse as retired. The CLI prints its sealed zero-allocation refusal to stderr and exits 1 without processing legacy arguments. |
 | Admitted v8 multiworker plan | N1 and pool | The loader checks the actual child count before consuming the verified operation or importing its runtime adapter. The concrete installed maintenance runtime supports exactly one worker child and one precommit session; it does not implement a multiworker maintenance cohort. |
 
 The raw transport's N1 decision is a shared prerequisite because its concrete
 constructor launches the real Codex executable. Pool and campaign checks still
-apply to adapters configured for the campaign contract. Standalone calibration
-allocates one thread and requires N1. The retired launcher remains a refusal when
-all three decisions allow.
+apply to adapters configured for the campaign contract. The retired launcher
+refuses when all three decisions allow.
 
 Structural and authority-only pool validation, activation key generation,
 preparation, approval and dry runs remain available. Offline fake-only machinery
@@ -35,9 +32,9 @@ inside their fixture lifetime while replacing model, process and RPC effects.
 independent flag combinations, direct library and supplied-server refusals, and
 fake positive controls. Registered N1/pool controls use the original factory,
 host, ledger, artifact and validation machinery with fake process/OS effects.
-`tests/test_r1_activation_preview_hold.py` additionally proves preview refusal
-with shared flags on and its dedicated hold off, before input reads, server startup
-and closure, plus controls with all required decisions patched on.
+`tests/test_r1_activation_preview_hold.py` proves the retired preview refuses
+before input reads, server startup and closure even with all former source
+switches on.
 
 The historical transport extraction and archived source fixtures remain
 historical records. Raw transport retains its source hold. Additional live
@@ -57,9 +54,11 @@ The tagged source also retains the authorization latch, campaign proof validator
 retains the read-only validator-contract digests and private JSON snapshot
 type. The read-only Git checks live in `cwo_core.native_campaign_history`. The ordinary `build_pool_contract` uses the released capacity policy.
 
-The native runner keeps the compatibility imports for its adapter, timing,
-calibration and containment. Calibration’s source binding covers the
-implementation modules and their session evidence.
+The native runner keeps compatibility imports for its shared adapter, timing
+and containment. The registered contained pool binds its writer-held callback
+calibration to the current installed source. An older approval can be
+validated offline. Execution requires an approval issued against the current
+callback implementation.
 
 A full checkout must contain the named public objects. Source archives and
 shallow checkouts run the current refusal and neutral Git-fixture checks. Exact
@@ -68,12 +67,14 @@ strict private-checkpoint verifier still requires its original objects. Neutral
 fixtures only substantiate the observed structure and dispositions. Historical
 verification grants no launch authority.
 
-## Explicit launcher binding hold
+## Historical calibration and activation preview
 
-The activation-preview launcher constructs bare `AppServer()`. The constructor
-requires explicit executable and `CODEX_HOME` bindings or a verified capture
-binding, in addition to the source holds and qualification requirements. The
-legacy campaign launcher refuses before reaching server construction.
+The original standalone calibration and activation executor are archived at
+`v1.48.0` (`7b2f3db802d7b1d1c4c555960d65d2502220f93b`). The offline
+suite replays the original fake launch and recovery witnesses with the exact
+post-Stage-2 campaign facade and source at
+`bd458b84e9ab1ef7161fe43f555c11f6ebac8c41`.
+[Archived calibration source](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/cwo_core/supervision/calibration.py) · [Archived activation procedure](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/references/native-supervision-pools.md#temporary-audited-tool-boundary).
 
 ## Registered single-worker production
 

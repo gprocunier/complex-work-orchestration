@@ -191,9 +191,10 @@ class TransportImportPathTests(unittest.TestCase):
         from cwo_core import maintenance_qualification
 
         pinned = set(maintenance_qualification._code_pins())
+        self.assertNotIn(str(ROOT / "scripts/run_native_pool_live_canaries.py"), pinned)
+        self.assertNotIn(str(ROOT / "scripts/cwo_core/supervision/calibration.py"), pinned)
         for relative in (
             "scripts/codex_tool_surface.py",
-            "scripts/run_native_pool_live_canaries.py",
             "scripts/cwo_core/native_live_availability.py",
             "scripts/cwo_core/codex_tool_surface.py",
             "scripts/cwo_core/supervision/__init__.py",
@@ -213,16 +214,19 @@ class TransportImportPathTests(unittest.TestCase):
 
 
 class AdapterImplementationDigestTests(unittest.TestCase):
-    def test_f5_held_route_digest_covers_runner_transport_and_availability(self) -> None:
+    def test_callback_digest_covers_current_calibration_transport_and_availability(self) -> None:
         self.assertEqual(
             runner.ADAPTER_IMPLEMENTATION_PATHS,
             (
-                "scripts/run_native_pool_live_canaries.py",
+                "scripts/registered_pool_qualification_capability.py",
+                "scripts/registered_pool_qualification_calibration.py",
+                "scripts/registered_pool_qualification.py",
+                "scripts/registered_pool_ordinary_runtime.py",
+                "scripts/cwo_core/native_pool_scheduler.py",
                 "scripts/cwo_core/native_live_availability.py",
                 "scripts/cwo_core/supervision/transport/app_server.py",
                 "scripts/cwo_core/supervision/transport/errors.py",
                 "scripts/cwo_core/supervision/transport/private_io.py",
-                "scripts/cwo_core/supervision/calibration.py",
                 "scripts/cwo_core/supervision/callback_timing.py",
                 "scripts/cwo_core/supervision/containment.py",
                 "scripts/cwo_core/supervision/live_thread.py",

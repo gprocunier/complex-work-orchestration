@@ -93,6 +93,10 @@ CONTRACT_FUNCTIONS = {
 }
 RUNNER_PATH = "scripts/run_native_pool_live_canaries.py"
 BOUNDARY_PATH = "scripts/cwo_core/native_session_boundary.py"
+RETIRED_CALIBRATION_PATHS = {RUNNER_PATH, "scripts/cwo_core/supervision/calibration.py"}
+RETIRED_PREVIEW_IMPORTS = {"CONTROL_TURN_ID", "calibration", "capture_server_tool_surface",
+                           "contain_started_threads", "pool_sleep"}
+CURRENT_CALIBRATION_PATH = "scripts/registered_pool_qualification_calibration.py"
 
 # Names each runtime consumer imported at the baseline, by old module path.
 BASELINE_IMPORTS = {
@@ -503,6 +507,7 @@ def adapter_digest_coverage_section() -> dict:
 
     covered = {
         "runner": RUNNER_PATH,
+        "registered-calibration": CURRENT_CALIBRATION_PATH,
         "AppServer": _defining_file(LIVE.AppServer),
         "AppServerError": _defining_file(LIVE.AppServerError),
         "load_private_bytes": _defining_file(LIVE.load_private_bytes),
@@ -981,21 +986,20 @@ class GoldenVerdictTests(unittest.TestCase):
         self.assertEqual(verdicts["known-defect-adapter-digest-unbound-to-implementation"]["errors"], [])
 
     def test_f5_held_route_adapter_digest_covers_transport_and_availability(self) -> None:
-        observed = self.check("adapter_digest_coverage")
+        observed = compute(["adapter_digest_coverage"])["adapter_digest_coverage"]
         changes = observed["digest_changes_when_file_changes"]
-        for label in ("runner", "AppServer", "AppServerError", "load_private_bytes"):
-            self.assertTrue(changes[label], label)
+        golden = self.golden["adapter_digest_coverage"]["digest_changes_when_file_changes"]
+        self.assertEqual(changes, {**golden, "runner": False, "registered-calibration": True})
         self.assertTrue(observed["digest_stable_when_restored"])
 
     def test_code_pins_still_cover_the_moved_code(self) -> None:
         observed = compute(["code_pins"])["code_pins"]
         golden = self.golden["code_pins"]
-        # The move may add pins; it may not drop one or stop covering moved code.
-        self.assertLessEqual(set(golden["pin_paths"]), set(observed["pin_paths"]))
-        self.assertLessEqual(set(LIVE.ADAPTER_IMPLEMENTATION_PATHS), set(observed["pin_paths"]))
-        self.assertEqual(observed["covers"], golden["covers"])
+        self.assertLessEqual(set(golden["pin_paths"]) - RETIRED_CALIBRATION_PATHS, set(observed["pin_paths"]))
+        self.assertFalse(RETIRED_CALIBRATION_PATHS & set(observed["pin_paths"]))
+        self.assertEqual(observed["covers"], {**golden["covers"], "runner": False})
         self.assertEqual(observed["interpreter_pinned"], golden["interpreter_pinned"])
-        self.assertTrue(all(observed["covers"].values()))
+        self.assertTrue(all(covered for label, covered in observed["covers"].items() if label != "runner"))
 
     def test_f5_held_route_identities_keep_historical_lineage_with_explicit_gates(self) -> None:
         self.check("identities")
@@ -1059,6 +1063,9 @@ class ConsumerCompatibilityTests(unittest.TestCase):
                 source = importlib.import_module(source_name)
                 for name in names:
                     with self.subTest(consumer=consumer_name, source=source_name, name=name):
+                        if consumer_name == "run_native_pool_activation_preview" and name in RETIRED_PREVIEW_IMPORTS:
+                            self.assertFalse(hasattr(consumer, name))
+                            continue
                         # The baseline inventory stays historical. The pure helper
                         # retains its owning module without rewriting the facade.
                         current = source

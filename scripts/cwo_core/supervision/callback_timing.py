@@ -102,14 +102,17 @@ def callback_certification_policy() -> dict[str, Any]:
     return dict(certification)
 
 
-# Bind the compatibility entry point, transport and current implementations.
+# Bind shared timing and transport and the current calibration implementation.
 ADAPTER_IMPLEMENTATION_PATHS = (
-    "scripts/run_native_pool_live_canaries.py",
+    "scripts/registered_pool_qualification_capability.py",
+    "scripts/registered_pool_qualification_calibration.py",
+    "scripts/registered_pool_qualification.py",
+    "scripts/registered_pool_ordinary_runtime.py",
+    "scripts/cwo_core/native_pool_scheduler.py",
     "scripts/cwo_core/native_live_availability.py",
     "scripts/cwo_core/supervision/transport/app_server.py",
     "scripts/cwo_core/supervision/transport/errors.py",
     "scripts/cwo_core/supervision/transport/private_io.py",
-    "scripts/cwo_core/supervision/calibration.py",
     "scripts/cwo_core/supervision/callback_timing.py",
     "scripts/cwo_core/supervision/containment.py",
     "scripts/cwo_core/supervision/live_thread.py",
@@ -118,7 +121,7 @@ ADAPTER_IMPLEMENTATION_PATHS = (
 
 
 def adapter_implementation_sha256() -> str:
-    """Digest every adapter source so moved transport code stays covered."""
+    """Digest current callback and shared adapter sources."""
 
     return domain_sha256(
         {
