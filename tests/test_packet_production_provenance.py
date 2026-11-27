@@ -106,8 +106,8 @@ def write_browser_config(directory: Path) -> Path:
 
 class ProvenanceCase(unittest.TestCase):
     def setUp(self) -> None:
-        self.enterContext(approved_outbound(outbound_grant(BEAD_ID, "epic-1", "claude_code_manual"),
-                                            outbound_grant(BEAD_ID, "epic-1", BROWSER_EXECUTOR)))
+        approvals = packet_approvals()
+        self.enterContext(approvals)
 
     def tearDown(self) -> None:
         policy.clear_policy_cache()
@@ -309,6 +309,12 @@ class RehearsalOutputTests(ProvenanceCase):
             for name, path in self.rehearsal_outputs(home).items():
                 with self.subTest(output=name):
                     self.assert_refused_everywhere(home, path, path, "packet is missing required field")
+
+
+def packet_approvals():
+    """Simulate the protected host's approval for the shared packet fixtures."""
+    return approved_outbound(outbound_grant(BEAD_ID, "epic-1", "claude_code_manual"),
+                             outbound_grant(BEAD_ID, "epic-1", BROWSER_EXECUTOR))
 
 
 if __name__ == "__main__":
