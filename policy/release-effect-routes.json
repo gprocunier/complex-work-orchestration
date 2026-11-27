@@ -3056,7 +3056,7 @@
 
 "xi":[155,"PoolWorkerContainment.launch_appserver",543,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
-"xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",506,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
+"xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",519,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
 
 "xk":[157,"build_pool_qualification_runtime",1470,"EDBaS_2VcEUYfNXte49q09tF5v0MUBY8ETdj4Z23xDU"],
 
@@ -3186,7 +3186,7 @@
 
 "z4":[77,"SelectedNativeProbe.__init__",244,"2F1Z6iUNCEF4gtmffQBOeA6h5KC1RmRW6J56HHmYojw"],
 
-"z5":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",274,"2pNX4WGhJ16yELyinNR73Hmw6ls8Xwat2t4rP8P3QcQ"],
+"z5":[158,"RegisteredPoolQualificationTests.test_two_original_pipes_join_distinct_workers_and_both_startup_shapes",287,"2pNX4WGhJ16yELyinNR73Hmw6ls8Xwat2t4rP8P3QcQ"],
 
 "z6":[152,"RegisteredRequestsTests.test_original_control_interrupt_waits_for_the_staged_archive",1403,"oJI0tM2ygXBHCkoYrxkZkaIG-rTlLffdcjcf44IEDVk"],
 
@@ -6760,7 +6760,7 @@
 
 "@157":["2ZYoYmmp4bBnJmcjg1SE6Ikk0GkNhDgRQYEGmFW9Pto",420,76833],
 
-"@158":["uV0Gb1OGNjedurnvvz-J5wm8ovnozTvJ90A-A-2Pqm8",420,42658],
+"@158":["zfr4NQnEoKAMnnVV02d8P4s7dtbpetDA8RZAnWbrhvs",420,43015],
 
 "@16":["ykgLQjdQGPg9uJTJLQHd2K3k_wBvy1Xnq6RIf3co0xE",420,21505],
 

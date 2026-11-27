@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Remove the retired exact-Spark campaign launcher's detailed flag parsing and archive its unused authorization-state executor. Launch attempts emit the sealed zero-allocation refusal on stderr and exit 1.
+- Give registered pool qualification tests private Git capture scratch space.
 - Retire the legacy serial pool's execution, adoption and retry paths. Use `cwo delegate-pool` for an approved contained cohort. Inspect legacy receipts with the signed status readers from the matching source revision.
 - Retire the fixed contained-pool qualification campaign, including `scripts/prepare_native_pool_qualification.py` and its protected controller. The original procedure is archived in CWO v1.45.0. Use `cwo delegate-pool` to run an approved cohort.
 - Check published site prose for stale availability claims against the claims register.
