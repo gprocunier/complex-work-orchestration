@@ -266,6 +266,11 @@ are instructions. The lead session uses the host's tool permissions and sandbox.
 - **Local calls require opt-in and a configured endpoint.**
   `dispatch_work.py --execute-local` requires original host workload admission
   and records the result as advisory evidence for review and adjudication.
+- **Adding task text can only keep or raise routed risk** when the other
+  inputs stay fixed. The router keeps risk evidence from earlier text
+  prefixes, including text passed as a single string. Routine edits with no
+  risk evidence can still route low.
+  [Routing risk details](references/prompt-coach.md#routing-risk)
 - **Disabled in this version:** raw native launch,
   ordinary productive pool plans passed to the standalone launcher, live campaigns, new
   worker-surface qualification, and

@@ -6,6 +6,7 @@ import io
 import itertools
 import json
 import os
+import random
 import subprocess
 import sys
 import tempfile
@@ -136,7 +137,9 @@ class RiskCorpusTests(unittest.TestCase):
             self.assertEqual(assessment["features"], [])
             self.assertIsNone(assessment["floor"])
             self.assertEqual(assessment["required_experts"], [])
-            self.assertEqual(route["risk_level"], assessment["expert_risk"], "no risk floor is added")
+            self.assertEqual(assessment.get("prefix_floor"), case.get("prefix_floor"))
+            expected = max(rank(assessment["expert_risk"]), rank(case.get("prefix_floor")))
+            self.assertEqual(rank(route["risk_level"]), expected)
 
         rows = (
             CorpusOracleRow("tests.test_routing_risk_features.RiskCorpusTests.test_every_case_meets_its_labels", self.assert_corpus_labels),
@@ -256,6 +259,113 @@ class AppendRuleTests(unittest.TestCase):
                     self.assertEqual(route["risk_assessment"]["floor"], base["risk_assessment"]["floor"])
                     self.assertEqual(resolved_names(route), [])
                     self.assertNotIn("scope_resolution", route["risk_assessment"])
+
+
+class RoutedRiskAppendTests(unittest.TestCase):
+    def assert_no_downgrade(self, before: dict, after: dict) -> None:
+        self.assertGreaterEqual(rank(after["risk_level"]), rank(before["risk_level"]))
+
+    def test_the_review_publication_suffix_keeps_risk(self) -> None:
+        for task in ("Review the runbook", "Prepare the release notes", "Tidy contributor instructions",
+                     "Inspect queue metadata", "Check the network"):
+            suffix = " and publish the runbook"
+            with self.subTest(task=task):
+                before = classify_work(task)
+                if task == "Check the network":
+                    self.assertEqual(before["risk_level"], "medium")
+                for segments in (None, [task, suffix]):
+                    after = classify_work(task + suffix, text_segments=segments)
+                    self.assert_no_downgrade(before, after)
+                    self.assertGreaterEqual(rank(after["risk_level"]), rank("medium"))
+
+    def test_token_extensions_and_critic_selection_keep_risk(self) -> None:
+        for task, suffix in (
+            ("Review architecture", "s."),
+            ("Inspect OIDC", "s and publish the runbook"),
+            ("Inspect OIDC", "\u0301 and update the notes"),
+            ("Inspect ＯＩＤＣ", "\u0301 and update the notes"),
+            ("Inspect sign in", "g."),
+        ):
+            with self.subTest(task=task, suffix=suffix):
+                before = classify_work(task)
+                self.assertEqual(before["risk_level"], "high")
+                for segments in (None, [task, suffix]):
+                    after = classify_work(task + suffix, text_segments=segments)
+                    self.assert_no_downgrade(before, after)
+                    if segments is None and feature_names(before):
+                        self.assertEqual(feature_names(after), set())
+                        self.assertEqual(after["risk_assessment"]["prefix_floor"], "high")
+
+        from cwo_core import routing
+
+        load = routing.load_policy
+
+        def critical_networking(name: str):
+            policy = load(name)
+            if name != "expert-registry":
+                return policy
+            experts = policy["experts"]
+            return {**policy, "experts": {**experts, "networking": {**experts["networking"],
+                                                                    "default_risk": "critical"}}}
+
+        with mock.patch.object(routing, "load_policy", side_effect=critical_networking):
+            task = "Review the network."
+            suffix = " Use Gemini as an architecture critic."
+            before = classify_work(task)
+            after = classify_work(task + suffix)
+            self.assertEqual(before["risk_level"], "critical")
+            self.assertEqual([expert["name"] for expert in after["ranked_experts"]], ["architecture"])
+            self.assert_no_downgrade(before, after)
+
+    def test_seeded_benign_suffixes_keep_risk_with_fixed_scope(self) -> None:
+        rng = random.Random(112)
+        cases = (
+            ("Review the network", {}),
+            ("Check the storage volume", {"file_paths": ["config/storage.yaml"]}),
+            ("Review backup and restore", {"requested_roles": ["storage"]}),
+            ("Investigate a retry timeout", {"stage": "review"}),
+            ("Review architecture", {"requested_roles": ["architecture"]}),
+            ("Inspect OIDC", {"file_paths": ["README.md"]}),
+            ("Back up the production database", {}),
+            ("Audit GitHub Pages", {}),
+        )
+        words = ("notes", "together", "examples", "wording", "diagram", "labels", "spacing", "details")
+        gaps = (" ", ". ", "\n\n", " - ", "s. ", "\u0301 ")
+        for task, scope in cases:
+            before = classify_work(task, **scope)
+            self.assertGreaterEqual(rank(before["risk_level"]), rank("medium"))
+            for _ in range(5):
+                parts = [rng.choice(gaps) + rng.choice(words) for _ in range(rng.randint(1, 4))]
+                with self.subTest(task=task, parts=parts):
+                    text = task + "".join(parts)
+                    self.assert_no_downgrade(before, classify_work(text, **scope))
+                    self.assert_no_downgrade(before, classify_work(text, text_segments=[task, *parts], **scope))
+
+    def test_typo_completion_stays_low_with_and_without_a_docs_path(self) -> None:
+        for scope in ({}, {"file_paths": ["README.md"]}):
+            with self.subTest(scope=scope):
+                before = classify_work("Fix one typo", **scope)
+                after = classify_work("Fix one typo in README.md", **scope)
+                self.assert_no_downgrade(before, after)
+                self.assertEqual(after["risk_level"], "low")
+
+    def test_substantive_readme_review_keeps_local_executor_eligibility(self) -> None:
+        for paths, expected in ((None, "medium"), (["README.md"], "high")):
+            with self.subTest(paths=paths):
+                options = {"file_paths": paths, "local_ok": True, "prefer_local": True}
+                original = classify_work("Review the README", **options)
+                appended = classify_work("Review the README and fix one typo", **options)
+                self.assertEqual(original["risk_level"], expected)
+                self.assertEqual(original["recommended_executor"], "local_secure_review_worker")
+                self.assert_no_downgrade(original, appended)
+                routine = classify_work("Fix a typo in README.md", **options)
+                self.assertEqual(routine["risk_level"], "low")
+                self.assertEqual(routine["recommended_executor"], "local_openai_compatible_worker")
+
+        network_review = classify_work("Review the network", file_paths=["README.md"])
+        self.assertEqual(network_review["risk_level"], "high")
+        self.assertEqual(network_review["recommended_executor"], "frontier_architect")
+
 
 # Each history: segments in order. The append at index ``forms`` creates the feature; a later append would erase it
 # if only the joined text were assessed. Boundary cases form the feature at a segment boundary, mid-token cases inside
