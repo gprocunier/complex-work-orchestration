@@ -221,7 +221,6 @@ ALLOWED_IMPORTS = {
     },
     "native_pool_capacity": {"paths", "policy"},
     "native_pool_capacity_compat": set(),
-    "native_pool_qualification_fixtures": {"native_tool_isolation"},
     "native_pool_schedulability": set(),
     "native_pool_contracts": {
         "native_authority",
@@ -260,24 +259,18 @@ ALLOWED_IMPORTS = {
     "stage_completion": {"stage_evidence", "checked_command", "native_pool_transaction"},
     "native_pool_deferred_context": {"native_pool_contracts", "native_tool_isolation"},
     "native_pool_deferred_attestation": {"native_pool_deferred_context", "native_pool_transaction"},
-    "native_pool_qualification_budget": {"invocation_ledger", "native_pool_contracts", "native_pool_transaction"},
     "native_pool_qualification_evidence": {
-        "native_pool_deferred_context", "native_pool_qualification_budget", "native_session_boundary",
+        "native_pool_deferred_context", "native_session_boundary",
     },
     "native_pool_qualification_stage": {
         "invocation_ledger",
-        "model_identities",
         "native_live_availability",
         "native_pool_contracts",
         "native_pool_deferred_context",
         "native_pool_leases",
-        "native_pool_qualification_budget",
-        "native_pool_qualification_fixtures",
         "native_pool_transaction",
-        "native_pool_workspace",
         "native_tool_isolation",
         "policy_schema",
-        "qualification_target",
         "workspace_capture",
     },
     "native_pool_transaction": {

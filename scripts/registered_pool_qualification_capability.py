@@ -15,8 +15,7 @@ from time import monotonic_ns
 from typing import Any, Mapping
 from weakref import WeakKeyDictionary
 
-from cwo_core.invocation_ledger import InvocationLedger, MAX_UNITS
-from cwo_core.native_authority import canonical_authority_sha256, verify_operator_directive
+from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.native_pool_contracts import (
     CAPABILITY_RECEIPT_SCHEMA,
     CAPABILITY_RECEIPT_TYPE,
@@ -34,8 +33,6 @@ from cwo_core.native_pool_scheduler import select_earliest_deadline
 from cwo_core.supervision.callback_timing import _measure_action_ms, callback_certification_policy, stats
 from cwo_core.workspace_capture import _pin_directory, read_at
 
-_CALIBRATION_SCOPE = "contained-pool-callback-calibration-v1"
-_CALIBRATION_FIELDS = {"scope", "calibration_plan_sha256", "adapter_scope_sha256", "expires_at", "runtime_seconds"}
 _SOURCE_PATHS = (
     "registered_pool_qualification_capability.py",
     "registered_pool_qualification_calibration.py",
@@ -47,7 +44,6 @@ _SOURCE_PATHS = (
     "registered_server_requests.py",
     "cwo_core/native_pool.py",
     "cwo_core/native_pool_scheduler.py",
-    "cwo_core/native_pool_qualification_budget.py",
     "cwo_core/native_pool_qualification_stage.py",
     "cwo_core/supervision/transport/app_server.py",
     "run_native_pool_live_canaries.py",
@@ -104,18 +100,11 @@ def _source_file_sha256(path: Path) -> str:
 
 
 def _protected_types():
-    # The module is usable on its own before the composed adapter/controller is installed.
     from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits
     from registered_pool_containment import PoolWorkerContainment
     from registered_pool_qualification import _PoolParent, _WorkerControl
-    from run_native_pool_qualification import ProtectedPoolQualificationParent
 
-    return _PoolParent, _WorkerControl, PoolWorkerContainment, PoolQualificationRunLimits, ProtectedPoolQualificationParent
-
-
-def calibration_action_sha256(manifest: Mapping[str, Any]) -> str:
-    """Return the operator directive's exact action digest."""
-    return canonical_authority_sha256(dict(manifest))
+    return _PoolParent, _WorkerControl, PoolWorkerContainment, PoolQualificationRunLimits
 
 
 def callback_adapter_scope_sha256(parent: object) -> str:
@@ -126,22 +115,15 @@ def callback_adapter_scope_sha256(parent: object) -> str:
     _require(type(parent) is parent_type and parent.plan["selected_model"] == QUALIFICATION_MODEL,
              "original-calibration-adapter-required")
     base = _adapter_scope_sha256(parent.plan, parent.authority, len(parent.children))
-    return _ordinary_adapter_scope(getattr(parent, "_ordinary", None), base)
+    return _ordinary_adapter_scope(parent._ordinary, base)
 
 
 def _ordinary_adapter_scope(ordinary, base: str) -> str:
-    if ordinary is None:
-        return base
     root = Path(__file__).resolve().parent
     sources = {name: _source_file_sha256(root / name) for name in (
         "registered_contained_pool_host.py", "registered_pool_ordinary_runtime.py",
     )}
     return canonical_sha256({"adapter_scope": base, "ordinary_scope": ordinary.binding_sha256, "sources": sources})
-
-
-def calibration_adapter_scope_sha256(plan: Mapping[str, Any], authority: Mapping[str, Any]) -> str:
-    """Commit to the calibration plan and host configuration before measuring it."""
-    return _adapter_scope_sha256(plan, authority, len(plan["children"]))
 
 
 def _adapter_scope_sha256(plan: Mapping[str, Any], authority: Mapping[str, Any], cohort_size: int) -> str:
@@ -171,27 +153,7 @@ class _CalibrationOpportunity:
     expires_at: int
     runtime_seconds: int
     controller: tuple[tuple[str, Any], ...]
-    ordinary: object | None = None
-
-
-def _verify_opportunity(protected_parent: object, manifest: dict[str, Any], directive: Mapping[str, Any]) -> _CalibrationOpportunity:
-    *_, verification_type = _protected_types()
-    _require(type(protected_parent) is verification_type, "original-calibration-parent-required")
-    _require(type(manifest) is dict and manifest.keys() == _CALIBRATION_FIELDS
-             and manifest["scope"] == _CALIBRATION_SCOPE and _digest(manifest["calibration_plan_sha256"])
-             and _digest(manifest["adapter_scope_sha256"]), "calibration-opportunity-invalid")
-    operation_sha256 = calibration_action_sha256(manifest)
-    verified = verify_operator_directive(directive, verification_key=protected_parent.verification_key,
-        expected_actor_id=protected_parent.actor_id, expected_identity_source=protected_parent.identity_source,
-        expected_action_sha256=operation_sha256)
-    issued = datetime.fromisoformat(directive["issued_at"].replace("Z", "+00:00"))
-    expires, runtime = manifest["expires_at"], manifest["runtime_seconds"]
-    _require(verified.authorized_scope == "complete-task" and directive["parent_receipt_sha256"] is None
-             and issued.tzinfo is not None and type(expires) is int and issued.timestamp() <= _now().timestamp() < expires
-             and type(runtime) is int and 0 < runtime <= MAX_UNITS, "calibration-opportunity-expired-or-unbounded")
-    return _CalibrationOpportunity(operation_sha256, manifest["calibration_plan_sha256"],
-                                   manifest["adapter_scope_sha256"], expires, runtime,
-                                   tuple(sorted(capture_owner_identity().items())))
+    ordinary: object
 
 
 def _require_calibration_scope(parent: object, opportunity: _CalibrationOpportunity) -> None:
@@ -204,33 +166,19 @@ def _require_calibration_scope(parent: object, opportunity: _CalibrationOpportun
              "calibration-opportunity-binding-mismatch")
 
 
-def verify_connected_callback_calibration_opportunity(parent: object, protected_parent: object, *,
-    manifest: dict[str, Any], directive: Mapping[str, Any]) -> str:
-    """Check the selected signed calibration before the protected parent charges a start."""
-    opportunity = _verify_opportunity(protected_parent, manifest, directive)
-    _require_calibration_scope(parent, opportunity)
-    return opportunity.operation_sha256
-
-
 def _charged_start(parent: object, opportunity: _CalibrationOpportunity) -> tuple[InvocationLedger, str]:
-    custody = _active_calibration_start(parent)
+    custody = _active_ordinary_start(parent)
     _require_calibration_scope(parent, opportunity)
     _require(parent.limits._intent["amount"]["runtime_seconds"] == opportunity.runtime_seconds,
              "calibration-opportunity-runtime-mismatch")
     return custody
 
 
-def _active_calibration_start(parent: object) -> tuple[InvocationLedger, str]:
-    if getattr(parent, "_ordinary", None) is None:
-        return _active_campaign_start(parent)
-    return _active_ordinary_start(parent)
-
-
 def _active_ordinary_start(parent: object) -> tuple[InvocationLedger, str]:
     from cwo_core.native_pool_deferred_context import _ContainedPoolAdmission
     from registered_pool_ordinary_runtime import calibration_limits, ordinary_budget_id, require_ordinary_custody
 
-    parent_type, _, _, limits_type, _ = _protected_types()
+    parent_type, _, _, limits_type = _protected_types()
     _require(type(parent) is parent_type and type(parent.limits) is limits_type and parent.calibration_only,
              "original-calibration-stage-required")
     approval = parent._ordinary
@@ -245,41 +193,6 @@ def _active_ordinary_start(parent: object) -> tuple[InvocationLedger, str]:
     _require(ledger is approval.ledger and intent["budget_id"] == ordinary_budget_id(approval)
              and intent["amount"] == calibration_limits(approval), "calibration-ordinary-budget-unverified")
     return ledger, intent["reservation_id"]
-
-
-def _require_campaign_cap(ledger: InvocationLedger, budget_id: str) -> None:
-    from cwo_core.native_pool_qualification_stage import campaign_start_status
-
-    summary = campaign_start_status(ledger)
-    _require(budget_id in summary["budget_ids"] and 1 <= summary["charged"] <= summary["cap"],
-             "calibration-campaign-cap-unverified")
-
-
-def _active_campaign_start(parent: object) -> tuple[InvocationLedger, str]:
-    from cwo_core.native_pool_deferred_context import _ContainedPoolAdmission
-    from cwo_core.native_pool_qualification_stage import contained_campaign_ledger_root
-
-    parent_type, _, _, limits_type, _ = _protected_types()
-    _require(type(parent) is parent_type and type(parent.limits) is limits_type, "original-calibration-stage-required")
-    parent.require_effect()
-    limits = parent.limits
-    admission = limits._contained_admission
-    _require(type(admission) is _ContainedPoolAdmission and admission._claimed and admission._plan == parent.plan,
-             "original-calibration-stage-required")
-    allowance = limits._allowance
-    ledger, intent = allowance.accounting.ledger, allowance.campaign_intent
-    _require(type(ledger) is InvocationLedger and ledger.root == contained_campaign_ledger_root()
-             and type(intent) is dict and intent["state"] == "invocation-intent" and intent["amount"] == {"starts": 1}
-             and ledger.attempt(intent["reservation_id"]) == intent, "calibration-campaign-start-not-charged")
-    _require_campaign_cap(ledger, intent["budget_id"])
-    return ledger, intent["reservation_id"]
-
-
-def begin_connected_callback_calibration(parent: object, protected_parent: object, *,
-                                         manifest: dict[str, Any], directive: Mapping[str, Any]) -> ConnectedCallbackCalibration:
-    """Attach measurement to an already charged, separately signed original cohort."""
-    opportunity = _verify_opportunity(protected_parent, manifest, directive)
-    return _begin_calibration(parent, opportunity)
 
 
 def begin_ordinary_connected_callback_calibration(parent: object, operation: str) -> ConnectedCallbackCalibration:
@@ -396,7 +309,7 @@ class ConnectedCallbackCalibration:
         _require(token is _TOKEN, "calibration-construction-refused")
         self._parent, self._opportunity, self._custody = parent, opportunity, custody
         self._controls = dict(parent.controls)
-        _, control_type, host_type, _, _ = _protected_types()
+        _, control_type, host_type, _ = _protected_types()
         _require(len(self._controls) in (2, 3) and self._controls.keys() == parent.children.keys()
                  and all(type(control) is control_type and control.worker is parent.workers[key]
                          for key, control in self._controls.items()), "original-calibration-controls-required")
@@ -420,12 +333,12 @@ class ConnectedCallbackCalibration:
                  and _now().timestamp() < self._opportunity.expires_at
                  and tuple(sorted(capture_owner_identity().items())) == self._opportunity.controller,
                  "calibration-closed-expired-or-owner-changed")
-        _require(_active_calibration_start(self._parent) == self._custody, "calibration-start-custody-changed")
+        _require(_active_ordinary_start(self._parent) == self._custody, "calibration-start-custody-changed")
 
     def observe_callback(self, control: object, name: str, /, **arguments):
         """Invoke and time a known callback using its original bound control."""
         self._verify()
-        _, control_type, host_type, _, _ = _protected_types()
+        _, control_type, host_type, _ = _protected_types()
         _require(type(control) is control_type and name in self._samples, "original-calibration-callback-required")
         child = control.worker.child_id
         _require(self._controls.get(child) is control and self._parent.controls.get(child) is control
@@ -499,7 +412,7 @@ class ConnectedCallbackCalibration:
                  and all(by_child.keys() == self._controls.keys() for by_child in self._samples.values()),
                  "complete-original-callback-coverage-required")
         _require(_charged_start(self._parent, self._opportunity) == self._custody, "calibration-final-custody-changed")
-        _, _, host_type, _, _ = _protected_types()
+        _, _, host_type, _ = _protected_types()
         for child, control in self._controls.items():
             _require(self._parent.controls.get(child) is control and self._owners[child] == _contained_owner(control, host_type),
                      "calibration-control-custody-changed")
@@ -558,7 +471,7 @@ def require_connected_callback_capability(value: object, parent: object, opportu
              and parent.authority.get("capability_opportunity_sha256") == opportunity_sha256
              and tuple(sorted(capture_owner_identity().items())) == opportunity.controller,
              "connected-capability-scope-or-owner-drift")
-    _require(opportunity.ordinary is getattr(parent, "_ordinary", None), "connected-capability-ordinary-custody-drift")
+    _require(opportunity.ordinary is parent._ordinary, "connected-capability-ordinary-custody-drift")
     parent._verify_artifacts()
     _require_settled_calibration(ledger, reservation, opportunity.ordinary)
     _require(not validate_capability_receipt(receipt, now=_now())
@@ -569,11 +482,6 @@ def require_connected_callback_capability(value: object, parent: object, opportu
 
 def _require_settled_calibration(ledger, reservation, ordinary):
     charged = ledger.attempt(reservation)
-    if ordinary is None:
-        _require(charged["state"] == "terminal" and charged["outcome"] == "completed" and charged["charge"] == {"starts": 1},
-                 "calibration-campaign-start-unsettled")
-        _require_campaign_cap(ledger, charged["budget_id"])
-        return
     from registered_pool_ordinary_runtime import calibration_limits, ordinary_budget_id, require_ordinary_custody
 
     require_ordinary_custody(ordinary)

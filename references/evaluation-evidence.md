@@ -42,7 +42,7 @@ dynamic registration. An empty list can mean an empty declaration or missing
 telemetry. Other requests, retained context, deferred tools and unlisted workers
 are outside that inventory.
 
-[Qualification procedure](native-supervision-pools.md#contained-qualification-on-stock-codex) · [Qualification release](https://github.com/gprocunier/complex-work-orchestration/tree/v1.45.0)
+[Historical qualification procedure](https://github.com/gprocunier/complex-work-orchestration/blob/v1.45.0/references/native-supervision-pools.md#contained-qualification-on-stock-codex) · [Qualification release](https://github.com/gprocunier/complex-work-orchestration/tree/v1.45.0)
 
 ## Architect prompt small check
 

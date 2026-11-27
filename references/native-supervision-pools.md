@@ -112,6 +112,9 @@ Add `--validate-only` to check the request and retained project authority before
 execution. The controller checks the separate configured worker logins and
 calibrates its callbacks using the same approved shared allowance. Productive
 work starts after successful calibration and original cohort admission.
+If an upgrade changes the runtime factory, execution rejects an earlier signed
+approval before recording an execution intent or claiming any Bead. Use
+`authorize_pool` to approve the cohort against the installed factory.
 
 ## Readiness-first transaction launcher
 
@@ -151,192 +154,30 @@ the spending fuse even if unused budget remains.
 See [Pool Capacity Naming Migration](native-pool-capacity-migration.md) for the
 canonical field inventory and the bounded historical-read compatibility window.
 
-## Offline pool qualification fixtures
+## Contained pool execution
 
-Render the fixed N=2 and N=3 task plan and an initial `not-run` record with
-operator-chosen limits.
+Each app server uses a read-only worktree, a dedicated worker login and
+provider-only connectivity. The named read-only tool profile denies network
+access and access to the login path. Later turns keep the same profile. Only
+the isolated registered writer may change the assigned output file.
 
-```sh
-python scripts/prepare_native_pool_qualification.py \
-  --runs-per-cohort "$RUNS_PER_COHORT" --max-sessions "$SESSIONS_PER_RUN" \
-  --max-tool-calls "$TOOL_CALLS_PER_RUN" --max-runtime-seconds "$SECONDS_PER_RUN"
-```
+Before opening the writer gate, the host verifies the original thread start,
+acknowledged turn and owned rollout for each pending callback. It charges the
+cohort's pending calls to the approved shared allowance and rechecks each
+outstanding request before releasing its writer. The allowance covers tool
+calls, runtime, compactions, full-suite runs and mutations. The verified
+terminal rollout retains provider token observations separately from pool
+accounting. Ambiguous effects or incomplete cleanup retain the corresponding
+charge for reconciliation.
 
-The run count applies separately to each cohort. The JSON includes the
-requested session, tool-call and runtime ceilings across both cohorts, the
-selected profile and the current Luna model identity from the model-role policy.
-Each worker has a distinct output path, fixed UTF-8 text and a completion
-marker. The initial record includes the CWO version, minimum Codex version,
-UTC date, outcome and scope limitations.
+## Historical pool qualification
 
-Pass `--fixture-root "$NEW_DIRECTORY"` to also create the synthetic Git
-fixtures. Choose a new directory under an existing parent you own with no
-shared write access or symlink components. The command creates `seed/` and
-copies it to an integration checkout and a checkout for each worker under
-`n2/run-1/` and `n3/run-1/`. Run numbers start at 1 for each cohort. Disk use is
-one seed repository plus seven independent repositories per repetition across
-both cohorts. Each repository has its own Git metadata and no remotes. A failed
-setup cleans up the incomplete layout.
-
-The command makes zero model calls and produces a prepare-only plan with
-`dispatch_authorized: false`.
-
-For the contained stage, pass `--failure-isolation` with at least two runs per
-cohort. This reserves the final N=3 run for one deliberately refused
-registered write by worker 1. The signed preparation covers that choice and
-keeps successful fixture runs at both cohort sizes.
-
-## Protected pool qualification stage
-
-The trusted host verifies the actual launcher with the
-[offline Codex capability check](codex-protocol-capability-matrix.md) and checks
-the effective profile and exact model identity before dispatch.
-
-Bind the fixture workspaces to fresh run and worker identities and keep host
-records separate. Leave the seed files and Git metadata intact. Deny worker
-network access, retries, escalation and publication. Live admission requires
-the existing proportionality evidence or its exact protected economic override.
-
-Live execution requires N1 promotion, source authorization for both N1 and pool
-routes, and a trusted host with a registered concurrent runtime for both cohort
-sizes. The host calls `run_pool_qualification_stage(preparation, runs,
-approved_binding=..., accounting=...)` from `cwo_core.native_pool_qualification_stage`. Each
-ordered `PoolQualificationRun` carries a sealed ordinary plan with zero preludes,
-an original `TransactionRuntime`, a private journal path, and the path to
-its disposable run directory. By default the stage requires the host to bind
-the run's active limits before runtime preparation and provide a cleanup callback
-that proves owned session, process and callback settlement by its cleanup cutoff.
-The host supplies `PoolQualificationAccounting`
-with the original `InvocationLedger` and a reservation expiry. Use
-`pool_qualification_binding` to bind the preparation, plan seals, journal paths,
-run directories, active accounting mode, ledger root, and expiry for independent
-approval. Live execution remains blocked by independent source holds. The
-shipped maintenance adapter accepts one worker and one precommit session, and
-the registered pool host runs its members serially.
-
-The stage calls the original `execute_native_pool_transaction` for all N=2 runs
-before N=3. It opens the approved aggregate budget and reserves each run's full
-allowance in the ledger before invoking that transaction. The original
-transaction journal records the reservation intent before worker allocation.
-The active limits use one absolute monotonic deadline from before runtime
-preparation through validation. The runtime persists each session and turn
-intent before its RPC and records the exact acknowledgement. Run each admitted
-finite-write callback independently of the coordinator's send callback. The
-stage's `charge_tool` call waits under the run deadline until the private effect
-journal has a pending debit for every admitted worker's confirmed turn and
-records a release tied to those exact debit entries. Perform the fixed write
-only after `charge_tool` returns and acknowledge the same request with
-`ack_tool`. The journal binds those records to the original reservation and
-transaction journal. The ledger retains the full allowance while usage is
-unknown. An unacknowledged
-effect, unconfirmed owned cleanup, or unverified lease settlement holds that
-allowance for reconciliation before another run.
-The stage checks each plan's session reservation against the requested cap
-and verifies that the admitted worker cohort's tool-call and runtime budgets
-match the sealed Bead budgets and fit within their caps. The original runtime supplies
-session accounting, exact Bead reads, startup and release, containment,
-independent validation and an `AdmittedPoolLaunch` with the one-shot cohort
-capability and same-host preflight evidence.
-
-For each run require host evidence that all members were ready before dispatch,
-worker activity overlapped, each worker produced only its own exact output and
-marker, and all sessions and leases settled cleanly. The stage binds the
-admitted worktrees to the pristine run directories. Before accepting a
-transaction it reads each fixed output, compares its bytes with the expected
-text, and checks that the original files, Git metadata, and integration checkout
-match the baseline. Supply a private coordinator state file and the original
-lease registry for each run. The stage reads the closed state and released
-leases back from disk and matches them to the admitted contract and pool
-receipt. The host supplies the original evidence for closing owned sessions
-and settling their callbacks.
-
-Stop before the next run if any admission, budget, isolation, output, lifecycle,
-or cleanup check fails or if the operator interrupts. Contain owned workers,
-preserve the original evidence, and reconcile ambiguous spend or termination
-before any later attempt. End the stage after the last scheduled run completes
-successfully.
-
-The stage returns `completed` or `stopped` with its original transaction
-results and propagates transaction errors. After reviewing trusted host
-evidence, update the qualification record with the UTC date of disposition and
-`pass`, `fail` or `stopped`. Record `pass` when every scheduled run at both
-cohort sizes satisfies the checks. Include the tested scope and any unresolved
-limitations. The result covers the synthetic tasks under the recorded profile.
-
-### Contained qualification on stock Codex
-
-The contained qualification entry requires signed campaign approval, the enrolled
-campaign ledger and registered single-worker availability. Its protected parent
-uses `select_contained_pool_runtime` with the registered factory and makes each
-`PoolQualificationRun` from that selected
-runtime. The signed stage binding covers the fixed tasks, sealed run plans
-and original accounting custody before calibration starts. The stage pins
-`gpt-6.2-sol` at `xhigh` on the default tier for each run.
-
-The qualification controller signs the directives for disposable Beads claims,
-worker releases, callback calibrations and the final qualification stage under
-the operator's standing approval of the campaign budget. The controller keeps
-its signing material outside the worker environments. As part of campaign
-preparation, the controller opens the private campaign ledger, creates the
-disposable Beads datasets, pins the Codex executable and exports its bundled
-model catalog.
-
-Keep one private controller-enrolled campaign ledger across runs and repairs.
-Each cohort consumes a durable start before runtime preparation, including a
-failed start. The private ledger starts with a 20-start allowance. The
-controller records signed increases as linked allowances, preserving earlier
-charges and using the oldest available allowance first. Each increase adds
-at most 10 starts, with a total limit of 60. Per-run session, tool and runtime
-limits still apply. Reconcile ambiguous starts in the campaign ledger before
-continuing. The signed expiry bounds new effects. Cleanup and settlement
-preserve their original custody after the cutoff.
-
-The contained adapter reports token usage as `unavailable` throughout cumulative
-pool accounting. The controller retains provider token counts for inspection in
-the verified terminal rollout and its archive. Pool hard budgets apply to tool
-calls, runtime seconds, compactions, full-suite runs, and mutations.
-
-An enrolled host calls `run_registered_pool_qualification` from
-`scripts/registered_pool_qualification_host.py` once with the original
-disposable Beads inputs and a directive over `admission_action_sha256`. The
-host checks the source decisions and the signed claim scope before each claim.
-It keeps the original reservations and gives the host's request staging callback
-copies of the receipts. The callback seals the plans and authority files and
-stages the signed calibration and stage directives. The planned bindings are
-available before worker startup from `calibration_adapter_scope_sha256` and
-`contained_pool_qualification_binding`. Keep the owner-private request,
-claim intents and reservation receipts together. If approval is refused after
-claims, reconcile their exact attempt identities from these records before a
-new admission.
-
-The registered host uses the enrolled campaign ledger and the original installed
-factory. Calibration charges the shared allowance, measures the current
-controller's original callbacks, keeps the writer gate closed and settles
-owned workers. Productive runs consume the measured capability from the same
-protected host. The standalone command remains held.
-
-The stock app server uses a read-only worktree, a dedicated worker login and
-provider-only connectivity. Its named read-only tool profile denies network
-access and access to the login path. Later turn requests keep the same profile.
-Only the isolated registered writer may change the worker's assigned fixture
-file. Each original pending callback joins its
-thread start, acknowledged turn, and owned rollout prefix before any cohort
-debit. The writer gate rechecks that exact outstanding request before release.
-In the failure-isolation run, the coordinator waits for the original committed
-refusal before releasing the other two writers. The target file must remain
-absent. Both peers must complete and their outputs, archives, cleanup and
-released leases must verify. The original partial transaction is recorded and
-charged as a failed run. The separate failure-isolation outcome passes only
-when all of that evidence verifies.
-
-Record observed tool declarations for each worker and flag unexpected names.
-Record the wrapped stock catalog when the selected model cannot use the pinned
-trimmed catalog. The configured tool reductions still apply. The pass record
-uses original containment, callback, cleanup and lease evidence for its
-required outcomes. The login-path check verifies the mounted deny rule and
-the active profile reported by the app server. No login read is attempted. The
-record identifies any unperformed checks. Tighter tool selection
-is tracked in [Codex issue 52780](https://github.com/openai/codex/issues/52780).
+CWO v1.45.0 qualified the contained pool with fixed disposable two- and
+three-worker cohorts. The campaign preparation command and protected campaign
+controller are retired. The original procedure and source are available in
+[v1.45.0](https://github.com/gprocunier/complex-work-orchestration/blob/v1.45.0/references/native-supervision-pools.md#contained-qualification-on-stock-codex).
+See the [evaluation record](evaluation-evidence.md#contained-worker-pool) for
+the tested profile, passing observations and scope.
 
 ## Temporary Audited Tool Boundary
 

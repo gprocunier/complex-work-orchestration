@@ -1,6 +1,7 @@
-"""Original registered pipes with inert peers and fixed disposable outputs."""
+"""Original registered pipes with inert peers and exact disposable outputs."""
 
 from concurrent.futures import ThreadPoolExecutor
+from dataclasses import replace
 from datetime import datetime, timezone
 from hashlib import sha256
 import json
@@ -8,12 +9,11 @@ import os
 from pathlib import Path
 import subprocess
 import sys
-from tempfile import TemporaryDirectory
 from threading import Barrier, Event, Lock
 from time import monotonic, sleep
 from types import SimpleNamespace
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 
 SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
@@ -26,173 +26,17 @@ from registered_pool_qualification_capability import (  # noqa: E402
     CallbackCalibrationError,
     ConnectedPoolCallbackCapability,
 )
+from cwo_core import native_pool_qualification_stage as stage  # noqa: E402
 from cwo_core.native_pool_contracts import MAX_CERTIFIED_CHECK_MS, canonical_sha256, zero_token_usage  # noqa: E402
-from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts  # noqa: E402
 from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits  # noqa: E402
 from cwo_core.native_pool_scheduler import AggregateUsageLedger  # noqa: E402
-from cwo_core.native_pool_transaction import TransactionJournal, TransactionRuntime, seal_transaction_plan  # noqa: E402
+from cwo_core.native_pool_transaction import NativePoolTransactionError, TransactionJournal, TransactionRuntime, seal_transaction_plan  # noqa: E402
 from cwo_core.native_pool_workspace import capture_workspace_snapshot  # noqa: E402
-from prepare_native_pool_qualification import _materialize_fixtures, _prepare  # noqa: E402
+from tests.ordinary_pool_test_helpers import _PEER, _pool_test_directory  # noqa: E402
 from tests.test_native_pool_transaction import bead, transaction_plan  # noqa: E402
 
 
-def _pool_test_directory():
-    # The actual thread/start frame includes the worktree path twice.
-    # Use a short parent and separate the random name from the fixture path.
-    return TemporaryDirectory(dir="/tmp", prefix="cwo.pool.", suffix=".test")
-
-
-_PEER = r"""
-import json
-from pathlib import Path
-import sys
-import time
-from uuid import uuid4
-
-inputs = json.loads(sys.argv[1])
-home, login = Path(inputs['home']), Path(inputs['login'])
-marker, behavior = inputs['marker'], inputs['behavior']
-if behavior == 'wrong-marker':
-    marker = 'wrong fixture marker'
-thread, turn = str(uuid4()), str(uuid4())
-call, answer = [inputs['worker'] + '-' + suffix for suffix in ('call', 'answer')]
-active = home / 'sessions' / ('rollout-' + thread + '.jsonl')
-archived = home / 'archived_sessions' / active.name
-thread_scope = {'threadId': thread, 'turnId': turn}
-tool_name = 'finite_command' if behavior == 'legacy-command' else inputs['tool']
-arguments = {'command': 'write the selected qualification fixture file'} if behavior in (
-    'legacy-command', 'wrong-command') else {}
-tool = {'id': call, 'type': 'dynamicToolCall', 'namespace': inputs['namespace'], 'tool': tool_name,
-        'arguments': arguments, 'status': 'inProgress', 'contentItems': None, 'success': None}
-meta = {'type': 'session_meta', 'payload': {'id': thread, 'cwd': inputs['worktree'], 'history_mode': 'legacy'}}
-
-def emit(value):
-    print(json.dumps(value, separators=(',', ':')), flush=True)
-
-def notify(method, params):
-    emit({'method': method, 'params': params})
-
-def append(rows):
-    active.parent.mkdir(exist_ok=True)
-    with active.open('a', encoding='utf-8') as handle:
-        for row in rows:
-            handle.write(json.dumps(row, separators=(',', ':')) + '\n')
-
-def response(req, result):
-    emit({'id': req, 'result': result})
-
-def event(kind, **extra):
-    return {'type': 'event_msg', 'payload': {**extra, 'type': kind, 'turn_id': turn}}
-
-def finish_answer(marker):
-    final = {'id': answer, 'type': 'agentMessage', 'text': ''}
-    if behavior != 'missing-marker-phase':
-        final['phase'] = 'finalAnswer' if behavior == 'wrong-marker-phase' else 'final_answer'
-    notify('item/started', dict(thread_scope, item=final))
-    if behavior == 'terminal-token-counters':
-        counters = {'input_tokens': 9, 'cached_input_tokens': 4 if inputs['existing'] else 0,
-                    'output_tokens': 3, 'reasoning_output_tokens': 1 if inputs['existing'] else 0,
-                    'total_tokens': 12}
-        append([event('token_count', info={'total_token_usage': counters})])
-    append([event('task_complete', last_agent_message=marker, error=None)])
-    notify('item/completed', dict(thread_scope, item=dict(final, text=marker)))
-    notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'completed', 'items': []}})
-
-for line in sys.stdin:
-    frame = json.loads(line)
-    req, method = frame.get('id'), frame.get('method')
-    params = frame.get('params', {})
-    if method == 'initialize':
-        response(req, {'codexHome': str(login)})
-    elif method == 'initialized':
-        continue
-    elif method == 'thread/start':
-        meta['payload']['dynamic_tools'] = params['dynamicTools']
-        if inputs['existing']:
-            append([meta])
-        path = login / 'sessions' / active.name
-        profile = {'id': params['permissions'], 'extends': None}
-        result = {key: params[key] for key in ('model', 'modelProvider', 'serviceTier', 'cwd', 'runtimeWorkspaceRoots',
-                                                'approvalPolicy', 'approvalsReviewer')}
-        result.update(reasoningEffort=inputs['effort'], activePermissionProfile=profile,
-                      thread={'id': thread, 'path': str(path), 'turns': [], 'ephemeral': False, 'historyMode': 'legacy'})
-        response(req, result)
-    elif method == 'turn/start':
-        assert 'permissions' not in params
-        if behavior in ('deferred-context', 'deferred-empty'):
-            if behavior == 'deferred-empty' and not inputs['existing']:
-                active.parent.mkdir(exist_ok=True)
-                active.touch(mode=0o600)
-            else:
-                append(([] if inputs['existing'] else [meta]) + [event('task_started')])
-            response(req, {'turn': {'id': turn, 'items': [], 'status': 'inProgress'}})
-            continue
-        effort = 'low' if behavior == 'wrong-context' else params['effort']
-        append(([] if inputs['existing'] else [meta]) + [event('task_started'),
-            {'type': 'world_state', 'payload': {'full': True, 'state': {'top_level_tools': {'apply_patch': 'f' * 40}}}},
-            {'type': 'turn_context', 'payload': {'turn_id': turn, 'model': params['model'], 'effort': effort}}])
-        response(req, {'turn': {'id': turn, 'items': [], 'status': 'inProgress'}})
-        if behavior == 'no-writer':
-            finish_answer(marker)
-            continue
-        split_append = behavior in ('split-rollout-append', 'split-rollout-terminal', 'persistent-rollout-tail')
-        if split_append or behavior == 'complete-rollout-append':
-            row = (event('task_complete', last_agent_message=marker, error=None) if behavior == 'split-rollout-terminal'
-                   else event('agent_reasoning', text='inert rollout append'))
-            record = (json.dumps(row) + '\n').encode()
-            offset = len(record) // 2 if split_append else len(record)
-            with active.open('ab', buffering=0) as stream:
-                stream.write(record[:offset])
-        elif behavior == 'malformed-rollout-row':
-            with active.open('ab', buffering=0) as stream:
-                stream.write(b'{invalid fixture record}\n')
-        notify('item/started', dict(thread_scope, item=tool))
-        emit({'id': 71, 'method': 'item/tool/call', 'params': dict(thread_scope, callId=call,
-              namespace=tool['namespace'], tool=tool_name, arguments=arguments)})
-        if split_append and behavior != 'persistent-rollout-tail':
-            cutoff = time.monotonic() + 2
-            while not (home / 'finish-append').exists() and time.monotonic() < cutoff:
-                time.sleep(.005)
-            assert (home / 'finish-append').exists()
-            with active.open('ab', buffering=0) as stream:
-                stream.write(record[offset:])
-            (home / 'append-finished').touch()
-    elif method is None and req == 71:
-        result = frame['result']
-        if behavior == 'calibration':
-            assert result == {'success': False, 'contentItems': [{'type': 'inputText', 'text':
-                'The registered writer is closed during callback calibration.'}]}
-            notify('item/completed', dict(thread_scope, item=dict(tool, status='failed') | result))
-            continue
-        if result['success'] is False:
-            assert result['contentItems'] == [{'type': 'inputText', 'text':
-                'The registered writer refused the requested fixture write.'}]
-            marker = 'The fixture write was refused.'
-        status = 'completed' if result['success'] else 'failed'
-        notify('item/completed', dict(thread_scope, item=dict(tool, status=status) | result))
-        if behavior == 'failed-terminal':
-            error = {'message': 'Synthetic worker failure after the registered write'}
-            append([event('task_complete', last_agent_message=None, error=error)])
-            notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'failed', 'items': [], 'error': error}})
-            continue
-        finish_answer(marker)
-    elif method == 'thread/archive':
-        if behavior != 'no-archive-move':
-            archived.parent.mkdir(exist_ok=True)
-            active.rename(archived)
-        response(req, {})
-    elif method == 'turn/interrupt':
-        append([event('turn_aborted')])
-        response(req, {})
-        notify('turn/completed', {'threadId': thread, 'turn': {'id': turn, 'status': 'interrupted', 'items': []}})
-    else:
-        raise ValueError('Unexpected inert peer input')
-"""
-
-
 class _Limits:
-    isolation_target = None
-
     def __init__(self, size):
         self.deadline = monotonic() + 5
         self.barrier = Barrier(size)
@@ -318,10 +162,12 @@ class _InertContainment:
 
 
 def _fixture(root, size):
-    plan_data = _prepare(1, {"sessions": 3, "tool_calls": 3, "runtime_seconds": 5})
-    _materialize_fixtures(root / "fixture", plan_data)
-    fixture = root / "fixture" / f"n{size}" / "run-1"
-    tasks = fixed_pool_qualification_cohorts()[size - 2]["tasks"]
+    fixture = root / "workspaces"
+    fixture.mkdir()
+    tasks = [{"worker_slot": f"worker-{index}", "write_path": f"output-{index}.txt",
+              "expected_utf8": f"Inert result for worker {index}.\n", "completion_marker": f"EXAMPLE-DONE-{index}",
+              "prompt": f"Write the selected exact output for worker {index}."}
+             for index in range(1, size + 1)]
     issues = [bead(f"test-{index}", task["write_path"]) for index, task in enumerate(tasks, 1)]
     plan = transaction_plan(root / "plan", issues, cumulative_before=0)
     plan["selected_model"] = config.MODEL
@@ -330,6 +176,12 @@ def _fixture(root, size):
     plan["runtime_adapter_sha256"] = sha256(source.read_bytes()).hexdigest()
     for child, task in zip(plan["children"], tasks):
         path = fixture / task["worker_slot"]
+        path.mkdir()
+        subprocess.run(["git", "init", "--quiet", "--template=", "--initial-branch=main", str(path)],
+                       check=True, timeout=5, stdin=subprocess.DEVNULL)
+        subprocess.run(["git", "-C", str(path), "-c", "user.name=CWO Tests", "-c", "user.email=cwo@example.invalid",
+                        "commit", "--allow-empty", "--quiet", "-m", "Inert workspace"],
+                       check=True, timeout=5, stdin=subprocess.DEVNULL)
         child["worktree_identity_sha256"] = canonical_sha256(capture_workspace_snapshot(path, allowed_paths=child["write_paths"])["identity"])
         child["requested_model"] = config.MODEL
     return seal_transaction_plan(plan), tasks, fixture
@@ -342,10 +194,8 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
             home.mkdir(mode=0o700)
             details = home.stat()
             selected = SimpleNamespace(login_home=home, login_identity=(details.st_dev, details.st_ino))
-            parent = SimpleNamespace(_ordinary=None)
+            parent = SimpleNamespace(_ordinary=SimpleNamespace(children={}))
             worker = adapter._PoolWorker(parent, {"child_id": "worker-1"}, {}, None, None, 1)
-            self.assertIsNone(worker.production_login_home)
-            parent._ordinary = SimpleNamespace(children={})
             with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-production-login-required"):
                 _ = worker.production_login_home
             parent._ordinary.children[worker.child_id] = selected
@@ -363,8 +213,12 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         parent = object.__new__(adapter._PoolParent)
         parent.plan, parent.limits, parent.workers, parent._started = plan, _Limits(size), {}, 0
         parent.fixture_root = fixture
+        parent._ordinary = SimpleNamespace(children={
+            child["child_id"]: SimpleNamespace(worktree=fixture / task["worker_slot"])
+            for child, task in zip(plan["children"], tasks)
+        })
         parent.tasks = {child["child_id"]: task for child, task in zip(plan["children"], tasks)}
-        parent.authority = {"mode": "callback-calibration" if calibrating else "qualification"}
+        parent.authority = {"mode": "callback-calibration" if calibrating else adapter._ORDINARY_MODE}
         parent.protected_roots, parent.host_inputs = (), {}
         parent.journal = TransactionJournal(root / "original.jsonl", plan["transaction_id"])
         parent.journal.append(event_type="static-readiness-accepted", state="PREPARED",
@@ -814,35 +668,67 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
             authority = root / "records" / "authority.json"
             authority.parent.mkdir()
             values = dict.fromkeys(adapter._AUTHORITY_FIELDS)
-            values.update(scope=adapter._AUTHORITY_SCOPE, mode="callback-calibration",
+            values.update(scope=adapter._ORDINARY_SCOPE, mode="callback-calibration",
                           fixture_root=str(fixture), control_root=str(root / "control"),
                           journal_path=str(root / "control" / "run.jsonl"), beads={"directory": str(root),
                               "database": str(root / "disposable.db"), "actor": "qualification"},
                           spools={c["child_id"]: str(root / f"custody-{i}" / "spool") for i, c in enumerate(plan["children"])})
             (root / "control").mkdir()
+            for spool in values["spools"].values():
+                Path(spool).mkdir(parents=True, mode=0o700)
             plan = self._seal_authority(plan, authority, values)
-            with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-admission-required"):
+            with self.assertRaisesRegex(NativePoolTransactionError, "original-ordinary-approval-required"):
                 adapter.build_pool_qualification_runtime(plan, authority_path=authority, admission={})
-            with patch.object(adapter, "_check_admission"), patch.object(host, "PoolWorkerContainment") as spawn:
+            ordinary = SimpleNamespace()
+            with patch("registered_pool_ordinary_runtime.require_ordinary_custody"):
+                with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-admission-required"):
+                    adapter.build_pool_qualification_runtime(plan, authority_path=authority, admission={}, ordinary=ordinary)
+            with (patch("registered_pool_ordinary_runtime.require_ordinary_custody"),
+                  patch.object(adapter, "_check_admission"), patch.object(host, "PoolWorkerContainment") as spawn):
+                ordinary.project = root / "project"
+                ordinary.integration_root = fixture
+                ordinary.ledger = SimpleNamespace(root=root / "ledger")
+                ordinary.lease_registry_path = root / "leases.json"
+                ordinary.children = {child["child_id"]: SimpleNamespace(worktree=fixture / task["worker_slot"])
+                                     for child, task in zip(plan["children"], tasks)}
                 fixture_admission = SimpleNamespace(receipt={})
-                runtime, bind, close = adapter.build_pool_qualification_runtime(
-                    plan, authority_path=authority, admission=fixture_admission)
-                self.assertIs(type(runtime), TransactionRuntime)
-                self.assertIs(runtime.prepare.__self__, bind.__self__)
-                self.assertIs(bind.__self__, close.__self__)
-                self.assertEqual(runtime.trusted_session_count(), 0)
-                self.assertEqual(list((root / "control").iterdir()), [])
-                spawn.assert_not_called()
-                with patch.object(adapter.native_live_availability, "require_pool_qualification"):
-                    with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-stage-mode-drift"):
-                        bind(object.__new__(PoolQualificationRunLimits))
-                with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "calibration-capability-attachment-refused"):
-                    adapter.build_pool_qualification_runtime(plan, authority_path=authority, admission=fixture_admission,
-                        capability=object.__new__(ConnectedPoolCallbackCapability))
-                authority.write_text("{}", encoding="utf-8")
-                with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "protected-artifact-drift"):
-                    adapter.build_pool_qualification_runtime(plan, authority_path=authority, admission=fixture_admission)
-                self._assert_productive_capability_refusals(plan, authority, values, fixture_admission)
+                with patch("registered_pool_ordinary_runtime.ordinary_pool_tasks", return_value={
+                    child["child_id"]: task for child, task in zip(plan["children"], tasks)
+                }):
+                    self._assert_ordinary_runtime_bindings(plan, authority, values, fixture_admission, ordinary, spawn)
+
+    def _assert_ordinary_runtime_bindings(self, plan, authority, values, fixture_admission, ordinary, spawn):
+        factory = adapter.build_pool_qualification_runtime
+        substitute = Mock(wraps=factory)
+        with self.assertRaisesRegex(NativePoolTransactionError, "registered-factory-required"):
+            stage.select_contained_pool_runtime(plan, substitute, ordinary=ordinary)
+        substitute.assert_not_called()
+        selection = stage.select_contained_pool_runtime(plan, factory, authority_path=authority,
+                                                        admission=fixture_admission, ordinary=ordinary)
+        runtime, bind, close = selection.runtime, selection.bind_limits, selection.cleanup
+        parent = runtime.prepare.__self__
+        run = stage.make_pool_qualification_run(plan, selection, journal_path=parent.journal.path,
+                                               fixture_root=parent.fixture_root)
+        for field in ("bind_limits", "cleanup"):
+            with patch.object(stage, "_reserve_run") as reserve:
+                with self.assertRaisesRegex(NativePoolTransactionError, "contained-runtime-hooks-mismatch"):
+                    stage._accounted_run(replace(run, **{field: Mock()}), runtime, None, {})
+                reserve.assert_not_called()
+        self.assertIs(type(runtime), TransactionRuntime)
+        self.assertIs(runtime.prepare.__self__, bind.__self__)
+        self.assertIs(bind.__self__, close.__self__)
+        self.assertEqual(runtime.trusted_session_count(), 0)
+        self.assertEqual(list(Path(values["control_root"]).iterdir()), [])
+        spawn.assert_not_called()
+        with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-stage-mode-drift"):
+            bind(object.__new__(PoolQualificationRunLimits))
+        with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "calibration-capability-attachment-refused"):
+            adapter.build_pool_qualification_runtime(plan, authority_path=authority, admission=fixture_admission, ordinary=ordinary,
+                capability=object.__new__(ConnectedPoolCallbackCapability))
+        authority.write_text("{}", encoding="utf-8")
+        with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "protected-artifact-drift"):
+            adapter.build_pool_qualification_runtime(plan, authority_path=authority, admission=fixture_admission, ordinary=ordinary)
+        self._assert_productive_capability_refusals(plan, authority, values, fixture_admission, ordinary)
 
     @staticmethod
     def _seal_authority(plan, path, values):
@@ -850,18 +736,18 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
         path.chmod(0o600)
         return seal_transaction_plan({**plan, "authority_sha256": sha256(path.read_bytes()).hexdigest()})
 
-    def _assert_productive_capability_refusals(self, plan, authority, values, admission):
-        values = {**values, "mode": "qualification", "capability_opportunity_sha256": "c" * 64}
+    def _assert_productive_capability_refusals(self, plan, authority, values, admission, ordinary):
+        values = {**values, "mode": adapter._ORDINARY_MODE, "capability_opportunity_sha256": "c" * 64}
         productive_plan = self._seal_authority(plan, authority, values)
         with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "original-connected-capability-required"):
-            adapter.build_pool_qualification_runtime(productive_plan, authority_path=authority, admission=admission,
+            adapter.build_pool_qualification_runtime(productive_plan, authority_path=authority, admission=admission, ordinary=ordinary,
                 capability={"receipt_sha256": "b" * 64})
         with self.assertRaisesRegex(CallbackCalibrationError, "original-connected-capability-required"):
-            adapter.build_pool_qualification_runtime(productive_plan, authority_path=authority, admission=admission,
+            adapter.build_pool_qualification_runtime(productive_plan, authority_path=authority, admission=admission, ordinary=ordinary,
                 capability=object.__new__(ConnectedPoolCallbackCapability))
         raw_plan = self._seal_authority(plan, authority, {**values, "capability_receipt": {}})
         with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, "invalid-qualification-authority"):
-            adapter.build_pool_qualification_runtime(raw_plan, authority_path=authority, admission=admission)
+            adapter.build_pool_qualification_runtime(raw_plan, authority_path=authority, admission=admission, ordinary=ordinary)
 
     def test_transport_eof_after_retirement_has_no_observation(self):
         parent = self._prepare_workers(2)

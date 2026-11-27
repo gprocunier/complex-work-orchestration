@@ -20,15 +20,21 @@ import registered_n1_qualification as login
 import registered_native_pool_client as client
 from registered_native_pool_host import RegisteredNativePoolHost
 import registered_pool_containment as containment
+import registered_pool_ordinary_runtime as runtime
+import registered_pool_qualification as adapter
+import registered_pool_qualification_capability as callbacks
 import registered_worker_login_config as login_config
 from cwo_core import beads, host_records, native_live_availability as availability, requirement_baseline as baseline
+from cwo_core import native_pool_qualification_stage as stage
+from cwo_core.invocation_ledger import InvocationLedger
+from cwo_core.native_pool_transaction import NativePoolTransactionError
 from cwo_core.policy import load_policy
 from tests import test_registered_pool_containment as containment_fixture
 from tests.real_beads_fixture import configure_git_fixture
 from tests.test_beads_ready_set import ready_item
 from tests.test_native_pool_admission import MemoryBdRunner
 from tests.test_native_pool_proportionality import _set_runtime
-from tests.test_registered_pool_qualification import _PEER, _pool_test_directory
+from tests.ordinary_pool_test_helpers import _PEER, _pool_test_directory
 
 
 _EPIC = "epic-ordinary-pool"
@@ -54,7 +60,7 @@ else:
 calibration = '/calibration-spool-' in os.environ['CODEX_SQLITE_HOME']
 sys.argv[1] = json.dumps({'home': str(login), 'login': str(login), 'worktree': str(worktree),
     'worker': worktree.name, 'marker': f'CWO_POOL_WORKER_{slot}_DONE',
-    'existing': slot == 2, 'behavior': 'calibration' if calibration else '',
+    'existing': slot == 2, 'behavior': calibration_behavior if calibration else '',
     'namespace': 'cwo_finite', 'tool': 'write_selected_fixture', 'effort': 'xhigh'})
 """
 
@@ -97,8 +103,9 @@ class _DisposableBeads:
 
 
 class _HostedPoolFixture:
-    def __init__(self, root, size, stack):
+    def __init__(self, root, size, stack, *, calibration_behavior="calibration"):
         self.root = Path(root)
+        self.calibration_behavior = calibration_behavior
         self.project = self.root / "project"
         self.project.mkdir(mode=0o700)
         self._git("init", "--quiet")
@@ -162,7 +169,8 @@ class _HostedPoolFixture:
 """
         peer = _PEER.replace("        assert 'permissions' not in params",
                              "        assert 'permissions' not in params\n" + check_prompt)
-        executable.write_text(f"#!{_PYTHON}\n" + _PEER_ENTRY + peer, encoding="utf-8")
+        header = f"#!{_PYTHON}\ncalibration_behavior = {self.calibration_behavior!r}\n"
+        executable.write_text(header + _PEER_ENTRY + peer, encoding="utf-8")
         executable.chmod(0o700)
         return executable
 
@@ -282,6 +290,202 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
             self.assertIn("approval.json", errors)
             self._assert_no_effects(fixture)
             launch.assert_not_called()
+
+    def test_stale_runtime_source_refuses_before_admission(self):
+        manifest = prepare._manifest
+        previous_factory_sha256 = "50a68d908cf0ddc5bb797df1fde1583895f8679a857f6e983903603ca0fba7e9"
+
+        def prepare_old_binding(*args, **kwargs):
+            return {**manifest(*args, **kwargs), "runtime_adapter_sha256": previous_factory_sha256}
+
+        with _pool_test_directory() as scratch, ExitStack() as stack:
+            with patch.object(prepare, "_manifest", side_effect=prepare_old_binding):
+                fixture = _HostedPoolFixture(scratch, 2, stack)
+            approval = fixture.approval.read_bytes()
+            with patch.object(producer, "_cohort", side_effect=AssertionError("Beads admission reached")) as cohort:
+                exit_code, raw, errors = fixture.submit("--validate-only")
+                self.assertEqual((exit_code, errors), (0, ""))
+                self.assertTrue(json.loads(raw)["authority_validated"])
+                exit_code, raw, errors = fixture.submit()
+                self.assertEqual((exit_code, raw), (2, ""))
+                self.assertIn("registered-factory-digest-mismatch", errors)
+                cohort.assert_not_called()
+            self.assertEqual(fixture.approval.read_bytes(), approval)
+            self._assert_no_effects(fixture)
+
+    def test_active_effect_journal_refuses_a_preexisting_symlink_or_fifo(self):
+        begin = InvocationLedger.begin_invocation
+        for kind in ("symlink", "fifo"):
+            with self.subTest(kind=kind), _pool_test_directory() as scratch, ExitStack() as stack:
+                fixture = _HostedPoolFixture(scratch, 2, stack)
+                attempts = []
+
+                def begin_with_existing_journal(ledger, reservation_id, request):
+                    intent = begin(ledger, reservation_id, request)
+                    attempts.append((ledger, intent))
+                    journal = ledger.root / (reservation_id + ".qualification-effects.jsonl")
+                    if kind == "symlink":
+                        journal.symlink_to(Path(scratch) / "original-target")
+                    else:
+                        os.mkfifo(journal)
+                    return intent
+
+                stack.enter_context(patch.object(InvocationLedger, "begin_invocation", begin_with_existing_journal))
+                launch = stack.enter_context(patch.object(containment._PoolLifetime, "launch"))
+                exit_code, raw, errors = fixture.submit()
+                self.assertEqual((exit_code, raw), (2, ""))
+                self.assertIn("active-effect-journal-not-fresh", errors)
+                (ledger, intent), = attempts
+                settled = ledger.attempt(intent["reservation_id"])
+                self.assertEqual(settled["state"], "reconciliation-required")
+                self.assertEqual(settled["charge"], intent["amount"])
+                self.assertFalse((Path(scratch) / "original-target").exists())
+                launch.assert_not_called()
+
+    def test_slow_close_receipt(self):
+        measure = callbacks._measure_action_ms
+        for record_fails in (False, True):
+            with self.subTest(record_fails=record_fails), _pool_test_directory() as scratch, ExitStack() as stack:
+                fixture = _HostedPoolFixture(scratch, 2, stack)
+                observations = []
+                record = containment.PoolWorkerContainment.record
+
+                def measure_close(action):
+                    result, elapsed = measure(action)
+                    return (result, 251.0) if result == {"ack": "closed"} else (result, elapsed)
+
+                def record_close(worker, name, observation):
+                    if name == "calibration-slow-close":
+                        self.assertTrue(worker._appserver.termination_recorded)
+                        observations.append(observation)
+                        if record_fails:
+                            raise OSError("synthetic private receipt failure")
+                    return record(worker, name, observation)
+
+                stack.enter_context(patch.object(callbacks, "_measure_action_ms", measure_close))
+                stack.enter_context(patch.object(containment.PoolWorkerContainment, "record", record_close))
+                exit_code, raw, errors = fixture.submit()
+                self.assertEqual((exit_code, raw), (2, ""))
+                self.assertIn("observed-callback-exceeds-certification", errors)
+                observation, = observations
+                self.assertEqual(observation["total_us"], 251_000)
+                self.assertEqual(set(observation), {"total_us", *containment._CALIBRATION_CLOSE_PHASES})
+                self.assertGreater(observation["archive_us"], 0)
+                self.assertGreater(observation["protocol_close_us"], 0)
+                self.assertFalse((fixture.approval.parent / "ordinary").exists())
+                self.assertFalse(list(fixture.login_state.glob("login-*.lock")))
+
+    def test_calibration_waits_for_owned_durable_context(self):
+        capture = adapter._PoolWorker._capture_active_rollout
+        observe = callbacks.ConnectedCallbackCalibration.observe_callback
+        for behavior in ("deferred-context", "deferred-empty"):
+            with self.subTest(behavior=behavior), _pool_test_directory() as scratch, ExitStack() as stack:
+                fixture = _HostedPoolFixture(scratch, 2, stack, calibration_behavior=behavior)
+                published = set()
+                interrupt_counts = []
+
+                def capture_before_context(worker, **kwargs):
+                    boundary, rows = capture(worker, **kwargs)
+                    if worker.parent.calibration_only and worker.turn_id and worker.child_id not in published:
+                        self.assertFalse(any(row["type"] == "turn_context" for row in rows))
+                        if behavior == "deferred-empty" and worker.login_slot == 1:
+                            self.assertEqual((rows, boundary["byte_offset"]), ([], 0))
+                        self._publish_context(worker, rows)
+                        published.add(worker.child_id)
+                    return boundary, rows
+
+                def observe_interrupt(calibration, control, name, **kwargs):
+                    if name == "interrupt":
+                        interrupt_counts.append(len(published))
+                    return observe(calibration, control, name, **kwargs)
+
+                stack.enter_context(patch.object(adapter._PoolWorker, "_capture_active_rollout", capture_before_context))
+                stack.enter_context(patch.object(callbacks.ConnectedCallbackCalibration, "observe_callback", observe_interrupt))
+                code, raw, errors = fixture.submit()
+                self.assertEqual((code, errors), (0, ""), (raw, errors))
+                self._assert_settled(fixture, 2, json.loads(raw))
+                self.assertEqual(interrupt_counts, [2, 2])
+
+    @staticmethod
+    def _publish_context(worker, rows):
+        records = []
+        if not rows:
+            records.append({"type": "session_meta", "payload": {"id": worker.thread_id,
+                            "cwd": str(worker.worktree), "history_mode": "legacy"}})
+        records.append({"type": "turn_context", "payload": {"turn_id": worker.turn_id,
+                        "model": adapter.MODEL, "effort": adapter.EFFORT}})
+        with worker._rollout.open("a", encoding="utf-8") as stream:
+            for record in records:
+                stream.write(json.dumps(record) + "\n")
+
+    def test_calibration_requires_original_control_cleanup_and_active_charge(self):
+        observe = callbacks.ConnectedCallbackCalibration.observe_callback
+        terminal = callbacks._terminal_evidence
+        begin = runtime.begin_ordinary_connected_callback_calibration
+
+        def use_replaced_control(calibration, control, name, **kwargs):
+            return observe(calibration, adapter._WorkerControl(control.worker, control.contract), name, **kwargs)
+
+        def unconfirmed_cleanup(control):
+            host = control.worker.containment
+            receipt = {**host.receipt(), "cleanup_confirmed": False}
+            with patch.object(host, "receipt", return_value=receipt):
+                return terminal(control)
+
+        def missing_charge(parent, operation):
+            with patch.object(parent._ordinary.ledger, "attempt", return_value=None):
+                return begin(parent, operation)
+
+        cases = (
+            (callbacks.ConnectedCallbackCalibration, "observe_callback", use_replaced_control, "control-custody-changed"),
+            (callbacks, "_terminal_evidence", unconfirmed_cleanup, "archive-or-cleanup-missing"),
+            (runtime, "begin_ordinary_connected_callback_calibration", missing_charge, "active-reservation-intent-drift"),
+        )
+        for module, method, replacement, reason in cases:
+            with self.subTest(reason=reason), _pool_test_directory() as scratch, ExitStack() as stack:
+                fixture = _HostedPoolFixture(scratch, 2, stack)
+                stack.enter_context(patch.object(module, method, replacement))
+                code, raw, errors = fixture.submit()
+                self.assertEqual((code, raw), (2, ""))
+                self.assertIn(reason, errors)
+                self.assertFalse((fixture.approval.parent / "ordinary").exists())
+                self.assertFalse(list(fixture.login_state.glob("login-*.lock")))
+
+    def test_signed_cutoff_refuses_allocation_and_writer_before_effects(self):
+        append = stage.PoolQualificationRunLimits._append
+        for target in ("session-intent", "writer-release"):
+            with self.subTest(event=target), _pool_test_directory() as scratch, ExitStack() as stack:
+                fixture = _HostedPoolFixture(scratch, 2, stack)
+                refusals = []
+
+                def append_after_cutoff(limits, event, details, **kwargs):
+                    if event != target:
+                        return append(limits, event, details, **kwargs)
+                    accounting = limits._allowance.accounting
+                    try:
+                        with patch.object(accounting.ledger, "clock", return_value=accounting.expires_at):
+                            return append(limits, event, details, **kwargs)
+                    except NativePoolTransactionError as error:
+                        self.assertIn("run-deadline-expired", str(error))
+                        refusals.append(limits)
+                        raise
+
+                stack.enter_context(patch.object(stage.PoolQualificationRunLimits, "_append", append_after_cutoff))
+                exit_code, _, _ = fixture.submit()
+                self.assertEqual(exit_code, 2)
+                self.assertTrue(refusals)
+                limits = refusals[0]
+                journal = limits._journal.read()
+                self.assertNotIn("qualification-" + target, [row["event_type"] for row in journal])
+                self.assertTrue(journal[-1]["details"]["cleanup_confirmed"])
+                intent = limits._intent
+                settled = limits._allowance.accounting.ledger.attempt(intent["reservation_id"])
+                self.assertEqual(settled["charge"], intent["amount"])
+                if target == "writer-release":
+                    self.assertEqual(settled["state"], "reconciliation-required")
+                    self.assertEqual(sum(row["event_type"] == "qualification-tool-debit" for row in journal), 2)
+                for child in fixture.scope["children"]:
+                    self.assertFalse((Path(child["worktree"]) / child["write_path"]).exists())
 
     def test_substituted_host_and_held_generic_route_are_refused(self):
         with _pool_test_directory() as scratch, ExitStack() as stack:

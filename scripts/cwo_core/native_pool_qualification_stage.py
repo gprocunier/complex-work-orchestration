@@ -1,35 +1,24 @@
-"""Run the fixed pool qualification stage from a protected embedding parent."""
+"""Account for both phases of an original contained pool run."""
 
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from contextlib import contextmanager, nullcontext
 from copy import deepcopy
-from dataclasses import InitVar, dataclass, field, replace
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
-import fcntl
 from hashlib import sha256
 import json
 import os
 from pathlib import Path
-from pwd import getpwuid
 import stat
 import sys
-from threading import Condition, get_ident, local
+from threading import Condition, get_ident
 from time import monotonic
 from types import FunctionType
 from typing import Any
-from weakref import WeakSet
 
 from .invocation_ledger import LEDGER_FILE, MAX_UNITS, InvocationLedger, add_failure_note, request_sha256
-from .model_identities import resolve_model
-from .native_live_availability import (
-    require_n1_live,
-    require_pool_live,
-    require_pool_qualification,
-    require_registered_contained_pool_live,
-    require_registered_n1_live,
-)
+from .native_live_availability import require_registered_contained_pool_live
 from .native_pool_contracts import (
     canonical_sha256,
     pool_capacity_limits,
@@ -48,22 +37,7 @@ from .native_pool_deferred_context import (
     _ContainedPoolAdmission,
     _QualificationCalibration,
     _RUNTIME_TOKEN,
-    contained_plan_binding,
     contained_selection_binding,
-)
-from .native_pool_qualification_budget import (
-    CAMPAIGN_BUDGET_ID as CAMPAIGN_BUDGET_ID,
-    CAMPAIGN_MAX_START_INCREMENT,
-    CAMPAIGN_SCOPE_SHA256 as CAMPAIGN_SCOPE_SHA256,
-    CAMPAIGN_START_CAP as CAMPAIGN_START_CAP,
-    campaign_start_snapshot,
-    next_allowance,
-    valid_start_limit,
-)
-from .native_pool_qualification_fixtures import (
-    POOL_QUALIFICATION_COHORT_SIZES,
-    POOL_QUALIFICATION_SEED,
-    fixed_pool_qualification_cohorts,
 )
 from .native_pool_transaction import (
     AdmittedPoolLaunch,
@@ -72,13 +46,10 @@ from .native_pool_transaction import (
     TransactionJournal,
     TransactionRuntime,
     execute_native_pool_transaction,
-    execution_authoritative_bead_projection,
     validate_transaction_plan,
 )
-from .native_pool_workspace import capture_workspace_snapshot
 from .native_tool_isolation import _ContainedPoolChild
 from .policy_schema import strict_json_loads
-from .qualification_target import selected_target
 from .workspace_capture import Budget, BudgetExhausted, _pin_directory, read_at
 
 _POOL_LIMITS = ("tool_calls", "runtime_seconds")
@@ -88,11 +59,6 @@ _CLEANUP_SECONDS = 1.0
 _FACTORY_MODULE = "registered_pool_qualification"
 _FACTORY_ENTRY = "build_pool_qualification_runtime"
 _FACTORY_BYTES = 256_000
-_CALIBRATION_MODULE = "registered_pool_qualification_calibration"
-_CALIBRATION_ENTRY = "bind_protected_callback_calibration"
-_CAMPAIGN_APPROVAL_TOKEN = object()
-_ISSUED_CAMPAIGN_APPROVALS = WeakSet()
-_CAMPAIGN_CUSTODY = local()
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,49 +73,12 @@ class PoolQualificationRun:
     ordinary_policy_children: Mapping[str, _ContainedPoolChild] | None = None
 
 
-@dataclass(eq=False, frozen=True, slots=True, weakref_slot=True)
-class _CampaignApproval:
-    """Exact campaign authority verified and retained by the protected parent."""
-
-    stage_binding: str
-    action_sha256: str
-    expires_at: int
-    calibrations: tuple[tuple[str, str, str, str, int], ...]
-    controller_pid: int
-    parent: object = field(repr=False)
-    issuer: InitVar[object]
-    campaign_start_limit: int = CAMPAIGN_START_CAP
-
-    def __post_init__(self, issuer):
-        _require(issuer is _CAMPAIGN_APPROVAL_TOKEN, "signed-campaign-approval-required")
-        _ISSUED_CAMPAIGN_APPROVALS.add(self)
-
-    def __reduce__(self):
-        raise TypeError("Contained campaign approval cannot be copied or serialized.")
-
-
 @dataclass(frozen=True, slots=True)
 class PoolQualificationAccounting:
     """Original ledger and cutoff selected in the protected parent process."""
 
     ledger: InvocationLedger
     expires_at: int
-    _approval: _CampaignApproval | None = None
-
-
-def _original_campaign_approval(value: object) -> bool:
-    return type(value) is _CampaignApproval and value in _ISSUED_CAMPAIGN_APPROVALS
-
-
-def _require_campaign_approval(accounting: PoolQualificationAccounting) -> _CampaignApproval:
-    _require(type(accounting) is PoolQualificationAccounting and _original_campaign_approval(accounting._approval),
-             "signed-campaign-approval-required")
-    approval = accounting._approval
-    _require(type(accounting.ledger) is InvocationLedger and approval.controller_pid == os.getpid()
-             and accounting.ledger.root == contained_campaign_ledger_root()
-             and accounting.ledger.current_time() < accounting.expires_at <= approval.expires_at,
-             "signed-campaign-approval-not-current")
-    return approval
 
 
 def _ledger_root(accounting: PoolQualificationAccounting) -> Path:
@@ -160,44 +89,6 @@ def _ledger_root(accounting: PoolQualificationAccounting) -> Path:
     _require(isinstance(root, Path) and root.is_absolute() and root == root.resolve() and root != root.parent,
              "accounting-root-invalid")
     return root
-
-
-def pool_qualification_binding(preparation: Mapping[str, Any], runs: Sequence[PoolQualificationRun], *,
-                               accounting: PoolQualificationAccounting) -> str:
-    """Hash the preparation, ordered run bindings and protected ledger selection."""
-    return _stage_binding(preparation, [_run_binding(run) for run in runs], accounting)
-
-
-def contained_pool_qualification_binding(
-    preparation: Mapping[str, Any], runs: Sequence[tuple[Mapping[str, Any], Path, Path]], *,
-    accounting: PoolQualificationAccounting,
-) -> str:
-    """Bind sealed plans, journals and fixtures before live callback calibration."""
-    return _stage_binding(preparation, [
-        dict(_run_paths(plan, journal, fixture), active_limits=True, contained_selection_sha256=contained_plan_binding(plan))
-        for plan, journal, fixture in runs
-    ], accounting)
-
-
-def _stage_binding(preparation, runs, accounting):
-    return canonical_sha256({"preparation": dict(preparation), "runs": runs,
-                             "accounting": {"root": str(_ledger_root(accounting)), "expires_at": accounting.expires_at}})
-
-
-def _run_paths(plan, journal_path, fixture_root):
-    return {"plan_sha256": plan["plan_sha256"], "journal_path": str(journal_path), "fixture_root": str(fixture_root)}
-
-
-def _run_binding(run: PoolQualificationRun) -> dict[str, Any]:
-    binding = _run_paths(run.plan, run.journal_path, run.fixture_root)
-    if run.bind_limits is not None:
-        binding["active_limits"] = True
-    if run.contained_selection is not None:
-        selection = run.contained_selection
-        binding["contained_selection_sha256"] = contained_selection_binding(selection, run.plan, run.runtime)
-        _require(run.bind_limits is selection.bind_limits and run.cleanup is selection.cleanup,
-                 "contained-runtime-hooks-mismatch")
-    return binding
 
 
 def _require(condition: bool, reason: str) -> None:
@@ -235,15 +126,11 @@ def _read_registered_source(source_path: Path) -> bytes:
     return source
 
 
-def _require_contained_availability() -> None:
-    require_pool_qualification()
-    require_registered_n1_live()
-
-
 def select_contained_pool_runtime(plan: Mapping[str, Any], create_runtime: Callable[..., tuple], /,
                                   **factory_inputs: Any) -> ContainedPoolSelection:
     """Check the installed adapter and retain the exact runtime it assembles without effects."""
-    _contained_route(factory_inputs.get("ordinary"))()
+    require_registered_contained_pool_live()
+    _require(factory_inputs.get("ordinary") is not None, "original-ordinary-approval-required")
     module = sys.modules.get(_FACTORY_MODULE)
     _require(module is not None and type(create_runtime) is FunctionType
              and vars(module).get(_FACTORY_ENTRY) is create_runtime,
@@ -267,92 +154,13 @@ def select_contained_pool_runtime(plan: Mapping[str, Any], create_runtime: Calla
                                   factory_inputs.get("ordinary"))
 
 
-def _contained_route(ordinary):
-    return _require_contained_availability if ordinary is None else require_registered_contained_pool_live
-
-
 def make_pool_qualification_run(plan: Mapping[str, Any], selection: ContainedPoolSelection, *,
                                 journal_path: Path, fixture_root: Path) -> PoolQualificationRun:
-    """Carry the registered runtime and its original hooks into the held stage."""
+    """Carry the registered runtime and its original hooks into accounting."""
     _require(type(selection) is ContainedPoolSelection, "contained-runtime-required")
     contained_selection_binding(selection, plan, selection.runtime)
     return PoolQualificationRun(plan, selection.runtime, journal_path, fixture_root,
                                 selection.bind_limits, selection.cleanup, selection)
-
-
-def _stage_limits(preparation: Mapping[str, Any], run_count: int) -> tuple[int, dict[str, int]]:
-    repeats = preparation.get("runs_per_cohort")
-    _require(_positive(repeats) and repeats * len(POOL_QUALIFICATION_COHORT_SIZES) == run_count, "run-count-mismatch")
-    limits = preparation.get("per_run_limits")
-    _require(isinstance(limits, Mapping), "per-run-limits-required")
-    _require(not (limits.keys() - set(_LIMITS)), "unsupported-limit-requires-protected-host-accounting")
-    _require(all(_positive(limits.get(field)) for field in _LIMITS), "bounded-per-run-limits-required")
-    ceiling = {field: limits[field] * run_count for field in _LIMITS}
-    _require(all(_positive(value) for value in ceiling.values())
-             and preparation.get("stage_ceiling") == ceiling, "stage-ceiling-mismatch")
-    return repeats, dict(limits)
-
-
-def _signed_failure_isolation(preparation: Mapping[str, Any], repeats: int) -> bool:
-    if "failure_isolation" not in preparation:
-        return False
-    _require(preparation["failure_isolation"] is True and repeats >= 2, "failure-isolation-run-roster-invalid")
-    return True
-
-
-def _stage_tasks(preparation: Mapping[str, Any]) -> dict[int, list[dict[str, str]]]:
-    cohorts = fixed_pool_qualification_cohorts()
-    _require(preparation.get("cohorts") == cohorts and preparation.get("seed_files") == POOL_QUALIFICATION_SEED,
-             "fixed-fixture-required")
-    return {cohort["size"]: cohort["tasks"] for cohort in cohorts}
-
-
-def _stage_model(preparation: Mapping[str, Any]) -> str:
-    target = selected_target()["selection"]
-    model = resolve_model("luna")
-    _require(preparation.get("target_profile") == target["profile"]
-             and preparation.get("worker_role") == "luna" and preparation.get("worker_model") == model,
-             "target-policy-drift")
-    return model
-
-
-def _validate_run(run: PoolQualificationRun, size: int, paths: Mapping[str, str],
-                  model: str, session_limit: int) -> None:
-    _require(type(run.runtime) is TransactionRuntime, "trusted-runtime-required")
-    _require((run.bind_limits is None and run.cleanup is None)
-             or (callable(run.bind_limits) and callable(run.cleanup)), "active-run-hooks-incomplete")
-    errors = validate_transaction_plan(run.plan)
-    _require(not errors, "invalid-original-plan:" + ";".join(errors))
-    _require(run.plan["version"] == PLAN_VERSION and run.plan["prelude_session_count"] == 0,
-             "ordinary-no-prelude-plan-required")
-    _require(run.plan["selected_model"] == model and len(run.plan["children"]) == size,
-             "cohort-or-model-mismatch")
-    _require(run.plan["budget"]["reserved_sessions"] <= session_limit, "session-limit-exceeded")
-    expected_paths = {(path,) for path in paths}
-    _require({tuple(child["write_paths"]) for child in run.plan["children"]} == expected_paths,
-             "sealed-task-path-mismatch")
-    _require(run.journal_path.is_absolute() and run.journal_path == run.journal_path.resolve(),
-             "canonical-journal-path-required")
-
-
-def _approved_pool_budget(run: PoolQualificationRun, limits: Mapping[str, int]) -> tuple[int, int]:
-    approved_budgets: set[tuple[int, int]] = set()
-    for child in run.plan["children"]:
-        projection = execution_authoritative_bead_projection(run.runtime.read_bead(child["bead_id"]))
-        _require(canonical_sha256(projection) == child["bead_projection_sha256"], "sealed-bead-projection-drift")
-        budget = projection["execution_scope"].get("aggregate_hard_budget")
-        _require(isinstance(budget, Mapping) and all(_positive(budget.get(field))
-                 and budget[field] <= limits[field] for field in _POOL_LIMITS), "missing-or-excessive-pool-budget")
-        approved_budgets.add((budget["tool_calls"], budget["runtime_seconds"]))
-    _require(len(approved_budgets) == 1, "split-pool-budget")
-    return approved_budgets.pop()
-
-
-@dataclass(frozen=True, slots=True)
-class _FixtureEntry:
-    identity: tuple[int, int, int]
-    content_sha256: str | None = None
-    change_mark: tuple[int, int, int] | None = None
 
 
 def _entry_identity(info: os.stat_result) -> tuple[int, int, int]:
@@ -363,142 +171,9 @@ def _change_mark(info: os.stat_result) -> tuple[int, int, int]:
     return info.st_size, info.st_mtime_ns, info.st_ctime_ns
 
 
-def _fixture_file(directory: int, name: str, budget: Budget) -> _FixtureEntry:
-    budget.take_file()
-    kind, contents, before = read_at(directory, name, budget.remaining_bytes(), deadline=budget.deadline)
-    _require(kind == "file" and contents is not None and before is not None and before.st_nlink == 1,
-             "fixture-single-regular-file-required")
-    after = os.stat(name, dir_fd=directory, follow_symlinks=False)
-    _require(_entry_identity(before) == _entry_identity(after) and _change_mark(before) == _change_mark(after)
-             and len(contents) == after.st_size, "fixture-file-changed-during-read")
-    budget.take_bytes(len(contents))
-    return _FixtureEntry(_entry_identity(before), sha256(contents).hexdigest(), _change_mark(before))
-
-
-def _read_fixture_tree(directory: int, relative: Path, budget: Budget,
-                       entries: dict[Path, _FixtureEntry], *, device: int) -> None:
-    before = os.fstat(directory)
-    _require(before.st_uid == os.geteuid() and not before.st_mode & 0o022, "fixture-directory-not-protected")
-    _require(before.st_dev == device and len(relative.parts) <= 10, "fixture-directory-outside-bounds")
-    entries[relative] = _FixtureEntry(_entry_identity(before))
-    with os.scandir(directory) as children:
-        for child in children:
-            budget.take_entry()
-            child_path = relative / child.name
-            if child.is_dir(follow_symlinks=False):
-                fd = os.open(child.name, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
-                try:
-                    _read_fixture_tree(fd, child_path, budget, entries, device=device)
-                finally:
-                    os.close(fd)
-            else:
-                entries[child_path] = _fixture_file(directory, child.name, budget)
-    _require(_change_mark(before) == _change_mark(os.fstat(directory)), "fixture-directory-changed-during-read")
-
-
-def _fixture_image(root: Path) -> dict[Path, _FixtureEntry]:
-    _require(root.is_absolute() and ".." not in root.parts and root != root.parent,
-             "fixture-absolute-directory-required")
-    try:
-        pinned = _pin_directory(str(root))
-        _require(pinned is not None, "fixture-protected-directory-required")
-        directory, ancestry = pinned
-        try:
-            budget = Budget.start(max_files=256, max_bytes=1_000_000, max_seconds=3, max_entries=512)
-            entries: dict[Path, _FixtureEntry] = {}
-            _read_fixture_tree(directory, Path(), budget, entries, device=os.fstat(directory).st_dev)
-            observed = _pin_directory(str(root))
-            _require(observed is not None, "fixture-directory-moved-during-read")
-            os.close(observed[0])
-            _require(observed[1] == ancestry, "fixture-directory-moved-during-read")
-            return entries
-        finally:
-            os.close(directory)
-    except (OSError, BudgetExhausted) as exc:
-        raise NativePoolTransactionError("pool-qualification-fixture-inspection-failed") from exc
-
-
-@dataclass(frozen=True, slots=True)
-class _RunFixture:
-    initial: dict[Path, _FixtureEntry]
-    outputs: dict[Path, str]
-    worktree_identities: dict[str, dict[str, Any]]
-
-
-def _pristine_fixture(run: PoolQualificationRun, tasks: Sequence[Mapping[str, str]]) -> _RunFixture:
-    entries = _fixture_image(run.fixture_root)
-    outputs = {Path(task["worker_slot"], task["write_path"]): sha256(task["expected_utf8"].encode()).hexdigest()
-               for task in tasks}
-    slots = {path.parts[0]: [path.name] for path in outputs}
-    slots["integration"] = []
-    _require({path.name for path in entries if len(path.parts) == 1} == set(slots), "fixture-clone-set-mismatch")
-    identities = {}
-    for slot, allowed_paths in slots.items():
-        clone = Path(slot)
-        git = clone / ".git"
-        _require({path.name for path in entries if path.parent == clone} == {".git", *POOL_QUALIFICATION_SEED},
-                 "fixture-clone-not-pristine")
-        indirections = ("commondir", "gitdir", "objects/info/alternates", "objects/info/http-alternates")
-        _require(stat.S_ISDIR(entries[git].identity[2]) and not any(git / name in entries for name in indirections),
-                 "fixture-own-git-directory-required")
-        for name, content in POOL_QUALIFICATION_SEED.items():
-            _require(entries[clone / name].content_sha256 == sha256(content.encode()).hexdigest(), "fixture-seed-mismatch")
-        snapshot = capture_workspace_snapshot(run.fixture_root / clone, allowed_paths=allowed_paths)
-        _require(snapshot["identity"]["git_common_dir_sha256"] == sha256(os.fsencode(run.fixture_root / git)).hexdigest(),
-                 "fixture-own-git-directory-required")
-        _require(snapshot["baseline"]["tracked_paths"] == list(POOL_QUALIFICATION_SEED), "fixture-seed-index-mismatch")
-        identities[slot] = snapshot["identity"]
-    return _RunFixture(entries, outputs, identities)
-
-
-def _check_fixture_launch(run: PoolQualificationRun, fixture: _RunFixture, launch: AdmittedPoolLaunch) -> None:
-    integration = str(run.fixture_root / "integration")
-    _require(launch.preflight_request.get("integration_root") == integration
-             and launch.contract["topology"]["integration_root_identity"] == fixture.worktree_identities["integration"],
-             "admitted-workspace-drift")
-    slots = {path.name: path.parts[0] for path in fixture.outputs}
-    roots = {child["child_id"]: child["worktree"] for child in launch.preflight_request["children"]}
-    planned = {child["child_id"]: child for child in run.plan["children"]}
-    for child in launch.contract["children"]:
-        child_id = child["child_id"]
-        path, = planned[child_id]["write_paths"]
-        slot = slots[path]
-        identity = fixture.worktree_identities[slot]
-        _require(roots.get(child_id) == str(run.fixture_root / slot) and child["worktree_identity"] == identity
-                 and planned[child_id]["worktree_identity_sha256"] == canonical_sha256(identity), "admitted-workspace-drift")
-    _require(_fixture_image(run.fixture_root) == fixture.initial, "fixture-changed-before-dispatch")
-
-
-def _verify_fixture_outputs(run: PoolQualificationRun, fixture: _RunFixture, *,
-                            omitted_output: Path | None = None) -> dict[str, Any]:
-    """Observe final file state, including the absence of any deliberately refused output."""
-    observed = _fixture_image(run.fixture_root)
-    for path, digest in fixture.outputs.items():
-        if path == omitted_output:
-            _require(path not in observed, "isolation-target-output-present")
-            continue
-        output = observed.pop(path, None)
-        _require(output is not None and output.content_sha256 == digest, "fixture-worker-output-mismatch")
-    _require(observed == fixture.initial, "fixture-unexpected-change")
-    return {"outcome": "verified", "worker_output_count": len(fixture.outputs) - int(omitted_output is not None)}
-
-
 def _outside_fixtures(path: str | Path, roots: frozenset[Path]) -> bool:
     candidate = Path(path).resolve()
     return not roots.intersection((candidate, *candidate.parents))
-
-
-def _capture_stage_fixtures(runs: Sequence[PoolQualificationRun],
-                            tasks: Sequence[Sequence[Mapping[str, str]]]) -> tuple[frozenset[Path], list[_RunFixture]]:
-    roots = frozenset(run.fixture_root for run in runs)
-    _require(len({run.plan.get("transaction_id") for run in runs}) == len(runs)
-             and len({run.journal_path for run in runs}) == len(runs)
-             and len(roots) == len(runs), "duplicate-run-identity")
-    _require(all(_outside_fixtures(run.journal_path, roots) for run in runs), "fixture-journal-overlap")
-    fixtures = [_pristine_fixture(run, cohort) for run, cohort in zip(runs, tasks)]
-    identities = [entry.identity[:2] for fixture in fixtures for entry in fixture.initial.values()]
-    _require(len(identities) == len(set(identities)), "fixture-shared-inode")
-    return roots, fixtures
 
 
 @dataclass(frozen=True, slots=True)
@@ -629,66 +304,6 @@ def _verify_settlement(source: _RunSettlement, launched: Mapping[str, Any]) -> d
     return {"outcome": "verified", "state_sha256": state["state_sha256"], "released_lease_sha256s": hashes}
 
 
-def _bound_runtime(run: PoolQualificationRun, paths: Mapping[str, str], budget: tuple[int, int],
-                   fixture: _RunFixture, roots: frozenset[Path], *,
-                   omitted_output: Path | None = None) -> TransactionRuntime:
-    settlement: _RunSettlement | None = None
-
-    def bind(plan, allocations, context):
-        nonlocal settlement
-        launch = run.runtime.bind_admitted_launch(plan, allocations, context)
-        _require(type(launch) is AdmittedPoolLaunch, "original-admitted-launch-required")
-        _require(launch.keyword_arguments.get("activation_capability") is None, "activation-not-supported")
-        aggregate = launch.contract.get("aggregate_hard_budget", {})
-        _require((aggregate.get("tool_calls"), aggregate.get("runtime_seconds")) == budget,
-                 "admitted-pool-budget-drift")
-        children = {child["child_id"]: child["declared_write_paths"] for child in launch.contract["children"]}
-        planned = {child["child_id"]: child["write_paths"] for child in plan["children"]}
-        _require(all(child.get("requested_model") == plan["selected_model"] for child in launch.contract["children"]),
-                 "admitted-pool-model-drift")
-        _require(children == planned and launch.task_inputs == {key: paths[value[0]] for key, value in planned.items()},
-                 "admitted-pool-task-drift")
-        settlement = _bind_settlement(launch, roots, run.journal_path)
-        _check_fixture_launch(run, fixture, launch)
-        return launch
-
-    def validate(launched, context, *, before_artifact_checks=None):
-        validation = dict(run.runtime.validate(deepcopy(dict(launched)), context))
-        if run.contained_selection is not None:
-            validation["atomic_promotion_authorized"] = False
-        if before_artifact_checks is not None:
-            before_artifact_checks(validation)
-        if launched.get("pool_receipt", {}).get("accepting") is not True:
-            validation.update(accepted=False, atomic_promotion_authorized=False)
-        if validation.get("accepted") is not True and run.bind_limits is None:
-            return validation
-        _observe_fixture_outputs(run, fixture, validation, omitted_output)
-        try:
-            _require(settlement is not None, "settlement-original-launch-required")
-            validation["qualification_settlement"] = _verify_settlement(settlement, launched)
-        except NativePoolTransactionError as exc:
-            validation.update(accepted=False, atomic_promotion_authorized=False,
-                              qualification_settlement={"outcome": "refused", "reason": str(exc)})
-        return validation
-
-    return replace(run.runtime, bind_admitted_launch=bind, validate=validate)
-
-
-def _observe_fixture_outputs(run, fixture, validation, omitted_output):
-    if omitted_output is not None:
-        label = "qualification_isolation_fixture"
-        validation.update(accepted=False, atomic_promotion_authorized=False)
-    elif validation.get("accepted") is True:
-        label = "qualification_fixture"
-    else:
-        return
-    try:
-        validation[label] = _verify_fixture_outputs(run, fixture, omitted_output=omitted_output)
-    except NativePoolTransactionError as exc:
-        validation.update(accepted=False, atomic_promotion_authorized=False)
-        validation[label] = {"outcome": "refused", "reason": str(exc)}
-
-
 def _accepted(result: Mapping[str, Any], plan: Mapping[str, Any]) -> bool:
     launch_result = result.get("launch_result") or {}
     receipt = launch_result.get("pool_receipt") or {}
@@ -706,17 +321,12 @@ class _StageAllowance:
     ancestry: list[tuple[int, int]]
     stage_sha256: str
     budget_id: str
-    campaign_intent: Mapping[str, Any] | None = None
     calibration: _QualificationCalibration | None = None
-    isolation_target: str | None = None
     ordinary: object | None = None
 
     def check_custody(self) -> None:
         _require(self.accounting.ledger.root == self.root
                  and _custody_binding(self.root / LEDGER_FILE) == self.ancestry, "accounting-custody-drift")
-        if self.campaign_intent is not None:
-            current = self.accounting.ledger.attempt(self.campaign_intent["reservation_id"])
-            _require(current == self.campaign_intent, "campaign-start-intent-drift")
 
 
 class PoolQualificationRunLimits:
@@ -748,8 +358,6 @@ class PoolQualificationRunLimits:
         self._contained_admission: _ContainedPoolAdmission | None = None
         self._provisional_arrivals: set[str] = set()
         self._writer_releases: set[tuple[str, int | str]] = set()
-        self._isolation_request: tuple[str, int | str, str] | None = None
-        self._isolation_refused = False
 
     @property
     def deadline(self) -> float:
@@ -759,10 +367,6 @@ class PoolQualificationRunLimits:
     def calibration_only(self) -> bool:
         admission = self._contained_admission
         return admission is not None and admission._calibration is not None
-
-    @property
-    def isolation_target(self) -> str | None:
-        return self._allowance.isolation_target
 
     def _seconds_left(self) -> float:
         accounting = self._allowance.accounting
@@ -786,12 +390,8 @@ class PoolQualificationRunLimits:
         self._time_left()
 
     def _require_effect_authority(self) -> None:
-        if self._allowance.ordinary is not None:
-            require_registered_contained_pool_live()
-            self._allowance.ordinary.require_current()
-        elif self._allowance.campaign_intent is not None:
-            _require_contained_availability()
-            _require_campaign_approval(self._allowance.accounting)
+        require_registered_contained_pool_live()
+        self._allowance.ordinary.require_current()
 
     def _check_intent_custody(self) -> None:
         self._allowance.check_custody()
@@ -999,10 +599,8 @@ class PoolQualificationRunLimits:
         with self._condition:
             _require(not self.calibration_only, "calibration-writer-held")
             self.remaining()
-            if self.isolation_target is not None and not self._isolation_refused:
-                self._refuse_effect("isolation-refusal-not-observed")
             key = child_id, request_id
-            if (child_id == self.isolation_target or self._contained_admission is None or not self._tools_released
+            if (self._contained_admission is None or not self._tools_released
                     or self._tools.get(key) is not False or key in self._writer_releases or not callable(release)):
                 self._refuse_effect("contained-writer-release-refused")
             try:
@@ -1016,42 +614,6 @@ class PoolQualificationRunLimits:
             self.remaining()
             self._writer_releases.add(key)
             release()
-
-    def intend_isolation_refusal(self, child_id: str, request_id: int | str, request_sha256: str) -> None:
-        """Hold the original target writer after every cohort callback has been proved and debited."""
-        with self._condition:
-            self.remaining()
-            key = child_id, request_id
-            _require(child_id == self.isolation_target and self._tools_released
-                     and self._tools.get(key) is False and self._isolation_request is None,
-                     "isolation-refusal-intent-refused")
-            self._append("isolation-refusal-intent", {"child_id": child_id, "request_id": request_id,
-                         "request_sha256": request_sha256}, before_effect=True)
-            self._isolation_request = (*key, request_sha256)
-
-    def acknowledge_isolation_refusal(self, child_id: str, request_id: int | str, request_sha256: str) -> None:
-        """Record the original same-turn refusal after the app server completes its tool item."""
-        with self._condition:
-            self.remaining()
-            key = child_id, request_id
-            _require((*key, request_sha256) == self._isolation_request and self._tools.get(key) is False,
-                     "isolation-refusal-ack-refused")
-            self._append("isolation-refused", {"child_id": child_id, "request_id": request_id,
-                         "request_sha256": request_sha256})
-            self._tools[key] = True
-            self._isolation_refused = True
-            self._condition.notify_all()
-
-    def wait_for_isolation_refusal(self) -> None:
-        """Keep healthy writes gated until the refusal witnesses a real peer failure."""
-        with self._condition:
-            if self.isolation_target is not None:
-                if not self._condition.wait_for(self._isolation_refusal_settled, self.remaining()):
-                    self._refuse_effect("isolation-refusal-deadline-expired")
-                self.remaining()
-
-    def _isolation_refusal_settled(self) -> bool:
-        return self._closed or self._record_failed or self._isolation_refused
 
     def _tool_overlap_ready(self) -> bool:
         return (self._closed or self._record_failed or self._tools_released
@@ -1230,134 +792,6 @@ def _reserve_run(run: PoolQualificationRun, allowance: _StageAllowance,
     ), request_bytes
 
 
-def contained_campaign_ledger_root() -> Path:
-    """Select the same controller-owned campaign ledger across source checkouts."""
-    return Path(getpwuid(os.getuid()).pw_dir) / ".local" / "state" / "cwo" / CAMPAIGN_BUDGET_ID
-
-
-@contextmanager
-def _campaign_ledger_directory(root: Path):
-    _require(root == contained_campaign_ledger_root(), "campaign-ledger-required")
-    path = root / LEDGER_FILE
-    directory, _ = _custody(path, "campaign-ledger-custody-refused")
-    try:
-        _require(os.fstat(directory).st_mode & 0o077 == 0, "campaign-ledger-custody-refused")
-        _require(_private_settlement_file(path.lstat()), "campaign-ledger-enrollment-required")
-        yield directory
-    finally:
-        os.close(directory)
-
-
-@contextmanager
-def _campaign_custody(root: Path, *, new_owner=False):
-    with _campaign_ledger_directory(root) as directory:
-        info = os.fstat(directory)
-        owner = os.getpid(), info.st_dev, info.st_ino
-        retained = getattr(_CAMPAIGN_CUSTODY, "owner", None)
-        if retained is None:
-            with _take_campaign_custody(directory, owner):
-                yield
-        else:
-            _require(retained == owner and not new_owner, "pool-qualification-campaign-already-running")
-            yield
-
-
-@contextmanager
-def _take_campaign_custody(directory, owner):
-    try:
-        fcntl.flock(directory, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError as failure:
-        raise NativePoolTransactionError("pool-qualification-campaign-already-running") from failure
-    _CAMPAIGN_CUSTODY.owner = owner
-    try:
-        yield
-    finally:
-        del _CAMPAIGN_CUSTODY.owner
-
-
-def campaign_start_status(ledger: InvocationLedger) -> dict[str, Any]:
-    """Read the original and linked allowances from the fixed campaign ledger."""
-    with _campaign_ledger_directory(ledger.root), ledger._locked() as (_root, document):
-        return campaign_start_snapshot(document)
-
-
-def _require_campaign_room(summary, run_count, cap):
-    _require(run_count <= cap, "campaign-start-cap-exceeded")
-    _require(summary["remaining"] + cap - summary["cap"] >= run_count, "campaign-start-cap-exhausted")
-    _require(not any(summary["attempts_by_state"][state] for state in
-                     ("reserved", "invocation-intent", "reconciliation-required")), "campaign-start-unresolved")
-
-
-def _require_campaign_budget(accounting: PoolQualificationAccounting, run_count: int) -> dict[str, Any]:
-    approval = _require_campaign_approval(accounting)
-    summary = campaign_start_status(accounting.ledger)
-    _require(summary["cap"] == approval.campaign_start_limit, "campaign-start-limit-not-enrolled")
-    _require_campaign_room(summary, run_count, approval.campaign_start_limit)
-    return summary
-
-
-def _require_campaign_enrollment(*, expires_at: int, run_count: int,
-                                 campaign_start_limit: int = CAMPAIGN_START_CAP) -> None:
-    """Apply a verified claim directive's allowance and capacity before any claim."""
-    ledger = InvocationLedger(contained_campaign_ledger_root())
-    with _campaign_custody(ledger.root), ledger._locked() as (root, document):
-        status = campaign_start_snapshot(document)
-        _require(valid_start_limit(campaign_start_limit), "campaign-start-cap-exceeded")
-        _require(0 <= campaign_start_limit - status["cap"] <= CAMPAIGN_MAX_START_INCREMENT,
-                 "campaign-start-increment-invalid")
-        _require_campaign_room(status, run_count, campaign_start_limit)
-        if campaign_start_limit > status["cap"]:
-            budget_id, limits, scope = next_allowance(document, status, campaign_start_limit)
-            ledger._open_budget_locked(root, document, budget_id, limits, scope, create_before=expires_at)
-
-
-def _reserve_campaign_start(run: PoolQualificationRun, allowance: _StageAllowance) -> tuple[str, bytes]:
-    _require_contained_availability()
-    allowance.check_custody()
-    approval = _require_campaign_approval(allowance.accounting)
-    summary = _require_campaign_budget(allowance.accounting, 1)
-    budget_id = next(key for key, remaining in summary["remaining_by_budget"].items() if remaining > 0)
-    plan = run.plan
-    request = {"stage_sha256": allowance.stage_sha256, "transaction_id": plan["transaction_id"],
-               "plan_sha256": plan["plan_sha256"], "scope_sha256": CAMPAIGN_SCOPE_SHA256,
-               "approval_action_sha256": approval.action_sha256}
-    payload = json.dumps(request, sort_keys=True, separators=(",", ":")).encode("utf-8")
-    digest = request_sha256(payload)
-    reservation = allowance.accounting.ledger.reserve(
-        budget_id=budget_id,
-        request_id="contained-cohort:" + canonical_sha256({"transaction_id": plan["transaction_id"]}),
-        request_sha256=digest, admission_sha256=canonical_sha256({"campaign_start_sha256": digest}),
-        amount={"starts": 1}, expires_at=allowance.accounting.expires_at, refuse_while_unresolved=True)
-    return reservation["reservation_id"], payload
-
-
-def _accounted_contained_run(run: PoolQualificationRun, runtime: TransactionRuntime, allowance: _StageAllowance,
-                             limits: Mapping[str, int]) -> dict[str, Any]:
-    reservation_id, payload = _reserve_campaign_start(run, allowance)
-    ledger = allowance.accounting.ledger
-    try:
-        intent = ledger.begin_invocation(reservation_id, payload)
-        result = _accounted_run(run, runtime, replace(allowance, campaign_intent=intent), limits)
-    except BaseException as failure:
-        try:
-            allowance.check_custody()
-            ledger._settle_pending_intent(reservation_id, failure)
-        except BaseException as secondary:
-            add_failure_note(failure, f"qualification campaign settlement failed ({type(secondary).__name__})")
-        raise
-    accounted = result["qualification_accounting"]
-    settled = _settle_active_run(allowance, reservation_id, outcome=accounted["outcome"],
-                                failure_reason="contained run requires reconciliation"
-                                if accounted["state"] == "reconciliation-required" else None)
-    _require(settled["charge"] == {"starts": 1}, "campaign-start-settlement-mismatch")
-    summary = campaign_start_status(ledger)
-    result["qualification_campaign"] = {
-        "reservation_id": reservation_id, "state": settled["state"], "cap": summary["cap"],
-        "runs_consumed": summary["charged"], "remaining": summary["remaining"],
-    }
-    return result
-
-
 def _persist_run_intent(journal: TransactionJournal, intent: Mapping[str, Any]) -> dict[str, Any]:
     return journal.append(event_type="qualification-accounting-intent", state="RESERVED",
         details={key: intent[key] for key in ("budget_id", "reservation_id", "request_sha256", "amount")},
@@ -1386,29 +820,12 @@ def _require_run_journal(journal: TransactionJournal, result: Mapping[str, Any],
 
 def _accounted_run(run: PoolQualificationRun, runtime: TransactionRuntime, allowance: _StageAllowance,
                    limits: Mapping[str, int]) -> dict[str, Any]:
+    selection = run.contained_selection
+    contained_selection_binding(selection, run.plan, run.runtime)
+    _require(run.bind_limits is selection.bind_limits and run.cleanup is selection.cleanup,
+             "contained-runtime-hooks-mismatch")
     reservation, request_bytes = _reserve_run(run, allowance, limits)
-    if run.bind_limits is not None:
-        return _accounted_active_run(run, runtime, allowance, reservation, request_bytes)
-    ledger = allowance.accounting.ledger
-    reservation_id = reservation["reservation_id"]
-    journal = TransactionJournal(run.journal_path, run.plan["transaction_id"])
-    intent_event = None
-    with ledger.invocation(reservation_id, request_bytes) as invocation:
-        def prepare(original_plan):
-            nonlocal intent_event
-            allowance.check_custody()
-            intent_event = _persist_run_intent(journal, invocation.require_intent())
-            return runtime.prepare(original_plan)
-
-        result = execute_native_pool_transaction(run.plan, replace(runtime, prepare=prepare), journal_path=run.journal_path)
-        _require_run_journal(journal, result, intent_event)
-        outcome = "completed" if _accepted(result, run.plan) else "failed"
-        invocation.record(outcome)
-    allowance.check_custody()
-    settlement = ledger.attempt(reservation_id)
-    _require(settlement["state"] == "terminal" and settlement["outcome"] == outcome and settlement["charge"] == limits,
-             "accounting-settlement-mismatch")
-    return _run_accounting_result(result, settlement, intent_event, mode="observational")
+    return _accounted_active_run(run, runtime, allowance, reservation, request_bytes)
 
 
 def _active_runtime(run: PoolQualificationRun, original: TransactionRuntime, active: _ActiveRun,
@@ -1515,37 +932,19 @@ def _open_active_run(run: PoolQualificationRun, allowance: _StageAllowance, rese
 
 def _bind_active_admission(run, allowance, limits):
     selection = run.contained_selection
-    if selection is None:
-        return
-    _require(selection.ordinary is allowance.ordinary
-             and (run.ordinary_policy_children is None) == (allowance.ordinary is None), "contained-route-scope-mismatch")
+    _require(type(selection) is ContainedPoolSelection and allowance.ordinary is not None
+             and selection.ordinary is allowance.ordinary and run.ordinary_policy_children is not None,
+             "contained-route-scope-mismatch")
     limits._contained_admission = _ContainedPoolAdmission(
         _ADMISSION_TOKEN, selection=selection, plan=run.plan, journal_path=run.journal_path,
         check_custody=limits._require_intent, check_source=lambda: _check_active_source(selection, limits),
-        check_availability=_contained_route(allowance.ordinary), policy_children=_contained_policy_children(run),
+        check_availability=require_registered_contained_pool_live, policy_children=dict(run.ordinary_policy_children),
         deadline=limits.deadline, calibration=allowance.calibration)
 
 
 def _check_active_source(selection: ContainedPoolSelection, limits: PoolQualificationRunLimits) -> None:
     _registered_factory_source(selection.factory_path, selection.factory_sha256)
     limits._time_left()
-
-
-def _contained_policy_children(run: PoolQualificationRun) -> dict[str, _ContainedPoolChild]:
-    if run.ordinary_policy_children is not None:
-        return dict(run.ordinary_policy_children)
-    return _qualification_policy_children(run)
-
-
-def _qualification_policy_children(run: PoolQualificationRun) -> dict[str, _ContainedPoolChild]:
-    tasks = {task["write_path"]: task for cohort in fixed_pool_qualification_cohorts() for task in cohort["tasks"]}
-    bindings = {}
-    for child in run.plan["children"]:
-        write_path, = child["write_paths"]
-        task = tasks[write_path]
-        bindings[child["child_id"]] = _ContainedPoolChild(str(run.fixture_root / task["worker_slot"]),
-            child["worktree_identity_sha256"], write_path, task["prompt"])
-    return bindings
 
 
 def _accounted_active_run(run: PoolQualificationRun, runtime: TransactionRuntime, allowance: _StageAllowance,
@@ -1557,13 +956,10 @@ def _accounted_active_run(run: PoolQualificationRun, runtime: TransactionRuntime
     try:
         bound = _active_runtime(run, runtime, active, journal, intent_events)
         admission = active.limits._contained_admission
-        if admission is None:
-            result = execute_native_pool_transaction(run.plan, bound, journal_path=run.journal_path)
-        else:
-            admission.bind_runtime(bound)
-            with admission._tool_validation():
-                result = execute_native_pool_transaction(run.plan, bound, journal_path=run.journal_path,
-                                                         contained_admission=admission)
+        admission.bind_runtime(bound)
+        with admission._tool_validation():
+            result = execute_native_pool_transaction(run.plan, bound, journal_path=run.journal_path,
+                                                     contained_admission=admission)
         intent_event, = intent_events
         _require_run_journal(journal, result, intent_event)
         active.close()
@@ -1596,205 +992,3 @@ def _completed_active_run(run, result, active, calibration):
              "original-calibration-settlement-incomplete")
     calibration.verify_fixture()
     return True
-
-
-def _checked_callback_calibration_binding(binder):
-    module = sys.modules.get(_CALIBRATION_MODULE)
-    _require(module is not None and type(binder) is FunctionType and vars(module).get(_CALIBRATION_ENTRY) is binder,
-             "registered-calibration-driver-required")
-    path = Path(__file__).resolve().parents[1] / (_CALIBRATION_MODULE + ".py")
-    source = _read_registered_source(path)
-    checked = compile(source, str(path), "exec", dont_inherit=True)
-    _require(binder.__code__.co_filename == str(path) and binder.__code__ in checked.co_consts,
-             "registered-calibration-driver-code-mismatch")
-
-
-def run_contained_pool_callback_calibration(run: PoolQualificationRun, *, accounting: PoolQualificationAccounting,
-    binder: Callable[..., tuple], request: object) -> object:
-    """Charge one independently verified, writer-held calibration on the campaign ledger."""
-    _require_contained_availability()
-    approval = _require_campaign_approval(accounting)
-    root = _ledger_root(accounting)
-    _require(type(run) is PoolQualificationRun, "trusted-run-required")
-    run = replace(run, plan=deepcopy(dict(run.plan)))
-    _validate_route_selections((run,), contained=True)
-    bind_record = _run_binding(run)
-    _checked_callback_calibration_binding(binder)
-    operation, runtime_seconds, drive = binder(run, accounting, request)
-    _require(type(operation) is str and len(operation) == 64 and _positive(runtime_seconds) and callable(drive),
-             "registered-calibration-binding-required")
-    _require((operation, run.plan["plan_sha256"], str(run.journal_path), str(run.fixture_root),
-              accounting.expires_at) in approval.calibrations, "signed-campaign-calibration-mismatch")
-    size = len(run.plan["children"])
-    tasks = next((row["tasks"] for row in fixed_pool_qualification_cohorts() if row["size"] == size), None)
-    _require(tasks is not None, "calibration-cohort-size-refused")
-    _validate_run(run, size, {task["write_path"]: task["prompt"] for task in tasks}, QUALIFICATION_MODEL, size)
-    roots, (fixture,) = _capture_stage_fixtures((run,), (tasks,))
-
-    def verify_fixture():
-        _require(_fixture_image(run.fixture_root) == fixture.initial, "calibration-fixture-changed")
-
-    binding = canonical_sha256({"calibration_operation_sha256": operation, "run": bind_record,
-                                "accounting_root": str(root), "expires_at": accounting.expires_at})
-    limits = {"sessions": size, "tool_calls": 1, "runtime_seconds": runtime_seconds}
-    calibration = _QualificationCalibration(operation, drive, verify_fixture)
-    with _campaign_custody(root):
-        _require_campaign_budget(accounting, 1)
-        verify_fixture()
-        allowance = _open_stage_allowance(accounting, root, binding, limits, (run,), roots, _require_contained_availability)
-        result = _accounted_contained_run(run, run.runtime, replace(allowance, calibration=calibration), limits)
-        _require(result["qualification_campaign"]["state"] == "terminal", "calibration-campaign-unsettled")
-    return calibration.result
-
-
-def run_pool_qualification_stage(preparation: Mapping[str, Any], runs: Sequence[PoolQualificationRun], *,
-                                 approved_binding: str, accounting: PoolQualificationAccounting,
-                                 require_active_limits: bool = True) -> dict[str, Any]:
-    """Execute all N=2 runs, then all N=3 runs, through the original transaction.
-
-    The trusted parent owns the independently approved digest, runtime objects,
-    fixture roots, private journal paths, ledger and product validation callbacks.
-    Holds precede all callbacks. The protected parent requires active limits to
-    gate the actual effects. Historical callers exercise the original transaction
-    with observational accounting evidence. Both modes retain the full charge
-    and verify the original coordinator state, released leases, and fixture output.
-    """
-    return _run_stage(preparation, runs, approved_binding=approved_binding, accounting=accounting,
-                      require_active_limits=require_active_limits, contained=False)
-
-
-def run_contained_pool_qualification_stage(
-    preparation: Mapping[str, Any], runs: Sequence[PoolQualificationRun], *,
-    approved_binding: str, accounting: PoolQualificationAccounting,
-) -> dict[str, Any]:
-    """Qualify stock Codex containment under separate source and parent approval."""
-    return _run_stage(preparation, runs, approved_binding=approved_binding, accounting=accounting,
-                      require_active_limits=True, contained=True)
-
-
-def _require_legacy_availability() -> None:
-    require_pool_live()
-    require_n1_live()
-
-
-def _run_stage(preparation, runs, *, approved_binding, accounting, require_active_limits, contained):
-    require_route = _require_contained_availability if contained else _require_legacy_availability
-    require_route()
-    if contained:
-        approval = _require_campaign_approval(accounting)
-        _require(approval.stage_binding == approved_binding and accounting.expires_at == approval.expires_at,
-                 "signed-campaign-stage-mismatch")
-    accounting_root = _ledger_root(accounting)
-    preparation = deepcopy(dict(preparation))
-    runs = tuple(runs)
-    _require(all(type(run) is PoolQualificationRun for run in runs), "trusted-run-required")
-    runs = tuple(replace(run, plan=deepcopy(dict(run.plan))) for run in runs)
-    _validate_route_selections(runs, contained=contained)
-    _require(pool_qualification_binding(preparation, runs, accounting=accounting) == approved_binding, "trusted-binding-mismatch")
-    _require(not require_active_limits or all(run.bind_limits is not None for run in runs), "active-run-hooks-required")
-    custody = _campaign_custody(accounting_root) if contained else nullcontext()
-    with custody:
-        if contained:
-            _require_campaign_budget(accounting, len(runs))
-        return _run_approved_stage(preparation, runs, accounting, accounting_root, approved_binding,
-                                   require_route=require_route, contained=contained)
-
-
-def _validate_route_selections(runs, *, contained):
-    if contained:
-        _require(all(type(run.contained_selection) is ContainedPoolSelection and run.contained_selection.ordinary is None
-                     and run.ordinary_policy_children is None for run in runs),
-                 "contained-runtime-required")
-    else:
-        _require(all(run.contained_selection is None for run in runs), "contained-stage-approval-required")
-
-
-def _isolated_run_result(run, result, target):
-    validation = result.get("validation", {})
-    receipt = result.get("launch_result", {}).get("pool_receipt", {})
-    usage = receipt.get("final_aggregate_usage", {})
-    accounting = result["qualification_accounting"]
-    size = len(run.plan["children"])
-    passed = (result["state"] == "CONTAINED" and result["accepted"] is False
-              and receipt.get("pool_disposition") == "partial" and receipt.get("accepting") is False
-              and receipt.get("first_protected_fault") is None and receipt.get("reasons") == []
-              and (usage.get("tool_calls"), usage.get("mutations")) == (size, size - 1)
-              and result["qualification_campaign"]["state"] == "terminal"
-              and (accounting["state"], accounting["outcome"]) == ("terminal", "failed")
-              and _isolation_settlement_verified(validation, size)
-              and _isolated_children_verified(run.plan, target, receipt, validation["worker_observations"]))
-    return {"target_child_id": target, "outcome": "passed" if passed else "failed"}
-
-
-def _isolation_settlement_verified(validation, size):
-    checks = validation.get("qualification_active_limits", {})
-    return (validation.get("isolation_refusal_observed") is True
-            and validation.get("healthy_evidence_retained") is True
-            and validation.get("atomic_promotion_authorized") is False
-            and validation.get("qualification_isolation_fixture") == {"outcome": "verified", "worker_output_count": size - 1}
-            and all(checks.get(field) is True for field in
-                    ("effects_complete", "cleanup_confirmed", "leases_confirmed", "deadline_satisfied")))
-
-
-def _isolated_children_verified(plan, target, receipt, workers):
-    children = {child["child_id"] for child in plan["children"]}
-    dispositions = {row["child_id"]: row for row in receipt["child_dispositions"]}
-    controls = {row["child_id"]: row["control_receipt"] for row in receipt["child_terminal_receipts"]}
-    return children == workers.keys() == dispositions.keys() == controls.keys() and all(
-        _isolated_child_verified(child == target, dispositions[child], controls[child], workers[child])
-        for child in children
-    )
-
-
-def _isolated_child_verified(target, disposition, control, worker):
-    runtime, session, artifact = (("interrupted", "quarantined", "rejected") if target
-                                  else ("completed", "accepted", "accepted"))
-    return (disposition["runtime_disposition"] == runtime and disposition["session_disposition"] == session
-            and disposition["artifact_disposition"] == artifact and control is not None
-            and control["terminal_state"] == ("closed" if target else "completed") and control["errors"] == []
-            and worker["task_completed"] is (not target) and worker["wire_settled"] is True and bool(worker["archive"]))
-
-
-def _run_isolation_case(run, paths, budget, fixture, roots, allowance, limits):
-    omitted_output = next(path for path in fixture.outputs if path.parts[0] == "worker-1")
-    target = next(child["child_id"] for child in run.plan["children"] if child["write_paths"] == [omitted_output.name])
-    runtime = _bound_runtime(run, paths, budget, fixture, roots, omitted_output=omitted_output)
-    result = _accounted_contained_run(run, runtime, replace(allowance, isolation_target=target), limits)
-    result["qualification_failure_isolation"] = _isolated_run_result(run, result, target)
-    return result
-
-
-def _run_approved_stage(preparation, runs, accounting, accounting_root, approved_binding, *, require_route, contained):
-    repeats, limits = _stage_limits(preparation, len(runs))
-    isolate_final = _signed_failure_isolation(preparation, repeats)
-    _require(not isolate_final or contained, "failure-isolation-contained-stage-required")
-    tasks = _stage_tasks(preparation)
-    paths = {size: {task["write_path"]: task["prompt"] for task in cohort} for size, cohort in tasks.items()}
-    model = _stage_model(preparation)
-    if contained:
-        model = QUALIFICATION_MODEL
-        _require(limits["tool_calls"] >= max(POOL_QUALIFICATION_COHORT_SIZES), "contained-tool-capacity-required")
-    sizes = tuple(size for size in POOL_QUALIFICATION_COHORT_SIZES for _ in range(repeats))
-    for run, size in zip(runs, sizes):
-        _validate_run(run, size, paths[size], model, limits["sessions"])
-    budgets = [_approved_pool_budget(run, limits) for run in runs]
-    roots, fixtures = _capture_stage_fixtures(runs, [tasks[size] for size in sizes])
-    allowance = _open_stage_allowance(accounting, accounting_root, approved_binding,
-                                      preparation["stage_ceiling"], runs, roots, require_route)
-    account_run = _accounted_contained_run if contained else _accounted_run
-    results = []
-    for index, (run, size, budget, fixture) in enumerate(zip(runs, sizes, budgets, fixtures), 1):
-        require_route()
-        _require(_fixture_image(run.fixture_root) == fixture.initial, "fixture-changed-before-transaction")
-        artifacts = roots | {accounting_root}
-        if isolate_final and index == len(runs):
-            result = _run_isolation_case(run, paths[size], budget, fixture, artifacts, allowance, limits)
-            completed = result["qualification_failure_isolation"]["outcome"] == "passed"
-        else:
-            runtime = _bound_runtime(run, paths[size], budget, fixture, artifacts)
-            result = account_run(run, runtime, allowance, limits)
-            completed = _accepted(result, run.plan)
-        results.append(result)
-        if not completed:
-            return {"outcome": "stopped", "transactions": results}
-    return {"outcome": "completed", "transactions": results}
