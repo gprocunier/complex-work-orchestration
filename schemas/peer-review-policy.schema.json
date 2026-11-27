@@ -78,7 +78,7 @@
       "items": {"type": "string", "minLength": 1}
     },
     "sabotage_thresholds": {
-      "description": "No runtime consumer reads this block. Production sabotage thresholds are sabotage_policy.thresholds in policy/contracting-controls.yaml (peer review, architect escalation, quarantine). Kept unchanged so version 1 documents stay valid; removal needs a versioned policy change.",
+      "description": "Compatibility mirror of the production peer review and quarantine thresholds in policy/contracting-controls.yaml. The repository validator checks agreement.",
       "type": "object",
       "additionalProperties": false,
       "required": ["review", "quarantine"],

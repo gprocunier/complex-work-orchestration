@@ -10,7 +10,7 @@ from typing import Any
 from cwo_core.browser_provenance import normalize_browser_request
 from cwo_core.host_records import DESKTOP_BROWSER_HANDOFF
 from cwo_core.outbound_screen import require_clean
-from cwo_core.packet_provenance import require_production_contractor_packet
+from cwo_core.packet_provenance import require_packet_export_approval, require_production_contractor_packet
 from cwo_core.packets import contractor_packet_language_metadata
 from cwo_core.prepared_outbound import PreparedOutbound, PreparedSource
 from cwo_core.util import artifact_hash
@@ -35,13 +35,15 @@ def load_browser_packet_prompt(
     allow_degraded_packet: bool = False,
     allow_unlinked_packet: bool = False,
     audit_file: Path | None = None,
+    authorize_export: bool = False,
 ) -> tuple[str, dict[str, Any], PreparedSource, dict[str, Any]]:
     """Load and render a linked packet. The legacy CLI supplies any operator waivers."""
     files: list = []
     packet = load_packet_file(path, captures=files)
     source = {"packet": packet, "options": options}
     capture = PreparedSource.capture(source, files)
-    require_production_contractor_packet(
+    require_packet = require_packet_export_approval if authorize_export else require_production_contractor_packet
+    require_packet(
         packet, allow_degraded_packet=allow_degraded_packet, allow_unlinked_packet=allow_unlinked_packet,
         audit_file=audit_file,
     )
@@ -101,7 +103,7 @@ class PreparedBrowserPacketRequest:
         """Record the exact prepared Send in the trusted host store before submission."""
         from cwo_core.host_records import configured_store
 
-        require_production_contractor_packet(self.packet_source.value()["packet"])
+        require_packet_export_approval(self.packet_source.value()["packet"])
         metadata = self.metadata
         submitted = self.require_unchanged().decode("utf-8")
         return configured_store().write_dispatch(
@@ -130,7 +132,9 @@ def prepare_browser_packet_request(
 ) -> PreparedBrowserPacketRequest:
     """Screen a production request, generating an ID unless resuming a recorded preparation."""
     path = str(packet_path)
-    prompt, metadata, packet_source, _ = load_browser_packet_prompt(path, {"packet": path}, audit_file=audit_file)
+    prompt, metadata, packet_source, _ = load_browser_packet_prompt(
+        path, {"packet": path}, audit_file=audit_file, authorize_export=True,
+    )
     source = {"prompt": prompt, "inputs": [packet_source.sha256], "metadata": metadata}
     capture = PreparedSource.capture(source, packet_source.files)
     if request_id is None:

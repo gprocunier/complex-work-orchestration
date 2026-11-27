@@ -4,7 +4,7 @@
   "providers": {
     "internal_codex": {
       "display_name": "Internal Codex",
-      "trust_tier": "trusted-internal",
+      "trust_tier": "host-internal",
       "family": "openai",
       "external": false,
       "retention_class": "local-session",

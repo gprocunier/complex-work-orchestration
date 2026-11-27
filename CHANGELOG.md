@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Require host-owned approval for managed contractor exports. Rebuild existing packets before exporting them under the new approval check. Protected synthesis uses original records held by the separate host principal.
+- Retire live activation preview and standalone native callback calibration.
+  Keep preview key generation, preparation, approval and dry-run validation.
+  Registered contained pools still calibrate their original callbacks and
+  require an approval bound to the current callback implementation.
 - Bound the Daybreak Blue fallback: the retry carries the original reasoning effort capped at `xhigh`, always uses the standard service tier, and the configured `cyber_fallback` model must be a Sol-family model. Earlier releases passed `max` effort and the `priority` tier through and accepted any model family.
 - Lower the repository validation ceiling to 177,200 physical lines of tracked Python under `scripts/`.
 - Remove the retired exact-Spark campaign launcher's detailed flag parsing and archive its unused authorization-state executor. Launch attempts emit the sealed zero-allocation refusal on stderr and exit 1.
@@ -11,6 +16,7 @@
 - Retire the fixed contained-pool qualification campaign, including `scripts/prepare_native_pool_qualification.py` and its protected controller. The original procedure is archived in CWO v1.45.0. Use `cwo delegate-pool` to run an approved cohort.
 - Check published site prose for stale availability claims against the claims register.
 - Consolidate duplicated routing, reporting, and validation code.
+- Align the preferred native model with the shipped Luna role, mirror the production sabotage thresholds in the acceptance and peer-review policies, and classify host Codex as `host-internal` access metadata. Update custom provider registries that still set `providers.internal_codex.trust_tier` to `trusted-internal` before upgrading.
 - Redact recognizable credentials and personal details from packet text, check for residual content independently, and expand outbound screening to addresses, international phone numbers, payment cards, and hex- or base64-encoded secrets.
 
 ## 1.48.0 - 2026-11-26

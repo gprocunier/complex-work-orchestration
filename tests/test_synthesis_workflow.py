@@ -3,11 +3,12 @@ from __future__ import annotations
 
 from contextlib import redirect_stdout
 from hashlib import sha256
-from io import StringIO
+from io import BytesIO, StringIO
 import json
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
 
@@ -26,6 +27,7 @@ from dispatch_work import main as dispatch_main
 from evaluate_return import main as evaluate_main
 from normalize_contractor_return import main as normalize_main
 from route_work import main as route_main
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant
 from tests.test_zero_trust_consensus import claim
 
 
@@ -38,6 +40,8 @@ class SynthesisWorkflowTests(unittest.TestCase):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.store = HostRecordStore.for_tests(self.root / "host")
         self.enterContext(using_test_store(self.store))
+        self.enterContext(approved_outbound(outbound_grant(
+            "manual-critic", "example-synthesis", "claude_architecture_critic")))
 
     def _run_json(self, command, main, *args):
         out = StringIO()
@@ -64,7 +68,8 @@ class SynthesisWorkflowTests(unittest.TestCase):
         return dict(peer_review_record=review, peer_review_status="passed", peer_review_reviewer=reviewer)
 
     def _critic(self, executor, provider_key, identity, value, *, dispatch_id=None,
-                manual=False, omit_peer_review=False, provider_conflicts=None, canonical_alias=False, partial=False):
+                manual=False, omit_peer_review=False, provider_conflicts=None, canonical_alias=False, partial=False,
+                record_context=True, observed=True):
         dispatch_id = dispatch_id or executor
         provider, family, model = identity
         report = (ROOT / "examples/sample-contractor-return.md").read_text(encoding="utf-8")
@@ -85,10 +90,11 @@ class SynthesisWorkflowTests(unittest.TestCase):
         if manual:
             record_manual_return(self.store, dispatch_id, report.encode())
         else:
-            self.store.write_observed_dispatch(dispatch_id, prepared_record_sha256=prepared,
-                observation_sha256="d" * 64, provider=provider, model_family=family, model_id=model,
-                reasoning_effort="high", session_id=f"{dispatch_id}-session",
-                evaluation_metadata={"source_context": context})
+            if observed:
+                self.store.write_observed_dispatch(dispatch_id, prepared_record_sha256=prepared,
+                    observation_sha256="d" * 64, provider=provider, model_family=family, model_id=model,
+                    reasoning_effort="high", session_id=f"{dispatch_id}-session",
+                    evaluation_metadata={"source_context": context} if record_context else {})
             if canonical_alias:
                 self.store.write_return_received(dispatch_id, sha256(report.encode()).hexdigest(),
                     capture_provenance="host-capture-v1",
@@ -116,7 +122,8 @@ class SynthesisWorkflowTests(unittest.TestCase):
             authority={"rule": "synthesis-input-adjudication"}, adjudicator="lead")
         return inputs, record
 
-    def _panel(self, other_value="3", *, manual=False, omit_peer_review=False, gemini=False, partial=False):
+    def _panel(self, other_value="3", *, manual=False, omit_peer_review=False, gemini=False, partial=False,
+               record_context=True):
         camp, executor, key, identity = (
             ("Gemini", "gemini_architecture_critic", "google_gemini_manual",
              ("google", "gemini", configured_gemini_critic()["model"])) if gemini else
@@ -130,9 +137,10 @@ class SynthesisWorkflowTests(unittest.TestCase):
         self.assertIn(executor, {entry["executor"] for entry in route["architecture_critic_contracts"]})
         self.route_path = self._json_file("route.json", route)
         return zip(
-            self._critic("codex_architecture_critic", "internal_codex", ("openai", "gpt", resolve_model("sol")), "3"),
+            self._critic("codex_architecture_critic", "internal_codex", ("openai", "gpt", resolve_model("sol")), "3",
+                         record_context=record_context),
             self._critic(executor, key, identity, other_value, manual=manual,
-                         omit_peer_review=omit_peer_review, partial=partial),
+                         omit_peer_review=omit_peer_review, partial=partial, record_context=record_context),
         )
 
     def _synthesize(self, inputs, decisions, *, candidate=CANDIDATE, scope=SCOPE):
@@ -149,6 +157,158 @@ class SynthesisWorkflowTests(unittest.TestCase):
         del entry["evaluation"]
         return entry
 
+    def _protected_panel(self, **options):
+        inputs, decisions = self._panel(**options)
+        lanes = [self._record_input(item, decision["dispatch_id"]) for item, decision in zip(inputs, decisions)]
+        for lane in lanes:
+            del lane["return"]
+        return dict(candidate=CANDIDATE, scope=SCOPE, inputs=lanes, adjudications=list(decisions))
+
+    def test_protected_review_uses_only_authorized_originals_and_preserves_disagreement(self):
+        from evaluate_synthesis import evaluate_protected_synthesis
+
+        panel = self._protected_panel()
+        for path in self.root.glob("*.md"):
+            path.unlink()
+        before = self.store.audit_events()
+        report = evaluate_protected_synthesis(self.store, panel)
+        self.assertEqual(report["provenance_basis"], "operator-authorized")
+        self.assertEqual(report["zero_trust_consensus"]["independent_trust_domains"], ["anthropic", "openai"])
+        self.assertEqual(report["zero_trust_consensus"]["consensus_status"], "informational")
+        self.assertFalse(report["trusted_host_authority"])
+        self.assertFalse(report["execution_permitted"])
+        panel["inputs"][1]["zero_trust_claims"][0]["value"] = "4"
+        different = evaluate_protected_synthesis(self.store, panel)
+        self.assertEqual(different["status"], "blocked")
+        self.assertEqual(different["zero_trust_consensus"]["recommended_action"], "escalate")
+        self.assertEqual(self.store.audit_events(), before)
+
+    def test_protected_review_refuses_wrong_scope_missing_record_and_input_paths(self):
+        from evaluate_synthesis import evaluate_protected_synthesis
+
+        panel = self._protected_panel()
+        with self.assertRaisesRegex(ValueError, "candidate or scope"):
+            evaluate_protected_synthesis(self.store, dict(panel, scope="another-review"))
+        first, second = panel["inputs"]
+        with self.assertRaisesRegex(ValueError, "host record unavailable"):
+            evaluate_protected_synthesis(self.store, dict(panel, inputs=[dict(first, evaluation_record_sha256="f" * 64), second]))
+        with self.assertRaisesRegex(ValueError, "protected synthesis lane"):
+            evaluate_protected_synthesis(self.store, dict(panel, inputs=[dict(first, **{"return": "local.md"}), second]))
+
+    def test_protected_review_cannot_count_a_duplicate_lane_or_borrow_an_advisory_store(self):
+        from evaluate_synthesis import evaluate_protected_synthesis
+
+        panel = self._protected_panel()
+        duplicate = evaluate_protected_synthesis(self.store, dict(panel, inputs=[panel["inputs"][0]] * 2))
+        self.assertEqual(duplicate["status"], "blocked")
+        self.assertEqual(duplicate["zero_trust_consensus"]["independent_trust_domains"], [])
+        other_store = HostRecordStore.for_tests(self.root / "protected")
+        with self.assertRaises(ValueError):
+            evaluate_protected_synthesis(other_store, panel)
+
+    def test_protected_review_can_associate_contextless_original_observations(self):
+        from evaluate_synthesis import evaluate_protected_synthesis
+
+        panel = self._protected_panel(record_context=False)
+        report = evaluate_protected_synthesis(self.store, panel)
+        self.assertEqual(report["status"], "ready")
+        self.assertEqual({item["candidate_scope_basis"] for item in report["input_provenance"]}, {"operator-selected"})
+
+    def test_protected_review_refuses_stale_consensus_policy_cache(self):
+        from cwo_core.errors import CWOPolicyError
+        from cwo_core.policy import load_policy
+        from evaluate_synthesis import evaluate_protected_synthesis
+
+        panel = self._protected_panel()
+        policy_path = ROOT / "policy/zero-trust-consensus-policy.yaml"
+        current = load_policy("zero-trust-consensus-policy")
+        current["defaults"]["minimum_independent_domains"] += 1
+        original_read = Path.read_text
+
+        def read_text(path, *args, **kwargs):
+            if path == policy_path:
+                return json.dumps(current)
+            return original_read(path, *args, **kwargs)
+
+        with (patch.object(Path, "read_text", read_text),
+              self.assertRaisesRegex(CWOPolicyError, "policy cache differs from source")):
+            evaluate_protected_synthesis(self.store, panel)
+
+    def test_protected_review_requires_host_capture_for_manually_prepared_dispatch(self):
+        from evaluate_synthesis import evaluate_protected_synthesis
+
+        panel = self._protected_panel(manual=True)
+        with self.assertRaisesRegex(ValueError, "original host-captured return"):
+            evaluate_protected_synthesis(self.store, panel)
+
+    def test_protected_review_rejects_prepared_dispatch_even_with_exact_receipt(self):
+        from evaluate_synthesis import evaluate_protected_synthesis
+
+        entry, decision = self._critic("codex_architecture_critic", "internal_codex",
+            ("openai", "gpt", resolve_model("sol")), "3", observed=False)
+        lane = self._record_input(entry, decision["dispatch_id"])
+        del lane["return"]
+        with self.assertRaisesRegex(ValueError, "requires an observed executor dispatch"):
+            evaluate_protected_synthesis(self.store,
+                dict(candidate=CANDIDATE, scope=SCOPE, inputs=[lane], adjudications=[decision]))
+
+    def test_protected_cli_refuses_caller_context_and_does_not_fall_back(self):
+        from evaluate_synthesis import main
+
+        reference = "a" * 64
+        for option in ("--candidate", "--scope", "--adjudications", "--route"):
+            with self.subTest(option=option), self.assertRaisesRegex(SystemExit, "protected review accepts only"):
+                self._run_json("evaluate_synthesis.py", main, "--protected-review", reference, option, "local.json")
+        with self.assertRaisesRegex(SystemExit, "protected review accepts only"):
+            self._run_json("evaluate_synthesis.py", main, "--protected-review", reference, "--zero-trust-required")
+        with (patch("cwo_core.lead_authority.configured_authority_client", side_effect=ValueError("authority unavailable")),
+              self.assertRaisesRegex(SystemExit, "authority unavailable")):
+            self._run_json("evaluate_synthesis.py", main, "--protected-review", reference)
+
+    def test_protected_cli_sends_only_the_reference_to_the_configured_host(self):
+        from evaluate_synthesis import evaluate_protected_synthesis, main
+
+        panel = self._protected_panel()
+        approved = evaluate_protected_synthesis(self.store, panel)
+        reference = "a" * 64
+        with patch("cwo_core.lead_authority.configured_authority_client") as client:
+            client.return_value.request.return_value = approved
+            self.assertEqual(self._run_json("evaluate_synthesis.py", main, "--protected-review", reference), approved)
+        client.return_value.request.assert_called_once_with("synthesis", reference)
+
+    def test_operator_publication_validates_stdin_before_retaining_a_panel(self):
+        from lead_authority_host import main
+
+        panel = self._protected_panel()
+        layout = SimpleNamespace(source_root=ROOT, state_root=self.store.state_root)
+        with (patch("lead_authority_host.configured_authority_layout", return_value=layout),
+              patch("lead_authority_host.ApprovalStore") as approvals,
+              patch.object(sys, "argv", ["lead_authority_host.py", "publish", "synthesis"])):
+            for invalid in (b'{"inputs":[],"inputs":[]}', json.dumps(dict(panel, source="local.json")).encode()):
+                with (patch.object(sys, "stdin", SimpleNamespace(buffer=BytesIO(invalid))),
+                      self.assertRaises(SystemExit)):
+                    main()
+            approvals.return_value.publish.assert_not_called()
+            reference = "a" * 64
+            approvals.return_value.publish.return_value = reference
+            output = StringIO()
+            with (patch.object(sys, "stdin", SimpleNamespace(buffer=BytesIO(json.dumps(panel).encode()))),
+                  redirect_stdout(output)):
+                main()
+            self.assertEqual(output.getvalue().strip(), reference)
+            approvals.return_value.publish.assert_called_once_with("synthesis", panel)
+
+    def test_operator_host_refuses_an_advisory_store_before_listening(self):
+        from lead_authority_host import main
+
+        layout = SimpleNamespace(source_root=ROOT, state_root=self.root / "protected")
+        with (patch("lead_authority_host.configured_authority_layout", return_value=layout),
+              patch("lead_authority_host.AuthorityHost") as listener,
+              patch.object(sys, "argv", ["lead_authority_host.py", "serve"]),
+              self.assertRaisesRegex(SystemExit, "original host records must use the protected authority")):
+            main()
+        listener.assert_not_called()
+
     def test_host_evaluation_reference_matches_file_and_preserves_consensus(self):
         inputs, decisions = self._panel()
         expected = self._synthesize(inputs, decisions)
@@ -158,6 +318,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         result = self._synthesize([inputs[0], referenced], decisions)
         self.assertEqual(result, expected)
         self.assertEqual(result["status"], "ready")
+        self.assertEqual(result["provenance_basis"], "advisory")
         self.assertEqual(self.store.audit_events(), before)
 
     def test_requires_exactly_one_evaluation_source_and_a_return_file(self):
@@ -318,7 +479,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         })
         packet = self._run_json("build_contractor_packet.py", build_packet_main,
             "--bead", "manual-critic", "--bead-json-file", bead, "--executor", "claude_architecture_critic",
-            "--external-ok", "--epic", "example-synthesis", "--share-boundary", "redacted-packet",
+            "--external-ok", "--opt-in-record", REFERENCE, "--epic", "example-synthesis", "--share-boundary", "redacted-packet",
             "--format", "json", "--dispatch-id", "built-manual-critic")
         return packet, self._json_file("manual-packet.json", packet)
 

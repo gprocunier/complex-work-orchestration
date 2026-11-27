@@ -6,13 +6,21 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from cwo_core.return_language import analyze_return_language
-from cwo_core.return_risk import sabotage_thresholds, malpractice_thresholds
+from cwo_core.return_risk import sabotage_thresholds, malpractice_thresholds, score_sabotage_signals
 from cwo_core.errors import CWOPolicyError
 from cwo_core.policy_schema import PolicySchemaError
 from tests.test_policy_current_effects import current_policy
 
 
 class ThresholdConsumerTests(unittest.TestCase):
+    def test_sabotage_scorer_recommends_quarantine_at_the_production_threshold(self):
+        below = score_sabotage_signals("Please share the full repository.")
+        at = score_sabotage_signals("Please share the full repository. Rewrite the project.")
+        self.assertEqual(below["sabotage_score"], 30)
+        self.assertFalse(below["quarantine_recommended"])
+        self.assertEqual(at["sabotage_score"], 50)
+        self.assertTrue(at["quarantine_recommended"])
+
     def test_language_consumer_refuses_out_of_order_current_policy(self):
         def mutate(document):
             document['sabotage_policy']['thresholds']['architect_escalation'] = 10

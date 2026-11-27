@@ -72,6 +72,13 @@ class ProviderOutputSeparationTests(unittest.TestCase):
                     },
                 )
 
+    def test_host_codex_is_internal_and_its_output_requires_validation(self) -> None:
+        provenance = returns.return_provenance(provider_key="internal_codex")
+        self.assert_limits(provenance, "host-internal")
+        self.assertEqual(provenance["provider_trust_tier"], "host-internal")
+        self.assertEqual(provenance["provenance_class"], "internal")
+        self.assertIs(provenance["provider_external"], False)
+
     def test_unknown_identity_has_no_configured_class_even_with_caller_tier(self) -> None:
         for key in (None, "missing-output-separation-provider"):
             for tier in (None, "", "trusted-internal"):

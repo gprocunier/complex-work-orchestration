@@ -24,6 +24,7 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core import outbound_screen  # noqa: E402
 from cwo_core.outbound_screen import OutboundRefused, require_clean, screen_outbound, screen_request  # noqa: E402
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant  # noqa: E402
 
 FIXTURES = ROOT / "tests" / "fixtures" / "outbound_screening"
 # enforce_contracting_quota only reads the audit log; the audit event that
@@ -79,8 +80,17 @@ def packet_with(snippet: str) -> dict:
         inline_snippets=[snippet],
         dispatch_id="dispatch-1",
         external_opt_in=True,
-        opt_in_basis="cli-flag",
+        opt_in_basis="host-approval",
     )
+
+
+def production_pin_packet(generated_at="2026-01-01T00:00:00Z") -> dict:
+    from cwo_core.util import packet_payload_hash
+
+    packet = json.loads(_corpus_text("EXAMPLE-pin-packet.json"))
+    packet.update(opt_in_basis="host-approval", generated_at=generated_at)
+    packet["packet_sha256"] = packet_payload_hash(packet)
+    return packet
 
 
 @contextlib.contextmanager
@@ -103,8 +113,10 @@ def with_provenance(packet: dict):
     with tempfile.TemporaryDirectory() as tmpdir:
         log = Path(tmpdir) / "audit.jsonl"
         audit.record_audit_event({"event_type": "packet_built", "dispatch_id": packet["dispatch_id"],
-                                  "bead_id": packet["bead_id"], "packet_sha256": packet["packet_sha256"]}, log)
-        with patch.object(audit, "AUDIT_LOG", log):
+                                  "operator_approval_ref": REFERENCE, "bead_id": packet["bead_id"],
+                                  "packet_sha256": packet["packet_sha256"]}, log)
+        grant = outbound_grant(packet["bead_id"], packet.get("epic_id"), packet["executor"])
+        with patch.object(audit, "AUDIT_LOG", log), approved_outbound(grant):
             yield
 
 
@@ -377,14 +389,11 @@ class ManualExportTests(unittest.TestCase):
 
     def test_corpus_export_is_independent_of_ambient_packet_clock(self) -> None:
         from cwo_core.packets import validate_contractor_packet
-        from cwo_core.util import packet_payload_hash
 
         # Hold the whole packet stable so changes to registry metadata cannot
         # change whether the fake PIN also appears in the digest.
-        ambient = dt.datetime(2026, 11, 15, 12, 5, 35, tzinfo=dt.timezone.utc)
-        packet = json.loads(_corpus_text("EXAMPLE-pin-packet.json"))
-        packet["generated_at"] = ambient.strftime("%Y-%m-%dT%H:%M:%SZ")
-        packet["packet_sha256"] = packet_payload_hash(packet)
+        packet = production_pin_packet("2026-11-15T00:42:07Z")
+        ambient = dt.datetime.fromisoformat(packet["generated_at"])
         self.assertEqual(validate_contractor_packet(packet), [])
         self.assertIn("4831", packet["packet_sha256"])
         with tempfile.TemporaryDirectory() as tmpdir:
@@ -410,7 +419,7 @@ class ManualExportTests(unittest.TestCase):
             if not case["sensitive"]:
                 continue
             if case["id"] == "seed-a/pin":
-                packet = json.loads(_corpus_text("EXAMPLE-pin-packet.json"))
+                packet = production_pin_packet()
                 self.assertEqual(packet["selected_snippets"][0]["content"], case["text"])
             else:
                 packet = packet_with(case["text"])
@@ -465,10 +474,11 @@ class ManualExportTests(unittest.TestCase):
         survivor = next(case for case in cases("seed-corpus.json") if case["id"] == "seed-a/ghp_prose")
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "packet.json"
-            path.write_text(json.dumps(packet_with(survivor["text"])), encoding="utf-8")
-            argv = ["dispatch_work.py", "--packet", str(path), "--allow-unlinked-packet", "--waiver-reason", "outbound screening test"]
+            packet = packet_with(survivor["text"])
+            path.write_text(json.dumps(packet), encoding="utf-8")
+            argv = ["dispatch_work.py", "--packet", str(path)]
             stdout = io.StringIO()
-            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), \
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), with_provenance(packet), \
                     patch.object(dispatch_work, "enforce_contracting_quota", return_value=QUOTA_INFO), \
                     patch.object(dispatch_work, "record_audit_event") as audit:
                 with self.assertRaises(OutboundRefused):
@@ -635,7 +645,7 @@ class RoundTwoTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "packet.json"
             path.write_text(json.dumps(packet_with("Review the retry plan for duplicate jobs.")), encoding="utf-8")
-            argv = ["dispatch_work.py", "--packet", str(path), "--allow-unlinked-packet", "--json",
+            argv = ["dispatch_work.py", "--packet", str(path), "--allow-unlinked-packet", "--rehearsal", "--json",
                     "--epic", self.TOKEN, "--waiver-reason", "outbound screening test"]
             stdout = io.StringIO()
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), \
@@ -859,11 +869,11 @@ class RoundThreeCommandTests(_OutboundHelpers, unittest.TestCase):
         rules = dict(outbound_screen._rules())
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "packet.json"
-            path.write_text(json.dumps(packet_with("Review the retry plan for duplicate jobs.")), encoding="utf-8")
-            argv = ["dispatch_work.py", "--packet", str(path), "--allow-unlinked-packet", "--json",
-                    "--waiver-reason", "outbound screening test"]
+            packet = packet_with("Review the retry plan for duplicate jobs.")
+            path.write_text(json.dumps(packet), encoding="utf-8")
+            argv = ["dispatch_work.py", "--packet", str(path), "--json"]
             stdout = io.StringIO()
-            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), \
+            with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), with_provenance(packet), \
                     patch.object(dispatch_work, "enforce_contracting_quota", return_value=QUOTA_INFO), \
                     patch.object(dispatch_work, "record_audit_event") as audit, \
                     patch.object(outbound_screen, "_rules", return_value={**rules, "limits": {"max_input_bytes": 1024, "max_json_depth": 64}}):
@@ -1144,10 +1154,10 @@ class RoundFiveTests(_OutboundHelpers, unittest.TestCase):
                     contextlib.redirect_stdout(stdout), with_provenance(json.loads(path.read_text(encoding="utf-8"))):
                 generate_manual_dispatch_prompt.main()
             self.assertIn("Secret or personal-data spill:\nScope compliance:", json.loads(stdout.getvalue())["prompt"])
-            argv = ["dispatch_work.py", "--packet", str(path), "--allow-unlinked-packet", "--json",
-                    "--waiver-reason", "outbound screening test"]
+            argv = ["dispatch_work.py", "--packet", str(path), "--json"]
             stdout = io.StringIO()
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), \
+                    with_provenance(json.loads(path.read_text(encoding="utf-8"))), \
                     patch.object(dispatch_work, "enforce_contracting_quota", return_value=QUOTA_INFO), \
                     patch.object(dispatch_work, "record_audit_event") as audit:
                 dispatch_work.main()
@@ -1159,7 +1169,7 @@ class RoundFiveTests(_OutboundHelpers, unittest.TestCase):
         import generate_manual_dispatch_prompt
 
         with tempfile.TemporaryDirectory() as tmpdir:
-            argv = ["dispatch_work.py", "--packet", str(self._clean_packet(tmpdir)), "--allow-unlinked-packet", "--json",
+            argv = ["dispatch_work.py", "--packet", str(self._clean_packet(tmpdir)), "--allow-unlinked-packet", "--rehearsal", "--json",
                     "--epic", self.TOKEN, "--waiver-reason", "outbound screening test"]
             record: list[tuple[str, tuple]] = []
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()), \
@@ -1209,7 +1219,7 @@ class RoundFiveTests(_OutboundHelpers, unittest.TestCase):
                         calls[name] += 1
                         raise AssertionError(name)
                     return spy
-                sys.argv = ["dispatch_work.py", "--packet", {str(packet)!r}, "--allow-unlinked-packet", "--epic", {self.TOKEN!r},
+                sys.argv = ["dispatch_work.py", "--packet", {str(packet)!r}, "--allow-unlinked-packet", "--rehearsal", "--epic", {self.TOKEN!r},
                             "--json", "--waiver-reason", "quota disclosure test"]
                 try:
                     with patch.object(audit, "AUDIT_LOG", Path({str(log)!r})), \\
@@ -2304,7 +2314,7 @@ class ProductionGuardTests(unittest.TestCase):
             refused = (
                 ("generate_manual_dispatch_prompt.py", ["Review the retry plan. password_source=hunter2"], "hunter2"),
                 ("generate_manual_dispatch_prompt.py", ["Review the retry plan. password_source=hunter2", "--json"], "hunter2"),
-                ("dispatch_work.py", ["--packet", str(packet), "--allow-unlinked-packet", "--json", "--epic", token,
+                ("dispatch_work.py", ["--packet", str(packet), "--allow-unlinked-packet", "--rehearsal", "--json", "--epic", token,
                                       "--waiver-reason", "outbound screening test"], token),
             )
             for command, argv, secret in refused:
@@ -2319,8 +2329,8 @@ class ProductionGuardTests(unittest.TestCase):
                     self.assertFalse((tmp / "audit.jsonl").exists(), "a refused export records no dispatch")
             clean = (
                 ("generate_manual_dispatch_prompt.py", ["Review the retry plan for duplicate jobs.", "--local-ok"], 0),
-                ("dispatch_work.py", ["--packet", str(packet), "--allow-unlinked-packet", "--waiver-reason",
-                                      "outbound screening test"], 1),
+                ("dispatch_work.py", ["--packet", str(packet), "--allow-unlinked-packet", "--rehearsal", "--waiver-reason",
+                                      "outbound screening test"], 0),
             )
             for command, argv, audits in clean:
                 with self.subTest(command=command, clean=True):

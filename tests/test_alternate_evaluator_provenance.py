@@ -37,7 +37,8 @@ class AlternateEvaluatorTests(unittest.TestCase):
             artifacts.update(fixture.RehearsalOutputTests().rehearsal_outputs(home))
             # A real browser dry-run output is generated through the common
             # production-packet fixture; it remains an unrelated result shape.
-            browser = helper.write(home, helper.build(home, dispatch_id='browser-prod', executor=fixture.BROWSER_EXECUTOR), 'browser.json')
+            with fixture.packet_approvals():
+                browser = helper.write(home, helper.build(home, dispatch_id='browser-prod', executor=fixture.BROWSER_EXECUTOR), 'browser.json')
             config = fixture.write_browser_config(home)
             out = io.StringIO()
             with mock.patch.object(sys, 'argv', ['chatgpt_browser_review.py', '--packet', str(browser), '--config', str(config), '--dry-run']), contextlib.redirect_stdout(out):
@@ -73,7 +74,8 @@ class AlternateEvaluatorTests(unittest.TestCase):
         helper = fixture.ProvenanceCase()
         with current_policy() as home:
             return_file=home/'return.md';return_file.write_text(RETURN_TEXT)
-            packet=helper.write(home,helper.build(home,dispatch_id='production-control'),'prod.json')
+            with fixture.packet_approvals():
+                packet=helper.write(home,helper.build(home,dispatch_id='production-control'),'prod.json')
             raised, output, scores, audits = self.invoke(['evaluate_return.py','--file',str(return_file),'--contractor-packet',str(packet),'--json'])
             self.assertIsNone(raised);self.assertEqual((scores,audits),(1,1));self.assertIn('verdict',json.loads(output))
             raised, output, scores, audits = self.invoke(['evaluate_return.py','--file',str(return_file),'--advisory','--no-audit','--waiver-reason','advisory fixture','--json'])
@@ -94,7 +96,7 @@ class AlternateEvaluatorTests(unittest.TestCase):
 
     def test_normalizer_real_writer_control_and_sentinel(self):
         helper = fixture.ProvenanceCase()
-        with current_policy() as home:
+        with current_policy() as home, fixture.packet_approvals():
             return_file=home/'return.md';return_file.write_text(RETURN_TEXT)
             prod=helper.write(home,helper.build(home,dispatch_id='writer-prod'),'prod.json')
             with mock.patch.object(sys, 'argv', ['dispatch_work.py', '--packet', str(prod)]), \

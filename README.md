@@ -8,10 +8,10 @@ endpoint you control. Give reviewers focused questions, check what comes back,
 and carry verified findings into the next task or session. You set the outcome
 and permissions; one lead agent coordinates the work, and Beads stores tasks and their dependencies.
 
-**No model gets implicit trust.** Public-cloud and open-weight models are untrusted
-contributors. Using a model without guardrails is a choice to trust it implicitly.
-Limit its access, check its work and keep consequential actions within your
-permissions. Guardrails reduce risk; they do not make the model trustworthy.
+**No model gets implicit trust.** Check model findings against evidence. The
+lead runs with the access granted to its host session. CWO relies on the lead
+to honor your scope and approvals. The supervisor host treats registered worker
+responses and tool requests as untrusted.
 
 ## What CWO does today
 
@@ -143,6 +143,8 @@ contract sizes the task before selecting a model. Luna handles focused native
 work, Sol handles recorded coding escalation, and Terra handles assignments
 explicitly classified as interface, visual or computer-use work.
 `policy/model-roles.yaml` defines the current and previous model for each role.
+The provider registry classifies host Codex as `host-internal`. Generated
+output still requires evidence checks.
 The Codex lead, workers and reviewers start at `high` reasoning effort. CWO can
 select `xhigh` for a worker or reviewer when the task calls for it and records
 the reason with the dispatch. See [reasoning effort routing](references/native-supervision.md#reasoning-effort-routing).
@@ -238,13 +240,12 @@ smaller scaffold tier is available: `--scaffold-size` accepts only `full` and
 [Scaffold sizes](references/prompt-coach.md#scaffold-size).
 
 Using fewer coordination steps does not remove the need for access limits and
-evidence checks. Every model remains untrusted, including the lead. Check its
-work too; a coordinating role does not make its judgments correct.
+evidence checks. Check the lead's work even on small tasks.
 
 Codex already plans, edits, uses tools and can delegate. Beads stores task state.
 CWO connects them through project instructions, saved decisions, evidence checks
-and supervised delegation on supported routes. Some safeguards are code; others
-are instructions. Neither replaces the host's tool permissions or sandbox.
+and supervised delegation on supported routes. Some safeguards are code. Others
+are instructions. The lead session uses the host's tool permissions and sandbox.
 
 ## Limits
 
@@ -255,6 +256,12 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   and approval policy. Codex `--yolo` disables those checks for the lead.
   Registered single-worker execution uses the verified provider-only app-server
   namespace and separate networkless command and validator namespaces.
+- **Protected approvals and review evidence use a separate host principal.**
+  Managed contractor exports check the host's approval for the assignment and
+  destination. Protected synthesis uses the operator's selected panel and
+  original host-captured dispatch evidence. Other same-account records remain
+  subject to the lead's host permissions.
+  [Threat model](references/security-threat-model.md#trust-on-the-supervisor-host)
 - **ChatGPT Pro browser review runs from the ChatGPT desktop app.** The
   architect thread uses `@Chrome` in the paired profile with the operator
   present. [Desktop Chrome workflow](references/chatgpt-pro-browser.md)
@@ -262,11 +269,14 @@ are instructions. Neither replaces the host's tool permissions or sandbox.
   `dispatch_work.py --execute-local` requires original host workload admission
   and records the result as advisory evidence for review and adjudication.
 - **Disabled in this version:** raw native launch,
-  ordinary productive pool plans passed to the standalone launcher, and live campaigns; new
-  worker-surface qualification; live native activation
-  (`run_native_pool_activation_preview.py run --enable-tech-preview`);
+  ordinary productive pool plans passed to the standalone launcher, live campaigns, new
+  worker-surface qualification, and
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`
   are refused).
+- **The activation preview is offline.** It supports key generation,
+  preparation, approval and dry-run validation. The live preview and
+  standalone native callback calibration are retired.
+  [Native supervision pools](references/native-supervision-pools.md#temporary-audited-tool-boundary)
 - **Verified successful closure is a library route for embedding hosts.** It
   requires the original dispatch, exact baseline and candidate, current policy,
   setup database identity and single-use host acceptance from an adjudicator

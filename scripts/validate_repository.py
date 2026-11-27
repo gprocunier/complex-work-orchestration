@@ -122,7 +122,9 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "coach": {"model_identities", "operative_routing", "routing", "synthesis", "types", "util"},
     "frozen_protocol": set(),
     "packets": {"errors", "paths", "policy", "return_language", "util"},
-    "packet_provenance": {"audit", "packets"},
+    "packet_provenance": {"audit", "outbound_approval", "packets"},
+    "outbound_approval": {"lead_authority", "workspace_capture"},
+    "lead_authority": {"errors", "policy_schema", "private_artifact"},
     "model_identities": {"policy"},
     "model_catalog_startup": set(),
     "cyber_fallback": {"invocation_ledger", "model_identities"},
@@ -360,25 +362,6 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "codex_protocol_pin": {"policy"},
     "codex_tool_surface": {"native_tool_isolation"},
     "supervision": set(),
-    "supervision.calibration": {
-        "codex_tool_surface",
-        "native_canary_contracts",
-        "native_live_availability",
-        "native_pool_capacity",
-        "native_pool_capacity_compat",
-        "native_pool_contracts",
-        "native_pool_schedulability",
-        "native_pool_scheduler",
-        "native_session_boundary",
-        "native_tool_isolation",
-        "native_worker_contracts",
-        "supervision.callback_timing",
-        "supervision.containment",
-        "supervision.session_evidence",
-        "supervision.transport.app_server",
-        "supervision.transport.errors",
-        "workspace",
-    },
     "supervision.callback_timing": {
         "native_canary_contracts",
         "native_pool_capacity",
@@ -966,18 +949,10 @@ def validate_repository() -> list[str]:
             "n1-mutable",
             "--dry-run",
             "--enable-tech-preview",
-            "permanently claims the activation ID and campaign nonce",
-            "There is no retry, resume,",
-            "Every attempted call counts",
-            "Only a durable successful terminal event can finalize required trace cardinality",
-            "`task_complete.error` is failed terminal control loss",
-            "activation-tool-trace.json",
-            "activation-bead-closure.json",
-            "never closes the parent or publication Bead",
-            "native-tool-activation-result-v2.schema.json",
-            "tool_trace_sha256",
-            "bead_closure_sha256",
-            "v1 result schema remains historical inspection-only",
+            "verifies the clean commit/tree",
+            "without consuming the approval",
+            "exits 1 and reports its refusal on stderr",
+            "Archived activation procedure",
             "run_admitted_native_pool",
             "version-2 admitted contract passed directly",
             "admitted-pool-launcher-required",
@@ -987,7 +962,7 @@ def validate_repository() -> list[str]:
             "--tool-enforcement-override",
             "audit-only intent",
             "cannot start `supervise_native_worker.py`",
-            "Activation authority has no JSON or CLI form",
+            "Live execution is retired.",
             "--dry-run",
             "--enable-tech-preview",
             "One supervised worker remains the standard path",
@@ -1055,10 +1030,15 @@ def validate_repository() -> list[str]:
         providers = load_policy("provider-registry").get("providers", {})
         peer_review = load_policy("peer-review-policy")
         zero_trust = load_policy("zero-trust-consensus-policy")
+        acceptance = load_policy("acceptance-policy")
+        native = load_policy("native-worker-execution")
+        model_roles = load_policy("model-roles")
     except SystemExit as exc:
         return [str(exc)]
 
     errors.extend(validate_execution_environment_registry())
+    validate_preferred_native_model(errors, native, model_roles)
+    validate_sabotage_threshold_mirrors(errors, controls, acceptance, peer_review)
 
     if executor_aliases and not isinstance(executor_aliases, dict):
         errors.append("executor-registry aliases must be an object")
@@ -1164,7 +1144,7 @@ def validate_repository() -> list[str]:
     for policy in ("sabotage_policy", "malpractice_policy"):
         if not controls.get(policy, {}).get("signal_weights"):
             errors.append(f"contracting controls must define {policy}.signal_weights")
-    acceptance_sabotage_signals = load_policy("acceptance-policy").get("sabotage", {}).get("signals", [])
+    acceptance_sabotage_signals = acceptance.get("sabotage", {}).get("signals", [])
     for required_signal in [
         "provider_policy_opaque_intervention",
         "provider_conflict_disposition_missing",
@@ -1175,7 +1155,7 @@ def validate_repository() -> list[str]:
             errors.append(f"contracting controls sabotage_policy.signal_weights missing {required_signal!r}")
     if "work_rerouting_or_subversion" not in acceptance_sabotage_signals:
         errors.append("acceptance-policy sabotage.signals missing 'work_rerouting_or_subversion'")
-    work_rerouting_note = load_policy("acceptance-policy").get("sabotage", {}).get("signal_notes", {}).get("work_rerouting_or_subversion", {})
+    work_rerouting_note = acceptance.get("sabotage", {}).get("signal_notes", {}).get("work_rerouting_or_subversion", {})
     if work_rerouting_note.get("authority") != "evidence-quality gate and architect-escalation trigger":
         errors.append("acceptance-policy work_rerouting_or_subversion must remain an evidence-quality architect-escalation gate")
     if work_rerouting_note.get("intent_finding") != "not required and not asserted":
@@ -2118,6 +2098,34 @@ def validate_policy_validation_boundaries(errors: list[str], policy_dir: Path = 
             errors.append(f"policy/{name} validation boundary {kind!r} disagrees with the registered schemas")
     for name in sorted(set(POLICY_SCHEMAS) - present):
         errors.append(f"schema registered for missing policy/{name}")
+
+
+def validate_preferred_native_model(
+    errors: list[str], native: dict[str, Any], model_roles: dict[str, Any],
+) -> None:
+    worker = native.get("governance", {}).get("native_operative_worker", {})
+    expected = model_roles["roles"]["luna"]["current"]
+    if worker.get("preferred_model") != expected:
+        errors.append("native-worker-execution governance.native_operative_worker.preferred_model must match "
+                      f"model-roles roles.luna.current ({expected!r})")
+
+
+def validate_sabotage_threshold_mirrors(
+    errors: list[str], controls: dict[str, Any], acceptance: dict[str, Any], peer_review: dict[str, Any],
+) -> None:
+    production = controls["sabotage_policy"]["thresholds"]
+    mirrors = (
+        ("acceptance-policy sabotage.thresholds", acceptance.get("sabotage", {}).get("thresholds", {}),
+         {"review": "peer_review", "architect_escalation": "architect_escalation", "quarantine": "quarantine"}),
+        ("peer-review-policy sabotage_thresholds", peer_review["sabotage_thresholds"],
+         {"review": "peer_review", "quarantine": "quarantine"}),
+    )
+    for name, thresholds, fields in mirrors:
+        for mirror_field, production_field in fields.items():
+            expected = production[production_field]
+            if thresholds.get(mirror_field) != expected:
+                errors.append(f"{name}.{mirror_field} must match contracting-controls "
+                              f"sabotage_policy.thresholds.{production_field} ({expected})")
 
 
 def validate_cwo_core_contract(errors: list[str]) -> None:

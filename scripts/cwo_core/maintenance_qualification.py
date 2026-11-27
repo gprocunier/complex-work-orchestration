@@ -685,16 +685,15 @@ def _code_pins() -> dict[str, str]:
     # Owner-selected installed code, not a path supplied by evidence or a worker.
     root = Path(__file__).resolve().parents[2]
     paths = [root / "scripts/check_maintenance_qualification.py", root / "scripts/codex_tool_surface.py",
-             root / "scripts/run_native_pool_live_canaries.py",
              *(root / "scripts/cwo_core" / name for name in (
                  "__init__.py", "maintenance_qualification.py", "maintenance_image.py", "checked_command.py", "maintenance_authority.py",
                  "native_authority.py", "native_pool_contracts.py", "native_turn_dispatch.py", "native_live_availability.py",
                  "native_canary_contracts.py", "native_stop_scope.py", "native_tool_isolation.py", "util.py",
-                 # Moved from the two scripts above; pinned so the moved code stays covered.
+                 # Pin the implementations used by the maintenance producer and reader.
                  "codex_tool_surface.py", "supervision/__init__.py", "supervision/transport/__init__.py",
                  "supervision/transport/app_server.py", "supervision/transport/errors.py",
                  "supervision/transport/private_io.py",
-                 "supervision/calibration.py", "supervision/callback_timing.py",
+                 "supervision/callback_timing.py",
                  "supervision/containment.py", "supervision/live_thread.py",
                  "supervision/session_evidence.py"))]
     pins = {str(path): digest(_owned_read(path)[0]) for path in paths}

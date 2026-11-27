@@ -13,20 +13,17 @@ for review. **Adjudication** is the lead's decision after examining that evidenc
 ## Threat Model And Disclosure Boundary
 
 The assets are repository context, secrets, contractor packets, audit records,
-and implementation decisions. The trusted boundary is the helper-managed CWO
-control plane and its local audit store; operators, agents, external models,
-and manually copied prompts are outside that boundary unless explicitly
-recorded. Packet validation, redaction, opt-in, share-boundary checks, audit,
-evaluation, and architect adjudication are controls on the managed path.
+and implementation decisions. The protected host holds the operator's outbound
+approval. Managed packet preparation validates the share boundary, redacts
+disallowed context, checks current approval and screens the rendered bytes.
+Evaluation and architect adjudication review the resulting contractor evidence.
 
-Audit records are tamper-evident evidence of the managed workflow, not
-protection from a privileged same-user writer or an unrecorded manual copy.
-Immutable or hash-bound fields describe frozen packet/binding semantics only;
-they do not make a checkout, audit store, or operator RBAC-proof. Helpers are
-gates, not authority, and contractor or model agreement remains evidence rather
-than authorization or proof. Report suspected secret exposure or boundary
-failure through the repository [security policy](../SECURITY.md), preserving
-the packet/audit identifiers for responsible disclosure and architect review.
+Packet hashes bind artifact contents to the local audit record. The audit can
+be modified by any principal with write access to its store. A manual copy or
+direct provider call uses the sending environment's permissions. Report
+suspected secret exposure or boundary failure through the repository security
+policy, preserving packet and audit identifiers for review.
+[Security policy](../SECURITY.md) · [Threat model](security-threat-model.md)
 
 ## Contracting Model
 
@@ -52,21 +49,28 @@ Use the policy files as the source of truth for contractor routing:
   terms.
 - `policy/executor-registry.yaml`: registered internal and outside executors
   with provider bindings.
-- `policy/provider-registry.yaml`: provider trust tiers, retention classes, and
-  conflict-risk domains.
+- `policy/provider-registry.yaml`: configured provider access classes, retention
+  classes, and conflict-risk domains. Host Codex is `host-internal`. Provider
+  metadata records provenance and generated output requires validation. Both
+  registry versions require `host-internal` for the host Codex entry. Update
+  `providers.internal_codex.trust_tier` in any custom registry that still uses
+  `trusted-internal`.
 - `policy/expert-registry.yaml`: discipline triggers, job-description labels,
   and expected reasoning lenses.
 - `policy/share-boundaries.yaml`: allowed sharing modes and disclosure-stage
   escalation rules.
 - `policy/peer-review-policy.yaml`: when contractor results require independent
   peer review.
-- `policy/acceptance-policy.yaml`: required contractor return sections,
-  sabotage/malpractice scoring, and quarantine.
+- `policy/acceptance-policy.yaml`: required contractor return sections, scoring
+  rubric, and verdicts.
 - `policy/zero-trust-consensus-policy.yaml`: independent trust-domain counting,
   structured claim comparison, divergence thresholds, and no-positive-confidence
   states for synthesis work that needs cross-domain security review.
-- `policy/contracting-controls.yaml`: manual dispatch, audit, and
-  adjudication requirements.
+- `policy/contracting-controls.yaml`: manual dispatch, audit, adjudication, and
+  production sabotage and malpractice scoring. A sabotage score of 20
+  recommends peer review, 35 recommends architect escalation, and 50 recommends
+  quarantine. The repository validator checks the matching values in the
+  acceptance and peer-review policies.
 - `schemas/`: machine-readable shapes for route results, contractor packets,
   returns, acceptance decisions, Beads metadata, and audit events.
 
@@ -91,11 +95,10 @@ scripts, or mutating a checkout outside the recorded workflow. Those actions are
 outside the audit guarantee unless the operator records them separately in
 Beads or another durable project log.
 
-Treat bypasses as waivers, not normal operation. `--no-audit`, rehearsal modes,
-raw prompts, degraded packets, and unlinked packets are for tests, dry runs, or
-explicitly recorded operator exceptions. A successful audit chain means the
-helper-managed workflow was followed; it does not certify that no unrecorded
-manual sharing or local mutation happened elsewhere.
+Raw prompts and unlinked packets are local rehearsal or dry-run paths.
+Production dispatch of a packet with a deliberately omitted expert profile
+requires a documented waiver and the same protected approval as any other
+production packet. Audit records describe the helper-managed workflow.
 
 Packet redaction is structure-aware. Secret-like fields in assignments and
 bounded JSON/YAML-style structures are removed aggressively. For fields that are
@@ -213,7 +216,9 @@ Interpret the answer conservatively:
 Never share secrets, private credentials, production access, or unreleased
 third-party material unless the user explicitly authorizes that exact sharing.
 Repo read-only and patch-branch packet builds require
-`--allow-disclosure-escalation`; `--external-ok` alone is not enough.
+`--allow-disclosure-escalation` in addition to the protected outbound approval.
+`--external-ok` asks the router to consider external contractors and can
+simulate consent for a local rehearsal.
 
 Run the route twice when needed: first with the default no-sharing boundary, then
 again after the user has explicitly approved a boundary:
@@ -274,7 +279,7 @@ python3 scripts/build_contractor_packet.py \
   --bead <claude-critic-bead> \
   --executor claude_architecture_critic \
   --share-boundary redacted-packet \
-  --external-ok \
+  --opt-in-record "$CLAUDE_OUTBOUND_APPROVAL" \
   --job-description contract-jd-architecture-reasoning \
   --attest-packet \
   --format json \
@@ -289,7 +294,7 @@ python3 scripts/build_contractor_packet.py \
   --bead <gemini-critic-bead> \
   --executor gemini_architecture_critic \
   --share-boundary redacted-packet \
-  --external-ok \
+  --opt-in-record "$GEMINI_OUTBOUND_APPROVAL" \
   --job-description contract-jd-architecture-reasoning \
   --attest-packet \
   --format json \
@@ -574,7 +579,7 @@ python3 scripts/build_contractor_packet.py \
   --bead <id> \
   --executor external_security_reviewer \
   --share-boundary redacted-packet \
-  --external-ok \
+  --opt-in-record "$OUTBOUND_APPROVAL" \
   --epic <epic-id> \
   --format json \
   --output contractor-packet.json
@@ -583,8 +588,26 @@ python3 scripts/build_contractor_packet.py \
 ## Dispatch Flow
 
 1. PM classifies the work with `scripts/route_work.py`.
-2. PM confirms sharing boundary.
-3. PM creates the contractor bead with labels and metadata.
+2. PM creates the contractor Bead with labels and metadata.
+3. The operator grants a maximum share boundary for the canonical checkout,
+   the exact Bead and epic (or no epic), and the canonical executor and
+   provider. The protected host service issues one reference for that scope.
+   Use the same reference for repeat builds within scope.
+
+   From the protected CWO installation, the operator publishes a JSON
+   decision containing `project` (the absolute, resolved target checkout path),
+   `bead_id`, `epic_id` (an exact ID or JSON `null`), `executor`, `provider_key`
+   and `maximum_share_boundary`.
+
+   ```bash
+   python3 -E -s -B scripts/lead_authority_host.py publish outbound-approval < approved-disclosure.json
+   ```
+
+   Run packet preparation and export from the target project, using the path
+   to the installed CWO scripts when needed. Pass the printed reference as
+   `OUTBOUND_APPROVAL` in the next command.
+   Rebuild any previously prepared packet before exporting it so its build
+   audit event carries the approval reference.
 4. PM prepares the packet:
 
    ```bash
@@ -593,7 +616,7 @@ python3 scripts/build_contractor_packet.py \
      --bead <id> \
      --executor gemini_manual_reviewer \
      --share-boundary <mode> \
-     --external-ok \
+     --opt-in-record "$OUTBOUND_APPROVAL" \
      --epic <epic-id> \
      --format json \
      --output contractor-packet.json
@@ -602,14 +625,10 @@ python3 scripts/build_contractor_packet.py \
   Add `--allow-disclosure-escalation` when `<mode>` is `repo-readonly` or
   `patch-branch`.
 
-  Use `--opt-in-record <path>` instead of `--external-ok` when opt-in is
-  recorded in a structured local JSON audit note. Preferred records include
-  `allowed: true`, a matching share boundary, `allowed_external_executors`,
-  decision source, timezone-aware `recorded_at`, optional `expires_at`, scope,
-  optional `allowed_providers`, and optional project/epic/bead IDs; when
-  `bead_id` or `epic_id` is present, it must match the assigned contract.
-  See `examples/sample-opt-in-record.json`. Legacy records with
-  `allowed_executors` remain accepted for compatibility.
+  `--opt-in-record` takes the reference issued by the protected host. Use
+  `examples/sample-opt-in-record.json` only to simulate a local decision in
+  `--rehearsal` mode. A production build checks the Bead ID in the input,
+  resolves an explicit or inferred epic, and screens the rendered bytes.
 
 5. PM verifies the packet includes the expert profile, opt-in basis, quota
    metadata, and only safe redacted snippets. Packet build audits by default;
@@ -710,27 +729,17 @@ python3 scripts/build_contractor_packet.py \
    boundary, mark that evidence invalid or quarantine it for architect
    adjudication.
 
-   Packet dispatch is audit-bound by default. `build_contractor_packet.py`
-   records a quota-reservation `packet_built` event, and `dispatch_work.py`
-   requires the matching `dispatch_id`, Bead, and
-   `packet_sha256` before preparing or submitting the packet. Use
-   `--allow-unlinked-packet` only for an explicitly degraded/operator-managed
-   packet that cannot be linked to the local audit ledger.
-
-   That `packet_built` event is the packet's production provenance, and every
-   supported production packet consumer requires it: `dispatch_work.py --packet`,
-   `generate_manual_dispatch_prompt.py --packet`,
-   `normalize_contractor_return.py --contractor-packet` and
-   `evaluate_return.py --contractor-packet`. A packet hash is not provenance:
-   anyone can edit a packet and recompute `packet_sha256`, but no build
-   recorded the new hash, so the edited packet is refused. Only
-   `build_contractor_packet.py` writes `packet_built` events;
-   `record_audit_event.py` refuses that event type. Among these supported
-   consumers, `--allow-unlinked-packet` exists only for dispatch and still
-   requires `--waiver-reason`; the manual prompt, normalizer and evaluator have no
-   unlinked mode. A packet built with `--rehearsal` carries
-   `result_class: nonproduction-rehearsal` inside its hash and is refused by
-   every production consumer, with or without its audit link.
+   `build_contractor_packet.py` records a quota-reservation `packet_built`
+   event that links the dispatch ID, Bead, packet hash and protected approval
+   reference. `dispatch_work.py --packet`, `generate_manual_dispatch_prompt.py
+   --packet`, and desktop Chrome request preparation check the matching build
+   event, resolve the current approval through the protected host, and screen the
+   exact export. Return normalization and evaluation continue to check the
+   historical build event. `record_audit_event.py` refuses to write that event
+   type. `--allow-unlinked-packet` requires `--waiver-reason` and is limited to
+   local rehearsal or a content-free browser dry run. Rehearsal builds carry
+   `result_class: nonproduction-rehearsal` inside the packet hash and production
+   consumers refuse them.
 
    In the [desktop Chrome workflow](chatgpt-pro-browser.md), the architect
    thread in the ChatGPT desktop app sends the screened request through

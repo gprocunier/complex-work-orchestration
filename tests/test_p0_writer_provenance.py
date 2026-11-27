@@ -82,7 +82,7 @@ class WriterChecks(unittest.TestCase):
         from cwo_core.host_records import configured_store
         from tests.test_policy_current_effects import current_policy
         helper = packets.ProvenanceCase()
-        with current_policy() as home:
+        with current_policy() as home, packets.packet_approvals():
             packet = helper.build(home, dispatch_id='packet-writer')
             path = helper.write(home, packet, 'packet.json')
             store = configured_store()

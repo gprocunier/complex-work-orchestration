@@ -222,13 +222,9 @@ audit-only intent in a packet, but that packet is rejected by dispatchable
 packet validation and cannot start the single-worker supervisor. Preflight
 acceptance is evidence, not dispatch permission.
 
-The disabled-by-default operator path is
-`scripts/run_native_pool_activation_preview.py`. It accepts only three fixed
-profiles: `n1-read-only`, `n2-read-only`, and `n1-mutable`. It has no arbitrary
-prompt, model, tool, task, mutation-path, retry, resume, refill, or replacement
-input. It also does not enter the historical
-`run_native_pool_live_canaries.py` campaign workflow; its claim, ledger, and
-result formats are separate.
+The offline preview command is `scripts/run_native_pool_activation_preview.py`.
+It accepts the fixed profiles `n1-read-only`, `n2-read-only` and
+`n1-mutable`.
 
 Use an absolute owner-private control root outside a clean source repository:
 
@@ -263,59 +259,11 @@ lead), fixed cohort,
 tool-boundary bindings, and offline admission without consuming the approval,
 creating a permanent claim, or making an app-server RPC.
 
-Live execution is unavailable for now: `run --enable-tech-preview` refuses
-before any claim, RPC or Beads write. The live run closes accepted children in
-the private Beads database it prepared, but finds that database only by path,
-so a replaced path could redirect the write. It returns once the run binds the
-prepared database by filesystem identity through every use. `keygen`,
-`prepare`, `approve` and `--dry-run` remain available. The rest of this section
-describes the live run as it will behave once restored; none of it can run
-today.
-
-The live path permanently claims the activation ID and campaign nonce before
-approval verification, Beads claims, leases, or RPC. A bad, expired, mismatched,
-or raced approval therefore burns that plan; prepare a new one instead of
-retrying. Owner-private mode 0700 directories and mode 0600 key, plan, approval,
-claim, ledger, and result artifacts are required. There is no retry, resume,
-refill, replacement, or salvage path.
-
-An activation now accepts only when every child produces its fixed profile's
-exact ordered tool trace. The two read-only calls are `git rev-parse HEAD` then
-`sha256sum data/shared.txt`; the mutable calls are the frozen `apply_patch`
-payload then `git diff --check`. For an exec call, the only tolerated transport
-shapes are the exact command alone, the exact command plus the task worktree,
-or those two fields plus `login: false`. No other argument key is tolerated.
-
-Every attempted call counts. A failed call followed by a successful retry is
-an extra call, not a successful two-call trace. Reordered tools, wrong
-arguments, wrong targets, unknown or contradictory results, missing result
-pairing, and extra calls all make the pool and result non-accepting. Successful
-`apply_patch` evidence additionally requires its same-call, same-turn
-`patch_apply_end` event between the call and output. Only a durable successful
-terminal event can finalize required trace cardinality; a projected completion
-remains pending during the bounded observation window. A non-null
-`task_complete.error` is failed terminal control loss, never a successful
-completion missing its final token, required calls, or expected mutation. When
-that durable terminal was already observed, containment archives it without
-issuing a redundant interrupt RPC. If the terminal transition instead wins the
-race with the sole interrupt request, the rejected request is adjudicated
-against the trusted boundary once and is never retried.
-
-The controller writes the privacy-safe ordered receipts to the private
-`records/activation-tool-trace.json` artifact. After both that exact trace and
-the raw pool receipt accept, it consumes each pool-authorized implementation
-child Bead closure once, in task order, and reconciles the exact post-state. It
-never closes the parent or publication Bead. There is no close retry, reopen,
-or rollback: if an N=2 close fails after the first child closed, the first
-closure remains, the second is left untouched, and the activation rejects.
-`records/activation-bead-closure.json` records the outcome.
-
-New live results use
-`schemas/native-tool-activation-result-v2.schema.json`. An accepted v2 result
-hash-binds both private artifacts through `tool_trace_sha256` and
-`bead_closure_sha256`. The v1 result schema remains historical
-inspection-only. A trace mismatch or closure failure cannot emit an accepted
-v2 result.
+`run --enable-tech-preview` exits 1 and reports its refusal on stderr before
+reading inputs, claiming work, making an app-server RPC or writing Beads
+records. The version-matched historical procedure describes the retired
+activation claims, exact tool trace, child closure and result artifacts.
+[Archived activation procedure](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/references/native-supervision-pools.md#temporary-audited-tool-boundary).
 
 ## Historical Live Canary Gate
 

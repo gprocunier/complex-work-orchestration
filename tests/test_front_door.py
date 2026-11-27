@@ -183,10 +183,14 @@ class FrontDoorTests(unittest.TestCase):
     def test_disabled_routes_are_described_as_disabled(self) -> None:
         limits = section("Limits")
         self.assertIn("Disabled in this version:", limits)
-        for route in ("live native activation", "successful closure", "risk narrowing",
+        for route in ("successful closure", "risk narrowing",
                       "ordinary productive pool plans"):
             with self.subTest(route=route):
                 self.assertIn(route, limits)
+        preview = " ".join(limits.split())
+        self.assertIn("The activation preview is offline.", preview)
+        self.assertIn("It supports key generation, preparation, approval and dry-run validation.", preview)
+        self.assertIn("The live preview and standalone native callback calibration are retired.", preview)
         self.assertIn("ChatGPT Pro browser review runs from the ChatGPT desktop app", limits)
         self.assertIn("`@Chrome` in the paired profile with the operator present", limits)
         reference = (ROOT / "references/external-contracting.md").read_text(encoding="utf-8")

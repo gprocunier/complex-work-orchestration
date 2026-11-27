@@ -135,10 +135,17 @@ class AcceptancePolicySchemaTests(unittest.TestCase):
             for bad in (False, True, str(value), None):
                 with self.subTest(path=path, bad=bad):
                     self.assert_refused(replace(self.document, path, bad), "expected number")
-            # No new threshold constants, integer-only restriction or bounds.
+            # Other numeric fields keep their original shape.
             for number in (0, 0.5, value + 1):
                 with self.subTest(path=path, number=number):
                     ps.validate_policy_document(FILENAME, replace(self.document, path, number))
+
+    def test_sabotage_threshold_mirrors_require_bounded_integers(self) -> None:
+        for name in ("review", "architect_escalation", "quarantine"):
+            path = ("sabotage", "thresholds", name)
+            for value in (0, 101, 50.0):
+                with self.subTest(name=name, value=value):
+                    self.assert_refused(replace(self.document, path, value), ".".join(path))
 
     def test_optional_fields_empty_arrays_and_duplicates(self) -> None:
         for path, schema, value in nodes(self.schema, self.document):

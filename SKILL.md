@@ -24,12 +24,12 @@ Beads tracking is mandatory for non-trivial work. In ordinary Codex sessions, ha
 
 ## Operating Defaults
 
-Registered single-worker production requires the original signed workflow,
-provider disclosure consent and separately supplied production authentication.
-Two or three approved workers run through the registered contained pool; raw native launch,
-legacy pool routes, activation and surface qualification stay held, and campaigns are retired.
-Use observed host capability evidence for the executable, configuration and tool
-profile. Check the actual model against the exact selection for each assignment.
+Registered single-worker production needs original signed admission, provider disclosure consent
+and separate production authentication. Registered contained pools run two or three approved workers.
+Raw native launch, generic pools and surface qualification stay held. Campaigns, live activation and
+standalone calibration are retired. Preview stays offline. Verify host capability and model.
+The lead uses host permissions. The controller contains registered workers and owns protected
+approvals and review evidence. [Threat model](references/security-threat-model.md#trust-on-the-supervisor-host)
 
 - The opt-in architect profile loads `prompts/cwo-architect.md` in a fresh session. See `references/cwo-system-prompt.md`.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
@@ -174,7 +174,7 @@ share boundary, provider metadata, redaction, screening, validation, audit,
 return normalization, evaluation and architect adjudication.
 
 ```bash
-python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --external-ok --format json --output contractor-packet.json
+python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --opt-in-record="$APPROVAL_REF" --format json --output contractor-packet.json
 python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
 python3 scripts/normalize_contractor_return.py --bead <id> --dispatch-id <id> --packet-sha256 <sha> --file contractor-return.md --output contractor-return-bundle.json
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
@@ -186,12 +186,12 @@ or the operator explicitly changes that requirement. For ChatGPT Pro, follow the
 [ChatGPT desktop app workflow](references/chatgpt-pro-browser.md). Local inference
 requires `--local-ok`. Use `--prefer-local` only for an intended low-risk local review lane.
 
-Current native workers use the exact configured model selected for the assignment.
-The attested actual model must exactly match that immutable request;
-missing or mismatched identity stops the affected dispatch. Do not substitute another model.
-Spark records are historical compatibility material, not a new dispatch route.
+Use the configured Luna model first for focused native work. Each assignment fixes its exact model.
+Stop on missing or mismatched attestation. Do not substitute another model.
+Spark records remain available for historical inspection.
 
-Use `scripts/workspace_mutation_guard.py` around external CLIs that can see a checkout. Quarantine high-sabotage, high-malpractice, provider-conflict, and boundary-tainted returns until peer review and architect adjudication complete.
+Use `scripts/workspace_mutation_guard.py` around external CLIs with checkout access.
+Quarantine returns for sabotage scores of 50 or higher, high malpractice, provider conflict, or boundary taint pending peer review and architect adjudication.
 
 ## Run Readiness And Closeout
 

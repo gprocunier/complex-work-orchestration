@@ -363,19 +363,15 @@ admitted host API, topology, scheduling, leases, and rollback.
 ### Separate activation preview
 
 The optional `--tool-enforcement-override` input is audit-only intent for a
-separately gated detect-and-contain preview. Its self-hash does not grant
+separate offline detect-and-contain preview. Its self-hash does not grant
 authority. A packet containing that intent is rejected by dispatchable packet
 validation and cannot start `supervise_native_worker.py`.
 
-Activation authority has no JSON or CLI form. The fixed activation runner
-accepts only `n1-read-only`, `n2-read-only`, and `n1-mutable`; use `--dry-run`
-for non-consuming validation. Live execution requires a signed exact-attempt
-approval and explicit `--enable-tech-preview`, and is currently refused before
-any claim or RPC. Exact trace and Bead-closure
-artifacts prove only that specific activation. See
-[Native Worker Supervision](native-supervision.md#separate-activation-preview)
-for the boundary and [Native Supervision Pools](native-supervision-pools.md#temporary-audited-tool-boundary)
-for the certification details.
+The fixed activation runner accepts only `n1-read-only`, `n2-read-only` and
+`n1-mutable`. Use `--dry-run` for non-consuming validation. Live execution
+is retired. `--enable-tech-preview` refuses before input reads, claims or RPCs.
+[Native Worker Supervision](native-supervision.md#separate-activation-preview) ·
+[Native Supervision Pools](native-supervision-pools.md#temporary-audited-tool-boundary).
 
 ### Proof-period rubric (canonical native supervisor)
 
@@ -653,9 +649,10 @@ default.
    that dispatch, while the role's access profile still records the access path.
 6. `--model` and `--model-profile` are mutually exclusive.
 
-Resolved model-profile dispatch is still render-only. It creates the prompt,
-hash, suggested OpenCode command, and reviewable envelope; it does not call
-OpenCode or the vLLM endpoint.
+The internal and local model-profile renderer creates a prompt, hash, suggested
+command, and reviewable envelope. External executor bindings require the
+[approved contractor packet workflow](external-contracting.md#dispatch-flow).
+For a ChatGPT Pro master review, [prepare the approved packet for desktop Chrome](chatgpt-pro-browser.md).
 
 ## Harness Decision Matrix
 

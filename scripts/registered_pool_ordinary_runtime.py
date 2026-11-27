@@ -64,6 +64,7 @@ from registered_pool_qualification_calibration import _measure_original_controls
 from registered_pool_qualification_capability import (
     ConnectedPoolCallbackCapability,
     begin_ordinary_connected_callback_calibration,
+    callback_implementation_sha256,
 )
 
 _STARTUP_BOUNDS = {
@@ -94,6 +95,7 @@ def require_ordinary_custody(approved):
     _require(type(approved) is ApprovedOrdinaryPool and type(approved.ledger) is InvocationLedger,
              "original-ordinary-approval-required")
     approved.require_current()
+    require_ordinary_runtime_source(approved)
     _require((approved.model, approved.effort, approved.service_tier) == (MODEL, EFFORT, TIER),
              "unsupported-run-selection")
 
@@ -101,6 +103,8 @@ def require_ordinary_custody(approved):
 def require_ordinary_runtime_source(approved):
     source = stage._registered_factory_path()
     stage._registered_factory_source(str(source), approved.runtime_adapter_sha256)
+    _require(approved.callback_implementation_sha256 == callback_implementation_sha256(),
+             "callback-implementation-digest-mismatch")
 
 
 def _hard_budget(estimate):

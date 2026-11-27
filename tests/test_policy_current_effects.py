@@ -74,6 +74,9 @@ BASE_TASK_SELECTED_POLICY_SHA256 = "26257b1b997ada4a9583c0ed7cd09c99ecff4923aff8
 HISTORICAL_V2_REFUSAL = "historical v2 route is parseable but cannot authorize new dispatch"
 
 
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant  # noqa: E402
+
+
 def _read(name: str) -> dict[str, Any]:
     return json.loads((ROOT / "policy" / f"{name}.yaml").read_text(encoding="utf-8"))
 
@@ -235,6 +238,10 @@ THRESHOLD_CASE = {
 
 
 class CurrentEntryPointRefusalTests(RefusalAssertions):
+    def setUp(self):
+        self.enterContext(approved_outbound(outbound_grant(
+            "complex-work-orchestration-example", "epic-1", "claude_code_manual")))
+
     """Malformed current policy stops each current consumer before any effect."""
 
     ROUTE_ARGV = ["route_work.py", "Documentation review for public README examples.", "--json"]
@@ -248,7 +255,7 @@ class CurrentEntryPointRefusalTests(RefusalAssertions):
         return [
             "build_contractor_packet.py", "--bead", "complex-work-orchestration-example",
             "--bead-json-file", str(ROOT / "examples" / "sample-bead.json"), "--executor", "claude_code_manual",
-            "--share-boundary", "redacted-packet", "--external-ok", "--epic", "epic-1",
+            "--share-boundary", "redacted-packet", "--opt-in-record", REFERENCE, "--epic", "epic-1",
             "--dispatch-id", "dispatch-w10-packet", "--format", "json", "--output", str(output),
         ]
 
@@ -426,6 +433,7 @@ class ExceptionTypeChangeTests(RefusalAssertions):
             self.assertIn(fragment, str(raised.exception))
             self.assertNotIn("Invalid local dispatch language metadata", str(raised.exception))
 
+    setUp = CurrentEntryPointRefusalTests.setUp
     packet_argv = CurrentEntryPointRefusalTests.packet_argv
 
 
@@ -522,15 +530,22 @@ class HistoricalRecordTests(RefusalAssertions):
                             self.promote(plan, forged, f"w10-relabel-{scope}-{index}")
                     self.assertEqual(spies.total(), 0, (scope, spies.counts()))
 
-    def test_stale_peer_review_thresholds_stay_readable_and_never_reach_acceptance(self) -> None:
-        # peer-review-policy keeps the retired 30/60 block byte for byte; acceptance reads only 20/35/50.
-        policy.clear_policy_cache()
-        self.assertEqual(policy.peer_review_policy()["sabotage_thresholds"], {"review": 30, "quarantine": 60})
-        self.assertEqual(return_risk.sabotage_thresholds(), {"review": 20, "architect_escalation": 35, "quarantine": 50})
-        changed = _read("peer-review-policy")
-        changed["sabotage_thresholds"] = {"review": 99, "quarantine": 100}
-        with current_policy("peer-review-policy", lambda d: d.update(sabotage_thresholds=changed["sabotage_thresholds"])):
-            self.assertEqual(return_risk.sabotage_thresholds(), {"review": 20, "architect_escalation": 35, "quarantine": 50})
+    def test_sabotage_threshold_mirrors_agree_with_the_scorer(self) -> None:
+        thresholds = {"review": 20, "architect_escalation": 35, "quarantine": 50}
+        self.assertEqual(return_risk.sabotage_thresholds(), thresholds)
+        self.assertEqual(policy.load_policy("acceptance-policy")["sabotage"]["thresholds"], thresholds)
+        self.assertEqual(policy.peer_review_policy()["sabotage_thresholds"], {"review": 20, "quarantine": 50})
+
+    def test_schema_valid_sabotage_threshold_mirrors_do_not_change_the_scorer(self) -> None:
+        thresholds = {"review": 20, "architect_escalation": 35, "quarantine": 50}
+        mirrors = (
+            ("acceptance-policy", lambda document: document["sabotage"]["thresholds"]),
+            ("peer-review-policy", lambda document: document["sabotage_thresholds"]),
+        )
+        for name, select_thresholds in mirrors:
+            with self.subTest(policy=name), current_policy(name, lambda d: select_thresholds(d).update(quarantine=60)):
+                self.assertEqual(select_thresholds(policy.load_policy(name))["quarantine"], 60)
+                self.assertEqual(return_risk.sabotage_thresholds(), thresholds)
 
 
 if __name__ == "__main__":

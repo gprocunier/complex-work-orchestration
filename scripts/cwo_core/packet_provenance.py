@@ -1,4 +1,4 @@
-"""Production provenance for contractor packets: the one rule every production packet consumer applies.
+"""Contractor build provenance and current outbound approval checks.
 
 A packet's content checks (``packets.validate_contractor_packet``: hash, boundary, executor,
 nonproduction label and the rest) say what the packet is, not where it came from. Anyone can
@@ -14,9 +14,9 @@ packet has a new hash that no build recorded, and a ``--no-audit`` rehearsal rec
 
 Consumers: ``dispatch_work.py --packet``, ``generate_manual_dispatch_prompt.py --packet``,
 ``chatgpt_browser_review.py --packet``, ``normalize_contractor_return.py --contractor-packet`` and
-``evaluate_return.py --contractor-packet``. Dispatch and browser review keep their existing
-operator-only ``--allow-unlinked-packet`` waiver (which requires ``--waiver-reason`` and is
-recorded in their audit events); the other three have no waiver.
+``evaluate_return.py --contractor-packet``. A managed export also resolves the current
+host approval through the audit event's reference. The dispatch and browser dry-run
+waivers for an unlinked packet apply only to local rehearsal or dry-run output.
 """
 
 from __future__ import annotations
@@ -25,7 +25,8 @@ from pathlib import Path
 from typing import Any
 
 from .audit import matching_audit_events
-from .packets import require_valid_contractor_packet
+from .outbound_approval import require_outbound_approval
+from .packets import NONPRODUCTION_RESULT_CLASS, require_valid_contractor_packet
 
 PACKET_BUILT_EVENT = "packet_built"
 
@@ -76,3 +77,28 @@ def require_production_contractor_packet(
     if allow_unlinked_packet:
         return None
     return production_packet_provenance(packet, audit_file=audit_file)
+
+
+def require_packet_export_approval(packet: dict[str, Any], *, allow_degraded_packet: bool = False,
+                                   allow_unlinked_packet: bool = False, rehearsal: bool = False,
+                                   audit_file: Path | None = None) -> None:
+    """Recheck scope and current opt-in before publishing a managed contractor export."""
+    if allow_unlinked_packet and not rehearsal:
+        raise SystemExit("--allow-unlinked-packet is available only for a local rehearsal")
+    event = require_production_contractor_packet(
+        packet, allow_degraded_packet=allow_degraded_packet, allow_unlinked_packet=allow_unlinked_packet,
+        audit_file=audit_file,
+    )
+    if rehearsal:
+        return
+    if packet.get("opt_in_basis") != "host-approval" or packet["bead_summary"].get("id") != packet.get("bead_id"):
+        raise SystemExit("contractor packet export requires a build with protected outbound approval")
+    require_outbound_approval((event or {}).get("operator_approval_ref"), packet)
+
+
+def label_rehearsal(prompt: str, rehearsal: bool) -> str:
+    return "Local rehearsal only.\n\n" + prompt if rehearsal else prompt
+
+
+def rehearsal_result(rehearsal: bool) -> dict[str, str]:
+    return {"result_class": NONPRODUCTION_RESULT_CLASS} if rehearsal else {}
