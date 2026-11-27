@@ -49,7 +49,7 @@ class RegisteredTransportContractTests(unittest.TestCase):
 
     def test_selected_schemas_match_registered_refusals_then_useful_acceptance(self):
         protocol = requests.runtime.protocol
-        case = self.fixture.pipe_case(archive_schedule="settled", request_probes=[
+        case = self.fixture.pipe_case(archive_schedule="settled", settle_reply=True, request_probes=[
             (7, protocol.FILE, {"reason": "EXAMPLE rename destination is not path evidence"}),
             ("7", protocol.PERMISSIONS,
              {"cwd": "EXAMPLE-cwd", "permissions": {"network": {"enabled": True}}}),
