@@ -131,11 +131,11 @@ def _policy_model_config() -> dict[str, Any]:
         models = list(operative_models())
         return {"preferred_model": models[0], "authorized_models": models}
     preferred = (current.get("selection", {}).get("primary_model")
-        if current.get("status") == "active" else worker.get("preferred_model"))
+        if current.get("status") == "active" else policy.get("operative_routing", {}).get("primary_model"))
     preferred = str(preferred or "").strip()
     authorized = worker.get("authorized_models")
     if not preferred:
-        raise SystemExit("policy missing governance.native_operative_worker.preferred_model")
+        raise SystemExit("policy missing the historical operative routing primary_model")
     if not isinstance(authorized, list) or not authorized:
         raise SystemExit("policy missing governance.native_operative_worker.authorized_models")
     models = [str(item).strip() for item in authorized if str(item).strip()]

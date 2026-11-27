@@ -265,7 +265,10 @@ class NativeWorkerExecutionPolicyTests(unittest.TestCase):
         self.assertFalse(policy["governance"]["sol"]["may_execute_operative_work"])
         self.assertEqual(policy["governance"]["spark"]["exact_model"], "gpt-5.3-codex-spark")
         worker = policy["governance"]["native_operative_worker"]
-        self.assertEqual(worker["preferred_model"], "gpt-5.3-codex-spark")
+        roles = json.loads((ROOT / "policy" / "model-roles.yaml").read_text())["roles"]
+        primary_role = policy["task_selected_routing"]["selection"]["primary_role"]
+        self.assertEqual(primary_role, "luna")
+        self.assertEqual(worker["preferred_model"], roles[primary_role]["current"])
         self.assertEqual(
             worker["authorized_models"],
             ["gpt-5.3-codex-spark", "gpt-5.5", "gpt-5.6-terra", "gpt-5.6-luna"],

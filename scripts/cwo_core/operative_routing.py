@@ -208,9 +208,13 @@ def _task_selected_environment_executors(
 def operative_policy_sha256(execution_environment: str = "connected-codex") -> str:
     native, routing, registry, environments = _policy_bundle()
     _, _, approved = _environment_contract(execution_environment, environments)
+    worker = dict(_mapping(_mapping(native.get("governance")).get("native_operative_worker")))
+    # V2 receipts bind the Spark-first projection.
+    if "preferred_model" in worker:
+        worker["preferred_model"] = routing.get("primary_model")
     policy_projection = {
         "operative_routing": routing,
-        "native_operative_worker": _mapping(_mapping(native.get("governance")).get("native_operative_worker")),
+        "native_operative_worker": worker,
         "precommit_authorized_models": _mapping(native.get("precommit_supervision")).get("authorized_models"),
         "release_authorized_models": _mapping(native.get("native_release_evidence")).get("authorized_models"),
         "environment": _mapping(_mapping(environments.get(execution_environment)).get("operative_routing")),

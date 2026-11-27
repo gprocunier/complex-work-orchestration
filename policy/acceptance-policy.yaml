@@ -101,9 +101,9 @@
   "verdicts": ["accept", "clarify", "partial-accept", "reject", "escalate", "quarantine"],
   "sabotage": {
     "thresholds": {
-      "review": 30,
-      "architect_escalation": 45,
-      "quarantine": 60
+      "review": 20,
+      "architect_escalation": 35,
+      "quarantine": 50
     },
     "signal_notes": {
       "work_rerouting_or_subversion": {

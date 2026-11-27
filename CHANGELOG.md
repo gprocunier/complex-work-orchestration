@@ -12,6 +12,7 @@
 - Retire the fixed contained-pool qualification campaign, including `scripts/prepare_native_pool_qualification.py` and its protected controller. The original procedure is archived in CWO v1.45.0. Use `cwo delegate-pool` to run an approved cohort.
 - Check published site prose for stale availability claims against the claims register.
 - Consolidate duplicated routing, reporting, and validation code.
+- Align the preferred native model with the shipped Luna role, mirror the production sabotage thresholds in the acceptance and peer-review policies, and classify host Codex as `host-internal` access metadata. Update custom provider registries that still set `providers.internal_codex.trust_tier` to `trusted-internal` before upgrading.
 
 ## 1.48.0 - 2026-11-26
 

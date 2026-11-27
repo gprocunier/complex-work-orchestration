@@ -530,15 +530,22 @@ class HistoricalRecordTests(RefusalAssertions):
                             self.promote(plan, forged, f"w10-relabel-{scope}-{index}")
                     self.assertEqual(spies.total(), 0, (scope, spies.counts()))
 
-    def test_stale_peer_review_thresholds_stay_readable_and_never_reach_acceptance(self) -> None:
-        # peer-review-policy keeps the retired 30/60 block byte for byte; acceptance reads only 20/35/50.
-        policy.clear_policy_cache()
-        self.assertEqual(policy.peer_review_policy()["sabotage_thresholds"], {"review": 30, "quarantine": 60})
-        self.assertEqual(return_risk.sabotage_thresholds(), {"review": 20, "architect_escalation": 35, "quarantine": 50})
-        changed = _read("peer-review-policy")
-        changed["sabotage_thresholds"] = {"review": 99, "quarantine": 100}
-        with current_policy("peer-review-policy", lambda d: d.update(sabotage_thresholds=changed["sabotage_thresholds"])):
-            self.assertEqual(return_risk.sabotage_thresholds(), {"review": 20, "architect_escalation": 35, "quarantine": 50})
+    def test_sabotage_threshold_mirrors_agree_with_the_scorer(self) -> None:
+        thresholds = {"review": 20, "architect_escalation": 35, "quarantine": 50}
+        self.assertEqual(return_risk.sabotage_thresholds(), thresholds)
+        self.assertEqual(policy.load_policy("acceptance-policy")["sabotage"]["thresholds"], thresholds)
+        self.assertEqual(policy.peer_review_policy()["sabotage_thresholds"], {"review": 20, "quarantine": 50})
+
+    def test_schema_valid_sabotage_threshold_mirrors_do_not_change_the_scorer(self) -> None:
+        thresholds = {"review": 20, "architect_escalation": 35, "quarantine": 50}
+        mirrors = (
+            ("acceptance-policy", lambda document: document["sabotage"]["thresholds"]),
+            ("peer-review-policy", lambda document: document["sabotage_thresholds"]),
+        )
+        for name, select_thresholds in mirrors:
+            with self.subTest(policy=name), current_policy(name, lambda d: select_thresholds(d).update(quarantine=60)):
+                self.assertEqual(select_thresholds(policy.load_policy(name))["quarantine"], 60)
+                self.assertEqual(return_risk.sabotage_thresholds(), thresholds)
 
 
 if __name__ == "__main__":

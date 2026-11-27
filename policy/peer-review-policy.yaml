@@ -33,7 +33,7 @@
     "no-implementation"
   ],
   "sabotage_thresholds": {
-    "review": 30,
-    "quarantine": 60
+    "review": 20,
+    "quarantine": 50
   }
 }

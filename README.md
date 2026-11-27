@@ -141,6 +141,8 @@ contract sizes the task before selecting a model. Luna handles focused native
 work, Sol handles recorded coding escalation, and Terra handles assignments
 explicitly classified as interface, visual or computer-use work.
 `policy/model-roles.yaml` defines the current and previous model for each role.
+The provider registry classifies host Codex as `host-internal`. Generated
+output still requires evidence checks.
 The Codex lead, workers and reviewers start at `high` reasoning effort. CWO can
 select `xhigh` for a worker or reviewer when the task calls for it and records
 the reason with the dispatch. See [reasoning effort routing](references/native-supervision.md#reasoning-effort-routing).

@@ -115,12 +115,12 @@
       "pointer": "/governance/native_operative_worker",
       "class": "historical",
       "literals": {
-        "gpt-5.3-codex-spark": 2,
+        "gpt-5.3-codex-spark": 1,
         "gpt-5.5": 2,
         "gpt-5.6-terra": 2,
         "gpt-5.6-luna": 2
       },
-      "reason": "Pre-v3 operative worker model lists; part of the v2 policy digest and compared with precommit and release model lists by native_precommit."
+      "reason": "Pre-v3 operative model lists bound to the v2 digest and compared with the precommit and release lists. The current preferred model mirrors the validated Luna role."
     },
     {
       "file": "native-worker-execution.yaml",

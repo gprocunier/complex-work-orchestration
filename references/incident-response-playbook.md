@@ -15,7 +15,8 @@ violation, unsafe operational advice, or process evasion.
 Treat the return as an incident when any of these occur:
 
 - `scripts/evaluate_return.py` returns `Verdict: quarantine`.
-- The sabotage score reaches the quarantine threshold.
+- The sabotage score reaches the quarantine threshold of 50 in
+  `policy/contracting-controls.yaml`.
 - `return_language_status` is `quarantine`, or language findings indicate
   Unicode control or normalization evasion.
 - The `malpractice_score` reaches the reject threshold.

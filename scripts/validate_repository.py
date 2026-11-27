@@ -1057,10 +1057,15 @@ def validate_repository() -> list[str]:
         providers = load_policy("provider-registry").get("providers", {})
         peer_review = load_policy("peer-review-policy")
         zero_trust = load_policy("zero-trust-consensus-policy")
+        acceptance = load_policy("acceptance-policy")
+        native = load_policy("native-worker-execution")
+        model_roles = load_policy("model-roles")
     except SystemExit as exc:
         return [str(exc)]
 
     errors.extend(validate_execution_environment_registry())
+    validate_preferred_native_model(errors, native, model_roles)
+    validate_sabotage_threshold_mirrors(errors, controls, acceptance, peer_review)
 
     if executor_aliases and not isinstance(executor_aliases, dict):
         errors.append("executor-registry aliases must be an object")
@@ -1166,7 +1171,7 @@ def validate_repository() -> list[str]:
     for policy in ("sabotage_policy", "malpractice_policy"):
         if not controls.get(policy, {}).get("signal_weights"):
             errors.append(f"contracting controls must define {policy}.signal_weights")
-    acceptance_sabotage_signals = load_policy("acceptance-policy").get("sabotage", {}).get("signals", [])
+    acceptance_sabotage_signals = acceptance.get("sabotage", {}).get("signals", [])
     for required_signal in [
         "provider_policy_opaque_intervention",
         "provider_conflict_disposition_missing",
@@ -1177,7 +1182,7 @@ def validate_repository() -> list[str]:
             errors.append(f"contracting controls sabotage_policy.signal_weights missing {required_signal!r}")
     if "work_rerouting_or_subversion" not in acceptance_sabotage_signals:
         errors.append("acceptance-policy sabotage.signals missing 'work_rerouting_or_subversion'")
-    work_rerouting_note = load_policy("acceptance-policy").get("sabotage", {}).get("signal_notes", {}).get("work_rerouting_or_subversion", {})
+    work_rerouting_note = acceptance.get("sabotage", {}).get("signal_notes", {}).get("work_rerouting_or_subversion", {})
     if work_rerouting_note.get("authority") != "evidence-quality gate and architect-escalation trigger":
         errors.append("acceptance-policy work_rerouting_or_subversion must remain an evidence-quality architect-escalation gate")
     if work_rerouting_note.get("intent_finding") != "not required and not asserted":
@@ -2120,6 +2125,34 @@ def validate_policy_validation_boundaries(errors: list[str], policy_dir: Path = 
             errors.append(f"policy/{name} validation boundary {kind!r} disagrees with the registered schemas")
     for name in sorted(set(POLICY_SCHEMAS) - present):
         errors.append(f"schema registered for missing policy/{name}")
+
+
+def validate_preferred_native_model(
+    errors: list[str], native: dict[str, Any], model_roles: dict[str, Any],
+) -> None:
+    worker = native.get("governance", {}).get("native_operative_worker", {})
+    expected = model_roles["roles"]["luna"]["current"]
+    if worker.get("preferred_model") != expected:
+        errors.append("native-worker-execution governance.native_operative_worker.preferred_model must match "
+                      f"model-roles roles.luna.current ({expected!r})")
+
+
+def validate_sabotage_threshold_mirrors(
+    errors: list[str], controls: dict[str, Any], acceptance: dict[str, Any], peer_review: dict[str, Any],
+) -> None:
+    production = controls["sabotage_policy"]["thresholds"]
+    mirrors = (
+        ("acceptance-policy sabotage.thresholds", acceptance.get("sabotage", {}).get("thresholds", {}),
+         {"review": "peer_review", "architect_escalation": "architect_escalation", "quarantine": "quarantine"}),
+        ("peer-review-policy sabotage_thresholds", peer_review["sabotage_thresholds"],
+         {"review": "peer_review", "quarantine": "quarantine"}),
+    )
+    for name, thresholds, fields in mirrors:
+        for mirror_field, production_field in fields.items():
+            expected = production[production_field]
+            if thresholds.get(mirror_field) != expected:
+                errors.append(f"{name}.{mirror_field} must match contracting-controls "
+                              f"sabotage_policy.thresholds.{production_field} ({expected})")
 
 
 def validate_cwo_core_contract(errors: list[str]) -> None:

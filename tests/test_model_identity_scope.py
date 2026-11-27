@@ -104,6 +104,19 @@ class LintUnitTests(unittest.TestCase):
         self.roles["roles"]["luna"]["current"] = "gpt-9.9-luna"
         self.assertEqual(self.errors(), [])
 
+    def test_only_the_exact_preferred_model_can_mirror_the_luna_role(self) -> None:
+        luna = self.roles["roles"]["luna"]["current"]
+        worker = {"preferred_model": luna}
+        self.native["governance"] = {"native_operative_worker": worker}
+        self.assertEqual(self.errors(), [])
+
+        worker["preferred_model"] = f"{luna} preview"
+        self.assert_error(f"unclassified model identity '{luna}'")
+
+        worker["preferred_model"] = luna
+        worker["alternate_model"] = luna
+        self.assert_error("#/governance/native_operative_worker/alternate_model")
+
     def test_new_runtime_literal_must_be_classified(self) -> None:
         (self.root / "scripts" / "new_default.py").write_text(f'DEFAULT = "{SPARK}"\n', encoding="utf-8")
         self.assert_error(f"unclassified model identity '{SPARK}' in scripts/new_default.py")
