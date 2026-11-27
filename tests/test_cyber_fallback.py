@@ -217,6 +217,33 @@ class CyberFallbackTests(unittest.TestCase):
         self.assertEqual(dispatch.calls[0]["model"], "gpt-7-sol")
         self.assertEqual(dispatch.calls[0]["codex_config"], {"daybreak": True})
 
+    def test_fallback_caps_effort_and_forces_standard_tier(self) -> None:
+        for original_effort, expected in (("max", "xhigh"), ("ultra", "xhigh"), ("xhigh", "xhigh"), ("high", "high")):
+            with self.subTest(effort=original_effort):
+                self.setUp()
+                dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
+                controller = self.controller(self.mark_store())
+                result = controller.recover(
+                    packet=PACKET,
+                    work_item_id="EXAMPLE-security-work",
+                    project_id="EXAMPLE-project",
+                    original_attempt=self.original,
+                    original_result=self.refusal,
+                    original_dispatch={"model": "gpt-6.2-sol", "effort": original_effort, "service_tier": "priority"},
+                    fallback_role=self.available,
+                    mark=controller.mark_store.issue(work_item_id="EXAMPLE-security-work"),
+                    dispatch=dispatch,
+                )
+                self.assertEqual(result["status"], "completed")
+                self.assertEqual(dispatch.calls[0]["effort"], expected)
+                self.assertEqual(dispatch.calls[0]["service_tier"], "default")
+                self.assertTrue(all(row["service_tier"] == "default" and row["effort"] == expected for row in self.records))
+
+    def test_fallback_refuses_a_non_sol_family_model(self) -> None:
+        for model in ("gpt-6.2-astra", "gpt-6-luna", "gpt-6-terra"):
+            with self.subTest(model=model), self.assertRaisesRegex(CyberFallbackError, "Daybreak Blue"):
+                self.recover(self.controller(self.mark_store()), FakeDispatch(), role={**self.available, "model": model})
+
     def test_only_a_cyber_policy_refusal_triggers_recovery(self) -> None:
         dispatch = FakeDispatch()
         controller = self.controller(self.mark_store())

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Bound the Daybreak Blue fallback: the retry carries the original reasoning effort capped at `xhigh`, always uses the standard service tier, and the configured `cyber_fallback` model must be a Sol-family model. Earlier releases passed `max` effort and the `priority` tier through and accepted any model family.
 - Lower the repository validation ceiling to 177,200 physical lines of tracked Python under `scripts/`.
 - Remove the retired exact-Spark campaign launcher's detailed flag parsing and archive its unused authorization-state executor. Launch attempts emit the sealed zero-allocation refusal on stderr and exit 1.
 - Give registered pool qualification tests private Git capture scratch space.

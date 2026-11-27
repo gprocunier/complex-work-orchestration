@@ -421,7 +421,7 @@
     "scripts/cwo_core/maintenance_release.py": "78d1b1f05f39f4000e85ee561c88696e76656d2bf94dbbdf8cd6f9cdd1c7c03c",
     "scripts/cwo_core/maintenance_runtime_support.py": "6b97d5eaecd1f4cac4ec859af6b659082d9ab1a5c650c824c152df782a01eed8",
     "scripts/cwo_core/model_catalog_startup.py": "0eab2e78e670d470619c4709d18fc14cc548a0d9ed96233b923229484e30c6f2",
-    "scripts/cwo_core/model_identities.py": "1dab9c11c8ef2ac27e946ddc2adb8d1d368522cc21cf55374c17d2d41eb7ce36",
+    "scripts/cwo_core/model_identities.py": "99b50d11534628020d826b176c9323e2f345fea7b84627bf6cb41cc4c5e6007a",
     "scripts/cwo_core/native_activation_ledger.py": "7a97c4edcdf0b5e3131581fe538fae848897c8271280cb1664ad8bf60eea7ab4",
     "scripts/cwo_core/native_activation_preview.py": "dfdb447bbc1b122202da9d1b4924408301ed9825c645aa1dff7d30700f6e26d3",
     "scripts/cwo_core/native_authority.py": "f1bf87d5da453835b1a23bd9c7b40420cfc423be28b9f480261cba3f9df1d4b8",

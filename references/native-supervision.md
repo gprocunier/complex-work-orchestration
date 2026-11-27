@@ -49,11 +49,12 @@ to enable refusal recovery adds this entry under `roles` in their installed
 ```
 
 The model is configuration: change `model` (and record the old one in
-`previous`) when the Daybreak Blue model changes. It must be an exact model ID
-and must differ from the `sol` role's model, so `daybreak=true` is never
-combined with the ordinary sol model. Only a cyber-policy refusal triggers
+`previous`) when the Daybreak Blue model changes. It must be an exact Sol-family
+model ID and must differ from the `sol` role's model, so `daybreak=true` is never
+combined with the ordinary sol model or any other family. Only a cyber-policy refusal triggers
 recovery. Other refusals, errors and timeouts stop the task. Recovery makes one
-attempt with the same packet, effort and service tier. A second refusal, or an
+attempt with the same packet. It carries the original reasoning effort capped at
+`xhigh` and always uses the standard (`default`) service tier. A second refusal, or an
 account without Daybreak Blue access, stops the task and records the blocker.
 Each attempt is recorded with the refusal that triggered it and its outcome.
 
@@ -93,7 +94,7 @@ file digest.
 
 After Part 1 reports a structured provider safety refusal, the parent controller
 can consume the mark and make one fallback attempt. It sends the identical packet
-bytes, preserves reasoning effort and service tier, links the attempt to the
+bytes, carries reasoning effort capped at `xhigh` on the standard service tier, links the attempt to the
 original with reason `cyber_refusal`, and charges the original aggregate budget
 again. The audit record binds the original attempt, classification, mark, role
 and packet digest. Unmarked work, unavailable access, any non-refusal failure or

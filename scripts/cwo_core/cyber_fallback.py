@@ -24,6 +24,8 @@ from .model_identities import (
     CYBER_FALLBACK_ACCESS_PROGRAM,
     CYBER_FALLBACK_CODEX_CONFIG,
     CYBER_FALLBACK_ROLE,
+    CYBER_FALLBACK_SERVICE_TIER,
+    bounded_cyber_fallback_effort,
     is_cyber_fallback_model,
 )
 
@@ -364,6 +366,7 @@ class CyberFallbackController:
                 mark=mark_record, role=role,
             )
         original_identity = self._dispatch_identity(original_dispatch)
+        fallback_effort = bounded_cyber_fallback_effort(original_identity["effort"])
         if role["model"] == original_identity["model"]:
             raise CyberFallbackError(
                 "available fallback must bind the configured Daybreak Blue role, not the refused model"
@@ -381,8 +384,8 @@ class CyberFallbackController:
             "mark_sha256": mark_sha256,
             "mark": mark_record,
             "fallback_role": role,
-            "effort": original_identity["effort"],
-            "service_tier": original_identity["service_tier"],
+            "effort": fallback_effort,
+            "service_tier": CYBER_FALLBACK_SERVICE_TIER,
         }
         binding_sha256 = _canonical_sha256(binding)
         reservation = self.ledger.reserve(
@@ -404,8 +407,8 @@ class CyberFallbackController:
             "role": role["role"],
             "model": role["model"],
             "codex_config": copy.deepcopy(role["codex_config"]),
-            "effort": original_identity["effort"],
-            "service_tier": original_identity["service_tier"],
+            "effort": fallback_effort,
+            "service_tier": CYBER_FALLBACK_SERVICE_TIER,
             "mark": copy.deepcopy(mark_record),
         }
         fallback_result: dict[str, Any] = {}
