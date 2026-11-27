@@ -498,6 +498,9 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
             generic = object.__new__(RegisteredNativePoolHost)
             with self.assertRaisesRegex(availability.NativeLiveUnavailable, "native-pool-live-unavailable"):
                 client.submit(fixture.request, host=generic)
+            with (patch.multiple(availability, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True),
+                  self.assertRaisesRegex(ValueError, "registered-serial-pool-execution-retired")):
+                client.submit(fixture.request, host=generic)
             self._assert_no_effects(fixture)
 
     def test_missing_or_changed_configured_logins_precede_productive_effects(self):

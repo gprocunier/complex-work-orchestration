@@ -4,7 +4,6 @@ Historical plan versions still parse. A submitted adapter may NOT manufacture
 its own recovery authority by executing before denial.
 """
 from __future__ import annotations
-import copy
 import hashlib
 import io
 import json
@@ -229,55 +228,32 @@ class LauncherAuthorityTests(unittest.TestCase):
                 self.assertEqual(launcher.main(['--pool-request', str(path), '--output', str(Path(d) / 'EXAMPLE-output')]), 2)
             self.assertFalse((Path(d) / 'EXAMPLE-output').exists())
 
-    def test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split(self):
-        """Public caller consumes the registered pool host and original N1 APIs; only OS/RPC fake."""
+    def test_legacy_launcher_validates_original_authority_and_refuses_execution(self):
         from tests import test_registered_native_pool_host as pools
-        with pools.F.WorkflowTests.read_only_source_family(self) as source:
-            for size in (1, 2, 3):
-                with self.subTest(size=size):
-                    fixture = pools.PoolTests('runTest')
-                    fixture._outcome = self._outcome
-                    try:
-                        host = fixture.cohort(size, archive_schedule='settled', shared_source=True, source_evidence=source())
-                        for member in fixture.fixtures:
-                            member.case.settle_reply = True
-                        before = [f.settings['state_store'].read_state() for f in fixture.fixtures]
-                        request = host.config.request('execute')
-                        path = host.config.state.parent / 'EXAMPLE-request.json'
-                        path.write_text(json.dumps(request))
-                        out = io.StringIO()
-                        with redirect_stdout(out):
-                            self.assertEqual(launcher.main(['--pool-request', str(path), '--validate-only'], host=host), 0)
-                        self.assertTrue(json.loads(out.getvalue())['authority_validated'])
-                        self.assertEqual(before, [f.settings['state_store'].read_state() for f in fixture.fixtures])
-                        self.assertFalse(list(host.config.state.iterdir()))
-                        self.assertFalse(fixture.ledger.root.exists())
-                        self.assertTrue(all(not getattr(f.fixture, 'spawned', []) for f in fixture.fixtures))
-                        for fake in (object(), {'host': host, 'accepted': True}):
-                            with self.assertRaisesRegex(ValueError, 'exact original'):
-                                client.submit(request, host=fake)
-                        with patch.object(host, 'run', return_value={'accepted': True}):
-                            with self.assertRaisesRegex(ValueError, 'original bound'):
-                                client.submit(request, host=host)
-                        with redirect_stderr(io.StringIO()):
-                            self.assertEqual(launcher.main(['--pool-request', str(path)], host=host), 2)
-                        self.assertFalse(fixture.ledger.root.exists())
-                        fixture.adopt()
-                        out = io.StringIO()
-                        with redirect_stdout(out):
-                            self.assertEqual(launcher.main(['--pool-request', str(path)], host=host), 0)
-                        report = json.loads(out.getvalue())
-                        self.assertEqual(report, host.status())
-                        self.assertEqual(report['states'], ['validated'] * size)
-                        fixture.assert_accounting(size)
-                        for member in fixture.fixtures:
-                            self.assertEqual(len(member.fixture.spawned), 2)
-                            self.assertFalse((member.case.host.target / 'result.txt').exists())
-                        with redirect_stderr(io.StringIO()) as err:
-                            self.assertEqual(launcher.main(['--pool-request', str(path)], host=host), 2)
-                        self.assertIn('never redispatch', err.getvalue())
-                    finally:
-                        fixture.doCleanups()
+
+        fixture = pools.PoolTests('runTest')
+        fixture._outcome = self._outcome
+        self.addCleanup(fixture.doCleanups)
+        host = fixture.cohort(2)
+        before = [member.settings['state_store'].read_state() for member in fixture.fixtures]
+        request = host.config.request('execute')
+        path = host.config.state.parent / 'EXAMPLE-request.json'
+        path.write_text(json.dumps(request))
+        args = ['--pool-request', str(path)]
+        with redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(launcher.main([*args, '--validate-only'], host=host), 0)
+        self.assertTrue(json.loads(out.getvalue())['authority_validated'])
+        for fake in (object(), {'host': host, 'accepted': True}):
+            with self.assertRaisesRegex(ValueError, 'exact original'):
+                client.submit(request, host=fake)
+        with patch.object(host, 'run', return_value={'accepted': True}):
+            with self.assertRaisesRegex(ValueError, 'original bound'):
+                client.submit(request, host=host)
+        with (patch.multiple(pools.P.live_availability, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True),
+              redirect_stderr(io.StringIO()) as err):
+            self.assertEqual(launcher.main(args, host=host), 2)
+        self.assertIn('registered-serial-pool-execution-retired', err.getvalue())
+        fixture.assert_adoption_has_no_effects(before)
 
     def test_missing_authority_rejected_before_module_execution_in_separate_process(self):
         with tempfile.TemporaryDirectory() as d:

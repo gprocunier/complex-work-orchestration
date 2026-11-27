@@ -1,9 +1,4 @@
-"""Opt-in finite host client for original registered N1 workflows, N=1..3.
-
-Protected parent objects select every factory. This serial offline cohort does
-not activate delegation or qualify concurrent/live execution. Requests select
-only already configured worker identities, never imports or authority.
-"""
+"""Read signed observations for an original registered serial pool."""
 from __future__ import annotations
 
 from contextlib import contextmanager
@@ -24,8 +19,6 @@ _WORKFLOW = W.RegisteredN1Workflow
 _CONFIGURATION = W.ControllerConfiguration
 _METHODS = R.admitted._method_table(_WORKFLOW)
 _CONFIG_METHODS = R.admitted._method_table(_CONFIGURATION)
-_TRANSITIONS = {'queued': ('running', 'held'), 'running': ('validated', 'failed'),
-                'validated': (), 'failed': (), 'held': ()}
 
 
 def validate_structure(request):
@@ -41,13 +34,6 @@ def validate_structure(request):
           and len(set(workers)) == len(workers), 'Exactly N=1..3 distinct worker identities are required.')
     return {'structurally_valid': True, 'authority_validated': False, 'model_calls': 0,
             'dispatch_authorized': False, **R._FALSE}
-
-
-def transition(state, following):
-    """One explicit observational state machine; terminal states never restart."""
-    _need(type(state) is str and type(following) is str
-          and following in _TRANSITIONS.get(state, ()), 'Unsupported pool worker transition.')
-    return following
 
 
 def _read_metadata(path, cap):
@@ -105,8 +91,8 @@ class PoolConfiguration:
     """Protected installed bootstrap, never deserialized from a client request.
 
     Each original controller owns its signed v8 native/publication operations,
-    exact native-policy profile and isolated stores. An original InvocationLedger wraps
-    every N1 effect in ONE finite aggregate envelope. No policy flag is changed.
+    exact native-policy profile and isolated stores. The original finite ledger,
+    enable flag and worker selections are retained in the signed record binding.
     """
 
     def __init__(self, *, pool_id, controllers, state_directory, ledger, limits, enabled=False,
@@ -187,17 +173,11 @@ class PoolConfiguration:
 
 
 class RegisteredNativePoolHost:
-    """Serial host-mediated positive path with replay-only durable pool intent.
-
-    A failed member holds every unstarted sibling. Completed siblings keep their
-    original custody and charge; recovery/publication remain original N1 APIs.
-    """
+    """Validate the exact cohort and read its signed records."""
 
     def __init__(self, configuration):
         _need(type(configuration) is PoolConfiguration, 'Protected pool configuration is required.')
         self.config = configuration
-        self.rows = ['queued'] * len(configuration.workflows)
-        self.result = None
 
     def _current(self):
         self.config.check()
@@ -229,29 +209,7 @@ class RegisteredNativePoolHost:
                 c.verifier._capabilities.pop(capability._identity, None)
 
     def adopt_execution(self, *, adoption_id, disclosure_consents):
-        """Trusted parent explicitly adopts each actual original N1 workflow."""
-        with self._locked():
-            _need(type(disclosure_consents) is dict
-                  and set(disclosure_consents) == set(self.config.workers),
-                  'Every worker needs its exact original disclosure consent.')
-            members = tuple(zip(self.config.workers, self.config.workflows))
-            for worker, workflow in members:
-                workflow._execution_disclosure(adoption_id=adoption_id,
-                                               disclosure_consent=disclosure_consents[worker])
-            original = _encode(self.config.binding)
-            prepared = [workflow._prepare_execution(adoption_id=adoption_id,
-                        disclosure_consent=disclosure_consents[worker]) for worker, workflow in members]
-            commits = [workflow._validate_execution(stage)
-                       for (_worker, workflow), stage in zip(members, prepared)]
-            following = json.loads(original)
-            following['members'] = [json.loads(commit[1]) for commit in commits]
-            self._current()
-            _need(_encode(self.config.binding) == original, 'Protected pool binding changed during adoption.')
-            for (_worker, workflow), stage in zip(members, prepared):
-                workflow._require_execution_state(stage[0])
-            for (_worker, workflow), commit in zip(members, commits):
-                workflow._commit_execution(commit)
-            self.config.binding = following
+        raise ValueError("registered-serial-pool-execution-retired")
 
     @contextmanager
     def _locked(self):
@@ -282,170 +240,20 @@ class RegisteredNativePoolHost:
         _need(H._identity(R._private(self.config.state)) == self.config.identity,
               'Pool state directory changed.')
 
-    @contextmanager
-    def _bound_directory(self, directory):
-        self._require_directory(directory)
-        try:
-            yield
-        except BaseException as primary:
-            try:
-                self._require_directory(directory)
-            except BaseException as secondary:
-                try:
-                    R.admission.ledger_api.add_failure_note(primary,
-                        'Pool custody recheck failed: ' + type(secondary).__name__)
-                except BaseException:
-                    pass
-            raise
-        else:
-            self._require_directory(directory)
-
-    def _save(self, directory, name, body):
-        with self._bound_directory(directory):
-            self._save_bound(directory, name, body)
-
-    def _save_bound(self, directory, name, body):
-        workflow = self.config.workflows[0]
-        record = {'body': body, 'directive': workflow._sign(body, 'pool-' + name, workflow.verifier._mission_hash)}
-        data = memoryview(_encode(record))
-        self._require_directory(directory)
-        flags = os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
-        with workflow._descriptor(os.open(name, flags, 0o400, dir_fd=directory)) as fd:
-            while data:
-                self._require_directory(directory)
-                count = os.write(fd, data)
-                _need(count > 0, 'Pool record write made no progress.')
-                data = data[count:]
-            self._require_directory(directory)
-            os.fsync(fd)
-            self._require_directory(directory)
-        self._require_directory(directory)
-        os.fsync(directory)
-
     def _load(self, name):
         workflow = self.config.workflows[0]
         record = json.loads(H._immutable_read(self.config.state, name, H.MAX_RECORD_BYTES))
         workflow._verify(record['body'], record['directive'], workflow.verifier._mission_hash)
         return record['body']
 
-    def _move(self, index, following):
-        self.rows[index] = transition(self.rows[index], following)
-
-    def _observation(self):
-        c = self.config
-        return {'pool_id': c.pool_id, 'size': len(c.workflows), 'states': list(self.rows),
-                'workers': list(c.workers),
-                'aggregate': c.ledger.summary(c.pool_id),
-                'publication_authorized': False, **R._FALSE}
-
-    def _finish_failure(self, directory, index, primary):
-        self._move(index, 'failed')
-        for sibling in range(index + 1, len(self.rows)):
-            self._move(sibling, 'held')
-        try:
-            self.result = self._observation()
-            self._save(directory, 'terminal.json', self.result)
-        except BaseException as secondary:
-            R.admission.ledger_api.add_failure_note(primary, 'Pool failure evidence incomplete: ' + type(secondary).__name__)
-
     def run(self, request):
         if type(request) is dict and request.get('mode') == 'execute':
             live_availability.require_pool_live()
             live_availability.require_n1_live()
+            validate_structure(request)
+            raise ValueError("registered-serial-pool-execution-retired")
         self._request(request)
-        if request['mode'] == 'validate-only':
-            return self.validate_authority(request)
-        _need(self.config.enabled is True, 'Registered pool host is disabled.')
-        with self._locked() as directory:
-            _need(not list(self.config.state.iterdir()), 'Existing pool intent requires replay-only status, never redispatch.')
-            for workflow in self.config.workflows:
-                workflow._require_execution()
-            c = self.config
-            c.ledger.open_budget(c.pool_id, c.limits, scope_sha256=R.canonical_sha256(c.binding))
-            self._save(directory, 'intent.json', c.binding)
-            reservations = self._reserve_cohort()
-            for index, workflow in enumerate(self.config.workflows):
-                self._move(index, 'running')
-                try:
-                    self._current()  # Recheck sibling topology before each original run.
-                    settled = c.ledger.invoke(reservations[index]['reservation_id'], self._request_bytes(index),
-                        lambda _request, _report: self._run_member(workflow,
-                            controlled=c.workers[index] in c.controlled_failure_workers))
-                    self._require_member_settlement(workflow, settled)
-                    self._move(index, 'validated')
-                except BaseException as primary:
-                    primary = self._primary_exception(workflow, primary)
-                    self._finish_failure(directory, index, primary)
-                    raise primary
-            observation = self._observation()
-            self._save(directory, 'terminal.json', observation)
-            self.result = observation
-            return _copy(observation)
-
-    def _request_bytes(self, index):
-        return _encode({'pool': R.canonical_sha256(self.config.binding),
-                        'worker': self.config.workers[index],
-                        'admission': R.admission._receipt_sha256(self.config.controllers[index].receipt)})
-
-    def _reserve_cohort(self):
-        c = self.config
-        reservations = []
-        for index, member in enumerate(c.controllers):
-            request = self._request_bytes(index)
-            reservations.append(c.ledger.reserve(budget_id=c.pool_id, request_id=c.workers[index],
-                request_sha256=hashlib.sha256(request).hexdigest(), admission_sha256=hashlib.sha256(request).hexdigest(),
-                amount=json.loads(member.receipt.amounts_bytes), expires_at=member.receipt.expires_at,
-                lineage={'kind': 'initial', 'parent_attempt_id': None}, refuse_while_unresolved=True))
-        return reservations
-
-    @staticmethod
-    def _run_member(workflow, *, controlled=False):
-        live_availability.require_pool_live()
-        live_availability.require_n1_live()
-        try:
-            workflow.run(controlled_failure=controlled)
-        except Exception as primary:
-            if controlled is not True:
-                raise
-            try:
-                RegisteredNativePoolHost._controlled_failure(workflow, primary)
-            except BaseException as secondary:
-                R.admission.ledger_api.add_failure_note(primary,
-                    'No issued controlled member failure: ' + type(secondary).__name__)
-                raise primary
-            workflow._pool_failure = primary
-            return R.admission.ledger_api.EffectResult('failed')
-        return R.admission.ledger_api.EffectResult('completed')
-
-    @staticmethod
-    def _controlled_failure(workflow, primary=None):
-        factory = workflow.factory
-        _need('controlled_failure' in R._FACTORY_METHODS, 'Original controlled failure producer is unavailable.')
-        R.admitted._original_methods(factory, R.RegisteredN1Factory, R._FACTORY_METHODS)
-        c = workflow.config
-        _need(factory.host is c.host and factory.verifier is c.verifier
-              and factory.operation_id == c.native_bundle[1]['operation_id']
-              and R.admission._receipt_sha256(factory.receipt) == R.admission._receipt_sha256(c.receipt),
-              'Original member factory, operation and admission binding changed.')
-        return factory.controlled_failure(primary)
-
-    @staticmethod
-    def _require_member_settlement(workflow, settled):
-        if settled['outcome'] == 'failed':
-            primary = workflow._pool_failure
-            RegisteredNativePoolHost._controlled_failure(workflow, primary)
-            raise primary
-        _need(settled['outcome'] == 'completed', 'Member outcome is not a known completion.')
-
-    @staticmethod
-    def _primary_exception(workflow, secondary):
-        primary = getattr(workflow, '_pool_failure', None)
-        if not isinstance(primary, BaseException):
-            return secondary
-        if primary is not secondary:
-            R.admission.ledger_api.add_failure_note(primary,
-                'Aggregate settlement failed after controlled member failure: ' + type(secondary).__name__)
-        return primary
+        return self.validate_authority(request)
 
     def status(self):
         """Authenticate observations only; never dispatch, release or publish."""

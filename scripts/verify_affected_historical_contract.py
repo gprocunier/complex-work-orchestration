@@ -55,6 +55,18 @@ HISTORY = {
     SOURCE: "e38657afdd242b13eaf226b1bc3c6012d0c144f5",
 }
 
+SERIAL_POOL_REVISION = "b39d62b546f14fbc4cf4b96898c8fa49b19de604"
+SERIAL_POOL_TREE = "59e622d49eff54ee9849c2daa3e621a446e96d7e"
+SERIAL_POOL_FILES = {
+    "scripts/registered_native_pool_client.py": "ea40866a13c1b0492d9ec095804220f024e43cb9a4f9b711f548e1b2fc2c9b9d",
+    "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
+    "scripts/registered_native_pool_retry.py": "261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",
+    "tests/test_registered_native_pool_host.py": "b360554f45dd46116799fe7d0c31665a4b89531f610e589cd6b2c68fe941cf10",
+    "tests/test_registered_native_pool_retry.py": "98ee4af776c00b5956097632967c25dd5348baa535984458e9f9c0b73ce167e6",
+    "tests/test_run_admitted_native_pool_transaction.py": "f670ae613b3fd959ea7c5792065f5d7a84f4f53e5fcdb763222ab0ef032e76cf",
+    "tests/test_f5_native_live_holds.py": "e1eb585ade175774407543d5b4b3decfa1ec74dadf2ec22c51a66c710ffd66fc",
+}
+
 
 class CompatibilityRefusal(ValueError):
     """Missing or drifted evidence cannot establish this checkpoint."""
@@ -175,12 +187,23 @@ def verify_history(root, manifest):
                     "historical source artifact mismatch: " + name)
 
 
+def verify_historical_serial_pool(root):
+    """Verify the fixed archived serial pool sources and witnesses without loading them."""
+    tree = git_bytes(root, SERIAL_POOL_REVISION, tree=True)
+    require(tree.strip() == SERIAL_POOL_TREE.encode(), "approved serial pool source tree mismatch")
+    for name, expected in SERIAL_POOL_FILES.items():
+        observed = git_bytes(root, SERIAL_POOL_REVISION + ":" + name)
+        require(digest(observed) == expected, "historical serial pool artifact mismatch: " + name)
+    return {"revision": SERIAL_POOL_REVISION, "tree": SERIAL_POOL_TREE, "files_sha256": digest(canonical(SERIAL_POOL_FILES))}
+
+
 def verify_checkpoint(*, root=ROOT, source_revision=SOURCE, interpreter=None):
     """Strict original Git revision/tree/blob verification. Never falls back to fixtures."""
     require(source_revision == SOURCE, "unsupported evidence source revision; record selection forbidden")
     manifest, identity = _checkpoint_bindings(root, interpreter)
     verify_history(root, manifest)
-    return dict(identity, source_revision=SOURCE)
+    serial_pool = verify_historical_serial_pool(root)
+    return dict(identity, source_revision=SOURCE, historical_serial_pool=serial_pool)
 
 
 def _checkpoint_bindings(root, interpreter):
@@ -407,7 +430,6 @@ def runtime_identity(*, manifest=None):
 
 def registered_consumer_observations():
     """Observe fixed current imports and hostless refusals; never issue a host."""
-    import inspect
     import registered_app_server_transport as transport
     import registered_finite_input as finite_input
     import registered_finite_tool_calls as finite_tools
@@ -420,10 +442,6 @@ def registered_consumer_observations():
 
     require(factory.RegisteredAppServer is transport.RegisteredAppServer,
             "registered factory transport identity drift")
-    require(pool.W is workflow and retry.P is pool,
-            "registered workflow/pool/retry identity drift")
-    require(inspect.signature(pool.PoolConfiguration).parameters["enabled"].default is False,
-            "registered pool must remain disabled by default")
     request = {"version": 1, "mode": "validate-only", "pool_id": "EXAMPLE-pool",
                "workers": ["EXAMPLE-worker"]}
     observed = client.submit(request)

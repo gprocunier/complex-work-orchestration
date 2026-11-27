@@ -6,7 +6,7 @@ import hashlib
 import os
 from types import SimpleNamespace
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import patch
 
 from tests import test_f4_factory_pool_guards as fixtures
 import registered_native_pool_host as pool
@@ -135,29 +135,3 @@ class F9PoolBoundaries(unittest.TestCase):
                     self.fail('EXAMPLE wrong directory locked')
             flock.assert_not_called()
         self.assertEqual(len(opened), 1)
-
-    def test_F9_533809aaf713af1f_ordinary_failure_never_becomes_controlled(self):
-        failure = RuntimeError('EXAMPLE original member failure')
-        workflow = SimpleNamespace(run=Mock(side_effect=failure))
-        with patch.object(pool.live_availability, 'require_pool_live'), patch.object(pool.live_availability, 'require_n1_live'), \
-                patch.object(pool.RegisteredNativePoolHost, '_controlled_failure') as controlled:
-            with self.assertRaises(RuntimeError) as raised:
-                pool.RegisteredNativePoolHost._run_member(workflow, controlled=False)
-            self.assertIs(raised.exception, failure)
-            controlled.assert_not_called()
-            self.assertFalse(hasattr(workflow, '_pool_failure'))
-            self.assertEqual(pool.RegisteredNativePoolHost._run_member(workflow, controlled=True).status, 'failed')
-            controlled.assert_called_once_with(workflow, failure)
-
-    def test_F9_8950ff2012379f04_controlled_failure_keeps_member_verifier(self):
-        fixture = self.cohort()
-        fixture.config.controlled_failure_workers = tuple(fixture.workers)
-        fixture.config.binding = fixture.config.describe()
-        fixture.fixtures[0].case.bad_output = True
-        with self.assertRaises(pool.R.validation.ValidationError) as raised:
-            fixture.execute()
-        workflow = fixture.config.workflows[0]
-        self.assertEqual(pool.RegisteredNativePoolHost._controlled_failure(workflow, raised.exception)['outcome'], 'failed')
-        with patch.object(workflow.config, 'verifier', object()), \
-                self.assertRaisesRegex(ValueError, 'Original member factory, operation and admission binding'):
-            pool.RegisteredNativePoolHost._controlled_failure(workflow, raised.exception)

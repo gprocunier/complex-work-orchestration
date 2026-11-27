@@ -30,6 +30,12 @@ through `run_admitted_native_pool` with the original reservation and one-use
 capability. The launcher replays preflight and commits a dispatch receipt
 before the coordinator invokes worker callbacks.
 
+The retired serial host and retry executor are archived in
+[v1.46.0](https://github.com/gprocunier/complex-work-orchestration/tree/v1.46.0).
+The read-only `RegisteredNativePoolHost.status()` and `observe_retry()` interfaces
+authenticate the original signed records against their protected configuration
+and exact source image. Use the matching release to inspect earlier receipts.
+
 ## Threat Model And Claim Boundaries
 
 Assets are worker-session identities, nonces, control turns, state files,
