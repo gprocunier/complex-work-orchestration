@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result.
 - Require host-owned approval for managed contractor exports. Rebuild existing packets before exporting them under the new approval check. Protected synthesis uses original records held by the separate host principal.
 - Retire live activation preview and standalone native callback calibration.
   Keep preview key generation, preparation, approval and dry-run validation.

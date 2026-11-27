@@ -9,6 +9,7 @@ import tomllib
 
 from cwo_core.native_tool_isolation import CONTAINED_POOL_WRITER_NAME as WRITER_TOOL
 from cwo_core.policy_schema import strict_json_loads
+from cwo_core.worker_patch import MAX_WORKER_DIFF_BYTES
 from registered_n1_qualification import (
     APPROVAL_POLICY, EFFORT, FINITE_TOOL_NAMESPACE, HISTORY_MODE, LOGIN_MOUNT, MODEL, PROVIDER, TIER,
 )
@@ -122,20 +123,29 @@ def require_named_deny_policy(worktree: Path, content: bytes):
             'The named login deny policy or its worker scope differs.')
 
 
-def _writer_registration():
+def _writer_registration(*, patch_mode):
     tool = {'type': 'function', 'name': WRITER_TOOL,
             'description': 'The controller writes the signed fixture already selected for this worker. '
                            'The worker shell and checkout stay read-only.',
             'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}}
-    return [{'type': 'namespace', 'name': FINITE_TOOL_NAMESPACE,
-             'description': 'Registered qualification writer.', 'tools': [tool]}]
+    description = 'Registered qualification writer.'
+    if patch_mode:
+        description = 'Registered one-file patch writer.'
+        tool['description'] = ('Submit a unified text diff for the signed file already selected for this worker. '
+                               'The worker shell and checkout stay read-only.')
+        tool['inputSchema'].update({
+            'properties': {'diff': {'type': 'string', 'minLength': 1, 'maxLength': MAX_WORKER_DIFF_BYTES}},
+            'required': ['diff'],
+        })
+    return [{'type': 'namespace', 'name': FINITE_TOOL_NAMESPACE, 'description': description, 'tools': [tool]}]
 
 
-def thread_start_selectors(worktree):
+def thread_start_selectors(worktree, *, patch_mode=False):
+    require(type(patch_mode) is bool, 'The original writer mode is required.')
     return {'cwd': str(worktree), 'runtimeWorkspaceRoots': [str(worktree)], 'permissions': PROFILE,
             'approvalPolicy': APPROVAL_POLICY, 'approvalsReviewer': 'user', 'ephemeral': False,
             'model': MODEL, 'modelProvider': PROVIDER, 'serviceTier': TIER, 'historyMode': HISTORY_MODE,
-            'allowProviderModelFallback': False, 'dynamicTools': _writer_registration()}
+            'allowProviderModelFallback': False, 'dynamicTools': _writer_registration(patch_mode=patch_mode)}
 
 
 def require_thread_readback(worktree, response):

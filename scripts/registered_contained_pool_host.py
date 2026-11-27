@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import re
 from types import MappingProxyType
 
 from cwo_core import manual_delivery, native_live_availability, workspace_capture
@@ -29,6 +31,7 @@ APPROVAL_SCOPE = "cwo-ordinary-contained-pool-v1"
 APPROVAL_FILE = "approval.json"
 REQUEST_FILE = "request.json"
 APPROVAL_MAX_BYTES = 65_536
+PATCH_OUTPUT_MODE = "unified-diff"
 IDENTITY_SOURCE = PROJECT_CONTROLLER_IDENTITY
 SUPPORTED_SELECTION = (MODEL, EFFORT, TIER)
 _ISSUER = object()
@@ -88,7 +91,7 @@ class OrdinaryPoolChild:
     task: str
     prompt: str
     write_path: str
-    expected_utf8: str
+    expected_utf8: str | None
     completion_marker: str
     worktree: Path
     worktree_identity_sha256: str
@@ -97,9 +100,19 @@ class OrdinaryPoolChild:
     calibration_spool: Path
     productive_spool: Path
     bead_projection_sha256: str
+    output_mode: str | None = None
+    patch_preimage_sha256: str | None = None
 
     @classmethod
     def from_scope(cls, row):
+        if "output_mode" in row or "patch_preimage_sha256" in row:
+            from registered_pool_containment import pool_patch_path
+
+            digest = row.get("patch_preimage_sha256")
+            require(row.get("output_mode") == PATCH_OUTPUT_MODE and row["expected_utf8"] is None
+                    and type(digest) is str and re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
+                    "A signed unified-diff assignment requires one exact preimage digest.")
+            require(pool_patch_path(row["write_path"]), "A signed unified-diff assignment requires a canonical relative path.")
         paths = ("worktree", "login_home", "calibration_spool", "productive_spool")
         return cls(**{**row, **{key: Path(row[key]) for key in paths}, "login_identity": tuple(row["login_identity"])})
 
@@ -211,7 +224,16 @@ def _verify(scope, directive, key, now):
 
 
 def _worktree_identity(child):
+    if child.patch_preimage_sha256 is not None:
+        require_patch_preimage(child)
     return canonical_authority_sha256(capture_workspace_snapshot(child.worktree, allowed_paths=[child.write_path])["identity"])
+
+
+def require_patch_preimage(child):
+    from registered_pool_containment import read_pool_patch_file
+
+    current = read_pool_patch_file(child.worktree, child.write_path)
+    require(sha256(current).hexdigest() == child.patch_preimage_sha256, "The signed worker patch preimage changed.")
 
 
 def _cohort(approved):

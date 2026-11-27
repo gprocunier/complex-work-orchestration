@@ -6,10 +6,13 @@ from base64 import b64encode
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
+from dataclasses import dataclass
 from hashlib import sha256
+import json
 import os
 from pathlib import Path
 import re
+import secrets
 import stat
 from threading import Lock, RLock, get_ident
 from time import monotonic, monotonic_ns
@@ -18,6 +21,8 @@ from types import MappingProxyType, MethodType, SimpleNamespace
 from cwo_core import native_live_availability as availability
 from cwo_core.host_records import _directory, configured_store
 from cwo_core.maintenance_authority import _state_descriptor
+from cwo_core.worker_patch import MAX_WORKER_PATCH_BYTES, WorkerPatchError, apply_worker_patch
+from cwo_core.workspace_capture import BudgetExhausted, _pin_directory, read_at
 import registered_n1_factory as n1
 import registered_n1_qualification as qualification
 import registered_pool_configuration as config
@@ -26,6 +31,10 @@ native = n1.native
 require = config.require
 _ID = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,95}')
 _FILE = re.compile(r'[A-Za-z0-9][A-Za-z0-9_.-]{0,127}')
+_PATCH_PATH = re.compile(rf'{_FILE.pattern}(?:/{_FILE.pattern})*')
+_MAX_PATCH_PATH_BYTES = 4_095
+_PATCH_STAGING_NAME = r'\.cwo-patch-[0-9a-f]{32}'
+_SHA256 = re.compile(r'[0-9a-f]{64}')
 _MAX_WRITE_BYTES = 2048
 _CALIBRATION_CLOSE_PHASES = (
     'archive_us', 'monitor_exit_reap_us', 'namespace_exit_us', 'broker_close_us',
@@ -48,6 +57,106 @@ try:
 finally:
  os.close(root)
 print('fixed qualification file written')
+"""
+_PATCH_STAT_FIELDS = (
+    'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink', 'st_size', 'st_mtime_ns', 'st_ctime_ns',
+)
+_PATCH_WRITER = f"""import base64, hashlib, json, os, re, stat, sys
+
+LIMIT = {MAX_WORKER_PATCH_BYTES}
+ENCODED_LIMIT = 4 * ((LIMIT + 2) // 3)
+FIELDS = {_PATCH_STAT_FIELDS!r}
+
+def mark(info):
+    return tuple(getattr(info, name) for name in FIELDS)
+
+def open_parent(parts):
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    descriptor = os.open(".", flags)
+    try:
+        for part in parts[:-1]:
+            following = os.open(part, flags, dir_fd=descriptor)
+            os.close(descriptor)
+            descriptor = following
+            info = os.fstat(descriptor)
+            if info.st_uid not in (0, os.geteuid()) or info.st_mode & 0o022:
+                raise ValueError("patch target ancestor is not owner-controlled")
+        return descriptor
+    except BaseException:
+        os.close(descriptor)
+        raise
+
+def read_current(root, path, expected_mark, expected_sha):
+    pinned = os.open(path, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=root)
+    try:
+        info = os.fstat(pinned)
+        if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
+                or info.st_nlink != 1 or info.st_mode & 0o7022 or mark(info) != expected_mark):
+            raise ValueError("patch target identity changed")
+        with open("/proc/self/fd/%d" % pinned, "rb") as current:
+            before = current.read(LIMIT + 1)
+            if mark(os.fstat(current.fileno())) != expected_mark:
+                raise ValueError("patch target changed during read")
+        if len(before) > LIMIT or hashlib.sha256(before).hexdigest() != expected_sha:
+            raise ValueError("patch target bytes changed")
+        return info
+    finally:
+        os.close(pinned)
+
+def replace_current(root, path, data, info, temporary, identity):
+    pinned = os.open(temporary, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=root)
+    try:
+        staged_info = os.fstat(pinned)
+        if ((staged_info.st_dev, staged_info.st_ino) != identity or not stat.S_ISREG(staged_info.st_mode)
+                or staged_info.st_uid != os.geteuid() or staged_info.st_gid != info.st_gid
+                or staged_info.st_nlink != 1 or staged_info.st_size != 0):
+            raise ValueError("patch staging differs")
+        with open("/proc/self/fd/%d" % pinned, "wb") as staged:
+            if staged.write(data) != len(data):
+                raise ValueError("patch staging differs")
+            staged.flush()
+            os.fchmod(staged.fileno(), stat.S_IMODE(info.st_mode))
+            os.fsync(staged.fileno())
+        if mark(os.stat(path, dir_fd=root, follow_symlinks=False)) != mark(info):
+            raise ValueError("patch target changed before replacement")
+        current = os.stat(temporary, dir_fd=root, follow_symlinks=False)
+        if not os.path.samestat(current, staged_info) or current.st_nlink != 1:
+            raise ValueError("patch staging changed before replacement")
+        os.replace(temporary, path, src_dir_fd=root, dst_dir_fd=root)
+        os.fsync(root)
+    finally:
+        os.close(pinned)
+
+def main():
+    path, before_sha, after_sha, raw_mark, temporary = sys.argv[1:]
+    if len(path) > {_MAX_PATCH_PATH_BYTES} or re.fullmatch({_PATCH_PATH.pattern!r}, path) is None:
+        raise ValueError("patch target must be an ordinary relative file")
+    if re.fullmatch({_PATCH_STAGING_NAME!r}, temporary) is None:
+        raise ValueError("patch staging name differs")
+    header = sys.stdin.buffer.readline(128)
+    if re.fullmatch(rb"[0-9]+ [0-9]+\\n", header) is None:
+        raise ValueError("patch staging identity differs")
+    identity = tuple(map(int, header.split()))
+    encoded = sys.stdin.buffer.read(ENCODED_LIMIT + 1)
+    if len(encoded) > ENCODED_LIMIT:
+        raise ValueError("patch payload exceeds its bound")
+    data = base64.b64decode(encoded, validate=True)
+    if len(data) > LIMIT or hashlib.sha256(data).hexdigest() != after_sha:
+        raise ValueError("patch payload differs")
+    parts = path.split("/")
+    parent = open_parent(parts)
+    try:
+        name = parts[-1]
+        info = read_current(parent, name, tuple(json.loads(raw_mark)), before_sha)
+        replace_current(parent, name, data, info, temporary, identity)
+    finally:
+        os.close(parent)
+
+try:
+    main()
+except (OSError, ValueError):
+    raise SystemExit("The checked patch writer refused.") from None
+print({_WRITTEN!r}, end="")
 """
 
 
@@ -113,6 +222,90 @@ def _writer_bytes(path, text):
     data = text.encode('utf-8')
     require(0 < len(data) <= _MAX_WRITE_BYTES, 'The fixed writer text exceeds its allowance.')
     return data
+
+
+def pool_patch_path(path: object) -> bool:
+    """Check the exact signed relative path for an ordinary one-file patch."""
+    return (type(path) is str and len(path) <= _MAX_PATCH_PATH_BYTES
+            and _PATCH_PATH.fullmatch(path) is not None)
+
+
+def _patch_mark(info):
+    return tuple(getattr(info, name) for name in _PATCH_STAT_FIELDS)
+
+
+@contextmanager
+def _patch_parent(worktree, path, *, worktree_identity=None):
+    pinned = _pin_directory(str(worktree))
+    require(pinned is not None, 'The checked patch worktree could not be pinned.')
+    directory, _ = pinned
+    parts = path.split('/')
+    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
+    try:
+        if worktree_identity is not None:
+            root = os.fstat(directory)
+            require((root.st_dev, root.st_ino, root.st_mode) == worktree_identity,
+                    'The original checked patch worktree changed.')
+        for part in parts[:-1]:
+            following = os.open(part, flags, dir_fd=directory)
+            os.close(directory)
+            directory = following
+            info = os.fstat(directory)
+            require(info.st_uid in (0, os.geteuid()) and not info.st_mode & 0o022,
+                    'The checked patch requires an owner-controlled ancestor directory.')
+        yield directory, parts[-1]
+    finally:
+        os.close(directory)
+
+
+def _read_patch_target(worktree, path, *, deadline=None):
+    require(pool_patch_path(path), 'The checked patch requires one ordinary relative worktree file.')
+    try:
+        with _patch_parent(worktree, path) as (directory, name):
+            kind, data, info = read_at(directory, name, MAX_WORKER_PATCH_BYTES, deadline=deadline)
+            require(kind == 'file' and info is not None and data is not None and info.st_uid == os.geteuid()
+                    and info.st_nlink == 1 and not info.st_mode & 0o7022,
+                    'The checked patch requires an owner-controlled regular file with one link.')
+            current = os.stat(name, dir_fd=directory, follow_symlinks=False)
+            require(_patch_mark(info) == _patch_mark(current) and len(data) == info.st_size,
+                    'The checked patch target changed during its bounded read.')
+        data.decode('utf-8')
+    except (OSError, BudgetExhausted, UnicodeError) as failure:
+        raise config.PoolContainmentError('The checked patch target could not be read as bounded UTF-8.') from failure
+    require(b'\x00' not in data, 'The checked patch target must be text.')
+    return data, info
+
+
+def read_pool_patch_file(worktree: Path, path: str) -> bytes:
+    """Read the retained ordinary file in the same bound used by the patch writer."""
+    data, _ = _read_patch_target(worktree, path)
+    return data
+
+
+def _stat_patch_staging(directory, name):
+    try:
+        return os.stat(name, dir_fd=directory, follow_symlinks=False)
+    except FileNotFoundError:
+        return None
+
+
+def _remove_patch_staging(directory, name, descriptor):
+    observed = _stat_patch_staging(directory, name)
+    if observed is not None:
+        require(os.path.samestat(observed, os.fstat(descriptor)) and observed.st_nlink == 1,
+                'The original patch staging entry changed.')
+        os.unlink(name, dir_fd=directory)
+    os.fsync(directory)
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedPatch:
+    content: bytes
+    preimage_sha256: str
+    request_sha256: str
+    diff_sha256: str
+    target_mark: tuple[int, ...]
+    mode: int
 
 
 def _close_streams(process):
@@ -390,7 +583,8 @@ class PoolWorkerContainment:
 
     def __init__(self, *, worker_id, worktree, spool, login_slot, executable, executable_sha256,
                  launcher, launcher_sha256, validator, validator_sha256, protected_roots,
-                 write_path, expected_utf8, require_effect, peer_worktrees=(), model_catalog=None):
+                 write_path, expected_utf8, require_effect, peer_worktrees=(), model_catalog=None,
+                 patch_preimage_sha256=None):
         require(type(worker_id) is str and _ID.fullmatch(worker_id) is not None,
                 'The original protected worker and effect check are required.')
         login_home = _require_original_worker(require_effect, worker_id, worktree, spool, login_slot)
@@ -416,7 +610,10 @@ class PoolWorkerContainment:
         self._catalog = self._select_catalog(model_catalog)
         self._configure_spec()
         self._output_path = write_path
-        self._output = _writer_bytes(write_path, expected_utf8)
+        self._patch_preimage_sha256 = patch_preimage_sha256
+        self._output = self._select_output(expected_utf8)
+        self._workspace_capture_guard = Lock()
+        self._patch_staging_retired = True
         self.server = self._managed_login = self._managed_lease = self._managed_lifetime = None
         self._appserver = self._writer = self._call = None
         self._closed = self._failed = False
@@ -425,6 +622,16 @@ class PoolWorkerContainment:
         self._receipt_root = self._custody / 'containment-receipts'
         self._receipt_identity = None
         self._configured = False
+
+    def _select_output(self, expected_utf8):
+        if self._patch_preimage_sha256 is None:
+            return _writer_bytes(self._output_path, expected_utf8)
+        require(expected_utf8 is None
+                and type(self._patch_preimage_sha256) is str
+                and _SHA256.fullmatch(self._patch_preimage_sha256) is not None
+                and pool_patch_path(self._output_path),
+                'The checked patch requires the original path and preimage digest.')
+        return None
 
     @property
     def production_live(self):
@@ -556,6 +763,8 @@ class PoolWorkerContainment:
                 raise
 
     def thread_start_selectors(self):
+        if self._patch_preimage_sha256 is not None:
+            return config.thread_start_selectors(self.host.worker, patch_mode=True)
         return config.thread_start_selectors(self.host.worker)
 
     def require_thread_start(self, params):
@@ -601,7 +810,7 @@ class PoolWorkerContainment:
         return min(remaining, 30)
 
     def run_writer(self, call_id, *, authorize, deadline):
-        """Perform the sole fixed write after the parent authorizes the one-shot gate."""
+        """Perform the sole checked write after the parent authorizes the one-shot gate."""
         with self._lock:
             self.require_effect()
             _require_original_writer(self._authorize_effect, authorize, call_id, deadline)
@@ -610,26 +819,127 @@ class PoolWorkerContainment:
                     and type(deadline) in (int, float), 'The original one-shot writer callback is required.')
             self._call = _WriterCall(call_id, authorize)
             try:
-                return self._run_writer(deadline)
+                if self._patch_preimage_sha256 is None:
+                    return self._run_writer(deadline)
+                return self._run_writer(deadline, self._prepare_patch(authorize, deadline))
             except BaseException as error:
                 self._failed = True
                 self._close_preserving(error)
                 raise
 
-    def _run_writer(self, deadline):
-        command = [self.spec['validator'], '-I', '-S', '-c', _WRITER,
-                   self._output_path, b64encode(self._output).decode('ascii')]
+    def _prepare_patch(self, authorize, deadline):
+        self._remaining(deadline)
+        pending = authorize.pending
+        arguments = pending.params['arguments']
+        request_sha256 = pending.request_sha256
+        require(type(arguments) is dict and set(arguments) == {'diff'}
+                and type(request_sha256) is str and _SHA256.fullmatch(request_sha256) is not None,
+                'The checked patch requires the original bounded callback.')
+        before, info = _read_patch_target(self.host.worker, self._output_path, deadline=deadline)
+        preimage_sha256 = sha256(before).hexdigest()
+        require(preimage_sha256 == self._patch_preimage_sha256, 'The checked patch preimage changed.')
+        diff = arguments['diff']
+        try:
+            content = apply_worker_patch(diff, self._output_path, before, maximum_bytes=MAX_WORKER_PATCH_BYTES)
+        except WorkerPatchError as failure:
+            raise config.PoolContainmentError(str(failure)) from failure
+        return _PreparedPatch(content, preimage_sha256, request_sha256, sha256(diff.encode('utf-8')).hexdigest(),
+                              _patch_mark(info), stat.S_IMODE(info.st_mode))
+
+    def _writer_command(self, patch, stage_name):
+        command = [self.spec['validator'], '-I', '-S', '-c']
+        if patch is None:
+            command += [_WRITER, self._output_path, b64encode(self._output).decode('ascii')]
+            return command, ''
+        command += [_PATCH_WRITER, self._output_path, patch.preimage_sha256,
+                    sha256(patch.content).hexdigest(), json.dumps(patch.target_mark, separators=(',', ':')), stage_name]
+        # Only the host supplies these checked bytes after the one-byte gate.
+        return command, b64encode(patch.content).decode('ascii')
+
+    def _run_writer(self, deadline, patch=None):
+        stage_name = None if patch is None else '.cwo-patch-' + secrets.token_hex(16)
+        command, stdin = self._writer_command(patch, stage_name)
         self._writer = _PoolLifetime(self, 'tool', command)
         process = self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)
-        stdout, stderr = process.communicate('', self._remaining(deadline))
+        if stage_name is None:
+            stdout = self._communicate_writer(process, stdin, deadline)
+            self._settle(self._writer)
+        else:
+            stdout = self._run_staged_patch(process, stdin, stage_name, patch.target_mark, deadline)
+        self.record('writer-output', self._verify_writer_output(patch, deadline))
+        return stdout.encode()
+
+    def _communicate_writer(self, process, stdin, deadline):
+        stdout, stderr = process.communicate(stdin, self._remaining(deadline))
         require(process.poll() == 0 and stdout == _WRITTEN and stderr == '',
                 'The fixed writer did not report successful completion.')
-        self._settle(self._writer)
-        require(native._read(self.host.worker, self._output_path, _MAX_WRITE_BYTES) == self._output,
-                'The original worktree does not contain the fixed writer output.')
-        self.record('writer-output', {'call_id': self._call.call_id, 'path': self._output_path,
-                                     'content_sha256': sha256(self._output).hexdigest()})
-        return stdout.encode()
+        return stdout
+
+    def _run_staged_patch(self, process, stdin, name, target_mark, deadline):
+        # The authorized child waits for input while the parent acquires the
+        # worktree guard. Each scan still captures the complete admitted tree.
+        self.require_effect()
+        guard = self._workspace_capture_guard
+        with ExitStack() as capture:
+            require(guard.acquire(timeout=self._remaining(deadline)), 'The checked patch workspace capture did not settle.')
+            capture.callback(guard.release)
+            with _patch_parent(self.host.worker, self._output_path,
+                               worktree_identity=self._identities[0]) as (directory, target):
+                current = os.stat(target, dir_fd=directory, follow_symlinks=False)
+                require(_patch_mark(current) == target_mark, 'The checked patch target changed before staging.')
+                self._remaining(deadline)
+                flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW | os.O_CLOEXEC
+                descriptor = os.open(name, flags, 0o600, dir_fd=directory)
+                self._patch_staging_retired = False
+                try:
+                    return self._communicate_staged_patch(process, stdin, deadline, directory, name, descriptor, capture)
+                finally:
+                    os.close(descriptor)
+
+    def _communicate_staged_patch(self, process, stdin, deadline, directory, name, descriptor, capture):
+        primary = None
+        try:
+            info = os.fstat(descriptor)
+            stdout = self._communicate_writer(process, f'{info.st_dev} {info.st_ino}\n' + stdin, deadline)
+            # Compare can resume during retirement once replacement removed the staging name.
+            require(_stat_patch_staging(directory, name) is None, 'The checked patch writer left its staging entry.')
+            capture.close()
+            return stdout
+        except BaseException as error:
+            primary = error
+            raise
+        finally:
+            try:
+                self._retire_patch_staging(directory, name, descriptor)
+            except BaseException as error:
+                if primary is None:
+                    raise
+                primary.add_note('Contained patch staging cleanup: ' + type(error).__name__)
+
+    def _retire_patch_staging(self, directory, name, descriptor):
+        try:
+            self._settle(self._writer)
+        finally:
+            if self._writer.termination_recorded:
+                _remove_patch_staging(directory, name, descriptor)
+                self._patch_staging_retired = True
+        require(self._patch_staging_retired, 'The original patch writer retirement is unresolved.')
+
+    def _verify_writer_output(self, patch, deadline):
+        target = self.host.worker
+        path = self._output_path
+        observation = {'call_id': self._call.call_id, 'path': path}
+        if patch is None:
+            content = self._output
+            require(native._read(target, path, _MAX_WRITE_BYTES) == content,
+                    'The original worktree does not contain the fixed writer output.')
+        else:
+            content, info = _read_patch_target(target, path, deadline=deadline)
+            require(content == patch.content and stat.S_IMODE(info.st_mode) == patch.mode,
+                    'The original worktree does not contain the checked patch output.')
+            observation.update(patch_preimage_sha256=patch.preimage_sha256, request_sha256=patch.request_sha256,
+                               diff_sha256=patch.diff_sha256)
+        return {**observation, 'content_sha256': sha256(content).hexdigest()}
 
     def record(self, stage, observation):
         phase = 'termination_receipt_us' if stage == 'appserver-terminated' else None
@@ -708,4 +1018,4 @@ class PoolWorkerContainment:
         required = {'appserver-terminated', 'login-released'}
         if self._writer is not None:
             required.add('tool-terminated')
-        return self._closed and required <= observed
+        return self._closed and self._patch_staging_retired and required <= observed

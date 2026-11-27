@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 import copy
-from contextlib import contextmanager
+from contextlib import AbstractContextManager, contextmanager, nullcontext
 from contextvars import ContextVar
 import hashlib
 from pathlib import Path
@@ -218,6 +218,16 @@ def _mutable_report_is_attributable(report: Mapping[str, Any], allowed: Sequence
     return True
 
 
+def _capture_child_workspace(entry, allowed, cache, guard):
+    key = entry["cache_key"]
+    if key not in cache:
+        with guard if guard is not None else nullcontext():
+            cache[key] = capture_workspace_baseline(
+                entry["root"], allowed_paths=allowed, include_untracked=True
+            )
+    return cache[key]
+
+
 class PoolWorkspaceMonitor:
     """Own complete baselines and emit hash-bound pool mutation evidence."""
 
@@ -347,7 +357,13 @@ class PoolWorkspaceMonitor:
             previous = digest
         return bool(self._observation_history)
 
-    def compare(self, *, contract: Mapping[str, Any], phase: str) -> dict[str, Any]:
+    def compare(
+        self,
+        *,
+        contract: Mapping[str, Any],
+        phase: str,
+        child_capture_guards: Mapping[str, AbstractContextManager] | None = None,
+    ) -> dict[str, Any]:
         if contract.get("contract_sha256") != self.contract.get("contract_sha256"):
             raise PoolWorkspaceError("workspace-contract-hash-mismatch")
         if dict(contract) != self.contract:
@@ -370,17 +386,11 @@ class PoolWorkspaceMonitor:
         reports: dict[str, Any] = {}
         child_clean = True
         after_by_key: dict[tuple[Any, ...], dict[str, Any]] = {}
+        guards = child_capture_guards or {}
         for child_id, entry in self.children.items():
             child = entry["contract"]
-            root = entry["root"]
             allowed = list(child["declared_write_paths"])
-            cache_key = entry["cache_key"]
-            after = after_by_key.get(cache_key)
-            if after is None:
-                after = capture_workspace_baseline(
-                    root, allowed_paths=allowed, include_untracked=True
-                )
-                after_by_key[cache_key] = after
+            after = _capture_child_workspace(entry, allowed, after_by_key, guards.get(child_id))
             report = compare_workspace_baseline(
                 entry["snapshot"]["baseline"], after, allowed_paths=allowed
             )

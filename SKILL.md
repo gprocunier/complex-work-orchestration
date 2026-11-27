@@ -24,12 +24,12 @@ Beads tracking is mandatory for non-trivial work. In ordinary Codex sessions, ha
 
 ## Operating Defaults
 
-Registered single-worker production needs original signed admission, provider disclosure consent
-and separate production authentication. Registered contained pools run two or three approved workers.
+Registered single-worker production needs signed admission, provider disclosure consent and separate authentication.
+Contained pools run two or three approved workers. Patches target one approved existing file.
 Raw native launch, generic pools and surface qualification stay held. Campaigns, live activation and
 standalone calibration are retired. Preview stays offline. Verify host capability and model.
-The lead uses host permissions. The controller contains registered workers and owns protected
-approvals and review evidence. [Threat model](references/security-threat-model.md#trust-on-the-supervisor-host)
+Leads use host permissions. Controllers contain workers and hold protected approvals and review evidence.
+[Threat model](references/security-threat-model.md#trust-on-the-supervisor-host)
 
 - The opt-in architect profile loads `prompts/cwo-architect.md` in a fresh session. See `references/cwo-system-prompt.md`.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.

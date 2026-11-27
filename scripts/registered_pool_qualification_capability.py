@@ -45,14 +45,17 @@ _SOURCE_PATHS = (
     "registered_finite_tool_calls.py",
     "registered_server_requests.py",
     "cwo_core/native_pool.py",
+    "cwo_core/native_pool_deferred_attestation.py",
     "cwo_core/native_pool_scheduler.py",
     "cwo_core/native_pool_qualification_evidence.py",
     "cwo_core/native_pool_qualification_stage.py",
+    "cwo_core/native_pool_workspace.py",
     "cwo_core/native_session_boundary.py",
     "cwo_core/supervision/transport/app_server.py",
     "cwo_core/supervision/transport/errors.py",
     "cwo_core/supervision/transport/private_io.py",
     "cwo_core/supervision/callback_timing.py",
+    "cwo_core/worker_patch.py",
 )
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _MAX_SAMPLES = 64

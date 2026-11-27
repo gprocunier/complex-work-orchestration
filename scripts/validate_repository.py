@@ -276,7 +276,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "stage_evidence": set(),
     "stage_completion": {"stage_evidence", "checked_command", "native_pool_transaction"},
     "native_pool_deferred_context": {"native_pool_contracts", "native_tool_isolation"},
-    "native_pool_deferred_attestation": {"native_pool_deferred_context", "native_pool_transaction"},
+    "native_pool_deferred_attestation": {"native_pool_deferred_context", "native_pool_transaction", "worker_patch"},
+    "worker_patch": {"path_contract"},
     "native_pool_qualification_evidence": {
         "native_pool_deferred_context", "native_session_boundary",
     },

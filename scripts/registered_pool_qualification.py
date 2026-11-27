@@ -34,6 +34,7 @@ from cwo_core.native_pool_contracts import (
     write_private_artifact,
     zero_usage,
 )
+from cwo_core.native_pool_deferred_attestation import writer_arguments_match
 from cwo_core.native_pool_deferred_context import DeferredAttestationError
 from cwo_core.native_pool_leases import PoolLeaseRegistry
 from cwo_core.native_pool_preflight import effective_child_packet_sha256, run_pool_preflight
@@ -159,8 +160,13 @@ def _capture_rollout(path, thread_id, *, baseline=None, allow_empty=False, obser
 @dataclass(frozen=True, slots=True)
 class _PendingWriter:
     request_id: int | str
-    params: dict[str, Any]
+    params_json: str
     request_sha256: str
+
+    @property
+    def params(self) -> dict[str, Any]:
+        """Read a copy of the parameters validated from the original frame."""
+        return json.loads(self.params_json)
 
 
 class _ObservedInput(_DeadlineInput):
@@ -351,7 +357,7 @@ class _WorkerWire(RegisteredAppServer):
     def _take_writer(self, message):
         request, params = RegisteredFiniteToolCalls._params(
             message, namespace=FINITE_TOOL_NAMESPACE, permitted_tools=(WRITER_TOOL,))
-        _require(params["arguments"] == {}, "writer-policy")
+        _require(writer_arguments_match(params["arguments"], patch_mode=self.factory.patch_mode), "writer-policy")
         classified, digest = self._ingress
         _require(request == classified, "callback-without-original-frame")
         identity = self._identity(params)
@@ -361,7 +367,7 @@ class _WorkerWire(RegisteredAppServer):
                      and item.get("type") == "dynamicToolCall" and item.get("status") == "inProgress"
                      and item.get("namespace") == params["namespace"] and item.get("tool") == params["tool"]
                      and item.get("arguments") == params["arguments"], "callback-without-original-item")
-            self._pending = _PendingWriter(request.request_id, params, digest)
+            self._pending = _PendingWriter(request.request_id, request.params_json, digest)
             self.qualified_tool_evidence.admit(request, params)
             return self._pending
 
@@ -565,6 +571,7 @@ class _PoolWorker:
 
     def __init__(self, parent, child, task, worktree, spool, login_slot):
         self.parent, self.child, self.task = parent, child, task
+        self._patch_preimage_sha256 = task.get("patch_preimage_sha256")
         self.worktree, self.spool, self.login_slot = worktree, spool, login_slot
         self.child_id = child["child_id"]
         self.containment = self.wire = None
@@ -581,6 +588,19 @@ class _PoolWorker:
     @property
     def limits(self):
         return self.parent.limits
+
+    @property
+    def patch_mode(self):
+        return self._patch_preimage_sha256 is not None
+
+    def _writer_selection(self):
+        expected, preimage = self.task["expected_utf8"], self._patch_preimage_sha256
+        if self.patch_mode:
+            _require(expected is None and type(preimage) is str and re.fullmatch(r"[0-9a-f]{64}", preimage) is not None,
+                     "patch-writer-task-invalid")
+        else:
+            _require(type(expected) is str, "fixed-writer-task-invalid")
+        return expected, preimage
 
     @property
     def production_login_home(self) -> Path:
@@ -614,6 +634,7 @@ class _PoolWorker:
         from registered_pool_containment import PoolWorkerContainment
 
         self.require_effect()
+        expected_utf8, patch_preimage_sha256 = self._writer_selection()
         identity = canonical_sha256(capture_workspace_snapshot(self.worktree, allowed_paths=self.child["write_paths"])["identity"])
         _require(identity == self.child["worktree_identity_sha256"], "worker-worktree-identity-drift")
         self.limits.before_session(self.child_id)
@@ -621,7 +642,8 @@ class _PoolWorker:
         self.containment = PoolWorkerContainment(
             worker_id=self.child_id, worktree=self.worktree, spool=self.spool, login_slot=self.login_slot,
             protected_roots=self.parent.protected_roots, write_path=self.task["write_path"],
-            expected_utf8=self.task["expected_utf8"], require_effect=self.require_effect, peer_worktrees=self._peer_worktrees(),
+            expected_utf8=expected_utf8, patch_preimage_sha256=patch_preimage_sha256,
+            require_effect=self.require_effect, peer_worktrees=self._peer_worktrees(),
             **self.parent.host_inputs,
         )
         self.wire = _WorkerWire(self)
@@ -773,13 +795,15 @@ class _PoolWorker:
         evidence = {"thread_id": self.thread_id, "turn_id": self.turn_id, "epoch": epoch,
                     "owner_identity_sha256": owner, "session_path": str(self._rollout),
                     "startup_to_turn": provenance, "terminal_boundary": boundary}
+        params = pending.params
         callback = {"request_id": pending.request_id, "request_sha256": pending.request_sha256,
-                    "thread_id": pending.params["threadId"], "turn_id": pending.params["turnId"], "epoch": epoch,
-                    "owner_identity_sha256": owner, "tool": f"{pending.params['namespace']}.{pending.params['tool']}",
-                    "arguments": pending.params["arguments"]}
+                    "thread_id": params["threadId"], "turn_id": params["turnId"], "epoch": epoch,
+                    "owner_identity_sha256": owner, "tool": f"{params['namespace']}.{params['tool']}",
+                    "arguments": params["arguments"]}
         acknowledgement = {"child_id": self.child_id, "thread_id": self.thread_id, "turn_id": self.turn_id}
         self._writer_prefix = boundary
-        return attest_deferred_turn(self._startup, turn_ack=acknowledgement, evidence=evidence, pending_callback=callback)
+        return attest_deferred_turn(self._startup, turn_ack=acknowledgement, evidence=evidence,
+                                    pending_callback=callback, patch_mode=self.patch_mode)
 
     def write(self, pending):
         _require(not self.parent.calibration_only, "calibration-writer-closed")
@@ -1347,10 +1371,16 @@ class _PoolParent:
     def _launch_options(self, contract, capability):
         monitor = PoolWorkspaceMonitor(contract, integration_root=self._integration_root(),
             child_worktrees={key: worker.worktree for key, worker in self.workers.items()})
+        guards = {key: worker.containment._workspace_capture_guard for key, worker in self.workers.items()
+                  if worker.patch_mode}
+
+        def compare_workspaces(*, contract, phase):
+            return monitor.compare(contract=contract, phase=phase, child_capture_guards=guards)
+
         return {**self.files, "lease_registry": self.leases, "claim_adapter": self.claim_adapter,
                 "live_revalidate": self._live_revalidate, "capability_receipt": capability,
                 "pool_callbacks": {"monotonic_ns": monotonic_ns, "now_utc": lambda: datetime.now(timezone.utc),
-                    "sleep": self._pool_sleep, "read_child_evidence": self._child_evidence, "compare_workspaces": monitor.compare}}
+                    "sleep": self._pool_sleep, "read_child_evidence": self._child_evidence, "compare_workspaces": compare_workspaces}}
 
     def _pool_sleep(self, *, seconds):
         sleep(min(seconds, self.limits.remaining()))

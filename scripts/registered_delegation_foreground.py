@@ -218,8 +218,13 @@ def _pool_prompt(pending):
         f"Writer-held callback calibration reserves up to {scope['calibration_seconds']} seconds.",
     ]
     for child in scope["children"]:
-        rows.extend((f"Bead {json.dumps(child['bead_id'])}", f"Task {json.dumps(child['task'])}",
-                     f"Fresh file {json.dumps(child['write_path'])}", f"Exact contents {json.dumps(child['expected_utf8'])}"))
+        rows.extend((f"Bead {json.dumps(child['bead_id'])}", f"Task {json.dumps(child['task'])}"))
+        if preimage := child.get("patch_preimage_sha256"):
+            rows.extend((f"Edit existing file {json.dumps(child['write_path'])} with one unified diff.",
+                         f"Signed preimage SHA-256 {preimage}"))
+        else:
+            rows.extend((f"Fresh file {json.dumps(child['write_path'])}",
+                         f"Exact contents {json.dumps(child['expected_utf8'])}"))
     rows.append("Review each output before integrating it.")
     return "\n".join(rows)
 

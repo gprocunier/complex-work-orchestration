@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import sys
 import tempfile
+from threading import Lock
 import unittest
 from unittest import mock
 
@@ -80,6 +81,26 @@ class WorkspaceFixture:
 
 
 class NativePoolWorkspaceTests(unittest.TestCase):
+    def test_child_capture_guard_preserves_full_workspace_comparison(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            fixture = WorkspaceFixture(Path(temporary))
+            contract, worktrees = fixture.contract()
+            monitor = PoolWorkspaceMonitor(contract, integration_root=fixture.integration, child_worktrees=worktrees)
+            guard = Lock()
+            original = pool_workspace.capture_workspace_baseline
+            observed = []
+
+            def capture(root, **kwargs):
+                observed.append((Path(root), guard.locked()))
+                return original(root, **kwargs)
+
+            with mock.patch.object(pool_workspace, 'capture_workspace_baseline', side_effect=capture):
+                options = {"contract": contract, "child_capture_guards": {"child-0": guard}}
+                self.assertTrue(monitor.compare(phase="unchanged", **options)["child_worktrees_clean"])
+                self.assertEqual(observed, [(fixture.integration, False), (fixture.first, True), (fixture.second, False)])
+                (fixture.first / '.cwo-patch-unrelated').write_bytes(b'unapproved\n')
+                self.assertFalse(monitor.compare(phase="unapproved", **options)["child_worktrees_clean"])
+
     def test_real_capture_cap_refuses_normal_and_sealed_snapshots(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             fixture = WorkspaceFixture(Path(temporary))

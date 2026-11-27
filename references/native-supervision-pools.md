@@ -108,9 +108,20 @@ python3 scripts/setup_delegation.py \
 
 From the original project checkout, use `authorize_pool` in the foreground
 `cwo-delegation` tool to approve the ordered group and its shared allowance.
-Each assignment needs its own Bead, worktree and exact output. The registered
+Each assignment needs its own Bead, worktree and output scope. The registered
 contained selection is `gpt-6.2-sol` at xhigh effort on the default tier. The
 operator approves the whole selection and the provider disclosure together.
+
+For a worker-authored change, set `output_mode` to `unified-diff` and set
+`output_path` to one existing UTF-8 file in the assigned checkout, using a
+relative path such as `src/check.py`. The path can be at most 240 characters.
+Each component can be at most 128 characters and starts with an ASCII letter
+or digit, followed by ASCII letters, digits, dots, underscores or hyphens.
+Supply the task and baseline as usual. Omit `output_text` in this mode.
+The host binds the starting file's digest into the approval. Each patch can
+use up to 8 KiB. The starting file and the resulting file can each use up to
+64 KiB. For a fixed-text assignment, give the exact `output_text` and a fresh
+`output_path`.
 
 The approval tool returns a private pool request path. Run
 `cwo delegate-pool --pool-request <request-path>` from the same project checkout.
@@ -118,9 +129,10 @@ Add `--validate-only` to check the request and retained project authority before
 execution. The controller checks the separate configured worker logins and
 calibrates its callbacks using the same approved shared allowance. Productive
 work starts after successful calibration and original cohort admission.
-If an upgrade changes the runtime factory, execution rejects an earlier signed
-approval before recording an execution intent or claiming any Bead. Use
-`authorize_pool` to approve the cohort against the installed factory.
+If an upgrade changes the runtime factory or callback implementation, execution
+rejects an earlier signed approval before recording an execution intent or
+claiming any Bead. Use `authorize_pool` to approve the cohort against the
+installed sources.
 
 ## Readiness-first transaction launcher
 
@@ -166,6 +178,11 @@ Each app server uses a read-only worktree, a dedicated worker login and
 provider-only connectivity. The named read-only tool profile denies network
 access and access to the login path. Later turns keep the same profile. Only
 the isolated registered writer may change the assigned output file.
+
+For a unified diff, the host checks the exact file name, hunk context and
+signed starting digest. The isolated writer rechecks the starting file and
+replaces it atomically while preserving its mode. Settlement uses the host's
+original callback and output digests and a reread of the resulting file.
 
 Before opening the writer gate, the host verifies the original thread start,
 acknowledged turn and owned rollout for each pending callback. It charges the

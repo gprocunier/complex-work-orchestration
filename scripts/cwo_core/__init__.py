@@ -148,6 +148,7 @@ __all__ = [
     "waivers",
     "work_sizing",
     "workgraph_markdown",
+    "worker_patch",
     "workspace",
     "workspace_capture",
     "workspace_transition",
