@@ -98,6 +98,11 @@ def require_ordinary_custody(approved):
              "unsupported-run-selection")
 
 
+def require_ordinary_runtime_source(approved):
+    source = stage._registered_factory_path()
+    stage._registered_factory_source(str(source), approved.runtime_adapter_sha256)
+
+
 def _hard_budget(estimate):
     limits = estimate["aggregate_allowance"]
     return {"tool_calls": limits["tool_calls_hard"], "runtime_seconds": limits["runtime_seconds_hard"],

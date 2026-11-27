@@ -1056,14 +1056,12 @@ class SchemaAndContainmentTests(unittest.TestCase):
             # The optional parent fallback records a same-budget child attempt.
             "scripts/cwo_core/cyber_fallback.py",
             "scripts/cwo_core/local_invocation.py",
-            "scripts/cwo_core/native_pool_qualification_budget.py",
             "scripts/cwo_core/native_pool_qualification_stage.py",
             "scripts/dispatch_work.py",
             "scripts/local_http_admission.py",
             # Experimental fake host reads persisted admission; production stays disabled.
             "scripts/offline_admitted_n1.py",
             "scripts/prepare_local_admission.py",
-            "scripts/prepare_native_pool_qualification.py",
             "scripts/qualified_review_dispatch.py",
             # The signed ordinary pool host constructs the protected ledger for one approval.
             "scripts/registered_contained_pool_host.py",
@@ -1071,10 +1069,8 @@ class SchemaAndContainmentTests(unittest.TestCase):
             "scripts/registered_contained_pool_preparation.py",
             # The ordinary runtime checks the exact ledger and shares its allowance across both phases.
             "scripts/registered_pool_ordinary_runtime.py",
-            # The protected qualification route uses one campaign ledger for calibration and runs.
-            "scripts/registered_pool_qualification_calibration.py",
+            # The ordinary callback capability verifies the original shared ledger.
             "scripts/registered_pool_qualification_capability.py",
-            "scripts/run_native_pool_qualification.py",
         ])
         self.assertEqual(self.importers_of("local_invocation"), [
             "scripts/local_http_admission.py", "scripts/qualified_review_dispatch.py",

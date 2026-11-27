@@ -65,11 +65,8 @@ def _calibration_close_phase(phase):
         timings[phase] = min(_CALIBRATION_CLOSE_MAX_US, (timings[phase] or 0) + elapsed_us)
 
 
-def _route_available(production_live):
-    if production_live:
-        availability.require_registered_contained_pool_live()
-    else:
-        availability.require_pool_qualification()
+def _route_available():
+    availability.require_registered_contained_pool_live()
     availability.require_registered_n1_live()
 
 
@@ -108,20 +105,6 @@ def _confirm_view(root, source, *, readonly):
     require(os.path.samestat(view.lstat(), source.lstat()), 'The contained mount is a different filesystem object.')
     observed = bool(os.statvfs(view).f_flag & os.ST_RDONLY)
     require(observed is readonly, 'The contained filesystem access differs from its required mode.')
-
-
-def _dedicated_login(slot):
-    home = native._path(qualification.managed_login_home(slot))
-    identity = _directory_identity(home)[:2]
-    alternatives = [qualification.managed_login_home(index) for index in (1, 2, 3) if index != slot]
-    alternatives.append(home.parent / '.codex')
-    for alternative in alternatives:
-        try:
-            observed = alternative.stat()
-        except FileNotFoundError:
-            continue
-        require((observed.st_dev, observed.st_ino) != identity, 'The selected login aliases another Codex home.')
-    return home
 
 
 def _writer_bytes(path, text):
@@ -411,7 +394,8 @@ class PoolWorkerContainment:
         require(type(worker_id) is str and _ID.fullmatch(worker_id) is not None,
                 'The original protected worker and effect check are required.')
         login_home = _require_original_worker(require_effect, worker_id, worktree, spool, login_slot)
-        _route_available(login_home is not None)
+        _route_available()
+        require(isinstance(login_home, Path), 'The original configured worker login is required.')
         self._authorize_effect = require_effect
         self.operation_id = worker_id
         self.host = SimpleNamespace(worker=native._path(worktree))
@@ -422,7 +406,7 @@ class PoolWorkerContainment:
         self.host_records = configured_store()
         self._slot = login_slot
         self._worker_login = self._select_worker_login(login_home)
-        self._login_home, self._lease_home = self._login_roots()
+        self._login_home, self._lease_home = self._worker_login.protected_roots()
         self._login_identity = _directory_identity(self._login_home)
         self._paths = (self.host.worker, self.host.worker / '.git', self.home, self._custody)
         self._identities = tuple(_directory_identity(path) for path in self._paths)
@@ -448,16 +432,8 @@ class PoolWorkerContainment:
 
     @staticmethod
     def _select_worker_login(home):
-        if home is None:
-            return None
-        require(isinstance(home, Path), 'The original configured worker login is required.')
         state = native._path(qualification.worker_login_state())
         return qualification.WorkerLoginMount(native._path(home), state)
-
-    def _login_roots(self):
-        if self.production_live:
-            return self._worker_login.protected_roots()
-        return _dedicated_login(self._slot), native._path(qualification.campaign_directory())
 
     def _pin_executables(self, selections):
         pins = tuple(n1._file(path) for path, _ in selections)
@@ -496,8 +472,7 @@ class PoolWorkerContainment:
             n1._disjoint((*broad, root))
             self._reject_aliased_root(root)
         n1.require_private_roots((*broad, *self._protected_roots()))
-        if self.production_live:
-            self._require_private_login_roots(broad)
+        self._require_private_login_roots(broad)
 
     def _require_private_login_roots(self, worker_roots):
         peers = (*worker_roots, *self._protected, self.host_records.state_root)
@@ -517,25 +492,17 @@ class PoolWorkerContainment:
     def _protected_roots(self):
         return (*self._protected, self._lease_home, self._login_home, self.host_records.state_root)
 
-    def _require_login_home(self):
-        if self.production_live:
-            self._worker_login._require_original_home()
-            return
-        home = _dedicated_login(self._slot)
-        require(home == self._login_home and _directory_identity(home) == self._login_identity,
-                'The original dedicated login selection changed.')
-
     def require_effect(self):
-        _route_available(self.production_live)
+        _route_available()
         require(not self._closed and not self._failed, 'The original worker is no longer open.')
         home = _require_original_worker(self._authorize_effect, self.operation_id, self.host.worker, self.home,
                                         self._slot, self)
-        require(home == (self._login_home if self.production_live else None),
+        require(home == self._login_home,
                 'The original configured worker login changed.')
         require((self.host.worker, self.home) == (self._paths[0], self._paths[2])
                 and tuple(_directory_identity(path) for path in self._paths) == self._identities,
                 'An original contained directory changed.')
-        self._require_login_home()
+        self._worker_login._require_original_home()
         self._paths_disjoint()
         require(tuple(n1._file(pin[0]) for pin in self._executables) == self._executables,
                 'An original contained executable changed.')
@@ -552,15 +519,12 @@ class PoolWorkerContainment:
         self._receipt_root.mkdir(mode=0o700)
         self._receipt_identity = _directory_identity(self._receipt_root)
         native._sync(self._custody)
-        if self.production_live:
-            self._managed_lease = self._worker_login.claim()
+        self._managed_lease = self._worker_login.claim()
         (self.home / 'rules').mkdir(mode=0o700)
         for name, value in self._files.items():
             path = self.home / name
             native._write_new(path, value, 0o400)
             native._sync(path.parent)
-        if not self.production_live:
-            self._managed_lease = qualification.claim_managed_login(self._slot)
         self._prepare_login_projection()
         self._configured = True
 
@@ -569,7 +533,7 @@ class PoolWorkerContainment:
         if direct.compatible(self.home):
             self._managed_login = direct
         else:
-            self._managed_login = self._worker_login or qualification.ManagedLoginMount(self._login_home)
+            self._managed_login = self._worker_login
         require(self._managed_login.identity == self._login_identity[:2], 'The original pool login directory changed.')
         self._managed_login.prepare(self.home)
 
@@ -695,19 +659,12 @@ class PoolWorkerContainment:
         require(lifetime is None or not lifetime._managed_mount_started or lifetime.termination_recorded,
                 'The original managed-login namespace cleanup is unresolved.')
         with _calibration_close_phase('lease_release_us'):
-            if self.production_live:
-                self._worker_login._require_original_home()
+            self._worker_login._require_original_home()
             if self._managed_login is not None:
                 self._managed_login.retire()
-            self._release_login_lease()
+            self._worker_login.release(self._managed_lease)
             self._managed_lease = None
             self.record('login-released', {'slot': self._slot})
-
-    def _release_login_lease(self):
-        if self.production_live:
-            self._worker_login.release(self._managed_lease)
-        else:
-            qualification.release_managed_login(self._managed_lease, self._slot)
 
     def _close_preserving(self, primary):
         try:

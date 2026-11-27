@@ -292,8 +292,13 @@ class RegisteredContainedPoolHost:
         approved.validate(request)
         if request["mode"] == "validate-only":
             return {**structural, "authority_validated": True}
-        from registered_pool_ordinary_runtime import build_registered_contained_pool_packet, run_registered_contained_pool
+        from registered_pool_ordinary_runtime import (
+            build_registered_contained_pool_packet,
+            require_ordinary_runtime_source,
+            run_registered_contained_pool,
+        )
 
+        require_ordinary_runtime_source(approved)
         with PrivateDirectory.open(approved.root) as directory:
             require(directory.contains("execution-intent.json") is False, "The original pool approval was already used.")
             admission, packets = _admit(approved, directory, build_registered_contained_pool_packet)

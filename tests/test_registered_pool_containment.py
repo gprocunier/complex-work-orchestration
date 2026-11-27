@@ -25,7 +25,6 @@ from cwo_core import native_live_availability as availability
 
 
 class PoolConfigurationTests(unittest.TestCase):
-    @patch.object(availability, 'POOL_QUALIFICATION_AVAILABLE', True)
     def test_open_source_still_refuses_a_raw_worker_before_private_paths(self):
         with patch.object(containment.native, '_path', side_effect=AssertionError('private path reached')) as path:
             with self.assertRaisesRegex(config.PoolContainmentError, 'Original retained pool worker required'):
@@ -155,12 +154,12 @@ class PoolWorkerContainmentTests(unittest.TestCase):
         self.addCleanup(workspace.cleanup)
         self.root = Path(workspace.name)
         self.slots = {slot: self.root / f'login-{slot}' for slot in (1, 2, 3)}
-        for slot, directory in self.slots.items():
+        self.configured = {slot: self.root / f'account-{slot}' for slot in self.slots}
+        for slot, directory in self.configured.items():
             directory.mkdir(mode=0o700)
             auth = directory / 'auth.json'
             auth.write_text(f'synthetic marker {slot}\n')
             auth.chmod(0o600)
-        self.state = self.root / 'campaign'
         self.production_home = None
         self.login_state = self.root / 'worker-login-state'
         self.launcher = Path('/usr/bin/bwrap').resolve()
@@ -180,19 +179,16 @@ assert sys.stdin.read() == ''
 """)
         self.peer.chmod(0o700)
         self.enterContext(patch.object(qualification, 'managed_login_home', side_effect=lambda slot=1: self.slots[slot]))
-        self.enterContext(patch.object(qualification, '_campaign_directory', return_value=self.state))
         self.enterContext(patch.object(qualification, 'worker_login_state', return_value=self.login_state))
         self.enterContext(patch.object(availability, 'require_registered_n1_live'))
         self.enterContext(patch.object(availability, 'require_registered_contained_pool_live', create=True))
-        self.enterContext(patch.object(availability, 'require_pool_qualification', create=True))
         self.enterContext(patch.object(qualification, 'require_executable_schema'))
         self.enterContext(patch.object(containment, '_require_original_worker', side_effect=self._original_effect))
         self.enterContext(patch.object(containment, '_require_original_writer'))
-        qualification.initialize_campaign()
 
-    def _original_effect(self, effect, *_):
+    def _original_effect(self, effect, worker_id, worktree, spool, slot, containment=None):
         effect()
-        return self.production_home
+        return self.configured[slot] if self.production_home is None else self.production_home
 
     def _select_production_login(self, name='configured-login'):
         self.production_home = self.root / name
@@ -244,29 +240,6 @@ assert sys.stdin.read() == ''
             self.assertTrue(select.select([child.stdout], [], [], 5)[0])
             self.assertEqual(child.stdout.readline(), 'read-only inert app server\n')
 
-    def test_n1_and_pool_slots_share_durable_exclusion(self):
-        original = qualification.claim_managed_login()
-        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
-            qualification.claim_managed_login(1)
-        second, third = qualification.claim_managed_login(2), qualification.claim_managed_login(3)
-        with self.assertRaisesRegex(qualification.QualificationError, 'lease changed'):
-            qualification.release_managed_login(second, 3)
-        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
-            qualification.claim_managed_login(3)
-        for slot, nonce in enumerate((original, second, third), 1):
-            qualification.release_managed_login(nonce, slot)
-        self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
-
-    def test_source_holds_apply_before_private_worker_reads(self):
-        with patch.object(availability, 'require_pool_qualification', side_effect=availability.NativeLiveUnavailable,
-                          create=True):
-            with self.assertRaises(availability.NativeLiveUnavailable):
-                containment.PoolWorkerContainment(
-                    worker_id='fixture', worktree=None, spool=None, login_slot=1, executable=None, launcher=None,
-                    validator=None, executable_sha256=None, launcher_sha256=None, validator_sha256=None,
-                    protected_roots=(), write_path='marker.txt', expected_utf8='fixture', require_effect=lambda: None,
-                )
-
     def test_same_thread_gate_seals_unreleased_callback(self):
         paths = self._paths(1)
         worker = self._worker(1, paths)
@@ -298,12 +271,11 @@ assert sys.stdin.read() == ''
         self.assertEqual(prepared['stage'], 'login-projections-prepared')
         self.assertEqual(retired, {**prepared, 'stage': 'login-projections-retired'})
         self.assertEqual(released, {'stage': 'login-released', 'observation': {'slot': 1}})
-        self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
+        self.assertEqual(list(self.login_state.iterdir()), [])
 
     def test_production_projection_uses_the_same_login_interlock_as_n1(self):
         login = self._select_production_login()
-        with (patch.object(qualification, 'campaign_directory', side_effect=AssertionError('campaign state touched')),
-              patch.object(availability, 'require_pool_qualification', side_effect=AssertionError('qualification gate'))):
+        with patch.object(qualification, 'campaign_directory', side_effect=AssertionError('campaign state touched')):
             worker = self._worker(1, self._paths(1))
             self.assertTrue(worker.production_live)
             worker._prepare_home()
@@ -316,7 +288,7 @@ assert sys.stdin.read() == ''
             self.assertEqual(set(path.name for path in login.iterdir()), {'auth.json'})
             n1_mount.release(n1_mount.claim())
             self.assertEqual(list(self.login_state.iterdir()), [])
-        self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
+        self.assertEqual(list(self.login_state.iterdir()), [])
 
     def test_production_provider_requires_managed_login(self):
         self._select_production_login()
@@ -431,10 +403,6 @@ assert sys.stdin.read() == ''
             qualification.WorkerLoginMount(login, self.login_state).claim()
 
     @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
-    def test_pool_login_round_trip(self):
-        self._assert_login_round_trip(self.slots[1])
-
-    @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
     def test_production_login_round_trip(self):
         self._assert_login_round_trip(self._select_production_login())
 
@@ -475,7 +443,7 @@ active.write_text('synthetic session marker')
 active.rename(home / 'archived_sessions' / active.name)
 ''' + fixture[at:])
         _, spool = paths = self._paths(1)
-        worker = self._worker(1, paths, protected=(self.slots[2], self.slots[3]))
+        worker = self._worker(1, paths, protected=(self.configured[2], self.configured[3]))
         self._start_inert_apps((worker,))
         self.assertEqual(worker.run_writer('call-1', authorize=lambda release: release(),
                                            deadline=time.monotonic() + 10), containment._WRITTEN.encode())
@@ -500,19 +468,6 @@ active.rename(home / 'archived_sessions' / active.name)
         self.assertEqual([row['stage'] for row in on_disk[-3:]],
                          ['appserver-terminated', 'login-projections-retired', 'login-released'])
 
-    def test_login_projection_conflict(self):
-        login = self.slots[1]
-        conflict = login / 'installation_id'
-        conflict.write_text('original marker')
-        identity = conflict.stat().st_ino
-        worker = self._worker(1, self._paths(1))
-        worker._prepare_home()
-        self.assertIs(type(worker._managed_login), qualification.ManagedLoginMount)
-        worker.close()
-        self.assertEqual(conflict.stat().st_ino, identity)
-        self.assertEqual(conflict.read_text(), 'original marker')
-        self.assertEqual(set(path.name for path in login.iterdir()), {'auth.json', 'installation_id'})
-
     def test_login_projection_failure(self):
         first = self._worker(1, self._paths(1))
         create = containment._PoolLoginMount._create_link
@@ -526,21 +481,21 @@ active.rename(home / 'archived_sessions' / active.name)
               self.assertRaisesRegex(OSError, 'synthetic setup failure')):
             first.launch_appserver()
         self.assertIsNone(first._appserver)
-        self.assertEqual(set(path.name for path in self.slots[1].iterdir()), {'auth.json'})
+        self.assertEqual(set(path.name for path in self.configured[1].iterdir()), {'auth.json'})
         self.assertEqual(first.receipt()['observations'][-1]['stage'], 'login-released')
 
         second = self._worker(2, self._paths(2))
         second._prepare_home()
-        displaced = self.slots[2] / 'sessions'
+        displaced = self.configured[2] / 'sessions'
         displaced.unlink()
         displaced.write_text('foreign entry')
         with self.assertRaisesRegex(config.PoolContainmentError, 'projection entry changed'):
             second.close()
         self.assertEqual(displaced.read_text(), 'foreign entry')
-        self.assertTrue((self.slots[2] / 'config.toml').is_symlink())
+        self.assertTrue((self.configured[2] / 'config.toml').is_symlink())
         self.assertFalse(second.receipt()['cleanup_confirmed'])
         with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
-            qualification.claim_managed_login(2)
+            qualification.WorkerLoginMount(self.configured[2], self.login_state).claim()
 
     @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
     def test_physical_pool_worker_boundaries_and_exact_writes(self):
@@ -559,7 +514,7 @@ active.rename(home / 'archived_sessions' / active.name)
         for slot, (worker, (worktree, _)) in enumerate(zip(workers, paths), 1):
             self.assertEqual(set(path.name for path in worktree.iterdir()), {'.git', 'marker.txt'})
             self.assertEqual((worktree / 'marker.txt').read_text(), f'marker {slot}\n')
-            self.assertEqual((self.slots[slot] / 'auth.json').read_text(), f'synthetic marker {slot}\n')
+            self.assertEqual((self.configured[slot] / 'auth.json').read_text(), f'synthetic marker {slot}\n')
             receipt = worker.close()
             self.assertTrue(receipt['cleanup_confirmed'])
             self.assertFalse(receipt['failed'])
@@ -570,7 +525,7 @@ active.rename(home / 'archived_sessions' / active.name)
             self.assertTrue(worker._appserver.provider_network.revoked)
             self.assertTrue(worker._appserver.provider_network.closed)
             self.assertEqual(worker.close(), receipt)
-        self.assertEqual(sorted(path.name for path in self.state.iterdir()), ['starts.jsonl'])
+        self.assertEqual(list(self.login_state.iterdir()), [])
 
     @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
     def test_refused_callback_never_writes_and_original_worker_is_cleaned(self):
@@ -583,16 +538,3 @@ active.rename(home / 'archived_sessions' / active.name)
         self.assertFalse((paths[0] / 'marker.txt').exists())
         self.assertTrue(worker.receipt()['cleanup_confirmed'])
         self.assertTrue(worker.receipt()['failed'])
-
-    def test_unknown_cleanup_keeps_original_login_lease(self):
-        paths = self._paths(1)
-        worker = self._worker(1, paths)
-        worker._prepare_home()
-        worker._managed_lifetime = containment._PoolLifetime(worker, 'appserver', [])
-        worker._managed_lifetime._managed_mount_started = True
-        with self.assertRaisesRegex(config.PoolContainmentError, 'cleanup is unresolved'):
-            worker.close()
-        self.assertFalse(worker.receipt()['cleanup_confirmed'])
-        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
-            qualification.claim_managed_login(1)
-        self.assertEqual((self.slots[1] / 'auth.json').read_text(), 'synthetic marker 1\n')

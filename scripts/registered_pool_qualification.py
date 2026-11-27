@@ -1,4 +1,4 @@
-"""Protected parent for the fixed contained pool qualification cohort."""
+"""Protected runtime for an original ordinary contained pool cohort."""
 
 from __future__ import annotations
 
@@ -37,7 +37,6 @@ from cwo_core.native_pool_contracts import (
 from cwo_core.native_pool_deferred_context import DeferredAttestationError
 from cwo_core.native_pool_leases import PoolLeaseRegistry
 from cwo_core.native_pool_preflight import effective_child_packet_sha256, run_pool_preflight
-from cwo_core.native_pool_qualification_fixtures import fixed_pool_qualification_cohorts
 from cwo_core.native_pool_transaction import (
     PLAN_VERSION,
     AdmittedPoolLaunch,
@@ -82,13 +81,10 @@ _CONTROL_RPCS = frozenset({"turn/interrupt", "thread/archive"})
 _ROLLOUT_BYTES = 8_388_608
 _ROLLOUT_RECHECK_SECONDS = .01
 _CALLBACK_REPLY_BYTES = 4096
-_AUTHORITY_SCOPE = "stock-codex-contained-pool"
 _ORDINARY_SCOPE = "stock-codex-registered-contained-pool"
 _ORDINARY_MODE = "ordinary"
-_QUALIFICATION_MODE = "qualification"
 _CALIBRATION_MODE = "callback-calibration"
 _CALIBRATION_REFUSAL = b"The registered writer is closed during callback calibration."
-_ISOLATION_REFUSAL = b"The registered writer refused the requested fixture write."
 _OPPORTUNITY_FIELD = "capability_opportunity_sha256"
 _AUTHORITY_FIELDS = frozenset({
     "scope", "mode", "fixture_root", "journal_path", "control_root", "spools", "host", "artifacts",
@@ -408,8 +404,6 @@ class _WorkerWire(RegisteredAppServer):
             with self.requests.lock:
                 if not self._revoked_calibration_completion(params, item):
                     self.qualified_tool_evidence.complete(params, item)
-            if self.factory.isolation_target:
-                self.factory.acknowledge_isolation_refusal()
         elif item.get("type") == "agentMessage" and item.get("phase") == "final_answer":
             turn = params.get("threadId"), params.get("turnId")
             with self.requests.lock:
@@ -455,7 +449,7 @@ class _WorkerWire(RegisteredAppServer):
                 result = self.factory.refuse_calibration_write()
             else:
                 result = self.factory.write(pending)
-            self._commit_callback_reply(pending, result, success=not calibrating and not self.factory.isolation_target)
+            self._commit_callback_reply(pending, result, success=not calibrating)
         except Exception as failure:
             self._fail_transport(failure, source="writer-callback")
 
@@ -589,10 +583,8 @@ class _PoolWorker:
         return self.parent.limits
 
     @property
-    def production_login_home(self) -> Path | None:
+    def production_login_home(self) -> Path:
         ordinary = self.parent._ordinary
-        if ordinary is None:
-            return None
         selected = ordinary.children.get(self.child_id)
         _require(selected is not None and isinstance(selected.login_home, Path),
                  "original-production-login-required")
@@ -602,10 +594,6 @@ class _PoolWorker:
                  and details.st_uid == os.geteuid() and stat.S_IMODE(details.st_mode) == 0o700,
                  "original-production-login-custody-drift")
         return home
-
-    @property
-    def isolation_target(self):
-        return self.limits.isolation_target == self.child_id
 
     def remaining(self):
         return self.limits.remaining()
@@ -800,12 +788,6 @@ class _PoolWorker:
         proof = self._attest_turn(pending)
         self.limits.record_provisional_turn_proof(proof)
         self.limits.charge_tool(self.child_id, self.thread_id, self.turn_id, pending.request_id)
-        if self.isolation_target:
-            self._recheck_pending(pending)
-            self.limits.intend_isolation_refusal(self.child_id, pending.request_id, pending.request_sha256)
-            return _ISOLATION_REFUSAL
-        if self.limits.isolation_target is not None:
-            self.limits.wait_for_isolation_refusal()
         self._writer_authorization = _PoolWriterAuthorization(self, pending, proof)
         try:
             output = self.containment.run_writer(pending.params["callId"],
@@ -815,12 +797,6 @@ class _PoolWorker:
         self.limits.ack_tool(self.child_id, self.thread_id, self.turn_id, pending.request_id)
         self._writer_done = True
         return output
-
-    def acknowledge_isolation_refusal(self):
-        pending = self.wire._pending
-        _require(self.isolation_target and self._original_writer_refused(_ISOLATION_REFUSAL),
-                 "isolation-original-writer-refusal-required")
-        self.limits.acknowledge_isolation_refusal(self.child_id, pending.request_id, pending.request_sha256)
 
     def refuse_calibration_write(self):
         _require(self.parent.calibration_only, "calibration-refusal-outside-calibration")
@@ -893,7 +869,7 @@ class _PoolWorker:
         trusted_turn_context(rows, turn_id=self.turn_id, model=MODEL, effort=EFFORT)
         terminal = trusted_terminal_event(rows, turn_id=self.turn_id)
         _require(terminal is not None and terminal["status"] == status, "durable-terminal-missing")
-        task_completed = (status == "completed" and not self.parent.calibration_only and not self.isolation_target
+        task_completed = (status == "completed" and not self.parent.calibration_only
                           and self._verify_marker(rows[terminal["record_index"]]["payload"]))
         tools = observe_worker_tools(rows, turn_id=self.turn_id)
         return {"terminal": terminal, "boundary": boundary, "tools": asdict(tools), "task_completed": task_completed}
@@ -1040,8 +1016,7 @@ class _WorkerControl:
         # Verified provider counters belong to the terminal rollout boundary.
         # Pool accounting requires stable token availability through settlement.
         usage = zero_usage()
-        refused = worker.isolation_target and worker.limits._isolation_refused
-        usage.update(tool_calls=int(worker._writer_done or refused), mutations=int(worker._writer_done))
+        usage.update(tool_calls=int(worker._writer_done), mutations=int(worker._writer_done))
         if worker._start_ns is not None:
             elapsed = (worker._end_ns or monotonic_ns()) - worker._start_ns
             usage["runtime_seconds"] = (elapsed + 999_999_999) // 1_000_000_000
@@ -1076,18 +1051,17 @@ def _check_factory_source(plan):
              and _digest(path.read_bytes()) == plan["runtime_adapter_sha256"], "installed-factory-source-drift")
 
 
-def _read_authority(path, digest, *, ordinary=False):
+def _read_authority(path, digest):
     contents = _private_artifact(path, digest, "contained-pool-authority")
     value = strict_json_loads(contents.decode("utf-8"))
-    scope = _ORDINARY_SCOPE if ordinary else _AUTHORITY_SCOPE
-    _require(type(value) is dict and value.get("scope") == scope, "unknown-controller-authority")
-    _check_authority_phase(value, productive_mode=_ORDINARY_MODE if ordinary else _QUALIFICATION_MODE)
+    _require(type(value) is dict and value.get("scope") == _ORDINARY_SCOPE, "unknown-controller-authority")
+    _check_authority_phase(value)
     return value
 
 
-def _check_authority_phase(value, *, productive_mode):
+def _check_authority_phase(value):
     mode = value.get("mode")
-    if mode == productive_mode:
+    if mode == _ORDINARY_MODE:
         opportunity = value.get(_OPPORTUNITY_FIELD)
         _require(value.keys() == _AUTHORITY_FIELDS | {_OPPORTUNITY_FIELD} and type(opportunity) is str
                  and re.fullmatch(r"[0-9a-f]{64}", opportunity) is not None, "invalid-qualification-authority")
@@ -1113,9 +1087,7 @@ def _check_admission(admission, authority):
 class _PoolParent:
     """One selected source, approved plan and immutable controller inputs."""
 
-    _ordinary = None
-
-    def __init__(self, plan, authority_path, admission, capability, ordinary=None):
+    def __init__(self, plan, authority_path, admission, capability, ordinary):
         self.plan = deepcopy(plan)
         self._ordinary = ordinary
         self.authority_path = _private_path(authority_path)
@@ -1158,24 +1130,16 @@ class _PoolParent:
 
     def _controller_roots(self):
         roots = (self.control_root, self.authority_path.parent)
-        if self._ordinary is None:
-            return roots
         return (*roots, self._ordinary.project, self._ordinary.integration_root, self._ordinary.ledger.root,
                 self._ordinary.lease_registry_path)
 
     def _lease_registry_path(self):
-        if self._ordinary is None:
-            return self.control_root / "leases.json"
         return self._ordinary.lease_registry_path
 
     def _worktree_for(self, child_id):
-        if self._ordinary is None:
-            return self.fixture_root / self.tasks[child_id]["worker_slot"]
         return self._ordinary.children[child_id].worktree
 
     def _integration_root(self):
-        if self._ordinary is None:
-            return self.fixture_root / "integration"
         return self._ordinary.integration_root
 
     def _prepare_children(self):
@@ -1188,14 +1152,9 @@ class _PoolParent:
         self._verify_spool_topology()
 
     def _selected_tasks(self, children):
-        if self._ordinary is not None:
-            from registered_pool_ordinary_runtime import ordinary_pool_tasks
+        from registered_pool_ordinary_runtime import ordinary_pool_tasks
 
-            return ordinary_pool_tasks(self._ordinary, children, self.authority)
-        cohort = next(row for row in fixed_pool_qualification_cohorts() if row["size"] == len(children))
-        tasks = {row["write_path"]: row for row in cohort["tasks"]}
-        _require({tuple(row["write_paths"]) for row in children} == {(name,) for name in tasks}, "fixed-cohort-write-scope")
-        return {row["child_id"]: tasks[row["write_paths"][0]] for row in children}
+        return ordinary_pool_tasks(self._ordinary, children, self.authority)
 
     def _verify_spool_topology(self):
         custody = {spool.parent for spool in self.spools.values()}
@@ -1234,19 +1193,10 @@ class _PoolParent:
 
     def _original_stage_custody(self, limits):
         allowance = limits._allowance
-        if self._ordinary is None:
-            return allowance.campaign_intent is not None
         return allowance.ordinary is self._ordinary
 
-    def _require_route(self):
-        if self._ordinary is not None:
-            native_live_availability.require_registered_contained_pool_live()
-            return
-        native_live_availability.require_pool_qualification()
-        native_live_availability.require_registered_n1_live()
-
     def require_effect(self):
-        self._require_route()
+        native_live_availability.require_registered_contained_pool_live()
         _require(self.limits is not None, "stage-limits-unbound")
         self._require_stage_mode(self.limits)
         self.limits.remaining()
@@ -1263,14 +1213,10 @@ class _PoolParent:
                 limits._close_locked()
 
     def read_bead(self, bead_id):
-        self._require_route()
-        self._require_ordinary_reader()
+        native_live_availability.require_registered_contained_pool_live()
+        self._ordinary.require_current()
         _require(bead_id in {child["bead_id"] for child in self.children.values()}, "unbound-bead-read")
         return self.claim_adapter.show_exact(bead_id)
-
-    def _require_ordinary_reader(self):
-        if self._ordinary is not None:
-            self._ordinary.require_current()
 
     def _verify_artifacts(self):
         _check_factory_source(self.plan)
@@ -1281,7 +1227,7 @@ class _PoolParent:
             _private_artifact(path, self.plan[name + "_sha256"], "contained-pool-" + name)
 
     def _read_authority(self):
-        return _read_authority(self.authority_path, self.plan["authority_sha256"], ordinary=self._ordinary is not None)
+        return _read_authority(self.authority_path, self.plan["authority_sha256"])
 
     def _validate_capability(self):
         from cwo_core.native_pool_deferred_context import QUALIFICATION_ADAPTER_VERSION, QUALIFICATION_SURFACE
@@ -1487,11 +1433,6 @@ class _PoolParent:
                                                                           for row in workers.values())
         validation = {"accepted": accepted, "healthy_evidence_retained": settled, "atomic_promotion_authorized": False,
                       "worker_observations": workers}
-        if target := self.limits.isolation_target:
-            worker = self.workers[target]
-            validation["isolation_refusal_observed"] = (worker._result is not None and not worker._writer_done
-                and worker._result["terminal"]["status"] == "completed" and self.limits._isolation_refused
-                and worker._original_writer_refused(_ISOLATION_REFUSAL))
         return validation
 
     @staticmethod
@@ -1537,9 +1478,8 @@ def build_pool_qualification_runtime(plan, *, authority_path, admission, capabil
              and plan["prelude_session_count"] == 0 and len(plan["children"]) in (2, 3)
              and plan["budget"]["cumulative_before"] == 0, "contained-disposable-plan-required")
     _check_factory_source(plan)
-    if ordinary is not None:
-        from registered_pool_ordinary_runtime import require_ordinary_custody
+    from registered_pool_ordinary_runtime import require_ordinary_custody
 
-        require_ordinary_custody(ordinary)
+    require_ordinary_custody(ordinary)
     parent = _PoolParent(plan, authority_path, admission, capability, ordinary)
     return parent.runtime(), parent.bind_limits, parent.cleanup

@@ -43,9 +43,9 @@ has no external anchor and says nothing about unrecorded actions.
 | --- | --- | --- |
 | Registered single-worker execution | The live qualification completed on 2026-11-24 after using 15 of 20 allowed starts. Every required behavior had a passing witness. The recorded Codex CLI was 0.171.0. Live witnesses through CWO v1.24.0 covered useful output and validation, progress from empty polling without stdin delivery, nonempty input refusal, outside-workspace refusal before spawn, signed exhaustion and charging, archive and cleanup. Production execution has its own enabled source decision, exact OpenAI disclosure and separately provisioned worker authentication. | The pass applies to the recorded finite profile and setup. Generic native launch, unrestricted worker tools and other hosts or configurations need their own evidence. [Production enablement](https://github.com/gprocunier/complex-work-orchestration/pull/149) · [Production requirements](native-live-route-holds.md#registered-single-worker-production) |
 | Standing-approved delegation | The local `cwo-codex` foreground approval server retains an eligible assignment when the operator accepts the exact action. The installed `cwo delegate` selects it by project, Beads database, task and baseline, verifies the original admission and budget, and runs one registered worker. The signed custody can reference the full initial checkout snapshot by digest. The controller checks the protected reference and observes the current checkout again before dispatch. | The route writes one preapproved project-relative text output. It binds the exact candidate to the baseline and delivers it for independent hand acceptance. Installation alone supplies neither an approval nor evidence that a fresh host is qualified. [Delegation](https://github.com/gprocunier/complex-work-orchestration/pull/181) · [Checkout custody](https://github.com/gprocunier/complex-work-orchestration/pull/219) · [Hand acceptance](run-readiness.md#accepting-a-delivery-by-hand) |
-| Contained pool qualification | The protected qualification path has shipped for disposable two- and three-worker runs. A trusted controller signs the fixed plans and budget, admits the cohort, and verifies the original writer, accounting and cleanup evidence. The full live qualification remains incomplete. | This is a qualification route. The ordinary concurrent pool remains unqualified and disabled, and the production pool and legacy campaign holds remain in place. [Protected qualification](https://github.com/gprocunier/complex-work-orchestration/pull/156) · [Contained pool contract](native-supervision-pools.md#contained-qualification-on-stock-codex) · [Live route holds](native-live-route-holds.md) |
+| Registered contained pool | The trusted host admits the exact approved group of two or three workers, checks each login and the shared allowance, and calibrates the original callbacks before productive work. The v1.45.0 qualification used disposable cohorts. | The claim applies to the registered contained route and its scoped writer. The fixed qualification campaign is retired. [Pool operation](native-supervision-pools.md#start-an-approved-cohort) · [Qualification evidence](evaluation-evidence.md#contained-worker-pool) |
 
-The registered single-worker and contained pool qualification app servers run
+The registered single-worker and contained pool app servers run
 with read-only checkout mounts. The single-worker route exposes the approved
 finite command and empty polls. In the pool, the original isolated writer may
 change only its assigned file. Codex's read-only tool profile adds another layer
@@ -54,7 +54,7 @@ catalog records what was declared. The containment claim rests on the host
 mounts, network isolation, checked profile and authorized writer effects.
 Confidential native workloads remain unsupported.
 [Registered route](native-live-route-holds.md#registered-single-worker-production) ·
-[Contained pool tools](native-supervision-pools.md#contained-qualification-on-stock-codex).
+[Contained pool tools](native-supervision-pools.md#contained-pool-execution).
 
 **Provider-only network.** The registered app server uses a host relay for HTTPS
 to the allowlisted OpenAI service and authentication destinations. The relay
@@ -68,15 +68,15 @@ their own environment's network access.
 
 **Dedicated worker logins.** The worker sign-in uses a separate owner-private
 Codex home under the controller's Unix account. Production, interactive Codex
-and qualification use separate login homes. Concurrent qualification workers
-each need their own. Only the isolated app server receives the projected login.
+and qualification use separate login homes. Concurrent pool workers each need
+their own. Only the isolated app server receives the projected login.
 Its tool profile denies access to that projection, and command and validator
 processes run without it. The controller checks custody and holds an exclusive
 lease while an app server uses the login. Uncertain cleanup keeps the lease
 held for reconciliation. The app server can refresh the credential, and an
 unrestricted process under the controller account can access the login home.
 [Worker login requirements](native-live-route-holds.md#registered-single-worker-production) ·
-[Pool login custody](native-supervision-pools.md#contained-qualification-on-stock-codex).
+[Pool login custody](native-supervision-pools.md#contained-pool-execution).
 
 ## Review and synthesis routes
 

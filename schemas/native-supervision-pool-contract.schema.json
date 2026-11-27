@@ -447,7 +447,7 @@
     "tool_policy": {
       "oneOf": [
         {
-          "description": "Fixed contained qualification policy requiring protected runtime admission.",
+          "description": "Contained pool tool policy requiring protected runtime admission.",
           "const": {
             "version": 1,
             "permitted_tools": ["cwo_finite.write_selected_fixture"],

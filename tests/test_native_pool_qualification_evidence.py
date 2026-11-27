@@ -1,7 +1,6 @@
 """Offline tests for retained evidence from the contained pool qualification."""
 
-from dataclasses import replace
-from datetime import date, datetime
+from dataclasses import asdict
 import json
 from pathlib import Path
 import sys
@@ -13,10 +12,6 @@ SCRIPTS = Path(__file__).resolve().parents[1] / "scripts"
 sys.path.insert(0, str(SCRIPTS))
 
 from cwo_core.native_pool_qualification_evidence import (  # noqa: E402
-    REQUIRED_BEHAVIORS,
-    OutcomeObservation,
-    WorkerToolObservation,
-    build_pass_record,
     observe_worker_tools,
 )
 from cwo_core.native_session_boundary import capture_unique_boundary  # noqa: E402
@@ -58,18 +53,6 @@ def _session(*rows):
     return [_row("session_meta", id=SESSION, dynamic_tools=[namespace]), *rows]
 
 
-def _all_passed():
-    return {key: OutcomeObservation("passed", (2 if key == "n3_concurrency" else 1,))
-            for key in REQUIRED_BEHAVIORS}
-
-
-def _report(**overrides):
-    inputs = {"cwo_version": "1.26.0", "minimum_codex_version": "0.163.0",
-              "date": date(2026, 11, 24), "runs_consumed": 2, "run_cap": 20,
-              "outcomes": {}, "worker_tools": {}}
-    return build_pass_record(**(inputs | overrides))
-
-
 class WorkerToolObservationTests(unittest.TestCase):
     def test_archived_shape_projects_direct_and_nested_names_without_request_content(self):
         # The stock 0.171 inert witness emits declaration items before the
@@ -99,7 +82,7 @@ class WorkerToolObservationTests(unittest.TestCase):
         self.assertEqual(observation.registered_tools, (WRITER,))
         self.assertEqual(observation.unexpected, ("apply_patch", "clock__curr_time", "functions.exec", "functions.wait"))
         self.assertEqual(observation.limitations, ())
-        serialized = json.dumps(_report(worker_tools={1: {1: observation}}))
+        serialized = json.dumps(asdict(observation))
         self.assertNotIn(secret, serialized)
         self.assertNotIn(DIGEST, serialized)
         self.assertNotIn(TURN, serialized)
@@ -158,7 +141,7 @@ class WorkerToolObservationTests(unittest.TestCase):
         self.assertIn("terminal-unavailable", observation.limitations)
         self.assertIn("registration-unavailable", observation.limitations)
         self.assertIn("declarations-incomplete", observation.limitations)
-        self.assertNotIn(fake_token, json.dumps(_report(worker_tools={1: {1: observation}})))
+        self.assertNotIn(fake_token, json.dumps(asdict(observation)))
 
     def test_long_catalog_remains_bounded_and_informational(self):
         names = tuple(f"unexpected_{i}" for i in range(400))
@@ -166,77 +149,3 @@ class WorkerToolObservationTests(unittest.TestCase):
         self.assertTrue(observation.unexpected)
         self.assertLess(len(observation.world_state_tools), len(names))
         self.assertIn("declarations-incomplete", observation.limitations)
-        result = _report(outcomes=_all_passed(), worker_tools={1: {1: observation}})
-        self.assertEqual(result["outcome"], "passed")
-
-
-class QualificationPassRecordTests(unittest.TestCase):
-    def test_pass_record_has_fixed_identity_and_separate_worker_provenance(self):
-        first = observe_worker_tools(_session(*_turn(_world(WRITER))), turn_id=TURN)
-        second = observe_worker_tools(_session(*_turn(_world("apply_patch"))), turn_id=TURN)
-        result = _report(outcomes=_all_passed(), worker_tools={2: {3: second}, 1: {1: first}})
-        self.assertEqual(result["outcome"], "passed")
-        self.assertEqual(result["qualification"], "contained-pool")
-        expected = {"date": "2026-11-24", "cwo_version": "1.26.0", "minimum_codex_version": "0.163.0",
-                    "model": "gpt-6.2-sol", "effort": "xhigh", "tier": "default", "runs_consumed": 2, "run_cap": 20}
-        self.assertEqual({key: result[key] for key in expected}, expected)
-        self.assertEqual([(row["run"], row["worker"]) for row in result["tool_lists"]], [(1, 1), (2, 3)])
-        self.assertEqual(result["tool_lists"][0]["rollout.world_state.top_level_tools"], [WRITER])
-        self.assertEqual(result["tool_lists"][1]["unexpected"], ["apply_patch"])
-        self.assertEqual(result["behaviors"]["n3_concurrency"], {"outcome": "passed", "runs": [2]})
-
-    def test_missing_readback_cannot_make_or_break_containment(self):
-        absent = WorkerToolObservation()
-        report = _report(outcomes=_all_passed(), worker_tools={1: {1: absent}})
-        self.assertEqual(report["outcome"], "passed")
-        self.assertTrue(report["tool_lists"][0]["limitations"])
-        self.assertEqual(_report(outcomes=_all_passed())["outcome"], "passed")
-        no_cleanup = _all_passed()
-        del no_cleanup["cleanup"]
-        self.assertEqual(_report(outcomes=no_cleanup)["outcome"], "incomplete")
-        self.assertEqual(_report()["outcome"], "incomplete")
-        self.assertEqual(_report(runs_consumed=0)["outcome"], "not-run")
-
-    def test_failed_containment_behaviors_remain_separate(self):
-        outcomes = _all_passed()
-        for key in ("cross_worker_isolation", "provider_only_egress", "cleanup"):
-            outcomes[key] = OutcomeObservation("failed", (1, 2))
-        result = _report(outcomes=outcomes)
-        self.assertEqual(result["outcome"], "failed")
-        for key in ("cross_worker_isolation", "provider_only_egress", "cleanup"):
-            self.assertEqual(result["behaviors"][key], {"outcome": "failed", "runs": [1, 2]})
-
-    def test_stock_catalog_fallback_is_recorded_without_gating_containment(self):
-        result = _report(outcomes=_all_passed(), catalog_modes={2: "stock-fallback", 1: "trimmed"})
-        self.assertEqual(result["outcome"], "passed")
-        self.assertEqual(result["model_catalog"], [{"run": 1, "mode": "trimmed"},
-                                                   {"run": 2, "mode": "stock-fallback"}])
-
-    def test_outcome_requires_started_reference_and_claim_exact_inputs(self):
-        cases = (
-            {"outcomes": {"cleanup": OutcomeObservation("passed")}},
-            {"outcomes": {"cleanup": OutcomeObservation("passed", (3,))}},
-            {"outcomes": {"cleanup": OutcomeObservation("not-run", (1,))}},
-            {"outcomes": {"uncorroborated": OutcomeObservation("passed", (1,))}},
-            {"outcomes": _all_passed() | {"n3_concurrency": OutcomeObservation("passed", (1,))}},
-            {"worker_tools": {3: {1: WorkerToolObservation()}}},
-            {"worker_tools": {1: {4: WorkerToolObservation()}}},
-            {"catalog_modes": {1: "custom"}}, {"catalog_modes": {3: "trimmed"}},
-            {"run_cap": 61}, {"runs_consumed": 21}, {"runs_consumed": True},
-            {"date": datetime(2026, 11, 24)}, {"cwo_version": "1.26.0\nprivate"},
-        )
-        for overrides in cases:
-            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
-                _report(**overrides)
-
-    def test_record_only_retains_safe_values_even_for_prebuilt_observations(self):
-        fabricated = replace(WorkerToolObservation(), additional_tools=("safe_tool", "secret payload"),
-                             limitations=("path to sensitive file",))
-        result = _report(worker_tools={1: {1: fabricated}})
-        row = result["tool_lists"][0]
-        self.assertEqual(row["rollout.additional_tools"], ["safe_tool"])
-        self.assertNotIn("sensitive file", json.dumps(result))
-
-
-if __name__ == "__main__":
-    unittest.main()
