@@ -430,6 +430,18 @@ def _dispatch_model(binding: dict[str, Any], role: str, harness: str,
         raise SystemExit(f"harness dispatch refused: {exc}") from exc
 
 
+def _harness_executor(key: str | None) -> dict[str, Any]:
+    if not key:
+        return {}
+    executor = load_policy("executor-registry").get("executors", {}).get(key)
+    if not isinstance(executor, dict):
+        raise SystemExit(f"unknown executor: {key}")
+    if executor.get("external") is True:
+        command = "prepare-browser" if executor.get("dispatch_mode") == "browser_automation" else "dispatch"
+        raise SystemExit(f"External harness binding: build an approved contractor packet and use scripts/cwo.py {command} --packet.")
+    return {"key": key, **executor}
+
+
 def build_harness_dispatch(
     *,
     task: str,
@@ -471,15 +483,7 @@ def build_harness_dispatch(
     resolved_profile = model_profile(str(resolved_profile_key) if resolved_profile_key else None)
     if resolved_profile_key and not resolved_profile:
         raise SystemExit(f"unknown model profile: {resolved_profile_key}")
-    bound_executor_key = binding.get("executor")
-    executor_details: dict[str, Any] = {}
-    if bound_executor_key:
-        executors = load_policy("executor-registry").get("executors", {})
-        executor = executors.get(bound_executor_key)
-        if not isinstance(executor, dict):
-            raise SystemExit(f"unknown executor: {bound_executor_key}")
-        executor_details = dict(executor)
-        executor_details.setdefault("key", bound_executor_key)
+    executor_details = _harness_executor(binding.get("executor"))
     access_profile_model_key = resolved_profile_key or binding.get("model_profile")
     access_profile_model = resolved_profile
     if not access_profile_model and access_profile_model_key:

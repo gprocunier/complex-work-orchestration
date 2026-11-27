@@ -179,15 +179,19 @@ def beads_timeout_seconds(timeout: int | None = None) -> int:
     return DEFAULT_BEADS_TIMEOUT_SECONDS
 
 
-def run_bd(args: list[str], timeout: int | None = None) -> str:
+def run_bd(args: list[str], timeout: int | None = None, *, directory: Path | None = None) -> str:
     require_bd()
     seconds = beads_timeout_seconds(timeout)
     command = ["bd", *args]
+    project_env = None if directory is None else {
+        name: value for name, value in os.environ.items() if not name.startswith("GIT_")
+    }
     try:
         completed = subprocess.run(
             command,
             check=False,
-            cwd=REPO_ROOT,
+            cwd=REPO_ROOT if directory is None else directory,
+            env=project_env,
             text=True,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,
@@ -313,10 +317,10 @@ def show_bead_args(bead_id: str, *, include_comments: bool = False, include_depe
     return [*args, "--", bead_id]
 
 
-def show_bead_json(bead_id: str, *, include_comments: bool = False, include_dependents: bool = False) -> Any:
-    output = run_bd(
-        show_bead_args(bead_id, include_comments=include_comments, include_dependents=include_dependents)
-    )
+def show_bead_json(bead_id: str, *, include_comments: bool = False, include_dependents: bool = False,
+                   directory: Path | None = None) -> Any:
+    args = show_bead_args(bead_id, include_comments=include_comments, include_dependents=include_dependents)
+    output = run_bd(args) if directory is None else run_bd(args, directory=directory)
     return json.loads(output)
 
 

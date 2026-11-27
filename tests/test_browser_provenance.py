@@ -21,16 +21,18 @@ from cwo_core.outbound_screen import OutboundRefused  # noqa: E402
 from cwo_core.private_artifact import sha256_bytes, write_private_artifact  # noqa: E402
 from cwo_core.util import artifact_hash, packet_payload_hash  # noqa: E402
 from tests.browser_provenance_fixture import capture_record, saved_capture  # noqa: E402
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant  # noqa: E402
 
 
 def production_packet() -> dict:
     bead = json.loads((ROOT / "examples/sample-bead.json").read_text())
+    bead["id"] = "cwo-1"
     bead["labels"] = ["contract-jd-master-plan-review", "contractor-only", "no-codex-exec"]
     return build_contractor_packet.build_packet(
         bead_id="cwo-1", bead_json=bead, executor="chatgpt_pro_browser_master_reviewer",
         share_boundary="redacted-packet", job_description_label="contract-jd-master-plan-review",
         allowed_files=[], inline_snippets=["Review the retry design.\r\nCheck its recovery path."], external_opt_in=True,
-        opt_in_basis="cli-flag", quota_info={"quota_checked": True, "quota_remaining": 4},
+        opt_in_basis="host-approval", quota_info={"quota_checked": True, "quota_remaining": 4},
         dispatch_id="dispatch-1",
     )
 
@@ -47,7 +49,8 @@ class BrowserProvenanceTests(unittest.TestCase):
         self.context.__enter__()
         self.addCleanup(self.context.__exit__, None, None, None)
         self.packet = production_packet()
-        audit.record_audit_event({"event_type": "packet_built", **self.identity()})
+        self.enterContext(approved_outbound(outbound_grant(self.packet["bead_id"], None, self.packet["executor"])))
+        audit.record_audit_event({"event_type": "packet_built", "operator_approval_ref": REFERENCE, **self.identity()})
         self.text = " \nRésumé — 雪\r\n  "
         self.record, self.packet_source = capture_record(self.packet, self.text)
         self.raw = (json.dumps(self.record, sort_keys=True) + "\n").encode()

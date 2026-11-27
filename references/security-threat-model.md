@@ -3,17 +3,28 @@
 CWO's supervisor host controls what a registered worker receives, which effects
 it can request, and what evidence reaches the lead. The model assumes that a
 worker's prompts and output may be hostile. It covers the managed routes
-described here and assumes the operator, lead, controller, host OS and selected
-executables are trusted. The [claims register](claims-register.md) links each
-claim to its implementation and evidence.
+described here and assumes the operator, controller, host OS and selected
+executables are trusted. The lead uses its host permissions. The controller
+protects specific approvals and review inputs from the lead's writes.
+The [claims register](claims-register.md) links claims to implementation and evidence.
 
 ## Trust on the supervisor host
 
 | Boundary | What is trusted and what can cross it |
 | --- | --- |
-| Operator, lead and controller | The operator authorizes the task, budget and disclosure. The lead acts within the trust granted to its host session and invokes CWO's helpers. The controller holds approval keys, current authorization and replay state, worker login custody, dispatch and acceptance evidence, and the link to the selected Beads database. |
+| Operator and controller | The operator authorizes the task, budget and disclosure. The controller holds approval keys, current authorization and replay state, worker login custody, dispatch and acceptance evidence, and the link to the selected Beads database. |
+| Lead session | The host sandbox and approval settings govern the lead's tool access. CWO relies on the lead to honor the operator's scope and approvals. Check the lead's findings and decisions against evidence. |
 | Registered worker | The host treats model responses and tool requests as untrusted. The worker sees the mounted checkout and task data for its assignment. The host keeps signing keys, controller state and acceptance records outside worker-visible roots and validates returned artifacts before use. |
 | Provider or external reviewer | Approved data crosses the boundary to the selected service or reviewer. Returned material is evidence. Provider identity, reply digests and review scores describe provenance and evaluation within the workflow. The service's data handling and the truth of its claims remain separate questions. |
+
+The authority host runs under a Unix user ID separate from the unprivileged lead.
+The administrator
+selects the host code, configuration, socket and state directories in protected
+system configuration. The host checks the peer's kernel-reported user ID and
+accepts only a supported operation and a reference to a saved operator decision.
+It holds outbound opt-in and the reviews and original dispatch records used by
+protected synthesis. The lead continues to have the filesystem and tool access
+granted to its session, including access to other same-account state.
 
 Controller-signed approvals use a keyed HMAC over the exact approved action.
 The verifier checks the action and its parent authorization. Route-specific
@@ -87,25 +98,24 @@ unrestricted process under the controller account can access the login home.
 | Gemini | CWO can export a screened critic packet for Gemini through Antigravity's `agy` CLI. The shipped synthesis policy treats Gemini as salvage-only by default. | An approved packet, working CLI and authorized login are prerequisites. A specific evaluated finding can count as primary only with the architect's recorded approval under synthesis policy. [Executor registry](../policy/executor-registry.yaml) · [Synthesis rules](zero-trust-consensus.md) |
 | ChatGPT Pro | The shipped integration prepares the screened request for a Codex architect thread in the ChatGPT desktop app. With the operator present, the thread uses the paired `@Chrome` profile to send the request and capture the reply. The operator reported a successful desktop round trip with matching reply and evaluator digests. | CWO binds the prepared request ID, private reply bytes, sender-confirmed model picker label and evaluation. The sender supplies the browser and model observations. Legacy CDP dispatch and share-link intake remain held. [Desktop integration](https://github.com/gprocunier/complex-work-orchestration/pull/163) · [Desktop workflow](chatgpt-pro-browser.md) |
 
-Packet helpers enforce external opt-in, the approved disclosure boundary and
-exact exported-byte screening when invoked. Redaction and screening check for
-known patterns. They can miss sensitive information and depend on the operator
-to inspect what will be shared. The operator or lead runs external CLI calls
-under that environment's controls. An exported prompt records preparation.
+Managed contractor export checks the host's current opt-in for the checkout,
+assignment, destination and disclosure boundary, and screens the exact export.
+Redaction and screening check for known patterns and depend on operator review.
+Direct CLI or network calls use the invoking environment's permissions.
+An exported prompt records preparation.
 Observed peer-review evidence is still required when policy calls for it.
 A required review stays open until the original evidence is available.
 [Contractor dispatch](external-contracting.md#dispatch-flow) ·
 [Peer review source contract](peer-review-record.md).
 
-The shipped offline synthesis helper reads exact received returns and current
-evaluations. It checks recorded dispatch and candidate bindings, preserves
-peer-review holds, and compares explicit claims by provider family when policy
-requires it. Older dispatches can leave candidate and scope as operator-selected.
-Same-family channels count as one domain. Cross-provider agreement can still
-reflect shared errors. The installed helper makes no model requests, and an
-end-to-end live critic panel has no passing record. A ready offline report is
-evidence for the architect's adjudication and gives no authority to implement
-or close. [Offline synthesis](zero-trust-consensus.md#invocation-boundary).
+Protected synthesis uses the operator's exact panel selection and host-captured
+returns from observed dispatches. It checks the corresponding evaluations and
+preserves peer-review holds. When an older observed dispatch omits candidate
+and scope, the report identifies the operator's selection. Same-family channels
+count as one domain. Cross-provider agreement can still reflect shared errors.
+File-based reports remain advisory, and synthesis reports support the
+architect's adjudication. Protected synthesis evidence is offline.
+[Offline synthesis](zero-trust-consensus.md#invocation-boundary)
 
 ## Delivery and acceptance
 

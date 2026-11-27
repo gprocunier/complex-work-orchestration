@@ -17,6 +17,7 @@ import cwo
 from cwo_core import host_records
 from cwo_core.policy import load_policy
 from generate_manual_dispatch_prompt import render_packet_prompt
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant
 from tests.test_browser_provenance import production_packet
 from tests.test_outbound_screen import packet_with
 
@@ -31,6 +32,9 @@ class DesktopBrowserReviewTests(unittest.TestCase):
         store_context.__enter__()
         self.addCleanup(store_context.__exit__, None, None, None)
         self.packet = production_packet()
+        self.enterContext(approved_outbound(outbound_grant(
+            self.packet["bead_id"], self.packet["epic_id"], self.packet["executor"], self.packet["share_boundary"],
+        )))
         self.packet_path = base / "packet.json"
         self.reply_path = base / "reply.txt"
         self.reply = (" \r\nStatus: completed\r\nSummary: PRIVATE_CHROME_REPLY café\r\n"
@@ -38,9 +42,9 @@ class DesktopBrowserReviewTests(unittest.TestCase):
         self.reply_path.write_bytes(self.reply)
         self.link_packet(self.packet)
 
-    def link_packet(self, packet):
+    def link_packet(self, packet, *, approval_ref=REFERENCE):
         self.packet_path.write_text(json.dumps(packet), encoding="utf-8")
-        self.store.record_audit_event({"event_type": "packet_built", **{
+        self.store.record_audit_event({"event_type": "packet_built", "operator_approval_ref": approval_ref, **{
             key: packet[key] for key in ("dispatch_id", "bead_id", "packet_sha256")}})
 
     def invoke(self, *args):
@@ -129,6 +133,18 @@ class DesktopBrowserReviewTests(unittest.TestCase):
             cwo.main(["prepare-browser", "--packet", str(self.packet_path)])
         self.assertEqual(stdout.getvalue(), "")
         self.assertFalse(self.store.find("dispatch"))
+
+    def test_unresolved_host_approval_stops_preparation_before_output_or_dispatch(self):
+        self.link_packet(self.packet, approval_ref="f" * 64)
+        before = self.store.audit_events()
+        stdout = io.StringIO()
+        with redirect_stdout(stdout), self.assertRaisesRegex(
+            SystemExit, "protected outbound approval is unavailable or invalid"
+        ):
+            cwo.main(["prepare-browser", "--packet", str(self.packet_path)])
+        self.assertEqual(stdout.getvalue(), "")
+        self.assertFalse(self.store.find("dispatch"))
+        self.assertEqual(self.store.audit_events(), before)
 
     def test_tampered_private_reply_is_refused(self):
         _, request_id = self.prepare()

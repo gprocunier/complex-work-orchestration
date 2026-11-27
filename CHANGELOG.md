@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Require host-owned approval for managed contractor exports. Rebuild existing packets before exporting them under the new approval check. Protected synthesis uses original records held by the separate host principal.
 - Bound the Daybreak Blue fallback: the retry carries the original reasoning effort capped at `xhigh`, always uses the standard service tier, and the configured `cyber_fallback` model must be a Sol-family model. Earlier releases passed `max` effort and the `priority` tier through and accepted any model family.
 - Lower the repository validation ceiling to 177,200 physical lines of tracked Python under `scripts/`.
 - Remove the retired exact-Spark campaign launcher's detailed flag parsing and archive its unused authorization-state executor. Launch attempts emit the sealed zero-allocation refusal on stderr and exit 1.

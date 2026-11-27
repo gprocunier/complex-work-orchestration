@@ -35,6 +35,7 @@ import normalize_contractor_return  # noqa: E402
 from cwo_core import packets, policy  # noqa: E402
 from cwo_core.util import packet_payload_hash  # noqa: E402
 
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant  # noqa: E402
 from tests.test_policy_current_effects import RETURN_TEXT, current_policy, run_main  # noqa: E402
 
 NONPRODUCTION = "nonproduction-rehearsal"
@@ -62,6 +63,8 @@ def packet_argv(output: Path | None, *extra: str, boundary: str | None = "redact
         argv += ["--output", str(output)]
     if boundary is not None:
         argv += ["--share-boundary", boundary]
+    if "--rehearsal" not in extra:
+        argv += ["--opt-in-record", REFERENCE]
     return argv + list(extra)
 
 
@@ -71,6 +74,10 @@ def audit_lines(home: Path) -> list[dict[str, Any]]:
 
 
 class PacketDisclosureDefaultTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(approved_outbound(outbound_grant(
+            "complex-work-orchestration-example", "epic-1", "claude_code_manual")))
+
     def tearDown(self) -> None:
         policy.clear_policy_cache()
 
@@ -94,7 +101,7 @@ class PacketDisclosureDefaultTests(unittest.TestCase):
                 bead_reader.assert_not_called()
                 _, raised = run_main(build_contractor_packet, packet_argv(output, bead_file=None))
                 self.assertIsNone(raised, str(raised))
-                bead_reader.assert_called_once_with("complex-work-orchestration-example")
+                bead_reader.assert_called_once_with("complex-work-orchestration-example", directory=ROOT)
                 self.assertTrue(output.exists())
 
     def test_build_without_a_boundary_refuses_before_opening_the_bead_file(self) -> None:
@@ -153,6 +160,10 @@ class PacketDisclosureDefaultTests(unittest.TestCase):
 
 
 class NonproductionPacketTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(approved_outbound(outbound_grant(
+            "complex-work-orchestration-example", "epic-1", "claude_code_manual")))
+
     def tearDown(self) -> None:
         policy.clear_policy_cache()
 

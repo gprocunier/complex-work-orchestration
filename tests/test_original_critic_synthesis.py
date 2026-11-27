@@ -27,6 +27,7 @@ from cwo_core.returns import make_acceptance_decision
 from dispatch_work import main as dispatch_main
 from evaluate_return import main as evaluate_main
 from evaluate_synthesis import main as synthesis_main
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant
 from tests.test_codex_critic_capture import OriginalCodexProcess, jsonl, sha
 from tests.test_zero_trust_consensus import claim
 
@@ -42,6 +43,8 @@ class OriginalCriticSynthesisTests(unittest.TestCase):
         self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
         self.store = HostRecordStore.for_tests(self.root / 'host')
         self.enterContext(using_test_store(self.store))
+        self.enterContext(approved_outbound(outbound_grant(
+            'retry-architecture', 'original-critic-synthesis', 'gemini_architecture_critic')))
         self.validation = b'Independent fixture inspection of the retry-log key rotation requirement.\n'
         (self.root / 'validation.txt').write_bytes(self.validation)
 
@@ -84,7 +87,7 @@ class OriginalCriticSynthesisTests(unittest.TestCase):
         bead = self._write_json('gemini-bead.json', dict(id='retry-architecture', title=QUESTION,
             description='Review the public plan for the local retry log.', labels=['contractor-only', 'no-codex-exec', JOB]))
         packet = self._run_cli('build_contractor_packet.py', build_main, '--bead', 'retry-architecture',
-            '--bead-json-file', bead, '--executor', 'gemini_architecture_critic', '--external-ok',
+            '--bead-json-file', bead, '--executor', 'gemini_architecture_critic', '--opt-in-record', REFERENCE,
             '--epic', 'original-critic-synthesis', '--share-boundary', 'redacted-packet', '--format', 'json',
             '--dispatch-id', 'gemini')
         packet_path = self._write_json('gemini-packet.json', packet)

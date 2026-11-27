@@ -8,6 +8,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -17,6 +18,20 @@ from render_harness_dispatch import main as render_harness_main  # noqa: E402
 
 
 class HarnessDispatchScriptTests(unittest.TestCase):
+    def test_external_master_review_requires_the_approved_browser_export(self) -> None:
+        for environment in ("connected-codex", "connected-codex-glm-primary"):
+            argv = ["render_harness_dispatch.py", "--environment", environment, "--role", "master_review",
+                    "--json", "Review the sample assignment."]
+            with (self.subTest(environment=environment), mock.patch.object(sys, "argv", argv),
+                  mock.patch("cwo_core.harness.build_harness_prompt",
+                             side_effect=AssertionError("assignment renderer was reached")),
+                  mock.patch("render_harness_dispatch.record_audit_event") as audit,
+                  contextlib.redirect_stdout(io.StringIO()) as output):
+                with self.assertRaisesRegex(SystemExit, "approved contractor packet.*prepare-browser"):
+                    render_harness_main()
+                self.assertEqual(output.getvalue(), "")
+                audit.assert_not_called()
+
     def test_render_harness_dispatch_json(self) -> None:
         result = subprocess.run(
             [

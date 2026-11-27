@@ -57,13 +57,20 @@ class EditorialClarityTests(unittest.TestCase):
         self.assertIn('href="#limits">Every model needs guardrails</a>',
                       (ROOT / 'docs/explanation.html').read_text())
 
-    def test_short_task_guidance_does_not_grant_implicit_trust_to_the_lead(self):
-        readme = ' '.join((ROOT / 'README.md').read_text().split())
-        for phrase in ('No model gets implicit trust.',
-                       'Using a model without guardrails is a choice to trust it implicitly.',
-                       'Every model remains untrusted, including the lead.',
-                       'Neither replaces the host\'s tool permissions or sandbox.'):
-            self.assertIn(phrase, readme)
+    def test_readme_distinguishes_lead_host_trust_from_worker_containment(self):
+        readme = (ROOT / 'README.md').read_text()
+        intro, _ = readme.split('## What CWO does today', 1)
+        _, short_tasks = readme.split('## Match coordination to the task', 1)
+        short_tasks, _ = short_tasks.split('## Limits', 1)
+        intro = ' '.join(intro.split())
+        short_tasks = ' '.join(short_tasks.split())
+        for phrase in ('Check model findings against evidence.',
+                       'The lead runs with the access granted to its host session.',
+                       'CWO relies on the lead to honor your scope and approvals.',
+                       'The supervisor host treats registered worker responses and tool requests as untrusted.'):
+            self.assertIn(phrase, intro)
+        self.assertIn("Check the lead's work even on small tasks.", short_tasks)
+        self.assertIn("The lead session uses the host's tool permissions and sandbox.", short_tasks)
         cost = self.section_text('workflows.html', 'cost')
         self.assertIn('only one thread, but it still needs access limits and evidence checks', cost)
         self.assertIn('not a reason to trust the model implicitly', cost)

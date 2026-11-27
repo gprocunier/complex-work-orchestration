@@ -15,7 +15,7 @@ from cwo_core.outbound_screen import (
     ScreenedPayload, ScreeningArgumentParser, refuse_attachments, require_clean, require_text_disclosure, withheld_diagnostics,
 )
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
-from cwo_core.packet_provenance import require_production_contractor_packet
+from cwo_core.packet_provenance import label_rehearsal, rehearsal_result, require_packet_export_approval
 from cwo_core.packets import fenced_block, redact_text
 from cwo_core.policy import manual_dispatch_command
 from cwo_core.routing import classify_work, experts_with_required
@@ -336,7 +336,7 @@ def _main() -> None:
     parser.add_argument(
         "--allow-raw-manual-prompt",
         action="store_true",
-        help="Operator-only degraded path: render an external manual prompt without a validated packet.",
+        help="Render an external manual prompt without a packet for local rehearsal.",
     )
     parser.add_argument(
         "--rehearsal",
@@ -371,14 +371,14 @@ def _main() -> None:
         packet = load_packet_file(args.packet, captures=files)
         source = {"packet": packet, "options": vars(args)}
         capture = PreparedSource.capture(source, files)
-        # Production provenance (the packet_built audit event), not only the content checks; no waiver.
-        require_production_contractor_packet(packet, allow_degraded_packet=args.allow_degraded_packet)
+        require_packet_export_approval(packet, allow_degraded_packet=args.allow_degraded_packet,
+                                       rehearsal=args.rehearsal)
         captured = capture.value()
-        prompt = render_packet_prompt(captured["packet"])
+        prompt = label_rehearsal(render_packet_prompt(captured["packet"]), args.rehearsal)
         capture.require_unchanged(captured)
         if args.json:
-            export_screened(json.dumps({"packet": capture.value()["packet"], "prompt": prompt}, indent=2, sort_keys=True),
-                            as_json=True, capture=capture, source=source)
+            export_screened(json.dumps({"packet": captured["packet"], "prompt": prompt, **rehearsal_result(args.rehearsal)},
+                                       indent=2, sort_keys=True), as_json=True, capture=capture, source=source)
         else:
             export_screened(prompt, as_json=False, capture=capture, source=source)
         return
@@ -405,7 +405,7 @@ def _main() -> None:
         raise SystemExit(str(exc))
     if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:
         raise SystemExit(
-            "external manual prompts require --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"
+            "external manual prompts require --packet; for local rehearsal use --allow-raw-manual-prompt with --rehearsal"
         )
     if route.get("route") == "external-contract" and args.allow_raw_manual_prompt and not args.rehearsal:
         raise SystemExit("--allow-raw-manual-prompt requires --rehearsal and must not be used as production dispatch evidence")
@@ -413,9 +413,11 @@ def _main() -> None:
     capture = PreparedSource.capture(source, files)
     captured = capture.value()
     prompt = render_prompt(redact_text(captured["task"]) if args.allow_raw_manual_prompt else captured["task"], captured["route"])
+    prompt = label_rehearsal(prompt, args.rehearsal)
     capture.require_unchanged(captured)
     if args.json:
-        export_screened(json.dumps({"route": content_free_route(captured["route"]), "prompt": prompt}, indent=2, sort_keys=True),
+        export_screened(json.dumps({"route": content_free_route(captured["route"]), "prompt": prompt,
+                                    **rehearsal_result(args.rehearsal)}, indent=2, sort_keys=True),
                         as_json=True, capture=capture, source=source)
     else:
         export_screened(prompt, as_json=False, capture=capture, source=source)
