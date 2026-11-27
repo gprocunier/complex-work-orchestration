@@ -18,6 +18,8 @@ until its gate passes. Native containment also takes precedence in
 `--brief` and default human output print `Model dispatch available` from this
 combined field, with the stops that deny it.
 
+## Routing risk
+
 The router's risk level is at least the floor set by risk features found in the
 task text (`route.risk_assessment`): curated terms for migrations, destructive
 actions, credential rotation, credentials, authentication, databases and
@@ -31,21 +33,39 @@ joined text, each segment alone and every cumulative prefix of the segments
 are assessed and the union is kept, so a feature formed at any point in the
 append history, across a segment boundary or mid-token, keeps its floor and
 experts when later segments are appended. That guarantee is for appended
-segments; it is tested on bounded generated suffixes, multi-segment histories
-and the labelled corpus, not claimed for every string.
+segments.
+
+With other routing inputs fixed, appending any text can only keep or raise
+`risk_level`, whether it is part of the task string or a new segment. The
+router retains positive expert and public-documentation signals independently
+of the final expert ranking. It also checks for an earlier character prefix
+that could have formed a curated term before more letters or a Unicode
+combining mark changed it. The risk assessment reports `prefix_floor` and
+`prefix_floor_reasons` when that evidence raises the whole-token floor.
+An exact match for a required expert still comes from the whole-token feature
+assessment across the supplied segments. For example, `products` can retain
+the risk of the prefix `prod` while the whole-token feature list remains empty.
+
+A generic task with no positive risk evidence starts at low risk. So does a
+routine documentation edit with no other risk signals. A lone documentation
+path helps select experts and gates. A substantive README review retains its
+review risk when later text also asks for a typo fix. Broader file scope,
+explicit roles, review stage and phrases such as "publish the runbook" can
+contribute risk.
 
 Risk narrowing is not supported in this version. No
 structured scope, evidence file, `--file-path`, `--stage` or flag resolves a
 risk feature or lowers its floor. Passing `--risk-scope` or
 `--risk-evidence-dir` to the coach or any routing command is refused with
 "risk narrowing is not supported in this version" before any
-routing output. Ordinary work without risk features, such as a README typo
-fix, still routes proportionately. Every expert a risk feature requires (for
+routing output. Every expert a risk feature requires (for
 example security for OIDC work) stays in the route, in tight scaffolds and in
 default expert review plans wherever it ranks; one that cannot be supplied is
 reported in `route.risk_assessment.unmet_required_experts`, and the review and
 scaffold commands refuse rather than plan without it. Routing risk is a
 planning signal, not dispatch authority.
+
+## Provider intent
 
 Provider names in explicit prohibitions are not opt-ins. Phrases such as
 `do not add Gemini` or `Claude is not authorized`

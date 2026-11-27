@@ -1396,7 +1396,7 @@
 
 "fu":[64,"RegisteredN1Factory.run",2674,"IZu2lD7TLSVi0FJqPDheYiAeVlvscicNeqcNEHGBHls"],
 
-"fv":[132,"RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands",592,"KciK5sHaQpwjMVJzvdvG45L4EMa0UO3njoiKhj3_uHU"],
+"fv":[132,"RequiredExpertTests.test_a_route_missing_a_required_expert_is_refused_by_the_review_and_scaffold_commands",702,"KciK5sHaQpwjMVJzvdvG45L4EMa0UO3njoiKhj3_uHU"],
 
 "fw":[103,"InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change",607,"IgYG_0EaCFhEydPeKMkBMAua7ymNBWWP167FMqMm5SM"],
 
@@ -4875,9 +4875,9 @@
 
 [37,128,22,128,48,"dynamic","QCOLdLKUedrKGeGRDSiAhUq8Sg7PjP05l6TENxlOf1Y",[{"$":9},"cm"]],
 
-[38,184,41,184,74,"dynamic","745w8UQeATo48XKwyPB6JPYAj5ylfC8uV697xlFsHxs",[{"$":9},"cn"]],
+[38,228,41,228,74,"dynamic","745w8UQeATo48XKwyPB6JPYAj5ylfC8uV697xlFsHxs",[{"$":9},"cn"]],
 
-[38,185,48,185,88,"dynamic","WABWXI1ugaJ1ip82WkIZpxY8n1VtfDKP-dAoeUGYiWc",[{"$":9},"co"]],
+[38,229,48,229,88,"dynamic","WABWXI1ugaJ1ip82WkIZpxY8n1VtfDKP-dAoeUGYiWc",[{"$":9},"co"]],
 
 [93,61,27,61,81,"dynamic","blXLfMgcHuRF0h2Gz5mJKvmD75G97wl-0Yu0stmPwCc",[{"$":9},"XR385"]],
 
@@ -6906,7 +6906,7 @@
 
 "@131":["X8t6M_ka0o8QQcFJimHUfyKmfUtVAn94a1wd9kWE4hI",420,16860],
 
-"@132":["AGQe5J00NcJHgxeMA7SWwjJQJPF-bxxTYwtRaYen1Ug",420,50200],
+"@132":["iLCrB4PJm5oLgZP8V7mTzalScFT7LtLSJ4HBLxShA1Y",420,56280],
 
 "@133":["ZPiJT6jR5t6C6nHGp6vgbtsJcFgQIFbCzKCaGG_amEw",420,21974],
 
@@ -7464,9 +7464,9 @@
 
 "scripts/cwo_core/returns.py":["usDS5rDqoGrYjgxEwrlNm1cvFai5T11sAr0Wq7UUJrk",420,41835],
 
-"scripts/cwo_core/risk_features.py":["iUradZuNAARDtpOgrTgkAf4vZKUZaWqgOaIAcEQ88nU",420,11188],
+"scripts/cwo_core/risk_features.py":["Tlkgfm6YaiU834odpG4I7xX4sBIVZItkjZTz_r-0UnM",420,13400],
 
-"scripts/cwo_core/routing.py":["xZqqFyj869YvK9QIzMjkfQnH77og1FkOxQM2lTKA-oA",420,72678],
+"scripts/cwo_core/routing.py":["PWrMSSWFq4bZwi4v2a58oY-O42G78khsze58RsEIGds",420,77891],
 
 "scripts/cwo_core/routing_signals.py":["yWu6vKNnizk0NPTjDzXn9XHpEXUPnTMmEwGclONeQqg",420,6184],
 
@@ -7632,7 +7632,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["iMy55euy2Wulnjl-oeqHwKSRKzlqGQYCYzdFDUvBdK8",420,141135],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["G2X6GK8QXcKDVV1HWN_6tYaJn_6a5Ldgks6OWA8aM8s",420,141135],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 

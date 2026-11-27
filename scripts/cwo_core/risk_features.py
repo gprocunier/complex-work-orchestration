@@ -18,11 +18,10 @@ append history, including one formed across a segment boundary or mid-token
 (``["Inspect sign ", "in"]``), therefore stays when later segments are appended
 (``"g"``), and so do its floor and experts. Direct concatenation is the most adversarial
 join, because an append can extend the last token; a prefix joined with a separator has the
-same tokens as the start of the separator-joined text, which is assessed as passed. Text
-joined into one string before it reaches the router is assessed as that one string, where
-an append can extend the last token ("OIDC" + "s"); the guarantee is not claimed there. It
-is tested on bounded generated suffixes, multi-segment histories and the labelled corpus,
-not proven for every string.
+same tokens as the start of the separator-joined text, which is assessed as passed.
+Routed risk also retains a conservative floor when a term can match at a character
+prefix of any of these texts. The prefix floor contributes to the risk level while
+whole-token features still determine the required expert roster.
 
 Narrowing: not supported in this version. No scope, evidence file, path,
 stage or flag resolves a feature or lowers its floor, and every narrowing input is refused with
@@ -35,6 +34,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Iterator
 from dataclasses import dataclass
 from functools import lru_cache
 from typing import Any, Sequence
@@ -43,6 +43,8 @@ from .errors import CWOValidationError
 from .policy import RISK_ORDER, load_policy
 
 _SEPARATOR = re.compile(r"[^0-9a-z]+")
+_NON_ASCII = re.compile(r"[^\x00-\x7f]")
+_ASCII_WHITESPACE = re.compile(r"[ \t\n\r\f\v]+")
 RISK_NARROWING_UNSUPPORTED = "risk narrowing is not supported in this version"
 
 
@@ -121,6 +123,48 @@ def assessed_texts(text: str, segments: Sequence[str] | None) -> list[str]:
         items += list(segments)
         items += ["".join(segments[:index + 1]) for index in range(1, len(segments))]
     return list(dict.fromkeys(items))
+
+
+def _prefix_token_sets(text: str, context_width: int) -> Iterator[tuple[str, ...]]:
+    """Scan normalized text once and check prefixes where Unicode can recompose."""
+    # NFKC is closed under substrings, so every prefix is already normalized.
+    if unicodedata.is_normalized("NFKC", text):
+        yield normalized_tokens(text)
+        return
+    # ASCII whitespace is a normalization and token boundary. Keep only the
+    # preceding tokens a multi-word term can use when it crosses that boundary.
+    context: tuple[str, ...] = ()
+    for chunk in _ASCII_WHITESPACE.split(text):
+        if not unicodedata.is_normalized("NFKC", chunk):
+            for match in _NON_ASCII.finditer(chunk):
+                if tokens := normalized_tokens(chunk[:match.start()]):
+                    yield context + tokens
+        if tokens := normalized_tokens(chunk):
+            current = context + tokens
+            yield current
+            context = current[-context_width:]
+
+
+def _prefix_term_matches(tokens: tuple[str, ...], needle: tuple[str, ...]) -> bool:
+    """Allow the last token to continue, as if the task ended there in an earlier prefix."""
+    head, last = needle[:-1], needle[-1]
+    return any(token.startswith(last) and tokens[index - len(head):index] == head
+               for index, token in enumerate(tokens) if index >= len(head))
+
+
+def assess_prefix_risk(texts: Sequence[str]) -> tuple[str | None, list[str], list[str]]:
+    """Report the risk floor and experts supported by the union of character-prefix evidence."""
+    terms = {
+        name: tuple(needle for term in feature["terms"] if (needle := _term_tokens(term)))
+        for name, feature in _policy()["features"].items()
+    }
+    context_width = max((len(needle) for needles in terms.values() for needle in needles), default=1)
+    seen: set[str] = set()
+    for text in texts:
+        for tokens in _prefix_token_sets(text, context_width):
+            seen.update(name for name, needles in terms.items() if name not in seen
+                        and any(_prefix_term_matches(tokens, needle) for needle in needles))
+    return _floor([name for name in terms if name in seen])
 
 
 def assess_risk_features(text: str, *, segments: Sequence[str] | None = None) -> RiskAssessment:

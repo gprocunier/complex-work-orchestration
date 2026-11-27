@@ -50,7 +50,7 @@ approvals and review evidence. [Threat model](references/security-threat-model.m
 python3 scripts/coach_prompt.py "<task text>"
 ```
 
-3. If routing matters, classify the work:
+3. [Classify work](references/prompt-coach.md#routing-risk). Appends cannot lower risk.
 
 ```bash
 python3 scripts/route_work.py "<task text>"
