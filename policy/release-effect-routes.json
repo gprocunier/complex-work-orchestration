@@ -66,7 +66,7 @@
 
 "N4":{"admission":{"$":2},"authority":"Base class is not an admitted launcher. Supported shipped subclass is _RegisteredServer from protected factory; arbitrary Python subclasses are external trusted code, not accepted registered factories.","effect":"Registered transport exact base refusal and supported override launch","effect_points":["vj"],"gate_limits":"The abstract _launch_process body refuses unconditionally. Subclass overrides and constructed receiver identity remain manual dispatch limits; the base-type constructor guard precedes the named construction calls.","gates":["yQ"],"limits":"Exact base has zero Popen/binary lookup; positive is the actual _RegisteredServer through N3, not an arbitrary subclass or base AppServer constructor. Do not append all subclasses.","manual_decisions":["d","f"],"ordering":"Exact base type refuses before proof/probe/home; base _launch_process also refuses. Virtual override resolves to N3 containment, never ordinary AppServer.__init__ Popen.","review_gates":["q6"],"trace_files":[{"$":115}],"witnesses":["cw","bM"]},
 
-"N5":{"admission":{"$":2},"authority":"Finite request v1 N1..3 unique workers; exact parent-injected host and original run binding; protected enabled switch, adopted full cohort, current configuration/ledger; retry verified prior lineage and aggregate ledger.","effect":"Registered pool/client/retry native launch and intent","effect_points":["er"],"gate_limits":"Host/retry admission and executor scheduling are lifecycle/callback limits. The member callback rechecks pool admission before its workflow call; this does not prove callback identity or arbitrary worker behaviour.","gates":["cW"],"limits":"Exact parent-injected protected host/original run and cohort1..3; pool+N1 before lock/intent/start, retries also repeat both and prior-lineage/aggregate. Validate-only grants no execution. Positive one fake workflow per member; sibling/lifecycle authority not inferred for arbitrary injected code. All-member preparation precedes adoption publication. Current retained state-directory checks fence durable records and successful terminal result; prior effects and full charges survive refusal. Native/profile/pool qualification remains separate.","manual_decisions":["d","f","l"],"ordering":"Host execute and member: pool+N1 before locks/intents/start. Retry run and _effect repeat both. Hostless validate-only imports no host; protected validate-only checks authority but grants no execution.","review_gates":["ig","cw","gV"],"selector":"Execute mode only for native holds; validate-only does not execute. Retry has its own repeated _effect checks and original lineage.","trace_files":[{"$":19},{"$":31},{"$":10},{"$":15}],"witnesses":["aP","aN"]},
+"N5":{"admission":{"$":1},"authority":"Finite request v1 and the exact protected original host for authority-only validation.","earlier_effects":"Bounded structural inspection and previously retained original host configuration.","effect":"Validate a finite pool request or refuse execution of the legacy serial pool.","effect_points":[],"gate_limits":"The source checks describe the refusal sequence for execute requests.","gates":[],"limits":"Finite requests retain structural validation and the original protected host still checks the exact cohort in validate-only mode. Execute requests select the legacy pool hold, then the N=1 hold, then retirement refusal before any lock, claim, write, allocation or debit.","manual_decisions":["n106-retired"],"ordering":"Select the bounded legacy request and return validation or refuse before execution effects.","review_gates":["ig","cw","n106-serial-retired"],"selector":"Legacy serial host only. The distinct ordinary contained producer is covered by N5.10 through N5.12.","trace_files":[{"$":19},{"$":72},{"$":46},{"$":270}],"witnesses":["n106-launcher-refusal","n106-host-refusal","n106-hold-order"]},
 
 "N6":{"admission":{"$":2},"authority":"v8 exact opaque VerifiedMaintenanceOperation/verifier; adapter path/bytes from capability. Legacy trust map is controller-injected path->SHA256, never plan/env/bootstrap self-assertion.","earlier_effects":"v8 operation/verifier and live-route checks precede durable claim53; claim precedes adapter-source read54 and module execution70. Verifier/state-reader/binder/adapter callouts remain trusted external programmes; legacy ancestry and exact-hash checks precede exec.","effect":"Durable one-shot maintenance claim, selected adapter compile/exec and constructed runtime builder","effect_points":["bi","co","e3"],"limits":"v8 N1/multiworker pool before claim/read/top-level marker; admitted fake marker executes and deliberately raises, no runtime-builder success claimed by it. Legacy explicit trusted registry path/hash, regular nonsymlink ancestry and exact bytes before exec. Module top level/binder precede returned-runtime type validation; no intrinsic module timeout.","manual_decisions":["o","t","A"],"ordering":"v8 require operation(unclaimed), N1 and multiworker pool before durable claim; claimed capability reads source; then compile/exec then builder/type/recovery check. Legacy registry match+regular nonsymlink ancestry+exact bytes precede exec. Gates49/52 precede durable claim53; legacy nonsymlink ancestry63 is a separate refusal before read65.","trace_files":[{"$":46}],"witnesses":["bI"]},
 
@@ -154,8 +154,6 @@
 
 "F":{"conclusion":"Final publication rechecks and original host lock identity narrow cooperative races without creating effect authority.","evidence_contracts":["P1","P2"],"external_trust_limit":"Trusted embedding supplies original issued validation/maintenance capability and separate signed consent. Directory exclusion covers cooperating publishers, not arbitrary external writers. Earlier durable intent/staged bytes or confirmed replacements survive later refusal; unresolved effects stay conservative. Host records are owner-writable evidence, not independent authentication.","reason":"Publication retains source/target descriptors and file inode marks before policy/consent/payload callouts, then recaptures revision/dirty state and marks immediately before replace. Host state writes require the original held lock descriptor/path inode at entry and before rename; collection also rechecks it.","review_evidence":"Final publication and retained-lock guards plus late-drift/lock-substitution evidence reviewed with explicit cooperating-writer limits; no additional authority inferred.","source":["bJ","is","mo","qJ"]},
 
-"G":{"conclusion":"Protected cohort preparation and current state-directory fences preserve parent adoption, prior effects and conservative accounting.","evidence_contracts":["N3","N5"],"external_trust_limit":"Original protected host/workflow/configuration and synchronous implementations are trusted. Private preparation/commit/save helpers create no standalone caller or native admission. These are serial original N1 cohorts; ledger-interleave controls do not establish concurrent native workers. No hostile-host-writer exclusion or atomic snapshot is claimed; pathname marks may change/revert between checks. Earlier intent/terminal bytes in a retired directory, validated member artifacts and full ledger charges persist after refusal.","reason":"Under original pool lock, validate every exact consent, prepare/sign all original actions without adoption mutation, validate all snapshots/current evidence, then publish prepared assignments and protected binding. Later consent/signer failure leaves the cohort unchanged. Hold/configuration/current checks still precede execution; member pool/N1 checks remain at actual workflow call. Pool directory FD and path identity are rechecked around lock, each record write and synchronization, with original primary preserved through secondary custody failures. Success observation is assigned only after terminal persistence completes. Reservation interleave/write failure/expiry retain prior reserved charge and prevent replay/dispatch; no extra runtime change was needed for that hypothesis.","review_evidence":"Actual guards, partial-adoption fault controls, directory substitution/primary preservation and conservative reservation controls reviewed; no new authority inferred.","source":["k4","pR","pS","pQ","oa","n8","ll","k3","k7","k9","k8","k5"]},
-
 "H":{"conclusion":"The registered reader accepts an optional bounded timestamp on notification envelopes and preserves it as observation metadata. The existing request and response envelopes and source holds remain in force.","evidence_contracts":["N3","N10"],"external_trust_limit":"A timestamp is app-server observation data. Authority, ordering, correlation and deadlines remain bound to the original controller and transport. Offline startup evidence stops before any model turn.","reason":"The exact notification envelope can carry emittedAtMs as a nonnegative signed-64-bit integer. Requests still require their original IDs and envelope. Responses keep their exact result or error form. The controller classifies and retains the original notification frame before handling its method. A remote-control status notification supplies no RPC permission.","review_evidence":{"$":7},"source":["z7","yi","zP"]},
 
 "M11":{"conclusion":"Omitted campaign selector keeps campaign/pool/N1 holds; explicit noncampaign constructors retain their own admission.","evidence_contracts":["N8"],"external_trust_limit":"A supplied server/callback does not grant campaign admission. Original fake-turn rows demonstrate relevant hold; no live campaign or universal generic-adapter campaign denial.","reason":"LiveThreadAdapter defaults campaign_live_route=True. Entry and post-callout checks protect start_turn. Registered N1, activation preview and maintenance constructors explicitly pass False under their own admission guards. Offline fixture constructors do so explicitly. The omission negative and open-holds positive exercise an actual fake wire. Caller-supplied flags confer no authority.","review_evidence":{"$":7},"source":["bw","cm","bZ","4"]},
@@ -182,7 +180,7 @@
 
 "c":{"conclusion":"An original refused unstarted offer may lose its private custody. Retained custody remains available for delivery.","evidence_contracts":["N12"],"external_trust_limit":"The private offer parent and verifier are trusted. Failed or ambiguous cleanup is reported; no same-account hostile writer guarantee is asserted.","reason":"The foreground handles its exact pending offer across elicitation and retention. Cleanup rechecks original directory identity and the retained approval record before removing an unstarted offer.","review_evidence":"Original foreground refusal and acceptance fixtures exercise cleanup and protected reopening; independent source review pending.","source":["d","i","b","f"]},
 
-"d":{"conclusion":"Supported registered constructor chain differs from base raw AppServer.","evidence_contracts":["N1","N3","N4","N5"],"external_trust_limit":"Only actual protected factory/receiver selection gets N3 positive. Arbitrary subclasses are external trusted code, never appended indiscriminately or admitted as registered factories.","reason":"Protected RegisteredN1Factory constructs _RegisteredServer -> RegisteredAppServer; _launch_process override uses role containment/controller/pipe backend. Exact base RegisteredAppServer refuses. Raw AppServer __init__ is not executed by registered construction.","review_evidence":{"$":7},"source":["h0","f2","eZ","a8"]},
+"d":{"conclusion":"Supported registered constructor chain differs from base raw AppServer.","evidence_contracts":["N1","N3","N4"],"external_trust_limit":"Only actual protected factory/receiver selection gets N3 positive. Arbitrary subclasses are external trusted code, never appended indiscriminately or admitted as registered factories.","reason":"Protected RegisteredN1Factory constructs _RegisteredServer -> RegisteredAppServer; _launch_process override uses role containment/controller/pipe backend. Exact base RegisteredAppServer refuses. Raw AppServer __init__ is not executed by registered construction.","review_evidence":{"$":7},"source":["h0","f2","eZ","a8"]},
 
 "e":{"conclusion":"Generic Beads and callback-forwarding boundaries remain admitted explicit programmes.","evidence_contracts":["B1","B4","B5","B8","B9","B10"],"external_trust_limit":"Caller/ambient DB/actor/argv/env remain trusted as specified; zero asserted only for named refused contract and additional write, not every process/read.","reason":"Captured/default run_bd_structured in BeadsClaimAdapter, _BEADS_CALL/production bridge and ordinary run_bd are different supported contexts. Native hold is not universal Beads authority.","review_evidence":{"$":7},"source":["a4","a2","hs","fG"]},
 
@@ -198,17 +196,21 @@
 
 "k":{"conclusion":"Owned-engine inherited alternatives remain internal under explicit selectors.","evidence_contracts":["N3","N9","X2"],"external_trust_limit":"Original-lifetime custody and one-use cleanup authority do not grant native admission, a hostile-writer boundary or descendant containment. Unsupported native/library/kernel/lifecycle cases refuse; no Popen-to-pidfd-open or PID-signal fallback. Raw low-level/private implementation callers remain trusted.","reason":"Linux controller constructs original _LinuxEngine/_LinuxBackend; shipped spawn_owned/_reserve differs from explicitly invoked inherited register_from_spawn. AtomicChild receives the original pidfd from qualified native pidfd_spawn, and registered pipe wrapper composes retained child/streams with fixed child-only bootstrap instead of inheriting Popen construction. Opaque cleanup issuance pins original controller/producer methods and original object receipt. Adapter/callback/native ABI selection remains trusted implementation code.","review_evidence":{"$":7},"source":["hT","aU","dS","hu","lR","oG","bS","bR"]},
 
-"l":{"conclusion":"The original registered task is projected completely into bounded immutable model data while original admission, reservations, custody and first failure remain authoritative.","evidence_contracts":["N3","N5","N10"],"external_trust_limit":"Only original protected registered receiver/parent consumers are covered. Pure getters, digests and serialized bindings grant no opaque authority, adoption, model execution, publication or restart. Direct N3.1-.3, inherited N5.3-.6 and registered N10.2/.5/.6/.9 consume this change; N1 raw launch, containment N3.4-.6, adoption/save/ingress, unrelated notify/guarded/raw-thread/finite-reply/denial paths gain no grant. Named untrusted/user fake-native fixtures do not qualify the distinct selected legacy workspace-write/never/network-off identity. Builtin/provider/helper context, live model work, native recovery and confidentiality remain unverified or unsupported; selected-unqualified remains.","reason":"After original receipt validation, pure projection revalidates complete typed input, exact original rendered request/execution and both original/MAX_TASK_BYTES size bounds. All prompt/wrappers/attachments/sources and command/completion/output/expected-artifact/acceptance context are copied; private operational manifests remain outside model prose. Current guards recompute exact bytes. Original request and model bytes have distinct bound digests in actual adapter boundary/control/report and protected dispatch metadata; original receipt, execution options, amounts, expiry, reservations and replay are unchanged. Exact registered receiver and method objects, factory guard and original boundary/profile/workspace checks remain before actual prompt/control checks. First action failure is retained with safe type-only later notes; original transport fault/cleanup facts remain separate. Final summary raises that first primary before success-only session capture, preserving original OutboundRefused cause, partial receipt, unknown/full charge and no artifact/token. Existing final byte scan/hold/deadline is still required, without detector/corpus/threshold exemptions. The registered failure summary passively reads the bounded original worker connection history after the first-failure check. The durable failed turn and one exact matching failed terminal notification are required. Only the allowlisted provider policy category is reported. The original failure, full charge and owned cleanup remain authoritative. The registered host paces both deferred archive closes at the control poll interval. Step exhaustion retains reconciliation and the existing eight-action cleanup bound.","review_evidence":"Accepted concrete factory/offline-host source delta, exact data/receiver/size/dual binding checks, original cleanup/provenance effect linkage, matched complete/drift/useful/sensitive-primary controls and original delivery consumer reviewed; no new authority inferred.","source":["ot","of","ox","oi","ou","ow","oq","ol","oj","oh","og","om","op","lw","ly","lp","lx","lz","lv","oe","on","bd","xV","ys","yO"]},
+"l":{"conclusion":"The original registered task is projected completely into bounded immutable model data while original admission, reservations, custody and first failure remain authoritative.","evidence_contracts":["N3","N10"],"external_trust_limit":"Only original protected registered receiver/parent consumers are covered. Pure getters, digests and serialized bindings grant no opaque authority, adoption, model execution, publication or restart. Direct N3.1-.3 and registered N10.2/.5/.6/.9 consume this change; N1 raw launch, containment N3.4-.6, adoption/save/ingress, unrelated notify/guarded/raw-thread/finite-reply/denial paths gain no grant. Named untrusted/user fake-native fixtures do not qualify the distinct selected legacy workspace-write/never/network-off identity. Builtin/provider/helper context, live model work, native recovery and confidentiality remain unverified or unsupported; selected-unqualified remains.","reason":"After original receipt validation, pure projection revalidates complete typed input, exact original rendered request/execution and both original/MAX_TASK_BYTES size bounds. All prompt/wrappers/attachments/sources and command/completion/output/expected-artifact/acceptance context are copied; private operational manifests remain outside model prose. Current guards recompute exact bytes. Original request and model bytes have distinct bound digests in actual adapter boundary/control/report and protected dispatch metadata; original receipt, execution options, amounts, expiry, reservations and replay are unchanged. Exact registered receiver and method objects, factory guard and original boundary/profile/workspace checks remain before actual prompt/control checks. First action failure is retained with safe type-only later notes; original transport fault/cleanup facts remain separate. Final summary raises that first primary before success-only session capture, preserving original OutboundRefused cause, partial receipt, unknown/full charge and no artifact/token. Existing final byte scan/hold/deadline is still required, without detector/corpus/threshold exemptions. The registered failure summary passively reads the bounded original worker connection history after the first-failure check. The durable failed turn and one exact matching failed terminal notification are required. Only the allowlisted provider policy category is reported. The original failure, full charge and owned cleanup remain authoritative. The registered host paces both deferred archive closes at the control poll interval. Step exhaustion retains reconciliation and the existing eight-action cleanup bound.","review_evidence":"Accepted concrete factory/offline-host source delta, exact data/receiver/size/dual binding checks, original cleanup/provenance effect linkage, matched complete/drift/useful/sensitive-primary controls and original delivery consumer reviewed; no new authority inferred.","source":["ot","of","ox","oi","ou","ow","oq","ol","oj","oh","og","om","op","lw","ly","lp","lx","lz","lv","oe","on","bd","xV","ys","yO"]},
 
 "m":{"conclusion":"Original adopted single-product workflow and its source switch select registered production with a configured file login.","evidence_contracts":["N3","N9","N10"],"external_trust_limit":"Original host, signers and controller configuration are trusted. Publication needs separate adoption. Raw, pool, campaign and activation holds remain. Offline fixtures grant no production provider or qualification journal credit. Finite workers receive no credentials.","reason":"Check exact signed OpenAI route/model/effort, one worker/session, original evidence and provider-only consent. Require private configured login apart from primary and qualification homes and refuse attachments before claims or intent. Acquire separate durable per-login interlock before mount. Uncertain cleanup retains it. Recheck adoption, durable intent and owned receiver before effects. One checked thread/start and turn/start use signed data and default tier. An omitted explicit production login snapshots the private installation setting after bootstrap. Missing setup prints the setup command. Invalid settings refuse after adoption and before claims.","review_evidence":{"$":7},"source":["vu","ux","uw","uv","ja","jb","jc","vt","us","jj","M","L"]},
 
 "n":{"conclusion":"App-server HTTPS443 permits chatgpt.com/api.openai.com plus auth.openai.com with credentials. Configured production login and managed pool login. Single-worker qualification allows managed login or attachment. Read-only workspace. Tools/validators lack login and broker.","evidence_contracts":["N3","N9"],"external_trust_limit":"Controller supplies qualification attachments. Codex owns login I/O. Tunnel sees names/port. Namespace enforces broker. Managed mounts need Linux/Bubblewrap writable overlays. Local TLS uses self-signed cert/public test key. Fake TLS/refresh give no live provider, token or model evidence.","reason":"Bootstrap alone inherits anonymous qualification pipe. Parent closes copy after spawn. Reject encrypted ClientHello before DNS. Scrub denials and revoke on record failure. App-server-only writable login layer, separate signed config and one rollout/archive spool. Verify mounts before release/charge. Exclusive durable lease precedes mount and survives uncertain cleanup.","review_evidence":{"$":7},"source":["x6","xS","xO","xh","yL","yV","yv","yB","zw","zJ","zK","x3","xv","xc","z8","x0","xH","yD","xG","xZ","xF","yt","qm"]},
 
+"n106-retired":{"conclusion":"The held serial pool and retry execution are retired. Legacy selection cannot enter the contained producer.","evidence_contracts":["N5"],"external_trust_limit":"The negative controls exercise installed refusals with the earlier source holds open. Structural and authority-only validation describe the selected request without spending or dispatch authority.","reason":"Exact type and bound receiver still choose the legacy host. Execute and retry run retain their ordered source hold checks before retirement refusal. Adoption and retry controller issuance refuse directly. Current receipt readers are separate. The strict historical verifier pins original source and witnesses to v1.46.0.","review_evidence":"Whole-route legacy refusals and authority-only controls. Independent review required.","source":["eM","ic","p101-host-bound","fn","n106-serial-retired","eK","k4","n106-retry-issue","n106-history"]},
+
+"n106-signed-read":{"conclusion":"The original protected owner can authenticate saved serial pool and retry observations and read incomplete state conservatively.","evidence_contracts":["N5"],"external_trust_limit":"The retained parent, signed records and original storage custody delimit this inspection. Readback does not establish new adoption, reservation, dispatch, cleanup or publication authority.","reason":"Retained protected configuration and directory locking fence signed reads. Pool intent must match the original binding. Retry also binds its identifier, member and terminal digest to the exact intent. Missing terminal never allows a new start.","review_evidence":"Signed readback, incomplete evidence, changed bindings and no-effect controls. Independent review required.","source":["n106-status","n106-retry-read","n106-retry-verify-terminal","n106-lock","oa","n106-load","n106-current"]},
+
 "o":{"conclusion":"Retain real state/read/claim/context callback alternatives at the actual nested call.","evidence_contracts":["B5","B6","N6","X3"],"external_trust_limit":"Embedding callables are trusted programmes, not source-derived safe leaves. Returned data cannot self-mint operation authority; synchronous callout may have earlier effects.","reason":"Maintenance verifier captures state_reader and claim_operation. Outer _state(...) validates the return; nested _state_reader() selects MaintenanceStateStore.read_state. Same support principle applies to live_revalidate/rebuild/adapters: known source remains internal alongside embedding programme alternatives. B6 lock2001 is ordering, with availability2002/revalidation2038 as actual checks.","review_evidence":{"$":7},"source":["hM","e7","cp","p0"]},
 
 "p":{"conclusion":"Final supported host model-context requests and finite tool replies bind and screen actual producer/frame bytes without granting authority or refunding ambiguous effects.","evidence_contracts":["N2","N10"],"external_trust_limit":"Trusted original internal callers, writer condition and original descriptors remain prerequisites. Source/fake-wire plus real anonymous-pipe controls prove only exact supported host boundaries; no live model/server-built-in/provider/helper screen, universal RPC semantics, native grant/retry/recovery, arbitrary injected Python stream boundedness or profile qualification is inferred. Earlier probe/maintenance construction is not final egress authority. Selected profile remains unqualified; confidential unsupported.","reason":"Shared prepare_json_frame captures canonical producer source, scans complete actual JSON bytes, rejects duplicate/incomplete/nonfinite/typed-different frames and binds decoded producer identity plus unchanged screened bytes. Core method/payload equality selects exact supported host model-context methods; fixed command diagnostics keep their separate unchanged wire behavior. Same-condition native writer rechecks producer/frame/deadline after callouts and before each real-pipe chunk; partial drift terminal-faults the original connection, preserving existing turn intent/reservation and no replay. Writer restoration/termination/containment secondary failures cannot replace the original controlled refusal or disclose cleanup text. Registered replies retain original locked ticket/epoch/authority checks and one-use unknown-send accounting; flush precedes final source/frame scan and physical write. Screening creates no new admission. The required original absolute reply deadline is forwarded unchanged, checked after flush/scan/descriptor/source callouts immediately before the physical write; expired replies send zero bytes and retain unknown-send without a new poll or authority cycle. Inner postbinding deadline failures preserve the original safe AppServerError timeout reason in the permanent reader latch; OutboundRefused retains only the fixed redacted outbound-frame reason. Both terminal paths preserve their original primary, terminate the same connection and prohibit later frames.","review_evidence":"Actual method/source/frame/typed JSON, per-chunk hold/deadline, partial-write fault, primary preservation and original accounting gates reviewed with matched useful/refusal controls; no new authority inferred.","source":["pX","pZ","pm","pq","pT","oz","oy","pL","O","aY","pi","pW","pp","pP","lm","pn"]},
 
-"pool101":{"conclusion":"Only the installed ordinary producer can compose a signed current cohort with original containment and callback authority.","evidence_contracts":["N3","N4","N5","N12","I5"],"external_trust_limit":"Hosted witnesses substitute disposable Beads and inert stock-wire peers. Physical containment and receipt custody remain the selected original paths. This review supports the scoped capability and leaves provider availability and other model selections outside its evidence.","reason":"The real pool request accepts bounded IDs, the current protected original host and exact bound receiver. Signed current project, database, worktree and configured login selections precede claims. One writer-held calibration and the productive run charge separate reservations within one aggregate allowance. The legacy pool, recovery, and activation selectors retain their own gates.","review_evidence":"Original foreground and hosted N=2/N=3 witnesses, plus explicit no-effect refusals. Independent review required.","source":["p101-alias","p101-wrapper","p101-foreground","p101-prepare","p101-host","p101-approval","p101-claim","p101-runtime","p101-configure","p101-source"]},
+"pool101":{"conclusion":"Only the installed ordinary producer can compose a signed current cohort with original containment and callback authority.","evidence_contracts":["N3","N4","N5","N12","I5"],"external_trust_limit":"Hosted witnesses substitute disposable Beads and inert stock-wire peers. Physical containment and receipt custody remain the selected original paths. This review supports the scoped capability and leaves provider availability and other model selections outside its evidence.","reason":"The real pool request accepts bounded IDs, the current protected original host and exact bound receiver. Signed current project, database, worktree and configured login selections precede claims. One writer-held calibration and the productive run charge separate reservations within one aggregate allowance. Legacy serial execution refuses, and recovery and activation retain their own gates.","review_evidence":"Original foreground and hosted N=2/N=3 witnesses, plus explicit no-effect refusals. Independent review required.","source":["p101-alias","p101-wrapper","p101-foreground","p101-prepare","p101-host","p101-approval","p101-claim","p101-runtime","p101-configure","p101-source"]},
 
 "pool105-source":{"conclusion":"Execution with stale factory bytes refuses before the private execution intent and Beads claims.","evidence_contracts":["N5"],"external_trust_limit":"Authority-only validation returns before the factory check. The early source check grants no later admission, login, allowance or execution authority.","reason":"The protected host checks the installed factory against the signed source digest before opening the approval directory for execution. The installed factory checks again as the contained runtime is constructed.","review_evidence":"Original hosted stale-source refusal and the matched ordinary N=2/N=3 executions. Independent review required.","source":["p101-host","p105-runtime-check","p105-factory-check","p105-factory-read","p105-factory-guard","xk"]},
 
@@ -650,7 +652,11 @@
 
 {"$":394},
 
-"tests/test_local_http_admission.py"
+"tests/test_local_http_admission.py",
+
+"scripts/verify_affected_historical_contract.py",
+
+"tests/test_registered_native_pool_retry.py"
 ],
 
 "points":{
@@ -872,8 +878,6 @@
 
 "bd":[53,"OfflineN1Host.run_registered",601,"S7yT5VAHfRV0VrO1U-4jOrIUv8Oqg3j2VoWjS84db2w"],
 
-"be":[133,"LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split",232,"tMbftq6oj2VfoQb_9dtSC6-P_SLNKobtRjIR3m5Zr5k"],
-
 "bf":[37,427,"if pre_hash != expected_pre_show_sha256:"],
 
 "bg":[44,313,"self.sock = self._context.wrap_socket(sock, server_hostname=self.host)"],
@@ -892,7 +896,7 @@
 
 "bo":[43,"run_git",435,{"$":213}],
 
-"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",340,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
+"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",329,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
 
 "bq":[122,"R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path",24,"r29AX7D4zfBY0RijwzTrLRf7zc8J_Jydc_SETcjV3gs"],
 
@@ -962,8 +966,6 @@
 
 "c9":[37,2010,"if capability._state != \"available\":"],
 
-"cA":[99,"F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control",162,"wCji2lk2sX-YQ_kGzuYXfA_7PLo2bfXP2XiO7vuQlCE"],
-
 "cB":[38,1711,"context = dict(runtime.prepare(plan))"],
 
 "cC":[42,303,{"$":13}],
@@ -995,8 +997,6 @@
 "cT":[39,128,"if (registration.pid, registration.session_id, registration.workspace) != (pid, session_id, workspace):"],
 
 "cV":[73,"main",1551,"-k8LGubnCNtPw-ecvagXUFN9pAHvTSGV_MniPBzxu5s"],
-
-"cW":[67,403,{"$":35}],
 
 "cX":[49,431,{"$":246}],
 
@@ -1040,7 +1040,7 @@
 
 "cv":[11,148,"interpreter()",11,148,24],
 
-"cw":[67,354,{"$":13}],
+"cw":[67,252,{"$":13},12,252,47],
 
 "cx":[43,2683,"if self._dirs() != self.dirs or self._bound_identity() != identity or _identity(git.path) != git.identity:"],
 
@@ -1118,7 +1118,7 @@
 
 "dc":[12,744,"atomic_write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True) + \"\\n\")"],
 
-"dd":[99,"F5NativeLiveHoldTests.test_f5_campaign_server_refuses_without_a_launch",253,"AR_oS5gNMAjDzT-KwgcTZH4fGdj6a6JCthpbwv1gVuU"],
+"dd":[99,"F5NativeLiveHoldTests.test_f5_campaign_server_refuses_without_a_launch",242,"AR_oS5gNMAjDzT-KwgcTZH4fGdj6a6JCthpbwv1gVuU"],
 
 "de":[76,1327,"if not closure_pressure[\"allowed\"]:"],
 
@@ -1160,15 +1160,13 @@
 
 "dz":[84,"AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead",103,"MYBnswC-omK0YkpQQyjF8UCypR3wztzAchvTnRi-It0"],
 
-"e":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",289,"ImgJmcgipOEerP1uxxaV2PFJ61sytk7jiv5D70RqmTo"],
+"e":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",278,"ImgJmcgipOEerP1uxxaV2PFJ61sytk7jiv5D70RqmTo"],
 
 "e0":[78,"main",173,"h-Z-awxboYnd7AtNncMiJB2KYkUDLu54RoA8onqulsw"],
 
 "e2":[49,455,"python3 \"$validator\" \"$target_dir\""],
 
 "e3":[70,114,"runtime = (builder(dict(plan)) if controller_context is None else"],
-
-"e4":[68,"ApprovedPoolRetry._effect",375,"AZowlNyOa5skHf42JO-CA-HEgVlTLu-iZ7bBHaQrbBM"],
 
 "e5":[17,"run_codex_version",49,"_UfeHFUojAiK6Wbn1L35phE6rBUWe9KU_FmHEmMG9vk"],
 
@@ -1184,11 +1182,11 @@
 
 "eC":[37,452,"result = self._run((\"update\", \"--claim\", \"--json\", \"--\", issue_id))"],
 
-"eD":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",196,"nLB-9jq7QWyk-CDvJcoVcGW8QLERi2n1tlolTfekaVk"],
+"eD":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",185,"nLB-9jq7QWyk-CDvJcoVcGW8QLERi2n1tlolTfekaVk"],
 
 "eE":[43,"trusted_git_completed",555,"rct8y2700SsiMbnuefo2TVA2CkqzAPpkX9zcz3stMrc"],
 
-"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",422,"9fef8AtKR6lN7GeQvt7jvJtitozWthzKew0c7zva1uI"],
+"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",411,"9fef8AtKR6lN7GeQvt7jvJtitozWthzKew0c7zva1uI"],
 
 "eG":[23,74,"if not database_value:"],
 
@@ -1196,7 +1194,7 @@
 
 "eJ":[2,57,"if not args.dry_run:"],
 
-"eK":[68,"ApprovedPoolRetry.run",312,"Xz8kYCpAIWULfwp5wFThNjoOUhGOg5h3e4RD_rt2d6E"],
+"eK":[68,"ApprovedPoolRetry.run",58,"-mDM11uq4M5UkLHRWsLCtie3uiAI-y-zkArYDYuQFOc"],
 
 "eL":[113,"NativePoolTransactionTests.test_horizon_refreshes_between_allocations_without_hidden_session",677,"kZXgJpsW1vUK1YZZQBIsHUHbTSooszzkoNFbwcv9cgU"],
 
@@ -1246,8 +1244,6 @@
 
 "eq":[76,1338,"relationships = validate_workgraph_plan(plan, for_creation=True)"],
 
-"er":[67,406,"workflow.run(controlled_failure=controlled)"],
-
 "es":[42,978,{"$":333}],
 
 "et":[44,"validate_local_endpoint_base_url",675,"2rgXjx8AK-aTTbPNJffbkG3kID83cYvZqVQYKPPQBvc"],
@@ -1255,8 +1251,6 @@
 "eu":[135,"ParallelUnittestTests._assert_process_method_units",70,"WjXEoK-mYWT7EnxciIajUJRoS4tU18jFHBz0TXnxqKk"],
 
 "ev":[109,"MaintenanceRuntimeTests.test_independent_product_validation_observes_real_artifact_without_closing_bead",550,"9RPZ48t8tVAI_7gkzXAyw0vHEBhvMQoilpG0tgFsTso"],
-
-"ex":[67,"RegisteredNativePoolHost._run_member",401,"nSlH2H8hkUCZtwFm3kAvozkUsnqkSTJHmcWQfaXjJXg"],
 
 "ey":[79,"main",124,"LkbXvC7jSQcxTHBkWsrvKv1r6lnbF-eDdYV4lLCPEB0"],
 
@@ -1342,7 +1336,7 @@
 
 "fh":[73,"ActivationLedgerTransport.start_thread",163,"E-htdIqfldc791xVKVx5yVS2BajZ9tSeX4310X6Pq-M"],
 
-"fi":[75,409,{"$":256}],
+"fi":[75,407,{"$":256}],
 
 "fj":[9,212,{"$":98}],
 
@@ -1352,7 +1346,7 @@
 
 "fm":[42,"_require_native_rpc",217,{"$":356}],
 
-"fn":[67,"RegisteredNativePoolHost.run",351,"Kd0H9qsOl-AKE-jD5KVtxz5L7eMuV8nCTHRSmqqqFug"],
+"fn":[67,"RegisteredNativePoolHost.run",249,"ikBqeug4KFZ3eCgLSsvDC9bfqEwHSFM9sCPYsT7UGdY"],
 
 "fp":[5,"build_brief",116,"gF2phx3RKvi1AIpKvCUXdcFRNKTREveCtduv2KXHSug"],
 
@@ -1416,7 +1410,7 @@
 
 "gN":[60,357,"return self.opener.open(req, timeout=min(timeout, remaining))"],
 
-"gO":[75,"main",549,"z1w2A6R7g7xvMQSzNFvcCnTfJulrQxsznbA4FckQHbI"],
+"gO":[75,"main",547,"z1w2A6R7g7xvMQSzNFvcCnTfJulrQxsznbA4FckQHbI"],
 
 "gQ":[44,"pinned_local_endpoint_address",709,"GiAVdU00SEa3x16aM25LXAy6PC8uEmEKIWOHmSZAgL8"],
 
@@ -1426,7 +1420,7 @@
 
 "gT":[70,95,"if descriptor != plan.get(\"runtime_adapter_sha256\"):"],
 
-"gV":[68,314,"R.live_availability.require_pool_live()"],
+"gV":[68,59,"R.live_availability.require_pool_live()",8,59,47],
 
 "gW":[74,257,{"$":35}],
 
@@ -1550,7 +1544,7 @@
 
 "hl":[41,1533,"_review(directory, json.loads(review_raw), current, digest(raw))",14,1533,78],
 
-"hm":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",271,"h-nvdzgp17NzXzHhQIOCUaU17GOZBsPQT3emm2XjfwY"],
+"hm":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",260,"h-nvdzgp17NzXzHhQIOCUaU17GOZBsPQT3emm2XjfwY"],
 
 "hn":[25,258,"spec = normalize_command_spec(value)"],
 
@@ -1636,13 +1630,13 @@
 
 "if":[51,"_LinuxEngine._capability",658,"sT7nuF1AHheWVOlYHmiZD6h3lK9MOITRCyw0jRmYRGY"],
 
-"ig":[67,353,{"$":35}],
+"ig":[67,251,{"$":35},12,251,49],
 
 "ih":[73,"_close_accepted_activation_beads",707,"gP8CWmeXva5kfs_I3WCY5Y1g4vNFQlInLy_HLyPiydE"],
 
 "ii":[11,"interpreter",37,"qMGi2RJkmYzrQmZH4qLMwO2oVt6Y1tWJz0cx4OgI24Q"],
 
-"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",299,"eP-k7Btzsny9pRcdruJK0K2tn5cJ7UeOZXUek_zEUb8"],
+"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",288,"eP-k7Btzsny9pRcdruJK0K2tn5cJ7UeOZXUek_zEUb8"],
 
 "il":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -1780,19 +1774,7 @@
 
 "k2":[25,303,"subprocess.run([shutil.which(\"bash\") or \"/usr/bin/bash\", \"-n\", str(artifact)], cwd=cwd, env=environment, text=True, capture_output=True, timeout=spec[\"timeout_seconds\"], shell=False)",19,303,201],
 
-"k3":[67,253,"workflow._commit_execution(commit)",16,253,50],
-
-"k4":[67,"RegisteredNativePoolHost.adopt_execution",231,"D5Q-Wa3bqUSIf9R2cF-7X3JZA4_RJGcOTQ-j6U1Nc2w"],
-
-"k5":[67,323,"os.fsync(directory)",8,323,27],
-
-"k6":[128,"PoolTests.test_r1_c1_host_positive_n1_n2_n3_original_workflows_and_replay",411,"C-qQMsHh8FRona1PUiyPMQGzLsuTCgSiVvBxmrm3wGY"],
-
-"k7":[67,313,"os.open(name, flags, 0o400, dir_fd=directory)",34,313,79],
-
-"k8":[67,320,"os.fsync(fd)",12,320,24],
-
-"k9":[67,316,"os.write(fd, data)",24,316,42],
+"k4":[67,"RegisteredNativePoolHost.adopt_execution",211,"hPaUZPVGKttYOR2VAZIicdfOmqVvGjyFMbgizvqDHMA"],
 
 "kA":[23,317,"run_bd(\n        show_bead_args(bead_id, include_comments=include_comments, include_dependents=include_dependents)\n    )",13,319,5],
 
@@ -1914,7 +1896,7 @@
 
 "lN":[64,1585,"super().request(*args, **kwargs)",17,1585,49],
 
-"lQ":[75,271,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,276,9],
+"lQ":[75,269,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,274,9],
 
 "lR":[22,"spawn",231,"pjxxu4_nrFIvhgOnlJOG2M_V00cX9zpaxX0lXy1NnJI"],
 
@@ -1934,7 +1916,7 @@
 
 "lc":[70,"_load_pool_request",31,"r9sMMAAKftxPbu_dXuF_CFGrA4UVmycyF52u-kN15Xs"],
 
-"ld":[75,409,"subprocess.Popen(\n            command, cwd=working_directory,\n            env=_worker_environment(start_directory, Path(temporary.name)),\n            stdout=log_file, stderr=subprocess.STDOUT, text=True,\n        )",18,413,9],
+"ld":[75,407,"subprocess.Popen(\n            command, cwd=working_directory,\n            env=_worker_environment(start_directory, Path(temporary.name)),\n            stdout=log_file, stderr=subprocess.STDOUT, text=True,\n        )",18,411,9],
 
 "le":[11,51,"subprocess.run([*command, *inventory], cwd=root, env=env,\n                            capture_output=True, text=True, check=False)",13,52,72],
 
@@ -1942,7 +1924,7 @@
 
 "legacyCampaignClaim":[74,"acquire_global_campaign_claim",310,"JaOg7azq9mITtz75iVaFcNnwGmFqGXD91zFRo9fUdsI"],
 
-"legacyCampaignClaimTest":[193,"R4GatePrecedenceTests.test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup",35,"jLEJIHTatZ542X4vF2eV1HV9oFhs5iQmXl8bY0m2Hzg"],
+"legacyCampaignClaimTest":[193,"R4GatePrecedenceTests.test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup",21,"jLEJIHTatZ542X4vF2eV1HV9oFhs5iQmXl8bY0m2Hzg"],
 
 "legacyCampaignGuard":[74,"_refuse_retired_campaign",255,"y43wurimfMfZ00fuTb3d_zgB4nK0qBmm1j7eUDVPHTU"],
 
@@ -1955,8 +1937,6 @@
 "li":[10,143,"ThreadingHTTPServer((\"127.0.0.1\", 0), Handler)",19,143,65],
 
 "lj":[56,46,"ThreadingHTTPServer((\"127.0.0.1\", args.port), partial(PagesHandler, directory=str(DOCS)))",13,46,102],
-
-"ll":[67,"RegisteredNativePoolHost._save_bound",307,"VFf-BDlPnvWD4yxxf3QjfNAAGr7ocD04WwnJUYbAjc0"],
 
 "lm":[40,68,"if _canonical(source) != self.data:"],
 
@@ -2024,7 +2004,7 @@
 
 "mJ":[59,498,"bridge([\"--db\", str(state.custody / \"EXAMPLE.db\"),\n                   \"--actor\", \"EXAMPLE-qualified-closure\", *args])",11,499,66],
 
-"mL":[75,553,"if args.workers < 1:"],
+"mL":[75,551,"if args.workers < 1:"],
 
 "mM":[78,219,"if unmet:"],
 
@@ -2108,25 +2088,73 @@
 
 "n":[184,"DelegationPreparationTests.test_prepare_builds_fresh_bounded_offer_without_signing_ops",131,"lxLMtfSHXJCAosloTrQGZw6tsEf-gkd7s5YK7y_22j0"],
 
-"n0":[133,"LauncherAuthorityTests.test_pool_request_missing_protection_refuses_before_open",105,"K-Q_pkk-bX_GAzMTxxzACVb8qTeAfkKtwGRsKEmc8Fo"],
+"n0":[133,"LauncherAuthorityTests.test_pool_request_missing_protection_refuses_before_open",104,"K-Q_pkk-bX_GAzMTxxzACVb8qTeAfkKtwGRsKEmc8Fo"],
 
 "n1":[61,218,"\"registered-app-server-launcher-required: \""],
 
+"n106-adopt-refusal":[67,212,"raise ValueError(\"registered-serial-pool-execution-retired\")",8,212,68],
+
+"n106-current":[67,"RegisteredNativePoolHost._current",182,"4vwDYRtHxNPS5jJswO2NQyNoUvszprQgcX5KdC2jEAU"],
+
+"n106-history":[208,"verify_historical_serial_pool",190,"0o3EYrf5OYJLoS4b4SIFTL9GH2DMsRBDDQSFz4WoFbk"],
+
+"n106-hold-order-body":[99,"F5NativeLiveHoldTests.test_f5_legacy_pool_holds_and_retirement_precede_effects",162,"xtoXqEVXXGjNmfYCAVNgb73Evsqwc9__2SvkvDSK4qA"],
+
+"n106-host-no-effects":[128,"PoolTests.assert_adoption_has_no_effects",87,"etPhiZU76B8EePpFQm8kOezD6tyW3nv789oa_NUnx44"],
+
+"n106-host-refusal-body":[128,"PoolTests.test_legacy_pool_execute_and_adoption_refuse_before_effects",228,"CPOM8Nzgxrl-7hUGMzkpWxCjuo6hrcZ7HJ-FX5rBj-c"],
+
+"n106-launcher-refusal-body":[133,"LauncherAuthorityTests.test_legacy_launcher_validates_original_authority_and_refuses_execution",231,"hQ98A8fC7WGw28eZhIQ-LBNfwEog7LGH_dOV0FHuQDY"],
+
+"n106-load":[67,"RegisteredNativePoolHost._load",243,"NU5tzbR0mIpMRmVgD2cmOr4ZS5RdPTRH2y99Yy8LkDk"],
+
+"n106-lock":[67,"RegisteredNativePoolHost._locked",214,"Kjj4rpcWDFjBVzFBWPy34i-zG48b081Au4wvQtkaDbY"],
+
+"n106-retry-hold-order-body":[99,"F5NativeLiveHoldTests.test_f5_legacy_retry_holds_and_retirement_precede_effects",174,"-q-xFXwNo4Ubx9QxQBPIfeExWAk5Mu6tnPaO0eN8KDQ"],
+
+"n106-retry-intent":[68,32,"host._load(name + '-intent.json')",17,32,50],
+
+"n106-retry-issue":[68,"issue_controller",15,"ZCCW28gNqln_wxEwMIZcfwl0eAk0HWXY6LVrcg9G63w"],
+
+"n106-retry-issue-refusal":[68,16,"raise ValueError(\"registered-serial-pool-retry-retired\")",4,16,60],
+
+"n106-retry-n1":[68,60,"R.live_availability.require_n1_live()",8,60,45],
+
+"n106-retry-read":[68,"observe_retry",19,"WF2S0W5w2KNNiYgc2p_bEtA7yHpKyCzIKEFaP4EFxZc"],
+
+"n106-retry-read-refusal-helper":[209,"ApprovedRetryTests._assert_refuses_unbound_records",67,"2O0iev35HfoeKeyNFA5plBmRFfTG3J-7sg7XsJNgpWM"],
+
+"n106-retry-refusal-body":[209,"ApprovedRetryTests.test_retired_retry_refuses_before_effects",15,"8Hr1bU5l9aUP69hVnlHGgZpjVvPzvAWEkJd-R9dgCJo"],
+
+"n106-retry-retired":[68,61,"raise ValueError(\"registered-serial-pool-retry-retired\")",8,61,64],
+
+"n106-retry-status-body":[209,"ApprovedRetryTests.test_signed_retry_reads_only_original_bound_records",38,"tb9pDzqq-wd6BvxMSV0ggklV_rs0LjN9TpWKAiEsUM8"],
+
+"n106-retry-terminal":[68,41,"host._load(name)",15,41,31],
+
+"n106-retry-verify-terminal":[68,"_terminal",40,"XJhPXDoQS4C1QIy7OYWC9zvorjBMwxlkPyF8KYAUjKE"],
+
+"n106-serial-retired":[67,254,"raise ValueError(\"registered-serial-pool-execution-retired\")",12,254,72],
+
+"n106-status":[67,"RegisteredNativePoolHost.status",258,"0ypEzT1XXqDtr_DqwBBLus2vYSTYqNYQB8HbspocEzA"],
+
+"n106-status-drift-body":[128,"PoolTests.test_signed_status_refuses_changed_signature_binding_and_source",271,"DLdr5VgnORIzZ2IzbMUByMTpubvDOiP5bOS2P9dwfxY"],
+
+"n106-status-helper":[128,"PoolTests.signed_record",218,"dktJqU4_Y0A-8JsaP18x4LttRjwjmP95ZZA9oaRJ0fc"],
+
+"n106-status-intent":[67,261,"self._load('intent.json')",18,261,43],
+
+"n106-status-read-body":[128,"PoolTests.test_signed_status_reads_only_original_records",250,"nD-QTfaLJEGfuLxN96hZk2C-1GT3_WNSnO2JtOzSiNo"],
+
+"n106-status-terminal":[67,265,"self._load('terminal.json')",19,265,46],
+
+"n106-validate-helper":[128,"PoolFixtureIdentityTests.test_canonical_cohort_defers_every_actual_workflow_boundary",27,"xCIp3WAljX5BGi6U6psRQZTYXyvLCKeTrjKFRIafBjk"],
+
 "n2":[51,831,"def spawn_owned(self, session_id: str, argv: list[str] | tuple[str, ...], workspace: str) -> dict[str, Any]:"],
 
-"n3":[133,"LauncherAuthorityTests.test_pool_request_path_replacement_during_read_refuses_before_submit",144,"ZN8yOW0SeDGiL3iXN0rSXBF7gDbxYmf7S7CaC7cKYLM"],
+"n3":[133,"LauncherAuthorityTests.test_pool_request_path_replacement_during_read_refuses_before_submit",143,"ZN8yOW0SeDGiL3iXN0rSXBF7gDbxYmf7S7CaC7cKYLM"],
 
 "n4":[70,"_pool_request_mark",26,"-bqgTtV97_Qz-OrTAFGOjzrkrqzOeMdzFLgeteni0vI"],
-
-"n5":[128,"PoolTests.test_expiry_between_reservations_cannot_reopen_pool_or_dispatch_sibling",301,"99S2FZhrNGMoI1HXgymUUvMMrfANyuSco9q7EtbqTSg"],
-
-"n6":[128,"PoolTests.test_second_reservation_write_failure_preserves_first_and_replay_hold",281,"yOkR2coZlMGJghMlvT2VciOMrzTlFSaZ2CEpziCKqkQ"],
-
-"n7":[128,"PoolTests.test_later_invalid_consent_preserves_entire_pool_adoption",142,"b1q9_xc8LHn8ApWaRitZcn50nmIhrYXfIreP-RVKTdo"],
-
-"n8":[67,"RegisteredNativePoolHost._bound_directory",285,"1q_Fis7A0JV7k4E2VQy_UqPuXvIyh0no-VastptprVU"],
-
-"n9":[128,"PoolTests.test_state_path_replacement_after_member_settlement_cannot_return_success",332,"FOMiWCJpZWJ74Diq--lKRNEZZssQHvvAdxusboAbWzQ"],
 
 "nA":[77,"probe_pid_reuse",1450,"1LHCR4_9085b2IUYJ7YTzLOyplwoBSnt7NTcPkhA5JI"],
 
@@ -2162,23 +2190,13 @@
 
 "nQ":[49,381,{"$":246}],
 
-"nR":[133,"LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary",49,"qPbmEimu-I5gM3TIaEJKE-BBYF6ZxwPo_r6qbgi0PT0"],
+"nR":[133,"LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary",48,"qPbmEimu-I5gM3TIaEJKE-BBYF6ZxwPo_r6qbgi0PT0"],
 
-"nS":[128,"PoolTests.test_competing_reservation_between_members_retains_both_original_charges",246,"KT622w9Y4fet_qAO7YVgrkDVC1h2GVko81P1vCoxE4Y"],
+"nX":[133,"LauncherAuthorityTests.test_pool_request_fifo_refuses_without_waiting_for_a_writer",119,"rUhzofby4-L6P-QVwVF4mbAVGr9xLLgbjEpvdqfV_SQ"],
 
-"nT":[128,"PoolTests.test_later_signer_failure_preserves_entire_pool_adoption",164,"J0zcYVkKMH6etQCf0xjNxh1HaIuBUcEN0FiQRKkktsQ"],
+"nY":[133,"LauncherAuthorityTests.test_pool_request_growth_during_read_refuses_before_submit",81,"h9-WZOPMpOOAjAmQQIjsLGjgp3mO_ClXRUH4H3Xz6YE"],
 
-"nU":[128,"PoolTests.assert_adoption_has_no_effects",133,"etPhiZU76B8EePpFQm8kOezD6tyW3nv789oa_NUnx44"],
-
-"nV":[128,"PoolTests.assert_partial_reservation_is_held",228,"b2swoTeOOW01gzffAcgAhVmicCs5HhYd3PlCAL-4HdI"],
-
-"nW":[128,"PoolTests.test_state_path_guard_failure_preserves_original_write_error",380,"U-NlnLNWcdhxUxMvc-dVpHRJfKf9U-tY4AMEtcPg2YM"],
-
-"nX":[133,"LauncherAuthorityTests.test_pool_request_fifo_refuses_without_waiting_for_a_writer",120,"rUhzofby4-L6P-QVwVF4mbAVGr9xLLgbjEpvdqfV_SQ"],
-
-"nY":[133,"LauncherAuthorityTests.test_pool_request_growth_during_read_refuses_before_submit",82,"h9-WZOPMpOOAjAmQQIjsLGjgp3mO_ClXRUH4H3Xz6YE"],
-
-"nZ":[133,"LauncherAuthorityTests.test_pool_request_malformed_utf8_and_deep_json_refuse_before_submit",131,"JnxD2LgHyGLae3pVv1tA5pyaOjdFkobQ2kIivCm5OmQ"],
+"nZ":[133,"LauncherAuthorityTests.test_pool_request_malformed_utf8_and_deep_json_refuse_before_submit",130,"JnxD2LgHyGLae3pVv1tA5pyaOjdFkobQ2kIivCm5OmQ"],
 
 "na":[137,"PrivatePidReuseContractTests.test_private_helper_stable_field_substitution_refuses",214,"li73WwWn4Op_DZgmTugKPC3x7rJsGexEo7no6xvp9hQ"],
 
@@ -2300,11 +2318,7 @@
 
 "oZ":[102,"HostAcceptanceTests.test_delivery_join_requires_original_source_and_each_exact_digest",46,"5g9gv_FPyDxquF4c9uJaNE3HaFCK7p6KrYEOFbaJu9g"],
 
-"oa":[67,"RegisteredNativePoolHost._require_directory",278,"4G6QZ71lya9EHgDfEitBkUoHArePl81fNdzX2gsc-fo"],
-
-"ob":[128,"PoolTests.assert_substituted_pool_is_held",312,"UaZHwRf5yNEaRNeaXhVPBwdt-I8nHYYyLjtgnoSw7rM"],
-
-"oc":[128,"PoolTests.test_state_path_replacement_during_terminal_sync_cannot_return_success",358,"FZaFwXUZMFiI13G5wmXs9VgWuOVTkE1zvfSKpDfO9fo"],
+"oa":[67,"RegisteredNativePoolHost._require_directory",236,"4G6QZ71lya9EHgDfEitBkUoHArePl81fNdzX2gsc-fo"],
 
 "od":[117,"PrivatePidCIApplicabilityTests.test_original_watchdog_exit_reap_and_error_free_close_reports_are_required",489,"1lpv_KmvdH27h5SAJqZOuTgvdvBSjDktRxnBYJX8ZyE"],
 
@@ -2518,37 +2532,37 @@
 
 "pool101-interlock-body":[156,"PoolWorkerContainmentTests.test_production_uncertain_cleanup_keeps_the_original_n1_lease",393,"3znHXWRafYv28xAzl2Lq90d0oKBRR4q04VjvbFWc6kg"],
 
-"pool101-login-body":[201,"HostedOrdinaryPoolTests.test_missing_or_changed_configured_logins_precede_productive_effects",503,"TxuxWrs4WDwd5Wa5yi365ZXcsL2AbcpyiXWylHG7nXs"],
+"pool101-login-body":[201,"HostedOrdinaryPoolTests.test_missing_or_changed_configured_logins_precede_productive_effects",506,"TxuxWrs4WDwd5Wa5yi365ZXcsL2AbcpyiXWylHG7nXs"],
 
 "pool101-login-positive-body":[156,"PoolWorkerContainmentTests.test_production_login_round_trip",405,"OVEV-aC9ExA6PY_GMjvpBf47_rbQ-8Hvb_VTRbL8hJs"],
 
 "pool101-login-positive-support-0":[156,"PoolWorkerContainmentTests._assert_login_round_trip",409,"y58Z9rqWv-LG7lv1IvenzmDvBVvMNtT9c_SodSWeXSg"],
 
-"pool101-login-support-0":[201,"HostedOrdinaryPoolTests._assert_no_effects",522,"wC7encZc1InQigIH9BIH5VIfvYu80MxiaUIXh5iU_iY"],
+"pool101-login-support-0":[201,"HostedOrdinaryPoolTests._assert_no_effects",525,"wC7encZc1InQigIH9BIH5VIfvYu80MxiaUIXh5iU_iY"],
 
-"pool101-mismatch-body":[201,"HostedOrdinaryPoolTests.test_substituted_host_and_held_generic_route_are_refused",490,"iSccbi_26l7RX2d1IgkyQRahAmrHFHOpvoP9Pbe_sLs"],
+"pool101-mismatch-body":[201,"HostedOrdinaryPoolTests.test_substituted_host_and_held_generic_route_are_refused",490,"D2jCxJORJhii9ojv8L86i77OsRXPfKXrphlCFjn7waY"],
 
-"pool101-mismatch-support-0":[201,"HostedOrdinaryPoolTests._assert_no_effects",522,"wC7encZc1InQigIH9BIH5VIfvYu80MxiaUIXh5iU_iY"],
+"pool101-mismatch-support-0":[201,"HostedOrdinaryPoolTests._assert_no_effects",525,"wC7encZc1InQigIH9BIH5VIfvYu80MxiaUIXh5iU_iY"],
 
 "pool101-n2-body":[201,"HostedOrdinaryPoolTests.test_signed_n2_settles_exact_writes_and_shared_accounting",215,"c2fZsizdfJgMrwU8Ufa0CZCKkoo6IAJKw9WkD1e8PKc"],
 
 "pool101-n2-support-0":[201,"HostedOrdinaryPoolTests._exercise_cohort",221,"cHP5RuGDv3J5sbEqrN5YiDOnYoY33XKn94VyMRD_oxc"],
 
-"pool101-n2-support-1":[201,"HostedOrdinaryPoolTests._assert_settled",533,"7LfFLEjnIqHbHeNBDWNThFIUDVfHA6FfiRAeTLNzWC0"],
+"pool101-n2-support-1":[201,"HostedOrdinaryPoolTests._assert_settled",536,"7LfFLEjnIqHbHeNBDWNThFIUDVfHA6FfiRAeTLNzWC0"],
 
-"pool101-n2-support-2":[201,"HostedOrdinaryPoolTests._assert_login_and_writer_receipts",567,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
+"pool101-n2-support-2":[201,"HostedOrdinaryPoolTests._assert_login_and_writer_receipts",570,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
 
-"pool101-n2-support-3":[201,"HostedOrdinaryPoolTests._assert_writer_release_order",582,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
+"pool101-n2-support-3":[201,"HostedOrdinaryPoolTests._assert_writer_release_order",585,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
 
 "pool101-n3-body":[201,"HostedOrdinaryPoolTests.test_signed_n3_settles_exact_writes_and_shared_accounting",218,"9Ho3kLqnoESysEvhYRS2Xg2f8i30HY25UovB3W3D8YA"],
 
 "pool101-n3-support-0":[201,"HostedOrdinaryPoolTests._exercise_cohort",221,"cHP5RuGDv3J5sbEqrN5YiDOnYoY33XKn94VyMRD_oxc"],
 
-"pool101-n3-support-1":[201,"HostedOrdinaryPoolTests._assert_settled",533,"7LfFLEjnIqHbHeNBDWNThFIUDVfHA6FfiRAeTLNzWC0"],
+"pool101-n3-support-1":[201,"HostedOrdinaryPoolTests._assert_settled",536,"7LfFLEjnIqHbHeNBDWNThFIUDVfHA6FfiRAeTLNzWC0"],
 
-"pool101-n3-support-2":[201,"HostedOrdinaryPoolTests._assert_login_and_writer_receipts",567,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
+"pool101-n3-support-2":[201,"HostedOrdinaryPoolTests._assert_login_and_writer_receipts",570,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
 
-"pool101-n3-support-3":[201,"HostedOrdinaryPoolTests._assert_writer_release_order",582,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
+"pool101-n3-support-3":[201,"HostedOrdinaryPoolTests._assert_writer_release_order",585,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
 
 "pool101-peer-body":[201,"HostedOrdinaryPoolTests.test_writer_gate_refusal_retains_peer_output_and_full_charge",229,"CzocHR7h_70imXKUp0Xo7vXA4vSCfcnLhfVbE_NqIbU"],
 
@@ -2558,7 +2572,7 @@
 
 "pool101-scope-body":[201,"HostedOrdinaryPoolTests.test_validate_only_and_signed_scope_refusals_precede_productive_effects",267,"pOK5VQXN6mdemF8wWhBFzsxdZz6_asNXajQtnJ_aA1Q"],
 
-"pool101-scope-support-0":[201,"HostedOrdinaryPoolTests._assert_no_effects",522,"wC7encZc1InQigIH9BIH5VIfvYu80MxiaUIXh5iU_iY"],
+"pool101-scope-support-0":[201,"HostedOrdinaryPoolTests._assert_no_effects",525,"wC7encZc1InQigIH9BIH5VIfvYu80MxiaUIXh5iU_iY"],
 
 "pool105-durable-context-body":[201,"HostedOrdinaryPoolTests.test_calibration_waits_for_owned_durable_context",378,"jkE9Jv7fk5RG7G36AAZRouE9HtN0yZ2xtj-lwEYQBZY"],
 
@@ -3692,8 +3706,6 @@
 "XR374":[["PoolConfiguration.__init__: ",85],2,null],
 
 "XR375":[[131,"request: ",85],2,null],
-
-"XR376":[[131,"primary_exception: ",3],2,null],
 
 "XR377":[[86,"Selects build_transaction_runtime from the just compiled/executed external adapter; N6.1 covers selected module execution, but arbitrary builder code remains manual programme scope, not certified safe."],2,"N6.1"],
 
@@ -5245,11 +5257,9 @@
 
 [66,2621,22,2621,99,"browser","KoHYQ-S_GWNvLSOJmeTLuFRk4W-tsneY42M9zv9Iijk",[{"$":9},"G"]],
 
-[68,126,27,126,56,{"$":3},"Bf5YRTux5v119JuBFIN1QHLGBWmcxE2yTWvRoc2dFE8",[{"$":9},"XR374"]],
+[68,112,27,112,56,{"$":3},"Bf5YRTux5v119JuBFIN1QHLGBWmcxE2yTWvRoc2dFE8",[{"$":9},"XR374"]],
 
-[68,208,25,208,61,{"$":3},"SCvoraezWaK2GCaXGRRrGjG5yPJglr1Qc-K-fsZnoTI",[{"$":9},"XR375"]],
-
-[68,442,18,442,58,"dynamic","H_DRsSJrx-53P89JnftCvC2GWe_RS4cdmBAz22awweM",[{"$":9},"XR376"]],
+[68,188,25,188,61,{"$":3},"SCvoraezWaK2GCaXGRRrGjG5yPJglr1Qc-K-fsZnoTI",[{"$":9},"XR375"]],
 
 [85,552,23,552,65,"browser","nEhNbuH-IlrkTRYfsQkZIFHIFQe3lQ_IEOWI5zgkzE0",["route","N3.15","zE"]],
 
@@ -5343,9 +5353,9 @@
 
 [71,667,41,667,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
 
-[72,271,17,276,9,"process","lAX-zUK4AIVcn4IZaYm5ZV1TlDefknrp6hLUmaf_vGc",["route","X6.4","lQ"]],
+[72,269,17,274,9,"process","lAX-zUK4AIVcn4IZaYm5ZV1TlDefknrp6hLUmaf_vGc",["route","X6.4","lQ"]],
 
-[72,409,18,413,9,"process","oXS_ERA9oU90iYO6ZIAy5BxbDI_UKRezBbSFPe169mo",["route","X6.4","ld"]],
+[72,407,18,411,9,"process","oXS_ERA9oU90iYO6ZIAy5BxbDI_UKRezBbSFPe169mo",["route","X6.4","ld"]],
 
 [73,1213,8,1217,9,"beads","kWsGB2edrugNRfu-CSihGM1sK4fqLY_2kHClBhXQidI",["route","B1.1","x"]],
 
@@ -5399,7 +5409,7 @@
 
 [78,2574,7,2574,35,"dynamic","ZqM55jIrdP6oEzt1vtV5EwWp002RB0IRK6c5CjHFxPc",[{"$":9},"XR416"]],
 
-[79,389,14,389,47,"dynamic","jq8fhK7bfZhEkYv-3Y2x1pyCoEK_70USv5dO-j-XVNU",[{"$":9},"XR417"]],
+[79,412,14,412,47,"dynamic","jq8fhK7bfZhEkYv-3Y2x1pyCoEK_70USv5dO-j-XVNU",[{"$":9},"XR417"]],
 
 [67,157,14,157,108,"process","hJmlINBB3jI2ihcAeX-6TuxmARXYQzh6QJoa9GVpjd0",["route","N12.3","p101-catalog"]],
 
@@ -5680,17 +5690,17 @@
 
 {"admission":{"$":4},"authority":"Original contained runtime and exact worker ownership under the signed ordinary cohort, current scope and protected source decision.","contract":"N4","earlier_effects":"Protected host has validated the selected authority and claimed the exact roster. Verify the original runtime and reserve the selected phase.","effect":"Stock thread start/control over owned stdio","effect_points":["zp","zz","zy","zU"],"entrypoint":"xk","gate_limits":"Review original runtime and callback identity.","gates":[],"id":"N4.3","limits":"Retain partial receipts. Owned connection guards model/profile/input. Pin default in config/start/readback/turn with fast_mode unset. Only original authorization releases writer. Owned empty rollout or absent context waits to signed deadline. Conflicts/terminal refuse.","manual_decisions":["j","a","pool101"],"ordering":"Check selected source, current authority and exact process/pipe ownership. The writer-held calibration records original callbacks and durable contexts before interrupt and archive. Productive control uses the original same-selection capability, startup, turn and callback bindings.","review_gates":[],"trace_files":[{"$":374},{"$":373},{"$":371},"scripts/cwo_core/native_pool_deferred_attestation.py","scripts/registered_pool_qualification_capability.py",{"$":386},{"$":45},{"$":385},"scripts/registered_contained_pool_host.py","scripts/registered_pool_ordinary_runtime.py"],"witnesses":["D","J","pool105-durable-context","pool101-n2","pool101-n3","pool101-peer"]},
 
-{"contract":"N5","entrypoint":"eM","id":"N5.1","manual_decisions":["d","f"],"selector":"These retained effects correspond to the exact legacy serial host. N5.10 through N5.12 cover the distinct ordinary contained producer using the same bounded launcher and client.","trace_files":[{"$":19},{"$":31},{"$":46},"scripts/everyday_pool_delegation.py","scripts/registered_contained_pool_host.py"]},
+{"contract":"N5","entrypoint":"eM","id":"N5.1","ordering":"Read and structurally validate the bounded request, reject caller-selected journal/output and delegate to the exact client. The launcher reports the legacy retirement refusal."},
 
-{"contract":"N5","entrypoint":"ic","id":"N5.2","manual_decisions":["d","f"],"selector":"These retained effects correspond to the exact legacy serial host. N5.10 through N5.12 cover the distinct ordinary contained producer using the same bounded launcher and client.","trace_files":[{"$":72},{"$":19},{"$":31},"scripts/everyday_pool_delegation.py","scripts/registered_contained_pool_host.py"]},
+{"contract":"N5","entrypoint":"ic","id":"N5.2","ordering":"Check structure, exact original host type and bound receiver. The legacy receiver validates authority or refuses execution without selecting a contained receiver.","review_gates":["p101-host-bound","ig","cw","n106-serial-retired"]},
 
-{"contract":"N5","entrypoint":"fn","id":"N5.3","witnesses":["aP","aN","wW","wX","wV","wZ","wh"]},
+{"contract":"N5","entrypoint":"fn","id":"N5.3","ordering":"Execute requests check the legacy pool and N=1 source holds, then check structure and refuse retired execution. Validate-only checks the original protected cohort and returns zero model calls and no dispatch authority.","trace_files":[{"$":19},{"$":270},{"$":36}],"witnesses":["n106-host-refusal","n106-hold-order"]},
 
-{"contract":"N5","entrypoint":"ex","id":"N5.4"},
+{"authority":"Retired serial retry controller entrypoint.","contract":"N5","earlier_effects":"A trusted caller may already hold original parent arguments.","effect":"Refuse issuance of a serial retry controller.","entrypoint":"n106-retry-issue","gate_limits":"The retirement statement is bound for inspection.","id":"N5.4","limits":"The public compatibility entry refuses before consulting a parent, preparing a controller, signing a retry or creating state.","manual_decisions":["n106-retired"],"ordering":"Refuse immediately before using the arguments.","review_gates":["n106-retry-issue-refusal"],"selector":"Legacy serial retry issuance.","trace_files":[{"$":31}],"witnesses":["n106-retry-refusal"]},
 
-{"contract":"N5","entrypoint":"eK","id":"N5.5"},
+{"authority":"Retired serial retry execution entrypoint.","contract":"N5","earlier_effects":"The caller may retain an earlier selected legacy retry.","effect":"Refuse serial retry execution.","entrypoint":"eK","gate_limits":"The source checks describe the refusal sequence at the former runner.","id":"N5.5","limits":"The former runner checks the legacy pool and N=1 holds, then refuses before reading retry state, writing or changing ledger charges.","ordering":"Check the legacy pool hold, the N=1 hold and the final retirement refusal in that order.","review_gates":["gV","n106-retry-n1","n106-retry-retired"],"selector":"Legacy serial retry run. Signed retry observations have a separate reader.","trace_files":[{"$":31},{"$":270}],"witnesses":["n106-retry-refusal","n106-retry-hold-order"]},
 
-{"contract":"N5","entrypoint":"e4","id":"N5.6"},
+{"authority":"Exact original protected serial host and bounded retry identifier, with the old signed records and retained host configuration.","contract":"N5","earlier_effects":"Verify original host methods and retain its directory under the existing lock.","effect":"Read signed serial retry intent and terminal observations.","effect_points":["n106-retry-intent","n106-retry-terminal"],"entrypoint":"n106-retry-read","gate_limits":"Signature, intent binding and directory checks are manually reviewed with the retained reader.","id":"N5.6","limits":"Missing intent or terminal returns unknown with redispatch disabled. A changed signed pool binding, retry identity, worker identity or intent digest refuses. Reads confer no new execution or recovery authority.","manual_decisions":["n106-signed-read"],"ordering":"Check exact original methods and bounded identifier before locking. Authenticate intent before comparing its original binding, then authenticate the matching terminal before returning.","review_gates":[],"selector":"Read-only compatibility for original serial retry observations.","trace_files":[{"$":31},{"$":19},{"$":36},{"$":15}],"witnesses":["n106-retry-status"]},
 
 {"contract":"N6","entrypoint":"vW","gate_limits":"Ordinary finite adapters use the sibling registry/hash branch; maintenance uses a claimed capability and its verified source. Those branch-specific checks do not dominate the earlier durable claim; their selection and source identity remain manual limits.","gates":["hR","hi","ej"],"id":"N6.1","review_gates":["gT","dX","c3"]},
 
@@ -5872,11 +5882,11 @@
 
 {"admission":{"$":4},"contract":"N13","effect":"Fixed private driver/watchdog/namespace setup, SCM pidfd handoff, private capability/cursor controls and stale/fresh lifetime exercise","effect_points":["kt","kI","kr","ks","py","pr","kq","kU","kE","kV","kW","pF","kF","kG","kH","kT","ln","lo"],"entrypoint":"dv","id":"N13.6","limits":"Fixed private diagnostic: original watchdog/parent, self-pidfd, stable helper, private proc/PID-owner guards precede promotion/release/cursor write. Quarantine/original3s/20s remain; refused refs only close, only original watchdog signals before verification; verified namespace cleanup independent. Separate primitive/selected scopes, stale refusal, outside-reap uncertainty, exact held E/P, zero child caps and unchanged host policy remain. No native/model/artifact/global-setting/profile authority. Test-only exact source/security/boundary/cleanup-proven cursor WRITE EPERM makes two primitive positives visibly unperformed, never useful success or selected credit. Unknown/type/source/cap/death/identity/cleanup faults fail; supported positives required. Channels remain local socketpair/inherited fd, not external endpoints. Original watchdog exit/reap and explicit error-free close remain required; a retired receipt alone is never cleanup proof.","manual_decisions":["E","M28"],"ordering":"Owned temporary preparation; atomic watchdog/parent-death bootstrap, single fixed bwrap and direct Python driver; private PID1/proc checks and post-exec SIGKILL rearm before quarantined handoff and independent parent bwrap/driver executable/stable-birth/private-proc and kernel PID-owning-userns gate and retained original-parent observation before exact-handle promotion/release; clear driver inheritance; original exit/external reap; private cursor; exact reused sentinel; stale refusal and fresh-handle cleanup; terminate/release original retained owners. Before original watchdog retirement, passively wait its retained birth within the once-established absolute20s residual budget, then require original exit/reap and error-free close; no signal/observation step restarts the admitted deadline.","trace_files":[{"$":74},{"$":17},{"$":16}],"witnesses":["wN","wQ","wG","wO","wS","wM","wR","wP","wJ","wH","wK","pC","wE","wI","wF","wL","wD","wY"]},
 
-{"admission":{"$":4},"authority":"Explicit trusted parent, exact protected original pool/workflows/configuration and disclosure consent; preparation creates no operation or dispatch authority.","contract":"N5","effect":"Protected cohort adoption assignments after whole-cohort preparation","effect_points":["k3"],"entrypoint":"k4","gates":[],"id":"N5.7","limits":"Trusted original parent host only. Exact consent/current action/signature and every member snapshot validate before prepared assignment publication. This stage neither claims operations, spends budget, launches children nor creates accepted output/native admission; arbitrary helper callers/async transaction guarantees are not established.","manual_decisions":["G"],"ordering":"Original current pool lock; every consent, all current actions/signatures/snapshots; prepared member assignments then protected binding. No child, claim or budget effect.","review_gates":[],"selector":"Trusted parent adoption only; public caller JSON cannot perform it.","trace_files":[{"$":19},{"$":36}],"witnesses":["wW"]},
+{"authority":"Retired serial pool adoption entrypoint.","contract":"N5","earlier_effects":"A trusted parent may already hold original configuration and disclosure arguments.","effect":"Refuse adoption of a serial pool execution.","entrypoint":"k4","gate_limits":"The retirement statement is bound for inspection.","id":"N5.7","limits":"Old consent and parent configuration cannot create serial adoption, reservations, claims or model calls.","ordering":"Refuse before consulting consent or changing any protected state.","review_gates":["n106-adopt-refusal"],"selector":"Legacy serial adoption. Original N=1 adoption retains its separate authority.","trace_files":[{"$":19}],"witnesses":["n106-host-refusal"]},
 
-{"admission":{"$":4},"authority":"Original protected host/run/retained directory and selected record body; the private saver creates no standalone native authority.","contract":"N5","effect":"Original pool intent/terminal records under retained directory custody","effect_points":["k7","k9","k8","k5"],"entrypoint":"ll","gates":[],"id":"N5.8","limits":"Trusted original run/lock and bounded protected cohort select record body/name. Exact descriptor/path identity is repeated around actual writes/sync; final success is withheld after substituted state paths. Earlier ledger charges, valid artifacts and retired-directory bytes remain, with primary failures preserved. No independent native dispatch, arbitrary-writer exclusion or rollback authority.","manual_decisions":["G"],"ordering":"Directory custody before record callouts, open, each write, file/directory sync and final return; preserve primary on secondary recheck failure; publish success observation only after save.","review_gates":[],"selector":"Original protected intent/terminal record paths, not caller-selected runtime work.","trace_files":[{"$":19},{"$":36}],"witnesses":["wX","wV"]},
+{"authority":"Original protected serial host configuration and its signed pool records.","contract":"N5","earlier_effects":"Revalidate original configuration, verify directory custody and take the existing lock.","effect":"Read signed original serial pool intent and terminal observations.","effect_points":["n106-status-intent","n106-status-terminal"],"entrypoint":"n106-status","gate_limits":"Signature, intent binding and directory checks are manually reviewed with the retained reader.","id":"N5.8","limits":"Missing terminal requires reconciliation and forbids redispatch. A changed original binding or invalid signature refuses. Saved terminal observations confer no new execution, release or publication authority.","manual_decisions":["n106-signed-read"],"ordering":"Revalidate the original configuration, retain and lock its directory, authenticate intent and compare the complete original binding, then authenticate and read any terminal record.","review_gates":[],"selector":"Read-only compatibility for saved original serial pool observations.","trace_files":[{"$":19},{"$":36},{"$":15}],"witnesses":["n106-status-read","n106-status-drift"]},
 
-{"admission":{"$":1},"authority":"Caller-owned request data only; protected registered host authority is independently required by later submit.","contract":"N5","effect":"Finite caller request file read and JSON data only","effect_points":["la","lb"],"entrypoint":"lc","gates":[],"id":"N5.9","limits":"Read-only caller ingress precedes authority checks by design. O_NOFOLLOW/O_NONBLOCK, regular-file/size and final FD/path marks bound the read; result is only one JSON object. Structural validate-only remains nonspending; execute still needs the original protected host/full current cohort and that host's independent source decision. No claim, import-selected adapter, model or accepted artifact authority.","manual_decisions":["M30"],"ordering":"Required platform guards before nonblocking nofollow open; regular FD/size and bounded read; final FD/path marks before decode/structure/submit. No host authority is validated here.","review_gates":[],"selector":"Actual pool-request ingress, for structural validate-only or later original-host execution.","trace_files":[{"$":46},{"$":72},"scripts/everyday_pool_delegation.py"],"witnesses":["wU"]},
+{"admission":{"$":1},"authority":"Caller-owned request data only; protected registered host authority is independently required by later submit.","contract":"N5","earlier_effects":"Read-only caller ingress precedes authority checks by design. O_NOFOLLOW/O_NONBLOCK, regular-file/size and final FD/path marks bound the read; result is only one JSON object. Structural validate-only remains nonspending; execute still needs the original protected host/full current cohort and that host's independent source decision. No claim, import-selected adapter, model or accepted artifact authority.","effect":"Finite caller request file read and JSON data only","effect_points":["la","lb"],"entrypoint":"lc","gate_limits":"The bounded data read precedes submission. Host authority and effect checks belong to the selected original receiver.","gates":[],"id":"N5.9","limits":"Read-only caller ingress precedes authority checks by design. O_NOFOLLOW/O_NONBLOCK, regular-file/size and final FD/path marks bound the read; result is only one JSON object. Structural validate-only remains nonspending; execute still needs the original protected host/full current cohort and that host's independent source decision. No claim, import-selected adapter, model or accepted artifact authority.","manual_decisions":["M30"],"ordering":"Required platform guards before nonblocking nofollow open; regular FD/size and bounded read; final FD/path marks before decode/structure/submit. No host authority is validated here.","review_gates":[],"selector":"Actual pool-request ingress, for structural validate-only or later original-host execution.","trace_files":[{"$":46},{"$":72},"scripts/everyday_pool_delegation.py"],"witnesses":["wU"]},
 
 {"authority":"Verified production registration, exact task and captured setup-selected database.","contract":"B10","effect":"Closure prerequisite inspection through the captured original Beads adapter","effect_points":["l3","vp"],"entrypoint":"oW","id":"B10.6","limits":"Two complete typed dep-list reads: blocks/down and parent-child/up. Optional show fields and counts cannot establish absence. No graph mutation is selected; the trusted bd executable may still perform its own migration/network effects. Every read retains original adapter, source flag, acceptance and database checks. Open ordinary dependents and the task parent are not these edges.","ordering":"Query authoritative blocker and child states at task verification before writes and again before close.","trace_files":[{"$":70},{"$":21},{"$":377}],"witnesses":["aB"]},
 
@@ -5928,11 +5938,11 @@
 
 {"admission":{"$":4},"authority":"Operator selects two or three existing private configured Codex worker login homes through setup_delegation.py.","contract":"I5","earlier_effects":"Inspect canonical directories and private login file metadata with the same production WorkerLoginMount checks.","effect":"Store the protected ordinary pool login roster","effect_points":["p101-roster","p101-roster-write"],"entrypoint":"p101-configure","gate_chains":[],"gates":[],"id":"I5.3","limits":"The explicit pool setup branch writes its own configuration file. Existing single-worker setup, actual sign-in and account use have their own boundaries. The hosted witness exercises original roster consumption and drift refusal.","manual_decisions":["pool101"],"ordering":"Require the configured homes to be distinct and pairwise disjoint before writing the protected roster.","review_gates":[],"trace_files":[{"$":391},{"$":394},{"$":328},"scripts/registered_contained_pool_host.py"],"witnesses":["pool101-login","pool101-n2"]},
 
-{"admission":{"$":4},"authority":"Exact installed alias, IDs-only payload and current protected project and database approval.","contract":"N5","earlier_effects":"Bounded nonblocking regular-file read, structural validation and verification of the controller-signed exact roster.","effect":"Submit the installed contained-pool command through the original protected host","effect_points":["p101-submit"],"entrypoint":"p101-wrapper","gate_chains":[],"gate_limits":"The actual receiver equality is visible at the client. Hosted witnesses check that selection reaches the normal alias; authority verification in the retained host remains manually reviewed.","gates":[],"id":"N5.10","limits":"A caller request selects pool and worker IDs only. Generic serial, maintenance and campaign routes retain their existing source decisions.","manual_decisions":["pool101"],"ordering":"Open the original protected host from this project. Use the existing pool request main and exact bound receiver. Validate-only returns without starting a claim or model operation. A settled refused execution reports status 2.","review_gates":["p101-host-bound"],"trace_files":[{"$":400},"scripts/everyday_pool_delegation.py",{"$":46},{"$":72},"scripts/registered_contained_pool_host.py",{"$":270}],"witnesses":["pool101-raw","pool101-mismatch","pool101-scope","pool101-n2","pool101-n3"]},
+{"admission":{"$":4},"authority":"Exact installed alias, IDs-only payload and current protected project and database approval.","contract":"N5","earlier_effects":"Bounded nonblocking regular-file read, structural validation and verification of the controller-signed exact roster.","effect":"Submit the installed contained-pool command through the original protected host","effect_points":["p101-submit"],"entrypoint":"p101-wrapper","gate_chains":[],"gate_limits":"The actual receiver equality is visible at the client. Hosted witnesses check that selection reaches the normal alias; authority verification in the retained host remains manually reviewed.","gates":[],"id":"N5.10","limits":"A caller request selects pool and worker IDs only. The legacy serial host refuses execution. Maintenance and campaign routes retain their separate source decisions.","manual_decisions":["pool101"],"ordering":"Open the original protected host from this project. Use the existing pool request main and exact bound receiver. Validate-only returns without starting a claim or model operation. A settled refused execution reports status 2.","review_gates":["p101-host-bound"],"selector":"Contained execution only through the exact original protected receiver. Validate-only has no execution effect.","trace_files":[{"$":400},"scripts/everyday_pool_delegation.py",{"$":46},{"$":72},"scripts/registered_contained_pool_host.py",{"$":270}],"witnesses":["pool101-raw","pool101-mismatch","pool101-scope","pool101-n2","pool101-n3"]},
 
 {"admission":{"$":4},"authority":"Current signed project and database binding, exact ordered selected workers, fresh original ready-set evidence and original adapter.","contract":"N5","earlier_effects":"Verify current login roster, clean bound worktrees and output scope, exact requested model and finite allowance.","effect":"Record the ordinary execution intent and claim the exact approved Beads cohort","effect_points":["p101-execution-intent","p101-claim-effect","p101-claim-reserve","p101-claim-receipt"],"entrypoint":"p101-host","gate_chains":[],"gate_limits":"The read-only branch returns before the factory check and private execution intent. The executing host calls the original factory source validator before claims. Original Beads ownership and signed checks cross helper calls and are traced manually.","gates":[],"id":"N5.11","limits":"Existing B5.1 and B6.1 establish exact pre-show, claim ownership and partial-claim handling. Validate-only, stale factory source and invalid or changed scope perform no productive effects. A private execution intent fences replays.","manual_decisions":["pool101","pool105-source"],"ordering":"Check readiness, proportionality, packet hashes and budget. Revalidate the installed factory source against the signed digest before the one-shot private intent and original Beads admission. Record each approved claim intent and repeat its current authority check at the original compare-and-set claim boundary. Retain the reservation receipt.","review_gates":["p101-nonspending"],"selector":"Execute mode requires current protected authority and factory source. Validate-only checks signed authority without entering execution.","trace_files":["scripts/registered_contained_pool_host.py","scripts/registered_contained_pool_preparation.py",{"$":45},{"$":21},{"$":394},{"$":270},"scripts/registered_pool_ordinary_runtime.py",{"$":371},{"$":374}],"witnesses":["pool101-scope","pool101-login","pool105-stale","pool101-n2","pool101-n3"]},
 
-{"admission":{"$":4},"authority":"Original signed current ordinary cohort and claim adapter, same-owner connected callback measurement and one-shot admitted dispatch capability.","contract":"N5","earlier_effects":"The host has retained real claims, the original packets, selected worktrees, and current finite signed budget in protected custody.","effect":"Charge shared limits and run protected writer-held calibration and productive dispatch","effect_points":["p101-allowance","p101-calibrate","p101-productive"],"entrypoint":"p101-runtime","gate_chains":[],"gates":[],"id":"N5.12","limits":"Calibration and production charge separate original ledger rows in one shared allowance. After the release barrier a selected writer failure can retain healthy peer output and full charge. Unknown cleanup retains its original custody. Publication remains outside this route.","manual_decisions":["pool101"],"ordering":"Seal calibration, reserve finite aggregate room, measure original callbacks and settle the writer-held phase. Seal productive phase with the original capability, start contained sessions and revalidate exact Beads and dispatch artifacts before scheduler commit. Verify workspace and lease settlement before returning.","review_gates":[],"trace_files":["scripts/registered_contained_pool_host.py","scripts/registered_pool_ordinary_runtime.py",{"$":371},{"$":374},{"$":373},"scripts/registered_pool_qualification_capability.py",{"$":108},{"$":45},"scripts/cwo_core/native_pool_admitted.py"],"witnesses":["pool101-scope","pool101-n2","pool101-n3","pool101-peer"]}
+{"admission":{"$":4},"authority":"Original signed current ordinary cohort and claim adapter, same-owner connected callback measurement and one-shot admitted dispatch capability.","contract":"N5","earlier_effects":"The host has retained real claims, the original packets, selected worktrees, and current finite signed budget in protected custody.","effect":"Charge shared limits and run protected writer-held calibration and productive dispatch","effect_points":["p101-allowance","p101-calibrate","p101-productive"],"entrypoint":"p101-runtime","gate_chains":[],"gate_limits":"The original signed approval, calibration capability and phase checks cross helpers. Their identity and ordering remain manual review.","gates":[],"id":"N5.12","limits":"Calibration and production charge separate original ledger rows in one shared allowance. After the release barrier a selected writer failure can retain healthy peer output and full charge. Unknown cleanup retains its original custody. Publication remains outside this route.","manual_decisions":["pool101"],"ordering":"Seal calibration, reserve finite aggregate room, measure original callbacks and settle the writer-held phase. Seal productive phase with the original capability, start contained sessions and revalidate exact Beads and dispatch artifacts before scheduler commit. Verify workspace and lease settlement before returning.","review_gates":[],"selector":"Ordinary contained execution after original signed cohort admission, with separate calibration and productive reservations.","trace_files":["scripts/registered_contained_pool_host.py","scripts/registered_pool_ordinary_runtime.py",{"$":371},{"$":374},{"$":373},"scripts/registered_pool_qualification_capability.py",{"$":108},{"$":45},"scripts/cwo_core/native_pool_admitted.py"],"witnesses":["pool101-scope","pool101-n2","pool101-n3","pool101-peer"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -6013,8 +6023,6 @@
 "13":"live_availability.require_n1_live()",
 
 "130":"self.assertEqual(launch.call_args.args[0], ['/EXAMPLE/bin/codex', 'app-server', '--stdio'])",
-
-"131":"self.assertEqual(len(member.fixture.spawned), 2)",
 
 "132":"self.assertEqual(len(writes), len(plan))",
 
@@ -6277,8 +6285,6 @@
 "295":"self.assertEqual(process.effects, [])",
 
 "296":"self.assertEqual(report['stale']['signals'], [])",
-
-"297":"self.assertEqual(report['states'], ['validated'] * size)",
 
 "298":"self.assertEqual(require_acceptance(self.store, **args, **self.beacon,",
 
@@ -6686,7 +6692,7 @@
 
 "@127":["wKRaJ5rLsDiuJJMo333Xdr6XkTx0AFFIA14gYJUUCrI",420,140099],
 
-"@128":["s2BVT0XdRhFnmf59DDFmWkuJUx9hDlic1rLGj-lBzxA",420,39621],
+"@128":["TNC8ANziICLxdU9t76F625N1n3Sfy3pnY04z6zWifEo",420,16878],
 
 "@129":["3p9_mwcTZa_vkjaiD77vMh1Vy9-UGkw2c2RmEqe1lJw",420,10270],
 
@@ -6698,7 +6704,7 @@
 
 "@132":["AGQe5J00NcJHgxeMA7SWwjJQJPF-bxxTYwtRaYen1Ug",420,50200],
 
-"@133":["9nCuYTs_2VnqfFeSBl9deoT09T5fzbdjIiqw7wMuds8",420,23958],
+"@133":["ZPiJT6jR5t6C6nHGp6vgbtsJcFgQIFbCzKCaGG_amEw",420,21974],
 
 "@134":["qWKlt7KzU7Z-DbgaAGnhVaJR-__EULI8Z06W8tmsCdU",420,416824],
 
@@ -6824,7 +6830,7 @@
 
 "@192":["TeaEjsYlnZHg3YYo5_ThfNjreE3clzgp6VpIsx6fd4c",420,4111],
 
-"@193":["zD2i3WHhkjkSvIogucNAW6GKWfJQyOAmBwdNhRky9F8",420,3161],
+"@193":["WXbbB17EFTnhP840btPyepjpIHMsCm1th8Vkq0k6BLk",420,2259],
 
 "@194":["Locd2lDyjneeaaQmus8FtrQVxm9S0ajF1x3xibQfUc4",420,88046],
 
@@ -6844,7 +6850,7 @@
 
 "@200":["YRMLkwU_elZ9Yzsh9d3Aos5tUFec5pV4g9wYX9m1-W8",420,15023],
 
-"@201":["G9Jbd0BiLbz3lI2_sAFuUkiC0yAtZfICKMWRUJARDP0",420,34232],
+"@201":["oRXdNdUfSttS6eaJt9WS3HBaVysHp2sGnmKjHdM7IOY",420,34490],
 
 "@202":["HBWemFO9BffWJfbs541ZPPpfo3WsE9UCykq3kdaLMOk",420,1218],
 
@@ -6857,6 +6863,10 @@
 "@206":["3Piev9Mjtoljn27BZ0f1dPK0ZGYOnr9LI0AncDHSaBA",420,4493],
 
 "@207":["_qmVTcP1l2gfBluV1NjMEbOQ02SZi4SyLYy9haluE6w",420,15903],
+
+"@208":["Ed7ChRI-OQLw8xVjiKzIzZ7y0zGTuUVPjOMqe6bLXBk",420,25139],
+
+"@209":["6IEoSWV43vE88QaSFvjZQGaXCTUyDzQLL5lHuJEPMwA",420,5314],
 
 "@21":["7BnBPBe6fA9E1JBsRq_WU3VWMlVLyHZ_pS3hqjH7J2U",493,2227],
 
@@ -6952,9 +6962,9 @@
 
 "@66":["6kCGahPBsEktnsCVgEIg8CTkPLmk-bcR9Ujhsvwsm50",420,2466],
 
-"@67":["C3hMr4-JpAedXEDZvRZYjKdECVDGTg3kzp3KxZXrtHI",420,23402],
+"@67":["24JutUnt8BnFA7ljNKYO0GFIw0qFLY9MmQCpxUv4TiY",420,13615],
 
-"@68":["Jhqdcihxv--761e07fS6-xBdXI1jO5qxX0TTUORSiXk",420,22322],
+"@68":["jEzZvm-SJDhOyf4Vp8a95wH_6Sv0yeYAx63KaU3ipI4",420,2448],
 
 "@69":["K05ZbA2RTFHyI4bqXrI8SyAZpFqq_xFOUksLyHfcs70",420,24889],
 
@@ -6970,7 +6980,7 @@
 
 "@74":["S83yzpwfT3qdUwEcCEr5jEiDfqfUMfaO1pUg2tjnkiw",420,29819],
 
-"@75":["FZD62tTqBcU4axLx6Pl6wvk1p-8OZY26SE2Nqfn3osk",493,27108],
+"@75":["rxUQTMB5G4VkHMvCp5bWQZUL1ERZ-srM6yNpA2MblpA",493,26956],
 
 "@76":["A7z_RiO7r-UVFgfckR9N_LgUKk_mLyvChtVOoDHbfqQ",493,64204],
 
@@ -7014,7 +7024,7 @@
 
 "@98":["qbPY0tljgBYKQbIgz_fR9hhakfS3DXoFnXlzD-9MdRI",420,14498],
 
-"@99":["4etYWt4XV3RAdUPVtLPez6HsdNrfLsIsUaZscQ_9Zvw",420,30945],
+"@99":["8wbCPTenJcZIPqeFPLiIYsXigFQ2O-5Jh_u2DxRfGkE",420,30204],
 
 "policy/model-roles.yaml":["gnnS0Pw2tLCzppZfzYr289jJhAIF2U9-RD5ii4nrTg8",420,765],
 
@@ -7400,15 +7410,13 @@
 
 "scripts/validate_site.py":["gDucY3APukypqEZp6kX4SiWWEQM0R3xxuSxzZaXjiwI",493,23579],
 
-"scripts/verify_affected_historical_contract.py":["aQ8jQMsa0X6BkNsHxdbRTSLSgWvMqVq7tI0RQQOKuuI",420,23726],
-
 "scripts/verify_attestation.py":["5d-u8xEKbpLQnFXJUkgS5fDfhH24a6S81v6WhXK8mu0",493,1086],
 
 "scripts/verify_audit_log.py":["04LaNYHjxYcbEdEMY8ZOsSAi6LCDxteZKgE7LDsVOZA",493,1158],
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["o6QfvXrvyR1SHDm1DYtIUX44VW4-fBP0iLn52ylCMrM",420,143076],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["DybUFnmEh62sDk9w9ATGzlgSg_jeUV-Z8c1d6F-kKZQ",420,143073],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7559,10 +7567,6 @@
 "aH":[{"$":130},"bq",{"$":6},{"$":130},[],"tests.test_r5_transport_launch.R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path"],
 
 "aI":[{"$":134},"V",{"$":6},{"$":134},[],"tests.test_qualified_review_dispatch.QualifiedReviewTest.test_original_consumer_produces_useful_review_with_exact_bound_arguments"],
-
-"aN":[{"$":131},"be",{"$":6},{"$":131},[],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_w17_r4_c1_public_caller_actual_host_n1_n2_n3_and_authority_split"],
-
-"aP":["self.assertFalse((fixture.ledger.root / N.admission.ledger_api.LEDGER_FILE).exists())","cA",{"$":0},{"$":131},["be"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control"],
 
 "aQ":[{"$":367},"q",{"$":0},{"$":127},["az"],{"$":20}],
 
@@ -7848,6 +7852,22 @@
 
 "n":["with self.assertRaisesRegex(qualification.QualificationError, 'changed'):","yb",{"$":1},"qualification.release_managed_login(second)",[],"tests.test_registered_n1_qualification.CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release"],
 
+"n106-hold-order":["self.assertRaisesRegex(ValueError, 'registered-serial-pool-execution-retired')","n106-hold-order-body",{"$":0},"self.assertIs(report['authority_validated'], True)",["n106-validate-helper"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_legacy_pool_holds_and_retirement_precede_effects"],
+
+"n106-host-refusal":["self.assert_adoption_has_no_effects(before)","n106-host-refusal-body",{"$":0},"self.assertIs(report['authority_validated'], True)",["n106-host-no-effects","n106-validate-helper"],"tests.test_registered_native_pool_host.PoolTests.test_legacy_pool_execute_and_adoption_refuse_before_effects"],
+
+"n106-launcher-refusal":["fixture.assert_adoption_has_no_effects(before)","n106-launcher-refusal-body",{"$":0},"self.assertTrue(json.loads(out.getvalue())['authority_validated'])",["n106-host-no-effects"],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_legacy_launcher_validates_original_authority_and_refuses_execution"],
+
+"n106-retry-hold-order":["self.assertRaisesRegex(ValueError, 'registered-serial-pool-retry-retired')","n106-retry-hold-order-body",{"$":0},"self.assertEqual(retry.observe_retry(host, retry_id), terminal)",["n106-retry-status-body"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_legacy_retry_holds_and_retirement_precede_effects"],
+
+"n106-retry-refusal":["self.assertEqual(parent.mock_calls, [])","n106-retry-refusal-body",{"$":0},"self.assertEqual(retry.observe_retry(host, retry_id), terminal)",["n106-retry-status-body"],"tests.test_registered_native_pool_retry.ApprovedRetryTests.test_retired_retry_refuses_before_effects"],
+
+"n106-retry-status":["self.assertEqual(retry.observe_retry(host, retry_id), unknown)","n106-retry-status-body",{"$":1},"self.assertEqual(retry.observe_retry(host, retry_id), terminal)",["n106-status-helper","n106-retry-read-refusal-helper"],"tests.test_registered_native_pool_retry.ApprovedRetryTests.test_signed_retry_reads_only_original_bound_records"],
+
+"n106-status-drift":["self.assertRaisesRegex(ValueError, 'Original pool intent binding changed')","n106-status-drift-body",{"$":1},"self.assertEqual(host.status(), terminal)",["n106-status-read-body","n106-status-helper"],"tests.test_registered_native_pool_host.PoolTests.test_signed_status_refuses_changed_signature_binding_and_source"],
+
+"n106-status-read":["self.assertIs(status['redispatch_permitted'], False)","n106-status-read-body",{"$":1},"self.assertEqual(host.status(), terminal)",["n106-status-helper"],"tests.test_registered_native_pool_host.PoolTests.test_signed_status_reads_only_original_records"],
+
 "o":[{"$":393},"ya",{"$":1},{"$":376},["ut"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
 
 "p":["self.assertEqual(qualification.campaign_usage()['total'], 0)","x9",{"$":1},"self.assertTrue(factory._managed_lifetime.contained)",[],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace"],
@@ -7957,12 +7977,6 @@
 "wT":["self.assertEqual(phases, ['poll-deciding'])","nH",{"$":1},"self.assertEqual(stages.count('finite-poll-intent'), 0)",["nG"],"tests.test_registered_finite_tool_wiring.RegisteredFiniteToolWiringTests.test_prequeued_poll_refusal_waits_for_original_reply_publication"],
 
 "wU":["submit.assert_not_called()","nR",{"$":1},"self.assertFalse(result['dispatch_authorized'])",["nY","n0","nX","nZ","n3"],"tests.test_run_admitted_native_pool_transaction.LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary"],
-
-"wV":["self.assert_partial_reservation_is_held(2)","nS",{"$":1},{"$":297},["n6","n5","nV","k6"],"tests.test_registered_native_pool_host.PoolTests.test_competing_reservation_between_members_retains_both_original_charges"],
-
-"wW":["self.assertEqual(self.adoption_state(), before)","n7",{"$":1},"workflow._require_execution()",["nT","nU"],"tests.test_registered_native_pool_host.PoolTests.test_later_invalid_consent_preserves_entire_pool_adoption"],
-
-"wX":["self.assert_substituted_pool_is_held(retired, terminal_saved=False)","n9",{"$":1},{"$":297},["oc","nW","ob","k6"],"tests.test_registered_native_pool_host.PoolTests.test_state_path_replacement_after_member_settlement_cannot_return_success"],
 
 "wY":["self.assertNotIn('unshare_pid', owner.boundary)","kx",{"$":12},"owner.controller._engine._verified.assert_called_once()",["od"],"tests.test_selected_native_containment.PrivatePidReuseContractTests.test_parent_binds_single_helper_birth_and_pid_owner_before_release"],
 

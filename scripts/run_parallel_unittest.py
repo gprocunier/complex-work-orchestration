@@ -26,7 +26,7 @@ DEFAULT_WORKERS = 8
 METHOD_SHARDED_TEST_FILES = frozenset({
     "test_registered_finite_tool_wiring.py", "test_registered_finite_input.py",
     "test_registered_native_pool_host.py", "test_native_artifact_delivery_closure.py",
-    "test_registered_native_pool_profiles.py", "test_offline_native_adjudication.py",
+    "test_offline_native_adjudication.py",
     "test_offline_fake_artifact_promotion.py", "test_registered_n1_workflow.py",
     "test_outbound_screen.py", "test_qualified_closure.py",
     "test_registered_native_pool_retry.py", "test_registered_server_requests.py",
@@ -123,8 +123,6 @@ MEASURED_TEST_SECONDS = {
     'test_registered_n1_factory.py': 57.237,
     'test_registered_n1_workflow.py': 303.58,
     'test_registered_native_pool_host.py': 419.709,
-    'test_registered_native_pool_profiles.py': 292.797,
-    'test_registered_native_pool_retry.py': 226.545,
     'test_registered_server_requests.py': 123.676,
     'test_retirement_delivery_closure.py': 15.236,
     'test_return_adjudication.py': 17.922,

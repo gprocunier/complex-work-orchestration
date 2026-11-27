@@ -178,17 +178,12 @@ scoped diagnostics. Both retain `execution_authorized: false`.
 
 ## Protected serial pool integration
 
-Current pool fixtures exercise the original registered host, opaque authority,
-validators and ledger for N=1/2/3 with fake OS/RPC. Every member's consent and
-signed adoption are staged before a callout-free commit under the pool lock;
-a later consent or signer failure preserves the entire cohort. Retained and
-current pool-directory identities are checked around terminal persistence.
-Replacement refuses success while preserving original records, completed
-charges and independently validated member artifacts. Interleaved reservation
-failure and expiry controls retain original charges and reconciliation holds
-without implicit redispatch or restored capacity. These are serial fixture
-observations, not selected-native multi-worker isolation or concurrency
-qualification.
+The [v1.46.0 serial pool fixtures](https://github.com/gprocunier/complex-work-orchestration/blob/v1.46.0/references/codex-protocol-capability-matrix.md#protected-serial-pool-integration)
+exercised the original registered host, opaque authority, validators and ledger
+for N=1/2/3 with fake OS/RPC. They recorded consent and signed adoption,
+terminal persistence, charge retention and reconciliation refusals. The serial
+execution and retry paths are retired. Signed readback uses the original
+configuration and source image.
 
 The public launcher remains an in-process host client. Local structural
 validation grants no authority and makes no model call; trusted host validation

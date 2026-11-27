@@ -11,7 +11,6 @@ import os
 import sys
 import tempfile
 import unittest
-from dataclasses import replace
 from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import patch
@@ -244,40 +243,6 @@ class F4FactoryPoolGuardTests(unittest.TestCase):
         for configuration in (subclass, SimpleNamespace(**pool.config.__dict__)):
             with self.subTest(configuration_type=type(configuration).__name__), self.assertRaisesRegex(ValueError, 'Protected pool configuration is required'):
                 P.RegisteredNativePoolHost(configuration)
-
-    def test_F4_M123_adoption_rechecks_current_configuration_before_member_writes(self):
-        pool = self.pool_fixture()
-        pool.host._current()
-        before = [fixture.settings['state_store'].read_state() for fixture in pool.fixtures]
-        pool.config.enabled = False
-        with self.assertRaisesRegex(ValueError, 'Protected pool source or configuration changed'):
-            pool.adopt()
-        self.assertEqual(before, [fixture.settings['state_store'].read_state() for fixture in pool.fixtures])
-        self.assertTrue(all(workflow._adoption is None for workflow in pool.config.workflows))
-        self.assertFalse(list(pool.state.iterdir()))
-
-    def test_F4_M127_controlled_failure_requires_same_receipt_as_original_member(self):
-        pool = self.pool_fixture()
-        pool.config.controlled_failure_workers = tuple(pool.workers)
-        pool.config.binding = pool.config.describe()
-        pool.fixtures[0].case.bad_output = True
-        with self.assertRaises(R.validation.ValidationError) as caught:
-            pool.execute()
-        workflow = pool.config.workflows[0]
-        self.assertIs(getattr(workflow, '_pool_failure', None), caught.exception,
-            'The pool must retain the exact issued original member failure.')
-        primary = caught.exception
-        evidence = P.RegisteredNativePoolHost._controlled_failure(workflow, primary)
-        self.assertEqual(evidence, workflow.factory.controlled_failure(primary))
-        self.assertEqual(evidence['outcome'], 'failed')
-        self.assertEqual(next(iter(pool.attempts().values()))['outcome'], 'failed')
-        original = workflow.config.receipt
-        workflow.config.receipt = replace(original, budget_id='EXAMPLE-other-budget')
-        try:
-            with self.assertRaisesRegex(ValueError, 'Original member factory, operation and admission binding changed'):
-                P.RegisteredNativePoolHost._controlled_failure(workflow, primary)
-        finally:
-            workflow.config.receipt = original
 
     def test_F4_M117_worktree_ownership_requires_both_time_and_entry_budgets(self):
         with tempfile.TemporaryDirectory() as directory:

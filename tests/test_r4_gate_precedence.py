@@ -1,4 +1,4 @@
-"""Direct gate sites refuse before member work or campaign input reads."""
+"""Campaign gate refuses before input reads or custody setup."""
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,7 +10,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core import native_live_availability as A  # noqa: E402
-import registered_native_pool_host as P  # noqa: E402
 import run_native_pool_live_canaries as C  # noqa: E402
 
 
@@ -19,19 +18,6 @@ class FakeReadReached(RuntimeError):
 
 
 class R4GatePrecedenceTests(unittest.TestCase):
-    def test_r4_C13_pool_member_hold_precedes_workflow_run_with_positive_control(self):
-        workflow = mock.Mock()
-        with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=False):
-            for controlled in (False, True):
-                with self.subTest(controlled=controlled), \
-                     self.assertRaisesRegex(A.NativeLiveUnavailable, "native-pool-live-unavailable"):
-                    P.RegisteredNativePoolHost._run_member(workflow, controlled=controlled)
-        self.assertEqual(workflow.mock_calls, [])
-        with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True):
-            result = P.RegisteredNativePoolHost._run_member(workflow)
-        self.assertEqual(result.status, "completed")
-        workflow.run.assert_called_once_with(controlled_failure=False)
-
     def test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup(self):
         inputs = mock.Mock()
         path = Path("/EXAMPLE/never-created")

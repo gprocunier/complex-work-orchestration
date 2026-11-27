@@ -10,7 +10,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -250,6 +250,28 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
             (root / checkpoint.FIXTURE_PATH).unlink()
             with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "public contract fixture missing"):
                 checkpoint.verify_fixture_evidence(root, manifest)
+
+    def test_serial_pool_history_is_exact_and_never_replayed(self):
+        revision = "b39d62b546f14fbc4cf4b96898c8fa49b19de604"
+        tree = "59e622d49eff54ee9849c2daa3e621a446e96d7e"
+
+        with patch.object(checkpoint, "git_bytes", return_value=b"drifted tree"):
+            with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "serial pool source tree mismatch"):
+                checkpoint.verify_historical_serial_pool(ROOT)
+        paths = iter(checkpoint.SERIAL_POOL_FILES)
+        with patch.object(checkpoint, "git_bytes", side_effect=[
+            (tree + "\n").encode(), b"drifted source",
+        ]) as git:
+            with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "historical serial pool artifact mismatch"):
+                checkpoint.verify_historical_serial_pool(ROOT)
+            self.assertEqual(git.call_args_list, [
+                call(ROOT, revision, tree=True), call(ROOT, revision + ":" + next(paths)),
+            ])
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            subprocess.run(["git", "init", "--quiet", str(root)], check=True)
+            with self.assertRaisesRegex(checkpoint.CompatibilityRefusal, "history/artifact unavailable"):
+                checkpoint.verify_historical_serial_pool(root)
 
     def test_missing_approved_historical_artifact_refuses(self):
         manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())

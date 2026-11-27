@@ -557,8 +557,8 @@
     "scripts/registered_n1_qualification.py": "9540fd58f2ef72bf9349880d1bf77d87b44fb020e0a7446bbe8d1e0a350f2091",
     "scripts/registered_n1_workflow.py": "a1dafd2caf1d5fcd2006e98f2ba4420b11656e33c992ecaf953f1f34191485fa",
     "scripts/registered_native_pool_client.py": "ea40866a13c1b0492d9ec095804220f024e43cb9a4f9b711f548e1b2fc2c9b9d",
-    "scripts/registered_native_pool_host.py": "0b784caf8f89a4079d5c40d9bd16588ca7440950c64e0de4ce9dcac595ebb472",
-    "scripts/registered_native_pool_retry.py": "261a9d722871bfefbbeb57b4edf4bafb105d5c8d633b9ab15f44d350e4528979",
+    "scripts/registered_native_pool_host.py": "db826eb549edf019c503b96334a60ed06148c34a852d8f4c9900a9c54bf84e26",
+    "scripts/registered_native_pool_retry.py": "8c4cd9be6f9224384ec9fe15a7c6bde701ffe92bf4c9e600c7adca694de2a48e",
     "scripts/registered_provider_network.py": "01769c5e05bc26def2f6a03ebecbcb6eb2e60292824316155f3798e71f20fa79",
     "scripts/registered_server_requests.py": "2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",
     "scripts/registered_worker_login_config.py": "dcf89ebfd323b689639f6ec16747f574f2b464660e9ebf4b2340277031d26810",
@@ -573,7 +573,7 @@
     "scripts/setup_delegation.py": "aea47f108ecb565c3cc61edd64612d1b8ef0149502a35189ba7c7abc130b47eb",
     "scripts/setup_workspace_database.py": "f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",
     "scripts/validate_run_readiness_plan.py": "78e87c271d0c8638e6665aa17141697b913ab584f22ac4aecfc0a6d2f83c9eaf",
-    "scripts/verify_affected_historical_contract.py": "690f2340cb1ad17e8190db07c5d6d14d22d2816bcca95abbb48d1141038abae2",
+    "scripts/verify_affected_historical_contract.py": "11dec285123e3902f0f3156388acc8cd9ef2d33193b9454f8ce32a7ba6cb5c19",
     "tests/fixtures/affected_contract_compatibility/EXAMPLE-admission-v1.json": "ec2603cd9279b3e3504eacc3f53887e854c97f496164e35a61a5ca0b8a383796",
     "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt": "264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566",
     "tests/fixtures/outbound_screening/seed-corpus.json": "7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",
@@ -585,7 +585,7 @@
     "tests/historical_policy_fixtures.py": "5a809bd26a65b6e7f818b7e8b79c3c9bb0bd3dc3de5e4d855a39f8c2210436ce",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
-    "tests/test_affected_contract_compatibility.py": "d72b1747a84c9b430e007e5a1bc12df8c100008965f0294a5d61c4a399a54af0",
+    "tests/test_affected_contract_compatibility.py": "14e2c7a5fe06a2054c288b69b88c79e9e988b6afdb5bd54c0ea05d97421ddb0c",
     "tests/test_beads_ready_set.py": "f0d40bac7c5596fbef8e9d2739b0823eb3df1abd1b10fe8a5bca183d2983a8cc",
     "tests/test_codex_tool_surface.py": "5527d43f3b5658669a99ee02e6403b0ed57f1cc6f8491f6a3f373eb5bfd1d9b8",
     "tests/test_finite_fixture_progress_acknowledgment.py": "966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",
@@ -622,14 +622,14 @@
     "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
     "tests/test_registered_n1_workflow.py": "f59f71d049575f7ca366c736a776901d420b4341d4090823a47dde5849e22b23",
-    "tests/test_registered_native_pool_host.py": "b360554f45dd46116799fe7d0c31665a4b89531f610e589cd6b2c68fe941cf10",
-    "tests/test_registered_native_pool_profiles.py": "afc797877e9a448418119eff42227bf6f1e76d6186901a60976341ee7f9d9b91",
+    "tests/test_registered_native_pool_host.py": "4cd0bc00dce22022f1754f6defa17adb93759f749fcb7a67634e33eb35a27c4a",
+    "tests/test_registered_native_pool_profiles.py": "d2be1853a7672e84c7f3cdcc5e460baf0758af549dad295c1c76b2d4dc893889",
     "tests/test_registered_outbound_screen.py": "de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",
     "tests/test_registered_provider_network.py": "dcad39f3aa3e9c8aeccc6ab5f800ff2cc322baa8b8cc9dc4e388d7c965fc9c78",
     "tests/test_registered_server_requests.py": "c06a550e63d423b15841ef01fb6f7a93e4c4bc30b7e7d1aa8b4891fd1835c024",
     "tests/test_registered_startup_publication.py": "7a1373dbc5d536b33f70c398726119713675afb8a851bcdd02b574d2ccb766e7",
     "tests/test_route_feasibility_preparation.py": "45b615f5e7ad013c166846ba499c34c525452011539ed5de4eecbab6c8a5416f",
-    "tests/test_run_admitted_native_pool_transaction.py": "f670ae613b3fd959ea7c5792065f5d7a84f4f53e5fcdb763222ab0ef032e76cf",
+    "tests/test_run_admitted_native_pool_transaction.py": "64f8894fa8d1e6de82ea71c6a7abe06edb097058102056c2cca09a186fda984c",
     "tests/test_run_native_pool_live_canaries.py": "a962a5b7b2b353b67e0db81a0069e155a251fbffc450b23c674e96f2d9ac09d5",
     "tests/test_run_readiness_plan.py": "e6e91c1894e4ce096eba5e5e92501ea05a9f60804c0425552ae4f5a7f9ffb8b7",
     "tests/test_selected_native_containment.py": "8228c514ddbfe1078c23b6b703941dd20b5346860af9d4f978946a1b6f688c2e",
@@ -2428,6 +2428,7 @@
       "tests/test_workflow_adjudication.py"
     ],
     "tests/test_registered_native_pool_host.py": [
+      "scripts/registered_native_pool_client.py",
       "scripts/registered_native_pool_host.py",
       "scripts/run_admitted_native_pool_transaction.py",
       "tests/test_native_pool_transaction.py",
@@ -2436,7 +2437,6 @@
       "tests/test_run_admitted_native_pool_transaction.py"
     ],
     "tests/test_registered_native_pool_profiles.py": [
-      "tests/test_registered_finite_tool_wiring.py",
       "tests/test_registered_native_pool_host.py"
     ],
     "tests/test_registered_provider_network.py": [

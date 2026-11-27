@@ -23,13 +23,13 @@ from cwo_core import maintenance_qualification as Q  # noqa: E402
 from cwo_core.supervision.transport import app_server as T  # noqa: E402
 import registered_n1_factory as N  # noqa: E402
 import registered_n1_workflow as W  # noqa: E402
+import registered_native_pool_host as P  # noqa: E402
 import registered_native_pool_retry as R  # noqa: E402
 import run_native_pool_activation_preview as V  # noqa: E402
 import run_native_pool_live_canaries as C  # noqa: E402
 import run_admitted_native_pool_transaction as L  # noqa: E402
 import check_codex_worker_surface as S  # noqa: E402
 from tests import test_registered_n1_factory as NF  # noqa: E402
-from tests import test_registered_native_pool_host as PF  # noqa: E402
 
 
 class FakeLaunchReached(RuntimeError):
@@ -159,39 +159,28 @@ class F5NativeLiveHoldTests(unittest.TestCase):
             S.main()
         self.assertEqual(write.call_count, 0)
 
-    def test_f5_held_pool_zero_launch_despite_enabled_and_original_fake_launch_control(self):
-        fixture = PF.PoolTests('runTest')
-        fixture._outcome = self._outcome
-        self.addCleanup(NF.cleanup_helper, self, fixture)
-        fixture.cohort(1, enabled=True, archive_schedule='settled')
-        fixture.adopt()
-        request = fixture.config.request('execute')
-        with mock.patch.multiple(A, N1_LIVE_AVAILABLE=False, POOL_LIVE_AVAILABLE=False):
-            self.assertIs(fixture.host.run(fixture.config.request('validate-only'))['authority_validated'], True)
-        with mock.patch.object(A, 'POOL_LIVE_AVAILABLE', False):
-            with self.assertRaisesRegex(A.NativeLiveUnavailable, 'native-pool-live-unavailable'):
-                fixture.host.run(request)
-        self.assertEqual(list(fixture.state.iterdir()), [])
-        self.assertIsNone(fixture.config.workflows[0].factory)
-        NF.assert_no_native_births(self, fixture.fixtures[0].fixture)
-        self.assertFalse((fixture.ledger.root / N.admission.ledger_api.LEDGER_FILE).exists())
+    def test_f5_legacy_pool_holds_and_retirement_precede_effects(self):
+        legacy = object.__new__(P.RegisteredNativePoolHost)
+        request = {'version': 1, 'mode': 'execute', 'pool_id': 'EXAMPLE-pool', 'workers': ['EXAMPLE-worker']}
+        with self.assertRaisesRegex(A.NativeLiveUnavailable, 'native-pool-live-unavailable'):
+            legacy.run(request)
         with mock.patch.object(A, 'POOL_LIVE_AVAILABLE', True):
-            report = fixture.host.run(request)
-        self.assertEqual(report['states'], ['validated'])
-        self.assertEqual(len(fixture.fixtures[0].fixture.spawned), 2)
+            with self.assertRaisesRegex(A.NativeLiveUnavailable, 'native-n1-live-unavailable'):
+                legacy.run(request)
+            with (mock.patch.object(A, 'N1_LIVE_AVAILABLE', True),
+                  self.assertRaisesRegex(ValueError, 'registered-serial-pool-execution-retired')):
+                legacy.run(request)
 
-    def test_f5_held_pool_retry_refuses_before_intent_and_patched_boundary_control(self):
-        retry = R.ApprovedPoolRetry.__new__(R.ApprovedPoolRetry)
-        retry.host = SimpleNamespace(_locked=mock.Mock(side_effect=FakeLaunchReached))
-        for n1, pool in ((True, False), (False, True)):
-            with self.subTest(n1=n1, pool=pool), mock.patch.multiple(A, N1_LIVE_AVAILABLE=n1, POOL_LIVE_AVAILABLE=pool):
-                with self.assertRaises(A.NativeLiveUnavailable):
-                    retry.run()
-        self.assertEqual(retry.host._locked.call_count, 0)
-        with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True), \
-             self.assertRaises(FakeLaunchReached):
+    def test_f5_legacy_retry_holds_and_retirement_precede_effects(self):
+        retry = object.__new__(R.ApprovedPoolRetry)
+        with self.assertRaisesRegex(A.NativeLiveUnavailable, 'native-pool-live-unavailable'):
             retry.run()
-        self.assertEqual(retry.host._locked.call_count, 1)
+        with mock.patch.object(A, 'POOL_LIVE_AVAILABLE', True):
+            with self.assertRaisesRegex(A.NativeLiveUnavailable, 'native-n1-live-unavailable'):
+                retry.run()
+            with (mock.patch.object(A, 'N1_LIVE_AVAILABLE', True),
+                  self.assertRaisesRegex(ValueError, 'registered-serial-pool-retry-retired')):
+                retry.run()
 
     def test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim(self):
         capability = SimpleNamespace(claim=mock.Mock(side_effect=FakeLaunchReached))
