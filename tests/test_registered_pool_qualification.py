@@ -1,6 +1,7 @@
 """Original registered pipes with inert peers and exact disposable outputs."""
 
 from concurrent.futures import ThreadPoolExecutor
+from contextlib import contextmanager
 from dataclasses import replace
 from datetime import datetime, timezone
 from hashlib import sha256
@@ -9,6 +10,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+import tempfile
 from threading import Barrier, Event, Lock
 from time import monotonic, sleep
 from types import SimpleNamespace
@@ -161,6 +163,17 @@ class _InertContainment:
         return {"cleanup_confirmed": self.process is not None and self.process.poll() == 0}
 
 
+@contextmanager
+def _fixture_root():
+    with _pool_test_directory() as temporary:
+        root = Path(temporary)
+        # Keep Git capture scratch separate from the workunit's temporary files.
+        scratch = root / "capture-scratch"
+        scratch.mkdir(mode=0o700)
+        with patch.object(tempfile, "tempdir", str(scratch)):
+            yield root
+
+
 def _fixture(root, size):
     fixture = root / "workspaces"
     fixture.mkdir()
@@ -208,7 +221,7 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
                 _ = worker.production_login_home
 
     def _prepare_workers(self, size, behaviors=(), *, calibrating=False):
-        root = Path(self.enterContext(_pool_test_directory()))
+        root = self.enterContext(_fixture_root())
         plan, tasks, fixture = _fixture(root, size)
         parent = object.__new__(adapter._PoolParent)
         parent.plan, parent.limits, parent.workers, parent._started = plan, _Limits(size), {}, 0
@@ -662,8 +675,7 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
                 adapter._WorkerControl(worker, {}).check()
 
     def test_factory_refuses_unprotected_admission_and_has_no_hook_parameters(self):
-        with _pool_test_directory() as scratch:
-            root = Path(scratch)
+        with _fixture_root() as root:
             plan, tasks, fixture = _fixture(root, 2)
             authority = root / "records" / "authority.json"
             authority.parent.mkdir()
