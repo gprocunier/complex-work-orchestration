@@ -106,6 +106,12 @@ before sharing it with an outside reviewer.
 See the [upgrade note](references/upgrading-from-0.2.md) for review routes,
 custom reviewer profiles and where to find saved audit records and packets.
 
+### Checking a source change
+
+Hosted CI runs the full unit suite on Python 3.12 and 3.14. It also checks
+types and enforces a measured coverage floor for selected modules.
+See [CI validation](references/ci-validation.md) for the check scope and local commands.
+
 ## Example: one project across two fresh sessions
 
 On October 15, 2026, before the architect prompt replaced Candidate E, two

@@ -10,3 +10,4 @@ __pycache__/
 .codex-security/
 work-packets/
 node_modules/
+/.coverage
