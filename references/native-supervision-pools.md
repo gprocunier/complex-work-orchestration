@@ -319,10 +319,12 @@ v2 result.
 
 ## Historical Live Canary Gate
 
-The current `scripts/run_native_pool_live_canaries.py` command keeps its
-historical arguments and refuses before reading inputs, claiming authority,
-allocating workers or writing evidence. The legacy pool entry points share that
-refusal. The release canary at `v1.37.0` used the same command as a single-shot
+The current `scripts/run_native_pool_live_canaries.py` command emits a sealed
+zero-allocation refusal on stderr and exits 1. It refuses before reading inputs,
+claiming authority, allocating workers or writing evidence. The detailed flags
+are archived in [v1.48.0](https://github.com/gprocunier/complex-work-orchestration/blob/v1.48.0/scripts/run_native_pool_live_canaries.py).
+The legacy pool entry points share that refusal. The release canary at
+`v1.37.0` used the same command as a single-shot
 controller. Its evidence chain required the immutable campaign
 authorization artifact, the active outer authority, the exact predecessor authorization
 and campaign manifest, an accepting independent Spark receipt, plus
@@ -370,9 +372,9 @@ Progress decisions use the same separation in
 `native-progress-decision-v2.schema.json`; their worker-authored recommendation
 cannot populate `operator_facts` or broaden the policy-derived child scope.
 
-The public live launcher accepts only its current v11/v8/v6/v6 contract tuple;
-historical tuples remain inspection-only and mixed tuples fail before
-allocation. The accepted practical release used a fresh one-use, Bead-scoped
+The historical live launcher accepted one v11/v8/v6/v6 contract tuple and
+refused mixed tuples before allocation. The accepted practical release used a
+fresh one-use, Bead-scoped
 authority around the v8 renderer envelope and bound only the immediate
 Generation-12 terminal-facts and containment roots. It did not make any prior
 live authority reusable.
@@ -386,25 +388,24 @@ ledger's same identity, authority bindings, and first four entry payloads, then
 requires the reconstructed raw, state, and head hashes to equal the failure
 evidence. This proves containment only; it cannot supply trusted model evidence.
 
-Calibration runs exactly `sleep 20`. App-server `inProgress` is only a hint:
-the controller waits up to ten seconds for a complete current-turn
+The historical calibration ran `sleep 20`. App-server `inProgress` was only a
+hint. The controller waited up to ten seconds for a complete current-turn
 `turn_context` with the exact model and effort and an agent-origin
 `commandExecution` that remains `inProgress` across two complete observations
-at least one second apart. Startup probes remain bounded by the 30-second
-startup deadline and do not certify operative callback timing. After the first
-complete exact observation, certified checks remain within 200 ms and polling
-runs no slower than 250 ms through immediate pre-interrupt revalidation. The
-controller excludes terminal, failed, declined, rerouted, compacted, malformed,
-duplicate, truncated, or rewritten telemetry. The same turn must confirm
+at least one second apart. Startup probes used a 30-second deadline. After the
+first complete exact observation, certified checks stayed within 200 ms and
+polling ran no slower than 250 ms through pre-interrupt revalidation. The
+controller excluded terminal, failed, declined, rerouted, compacted, malformed,
+duplicate, truncated, or rewritten telemetry. The same turn had to confirm
 interruption within five seconds.
 
 Materialization evidence contains only identities, fresh nonces, timestamps,
 status classes, record/item indices, counts, offsets, and domain-separated
 hashes. Raw prompts, commands, output, responses, reasoning, content, paths,
-and path hashes are forbidden. The authorization latch is mode 0600 and
-monotonic. A protected fault durably changes `active` to `containment-only`
-before returning; only interrupt, close, sanitized evidence, reserved steering,
-Beads updates, local checkpoint, pickup, and handoff remain possible.
+and path hashes are forbidden. The historical authorization latch used mode
+0600 and moved monotonically through its states. A protected fault changed
+`active` to `containment-only` before returning. The latch's executor is
+archived with the release canary in v1.37.0.
 
 Callback observations are telemetry, not timing authority. A concurrent-pool
 receipt separately binds the exact production envelope and policy digest, the

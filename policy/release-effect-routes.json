@@ -896,7 +896,7 @@
 
 "bo":[43,"run_git",435,{"$":213}],
 
-"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",329,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
+"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",370,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
 
 "bq":[122,"R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path",24,"r29AX7D4zfBY0RijwzTrLRf7zc8J_Jydc_SETcjV3gs"],
 
@@ -978,7 +978,7 @@
 
 "cG":[42,979,"self._write_payload(payload, method=method, timeout=1)",12,979,66],
 
-"cJ":[74,"validate_and_acquire_global_campaign_claim",325,"d_ahEIC997foEyS0SS0MmWax2sZY9IcaHL9YHsnJkXw"],
+"cJ":[74,"validate_and_acquire_global_campaign_claim",324,"d_ahEIC997foEyS0SS0MmWax2sZY9IcaHL9YHsnJkXw"],
 
 "cL":[54,"ExampleInputProcess._exchange",236,"t06C66GiL8LNIqQVSDFTmoLvTAGCq0v8MH7OpBtgvqM"],
 
@@ -1186,7 +1186,7 @@
 
 "eE":[43,"trusted_git_completed",555,"rct8y2700SsiMbnuefo2TVA2CkqzAPpkX9zcz3stMrc"],
 
-"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",411,"9fef8AtKR6lN7GeQvt7jvJtitozWthzKew0c7zva1uI"],
+"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",452,"9fef8AtKR6lN7GeQvt7jvJtitozWthzKew0c7zva1uI"],
 
 "eG":[23,74,"if not database_value:"],
 
@@ -1206,7 +1206,7 @@
 
 "eS":[87,"BrowserProvenanceTests.setUp",39,"zuYaqjhDz8nTq2lolqmh3SYG0joayhyJl5ATjpiq7oc"],
 
-"eT":[74,256,{"$":43}],
+"eT":[74,255,{"$":43}],
 
 "eV":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",74,"9sPMvHT7yn95MYjBeOHeituB83ewKE0SD7D2mhIQhIQ"],
 
@@ -1422,7 +1422,7 @@
 
 "gV":[68,59,"R.live_availability.require_pool_live()",8,59,47],
 
-"gW":[74,257,{"$":35}],
+"gW":[74,256,{"$":35}],
 
 "gX":[112,"NativePoolAdmissionTests.test_concurrent_duplicate_consume_has_one_winner",664,"yBRnVNUrBFrD290sbSgGtDmKyTQjaKoWviznotjPy8Q"],
 
@@ -1430,7 +1430,7 @@
 
 "gc":[64,"_CoherentServerRequests",1097,"WHQAqI5qLWkUlS6RhWFnt6_gTxVwDFwr_zUN_V1DKW0"],
 
-"gd":[74,"main",349,"YCucD28AE1HLmfAStrAroFSiEOnebZapLXZ64hvdZYE"],
+"gd":[74,"main",348,"z9vXY2UFchMer9IP0rQXWAsX_F8-925aOEj5SQV24no"],
 
 "ge":[108,"RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent",511,"3Rjzq8CLOPcRTQ-cOZ_5vHHWg9MmjHGKD2webEzXUDc"],
 
@@ -1468,7 +1468,7 @@
 
 "gy":[194,138,{"$":13}],
 
-"gz":[74,258,{"$":13}],
+"gz":[74,257,{"$":13}],
 
 "h":[185,"RegisteredLeadProjectTests.test_project_database_changes_do_not_drift_registered_target_or_retry",33,"VEN-CyQcFdT_LUlahTIfNrzf8Lk63OzfG3aerIE-9-U"],
 
@@ -1636,7 +1636,7 @@
 
 "ii":[11,"interpreter",37,"qMGi2RJkmYzrQmZH4qLMwO2oVt6Y1tWJz0cx4OgI24Q"],
 
-"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",288,"eP-k7Btzsny9pRcdruJK0K2tn5cJ7UeOZXUek_zEUb8"],
+"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",288,"9D9_4VTU-qsxywmCEleIz0NZBeLWqNngvcr7TASZyCQ"],
 
 "il":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -1920,15 +1920,15 @@
 
 "le":[11,51,"subprocess.run([*command, *inventory], cwd=root, env=env,\n                            capture_output=True, text=True, check=False)",13,52,72],
 
-"legacyCampaignCanary":[74,"run_pool_canary",286,"tfrc4DMNT7mClqghXct4-PzXt4ELSuOrWBu6pFJNS-k"],
+"legacyCampaignCanary":[74,"run_pool_canary",285,"tfrc4DMNT7mClqghXct4-PzXt4ELSuOrWBu6pFJNS-k"],
 
-"legacyCampaignClaim":[74,"acquire_global_campaign_claim",310,"JaOg7azq9mITtz75iVaFcNnwGmFqGXD91zFRo9fUdsI"],
+"legacyCampaignClaim":[74,"acquire_global_campaign_claim",309,"JaOg7azq9mITtz75iVaFcNnwGmFqGXD91zFRo9fUdsI"],
 
 "legacyCampaignClaimTest":[193,"R4GatePrecedenceTests.test_r4_C18_campaign_claim_refuses_before_input_reads_and_setup",21,"jLEJIHTatZ542X4vF2eV1HV9oFhs5iQmXl8bY0m2Hzg"],
 
-"legacyCampaignGuard":[74,"_refuse_retired_campaign",255,"y43wurimfMfZ00fuTb3d_zgB4nK0qBmm1j7eUDVPHTU"],
+"legacyCampaignGuard":[74,"_refuse_retired_campaign",254,"y43wurimfMfZ00fuTb3d_zgB4nK0qBmm1j7eUDVPHTU"],
 
-"legacyCampaignRefusal":[74,259,"raise LegacyNativePoolExecutionRetired()"],
+"legacyCampaignRefusal":[74,258,"raise LegacyNativePoolExecutionRetired()"],
 
 "lf":[16,329,{"$":257},4,329,61],
 
@@ -2149,6 +2149,8 @@
 "n106-status-terminal":[67,265,"self._load('terminal.json')",19,265,46],
 
 "n106-validate-helper":[128,"PoolFixtureIdentityTests.test_canonical_cohort_defers_every_actual_workflow_boundary",27,"xCIp3WAljX5BGi6U6psRQZTYXyvLCKeTrjKFRIafBjk"],
+
+"n107-cli-body":[99,"F5NativeLiveHoldTests.test_retired_campaign_cli_ignores_missing_and_unknown_arguments",348,"hK0b-BgNvsR3w6G4WuUbRc5IMWuy1t-YDx2vG5SNO-8"],
 
 "n2":[51,831,"def spawn_owned(self, session_id: str, argv: list[str] | tuple[str, ...], workspace: str) -> dict[str, Any]:"],
 
@@ -2780,7 +2782,7 @@
 
 "rk":[29,"HostRecordStore.audit_events",448,"LHuZA-t6GsT4iCk6IneHIrnDZieBK-VIZogOINpoLXA"],
 
-"rm":[74,"_start_campaign_server",344,"r124E4ATSD5rYFLVkDSoxosq7WwnTnv6MN64lJYInOk"],
+"rm":[74,"_start_campaign_server",343,"r124E4ATSD5rYFLVkDSoxosq7WwnTnv6MN64lJYInOk"],
 
 "rn":[38,1937,"if final_horizon_errors:"],
 
@@ -3130,7 +3132,7 @@
 
 "yQ":[61,50,"if type(self) is RegisteredAppServer:"],
 
-"yR":[74,"build_pool_inputs",262,"h-Wk__hsQYMpYevpIT-63ptLFCsEEOiHuY3_2IVb3Vw"],
+"yR":[74,"build_pool_inputs",261,"h-Wk__hsQYMpYevpIT-63ptLFCsEEOiHuY3_2IVb3Vw"],
 
 "yT":[42,2249,"_require_native_rpc(\"turn/start\", self)"],
 
@@ -5351,7 +5353,7 @@
 
 [93,176,8,176,53,"dynamic","Gau4K7gkps26vbMtHH-_YhaRQbP-pQ42x1BZobXeR1U",[{"$":9},"XR400"]],
 
-[71,667,41,667,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
+[71,395,41,395,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
 
 [72,269,17,274,9,"process","lAX-zUK4AIVcn4IZaYm5ZV1TlDefknrp6hLUmaf_vGc",["route","X6.4","lQ"]],
 
@@ -5714,7 +5716,7 @@
 
 {"contract":"N7","effect_points":["hZ"],"entrypoint":"ih","gates":["eX","rh"],"id":"N7.5","ordering":"Dedicated/N1, then profile-specific pool before task/Beads reads; positive stops at tasks read, zero close callbacks.","witnesses":["w6"]},
 
-{"admission":{"$":1},"authority":"The retired entry stays closed under every availability setting.","contract":"N8","earlier_effects":"Argument parsing and clock reads precede the refusal report.","effect":"Retired campaign CLI refusal","effect_points":[],"entrypoint":"gd","gate_limits":"Source review binds the shared refusal helper. The retired entry has no effect to order.","gates":[],"id":"N8.1","limits":"Parses legacy arguments and emits a redacted failure on stderr with exit status 1.","manual_decisions":["d","f","M37"],"ordering":"Input, claim, write and launch remain untouched with closed or patched-open holds.","review_gates":["eT","gW","gz","legacyCampaignRefusal"],"selector":"The installed source command and its legacy arguments.","witnesses":["wc"]},
+{"admission":{"$":1},"authority":"The retired entry stays closed under every availability setting.","contract":"N8","earlier_effects":"Clock reads precede the in-memory refusal report.","effect":"Retired campaign CLI refusal","effect_points":[],"entrypoint":"gd","gate_limits":"Source review binds the shared refusal helper. The retired entry has no effect to order.","gates":[],"id":"N8.1","limits":"The command ignores its arguments and exits with status 1. The redacted stderr receipt carries the digest of the sealed failure with zero allocations and reports no persisted evidence.","manual_decisions":["d","f","M37"],"ordering":"Check campaign, pool and N1 in order. Report the selected refusal before a caller file read, claim, evidence write or native launch.","review_gates":["eT","gW","gz","legacyCampaignRefusal"],"selector":"The installed compatibility command with any arguments or no arguments.","witnesses":["wc","n107-cli"]},
 
 {"admission":{"$":1},"authority":"The retired entry stays closed under every availability setting.","contract":"N8","earlier_effects":"The ordered availability checks precede the typed retirement error.","effect":"Retired campaign server refusal","effect_points":[],"entrypoint":"rm","gate_limits":"Source review binds the shared refusal helper. The retired entry has no effect to order.","gates":[],"id":"N8.2","limits":"Direct server construction raises the selected hold or typed retirement error.","manual_decisions":["d","f","M37"],"ordering":"The constructor is never invoked, including when all three holds are patched open.","review_gates":["eT","gW","gz","legacyCampaignRefusal"],"selector":"Direct calls to the retired server constructor.","witnesses":["wd"]},
 
@@ -6978,7 +6980,7 @@
 
 "@73":["O0yu8kQDsxjeeZgPsIdhQTZZlkPZIHQOTq97lV71lPE",420,56643],
 
-"@74":["S83yzpwfT3qdUwEcCEr5jEiDfqfUMfaO1pUg2tjnkiw",420,29819],
+"@74":["d1KxqhMXcJX7C8fhsqgsfLcAJhhMJFP6LS97LbezVjw",420,19232],
 
 "@75":["rxUQTMB5G4VkHMvCp5bWQZUL1ERZ-srM6yNpA2MblpA",493,26956],
 
@@ -7024,7 +7026,7 @@
 
 "@98":["qbPY0tljgBYKQbIgz_fR9hhakfS3DXoFnXlzD-9MdRI",420,14498],
 
-"@99":["8wbCPTenJcZIPqeFPLiIYsXigFQ2O-5Jh_u2DxRfGkE",420,30204],
+"@99":["91gxRQm5paPBEykrAzbgjdSzHj8Bq2YRWhSEglxoJtY",420,32786],
 
 "policy/model-roles.yaml":["gnnS0Pw2tLCzppZfzYr289jJhAIF2U9-RD5ii4nrTg8",420,765],
 
@@ -7118,7 +7120,7 @@
 
 "scripts/cwo_core/native_authority.py":["8b-H1dpFODWxojvZx7QEIM_EI74oufSAJhy6P53x1Lg",420,83689],
 
-"scripts/cwo_core/native_canary_contracts.py":["73uuN_mFsG5bqgn7Gn69RJ3f4gOtyUL2qM3EmhRJkHA",420,88018],
+"scripts/cwo_core/native_canary_contracts.py":["ptgJfbWeR8vETZ8w17hdQnx1BUTxl7tdGrh5XB_HtSw",420,80000],
 
 "scripts/cwo_core/native_capability.py":["qQa0px2G7o0tftFROGpc9heY11Mk1jkalA7LQxSN-OE",420,26561],
 
@@ -7416,7 +7418,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["DybUFnmEh62sDk9w9ATGzlgSg_jeUV-Z8c1d6F-kKZQ",420,143073],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["Fe2ke0j-oQm0G3PP4thvcOnwkdgUadzZ5gmRguLHDA0",420,143073],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7867,6 +7869,8 @@
 "n106-status-drift":["self.assertRaisesRegex(ValueError, 'Original pool intent binding changed')","n106-status-drift-body",{"$":1},"self.assertEqual(host.status(), terminal)",["n106-status-read-body","n106-status-helper"],"tests.test_registered_native_pool_host.PoolTests.test_signed_status_refuses_changed_signature_binding_and_source"],
 
 "n106-status-read":["self.assertIs(status['redispatch_permitted'], False)","n106-status-read-body",{"$":1},"self.assertEqual(host.status(), terminal)",["n106-status-helper"],"tests.test_registered_native_pool_host.PoolTests.test_signed_status_reads_only_original_records"],
+
+"n107-cli":["self.assertEqual((completed.returncode, completed.stdout), (1, ''))","n107-cli-body",{"$":1},"'failure_evidence_persisted': False,",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_retired_campaign_cli_ignores_missing_and_unknown_arguments"],
 
 "o":[{"$":393},"ya",{"$":1},{"$":376},["ut"],"tests.test_registered_n1_qualification.ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes"],
 
