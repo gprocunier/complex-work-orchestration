@@ -47,8 +47,8 @@ from cwo_core.public_copy import (
 )
 from validate_run_readiness_plan import validate_plan as validate_run_readiness_plan
 
-# Keep the size of maintained Python under scripts/ bounded as features change.
-PYTHON_LINE_CEILING = 180_000
+# Keep the maintained Python under scripts/ from growing back after consolidation.
+PYTHON_LINE_CEILING = 177_200
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
     "assignment_summary",
