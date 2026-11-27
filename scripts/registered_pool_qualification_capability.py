@@ -37,6 +37,8 @@ _SOURCE_PATHS = (
     "registered_pool_qualification_capability.py",
     "registered_pool_qualification_calibration.py",
     "registered_pool_qualification.py",
+    "registered_pool_ordinary_runtime.py",
+    "registered_contained_pool_host.py",
     "registered_pool_containment.py",
     "registered_pool_configuration.py",
     "registered_app_server_transport.py",
@@ -44,14 +46,13 @@ _SOURCE_PATHS = (
     "registered_server_requests.py",
     "cwo_core/native_pool.py",
     "cwo_core/native_pool_scheduler.py",
+    "cwo_core/native_pool_qualification_evidence.py",
     "cwo_core/native_pool_qualification_stage.py",
+    "cwo_core/native_session_boundary.py",
     "cwo_core/supervision/transport/app_server.py",
-    "run_native_pool_live_canaries.py",
-    "cwo_core/supervision/calibration.py",
+    "cwo_core/supervision/transport/errors.py",
+    "cwo_core/supervision/transport/private_io.py",
     "cwo_core/supervision/callback_timing.py",
-    "cwo_core/supervision/containment.py",
-    "cwo_core/supervision/live_thread.py",
-    "cwo_core/supervision/session_evidence.py",
 )
 _SHA256 = re.compile(r"[0-9a-f]{64}")
 _MAX_SAMPLES = 64
@@ -81,7 +82,9 @@ def _digest(value: Any) -> bool:
     return type(value) is str and _SHA256.fullmatch(value) is not None
 
 
-def _source_digest() -> str:
+def callback_implementation_sha256() -> str:
+    """Bind the installed implementation of the original contained pool callbacks."""
+
     root = Path(__file__).resolve().parent
     return canonical_sha256({name: _source_file_sha256(root / name) for name in _SOURCE_PATHS})
 
@@ -114,16 +117,10 @@ def callback_adapter_scope_sha256(parent: object) -> str:
     parent_type, *_ = _protected_types()
     _require(type(parent) is parent_type and parent.plan["selected_model"] == QUALIFICATION_MODEL,
              "original-calibration-adapter-required")
-    base = _adapter_scope_sha256(parent.plan, parent.authority, len(parent.children))
-    return _ordinary_adapter_scope(parent._ordinary, base)
-
-
-def _ordinary_adapter_scope(ordinary, base: str) -> str:
-    root = Path(__file__).resolve().parent
-    sources = {name: _source_file_sha256(root / name) for name in (
-        "registered_contained_pool_host.py", "registered_pool_ordinary_runtime.py",
-    )}
-    return canonical_sha256({"adapter_scope": base, "ordinary_scope": ordinary.binding_sha256, "sources": sources})
+    return canonical_sha256({
+        "adapter_scope": _adapter_scope_sha256(parent.plan, parent.authority, len(parent.children)),
+        "ordinary_scope": parent._ordinary.binding_sha256,
+    })
 
 
 def _adapter_scope_sha256(plan: Mapping[str, Any], authority: Mapping[str, Any], cohort_size: int) -> str:
@@ -132,7 +129,7 @@ def _adapter_scope_sha256(plan: Mapping[str, Any], authority: Mapping[str, Any],
     )
 
     return canonical_sha256({
-        "implementation_sha256": _source_digest(),
+        "implementation_sha256": callback_implementation_sha256(),
         "runtime_adapter_sha256": plan["runtime_adapter_sha256"],
         "adapter_version": QUALIFICATION_ADAPTER_VERSION,
         "host": authority["host"],
@@ -438,7 +435,7 @@ class ConnectedCallbackCalibration:
             "clock": "monotonic_ns", "callbacks": {name: stats(values) for name, values in samples.items()},
             "scheduler_overhead": stats(self._scheduler_samples),
             "certification": {**certification, "policy_sha256": callback_certification_policy_sha256(certification),
-                              "adapter_implementation_sha256": _source_digest()},
+                              "adapter_implementation_sha256": callback_implementation_sha256()},
             "capabilities": {"interrupt": True, "close": True, "wait": True, "trusted_telemetry": True},
             "attestation_source": "trusted-control-plane-session-metadata", "validation_outcome": "accepted",
         }, "receipt_sha256")
@@ -475,7 +472,7 @@ def require_connected_callback_capability(value: object, parent: object, opportu
     parent._verify_artifacts()
     _require_settled_calibration(ledger, reservation, opportunity.ordinary)
     _require(not validate_capability_receipt(receipt, now=_now())
-             and receipt["certification"]["adapter_implementation_sha256"] == _source_digest(),
+             and receipt["certification"]["adapter_implementation_sha256"] == callback_implementation_sha256(),
              "connected-capability-receipt-stale-or-changed")
     return deepcopy(receipt)
 

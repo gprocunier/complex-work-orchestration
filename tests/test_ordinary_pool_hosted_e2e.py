@@ -313,6 +313,49 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
             self.assertEqual(fixture.approval.read_bytes(), approval)
             self._assert_no_effects(fixture)
 
+    def test_approval_without_current_callback_source_refuses_before_admission(self):
+        manifest = prepare._manifest
+
+        def prepare_old_binding(*args, **kwargs):
+            scope = manifest(*args, **kwargs)
+            scope.pop("callback_implementation_sha256", None)
+            return scope
+
+        with _pool_test_directory() as scratch, ExitStack() as stack:
+            with patch.object(prepare, "_manifest", side_effect=prepare_old_binding):
+                fixture = _HostedPoolFixture(scratch, 2, stack)
+            approval = fixture.approval.read_bytes()
+            exit_code, raw, errors = fixture.submit("--validate-only")
+            self.assertEqual((exit_code, errors), (0, ""))
+            self.assertTrue(json.loads(raw)["authority_validated"])
+            with patch.object(producer, "_cohort", side_effect=AssertionError("Beads admission reached")) as cohort:
+                exit_code, raw, errors = fixture.submit()
+                self.assertEqual((exit_code, raw), (2, ""))
+                self.assertIn("callback-implementation-digest-mismatch", errors)
+                cohort.assert_not_called()
+            self.assertEqual(fixture.approval.read_bytes(), approval)
+            self._assert_no_effects(fixture)
+
+    def test_callback_source_change_refuses_before_admission(self):
+        source_digest = callbacks._source_file_sha256
+
+        def changed_source(path):
+            if path.name == "registered_pool_qualification_calibration.py":
+                return "0" * 64
+            return source_digest(path)
+
+        with _pool_test_directory() as scratch, ExitStack() as stack:
+            fixture = _HostedPoolFixture(scratch, 2, stack)
+            approval = fixture.approval.read_bytes()
+            with patch.object(callbacks, "_source_file_sha256", side_effect=changed_source), \
+                    patch.object(producer, "_cohort", side_effect=AssertionError("Beads admission reached")) as cohort:
+                exit_code, raw, errors = fixture.submit()
+                self.assertEqual((exit_code, raw), (2, ""))
+                self.assertIn("callback-implementation-digest-mismatch", errors)
+                cohort.assert_not_called()
+            self.assertEqual(fixture.approval.read_bytes(), approval)
+            self._assert_no_effects(fixture)
+
     def test_active_effect_journal_refuses_a_preexisting_symlink_or_fifo(self):
         begin = InvocationLedger.begin_invocation
         for kind in ("symlink", "fifo"):

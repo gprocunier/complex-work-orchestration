@@ -30,6 +30,7 @@ from registered_n1_factory import _file
 from registered_n1_qualification import WorkerLoginMount, worker_login_state, _login_overlap
 from registered_pool_configuration import PoolContainmentError, trim_model_catalog
 from registered_pool_containment import _writer_bytes
+from registered_pool_qualification_capability import callback_implementation_sha256
 from registered_worker_login_config import read_pool_worker_login_homes
 
 
@@ -202,7 +203,8 @@ def _manifest(root, project, database, epic, selection, assignments, limits, mou
             "control_turn_id": uuid4().hex,
             "calibration_seconds": _CALIBRATION_SECONDS, "provider": "openai", "disclosure": "provider-only",
             "expires_at": int(datetime.now(timezone.utc).timestamp()) + total["runtime_seconds"] + _SETUP_SECONDS,
-            "runtime_adapter_sha256": sha256(factory.read_bytes()).hexdigest(), "host_inputs": host}
+            "runtime_adapter_sha256": sha256(factory.read_bytes()).hexdigest(),
+            "callback_implementation_sha256": callback_implementation_sha256(), "host_inputs": host}
 
 
 @contextmanager

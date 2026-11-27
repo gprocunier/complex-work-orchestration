@@ -25,9 +25,9 @@ Beads tracking is mandatory for non-trivial work. In ordinary Codex sessions, ha
 ## Operating Defaults
 
 Registered single-worker production needs original signed admission, provider disclosure consent
-and separate production authentication. The registered contained pool runs two or three approved
-workers. Raw native launch, legacy pools, activation and surface qualification stay held.
-Campaigns are retired. Verify the executable, configuration and tool profile with host observations.
+and separate production authentication. Registered contained pools run two or three approved workers.
+Raw native launch, generic pools and surface qualification stay held. Campaigns, live activation and
+standalone calibration are retired. Preview stays offline. Verify host capability and model.
 The lead uses host permissions. The controller contains registered workers and owns protected
 approvals and review evidence. [Threat model](references/security-threat-model.md#trust-on-the-supervisor-host)
 

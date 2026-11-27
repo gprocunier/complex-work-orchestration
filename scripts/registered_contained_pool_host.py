@@ -110,7 +110,8 @@ class ApprovedOrdinaryPool:
     __slots__ = (
         "root", "_raw", "_key", "_scope", "_directive", "pool_id", "binding_sha256", "project", "integration_root",
         "claim_adapter", "control_turn_id", "issued_at", "expires_at", "calibration_seconds", "limits", "model",
-        "effort", "service_tier", "ledger", "lease_registry_path", "runtime_adapter_sha256", "host_inputs", "children",
+        "effort", "service_tier", "ledger", "lease_registry_path", "runtime_adapter_sha256",
+        "callback_implementation_sha256", "host_inputs", "children",
         "readiness_evidence", "work_estimates",
     )
 
@@ -134,6 +135,7 @@ class ApprovedOrdinaryPool:
         self.ledger = InvocationLedger(root / "ledger")
         self.lease_registry_path = pool_state(store) / "leases.json"
         self.runtime_adapter_sha256 = scope["runtime_adapter_sha256"]
+        self.callback_implementation_sha256 = scope.get("callback_implementation_sha256")
         self.host_inputs = MappingProxyType(scope["host_inputs"])
         self.children = MappingProxyType({row["worker_id"]: OrdinaryPoolChild.from_scope(row) for row in scope["children"]})
         self.readiness_evidence = None
@@ -170,7 +172,10 @@ class ApprovedOrdinaryPool:
         _verify(self._scope, self._directive, self._key, self.ledger.current_time())
 
     def _before_claim(self, _attempt_actor, bead_id):
+        from registered_pool_ordinary_runtime import require_ordinary_runtime_source
+
         self.require_current()
+        require_ordinary_runtime_source(self)
         require(database_coordinates(self.project) == self._scope["database"]
                 and bead_id in {child.bead_id for child in self.children.values()},
                 "The protected pool claim differs from its signed Beads target.")
@@ -192,7 +197,7 @@ class ApprovedOrdinaryPool:
 
 
 def _verify(scope, directive, key, now):
-    require(type(scope) is dict and set(scope) == _SCOPE_FIELDS,
+    require(type(scope) is dict and set(scope) in (_SCOPE_FIELDS, _SCOPE_FIELDS | {"callback_implementation_sha256"}),
             "The original signed ordinary pool manifest is required.")
     authority = verify_operator_directive(directive, verification_key=key, expected_actor_id=actor(),
         expected_identity_source=IDENTITY_SOURCE, expected_action_sha256=canonical_authority_sha256(scope))

@@ -134,16 +134,9 @@ class ActivationTransportImportTests(unittest.TestCase):
                 if name not in {"AppServer", "AppServerError"}:
                     with self.subTest(export=name):
                         self.assertIs(getattr(proxy, name), value)
-            for name in (
-                "CONTROL_TURN_ID",
-                "LiveThreadAdapter",
-                "calibration",
-                "capture_server_tool_surface",
-                "contain_started_threads",
-                "pool_sleep",
-            ):
-                with self.subTest(consumer=name):
-                    self.assertIs(getattr(preview, name), getattr(facade, name))
+            self.assertIs(preview.LiveThreadAdapter, facade.LiveThreadAdapter)
+            self.assertFalse(hasattr(preview, "calibration"))
+            self.assertFalse(hasattr(facade, "calibration"))
 
     def test_f5_held_route_original_facade_keeps_owner_identities_without_effects(self) -> None:
         facade = self._fresh(FACADE)

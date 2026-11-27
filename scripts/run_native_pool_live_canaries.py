@@ -124,17 +124,6 @@ from cwo_core.native_worker_contracts import (  # noqa: E402
     normalize_action_receipts as normalize_action_receipts,
     trusted_tool_name as trusted_tool_name,
 )
-from cwo_core.supervision.calibration import (  # noqa: E402
-    CALIBRATION_CERTIFICATION_SAMPLING_PHASE as CALIBRATION_CERTIFICATION_SAMPLING_PHASE,
-    CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS as CALIBRATION_MATERIALIZATION_TIMEOUT_SECONDS,
-    CALIBRATION_POLL_GAP_MAX_SECONDS as CALIBRATION_POLL_GAP_MAX_SECONDS,
-    CALIBRATION_POLL_INTERVAL_SECONDS as CALIBRATION_POLL_INTERVAL_SECONDS,
-    CALIBRATION_STARTUP_TIMEOUT_SECONDS as CALIBRATION_STARTUP_TIMEOUT_SECONDS,
-    _run_calibration as _run_calibration,
-    calibration as calibration,
-    dt as dt,
-    matches_exact_namespaced_wire_source as matches_exact_namespaced_wire_source,
-)
 from cwo_core.supervision.callback_timing import (  # noqa: E402
     ADAPTER_IMPLEMENTATION_PATHS as ADAPTER_IMPLEMENTATION_PATHS,
     PROVISIONAL_TERMINAL_GRACE_SECONDS as PROVISIONAL_TERMINAL_GRACE_SECONDS,

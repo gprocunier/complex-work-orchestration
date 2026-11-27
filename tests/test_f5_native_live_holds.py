@@ -220,24 +220,14 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                 capability.read_adapter_source.assert_called_once_with()
                 self.assertTrue(marker.exists())
 
-    def test_r1_f5_held_preview_routes_zero_launch_and_independent_fake_controls(self):
-        with mock.patch.object(V, 'LIVE_ACTIVATION_AVAILABLE', True), \
-             mock.patch.object(V, 'AppServer', return_value=object()) as launch:
-            for profile in ('n1-read-only', 'n1-mutable', 'n2-read-only'):
+    def test_r1_f5_retired_preview_refuses_all_profiles_even_with_flags_on(self):
+        with mock.patch.object(V, "LIVE_ACTIVATION_AVAILABLE", True), \
+             mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True), \
+             mock.patch.object(V, "AppServer") as launch:
+            for profile in ("n1-read-only", "n1-mutable", "n2-read-only"):
                 with self.subTest(profile=profile), self.assertRaises(V.LiveActivationUnavailable):
                     V._start_activation_server(profile)
-            self.assertEqual(launch.call_count, 0)
-            with mock.patch.object(A, 'N1_LIVE_AVAILABLE', True):
-                for profile in ('n1-read-only', 'n1-mutable'):
-                    self.assertIs(V._start_activation_server(profile), launch.return_value)
-                with self.assertRaises(V.LiveActivationUnavailable):
-                    V._start_activation_server('n2-read-only')
-            self.assertEqual(launch.call_count, 2)
-            with mock.patch.object(A, 'POOL_LIVE_AVAILABLE', True), self.assertRaises(V.LiveActivationUnavailable):
-                V._start_activation_server('n2-read-only')
-            with mock.patch.multiple(A, N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True):
-                self.assertIs(V._start_activation_server('n2-read-only'), launch.return_value)
-            self.assertEqual(launch.call_count, 3)
+            launch.assert_not_called()
 
     def test_f5_campaign_server_refuses_without_a_launch(self):
         with mock.patch.object(C, 'AppServer') as launch:
