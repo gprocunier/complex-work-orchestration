@@ -61,67 +61,68 @@ print('fixed qualification file written')
 _PATCH_STAT_FIELDS = (
     'st_dev', 'st_ino', 'st_mode', 'st_uid', 'st_gid', 'st_nlink', 'st_size', 'st_mtime_ns', 'st_ctime_ns',
 )
+# The retained child receives this program as a single bounded argument.
 _PATCH_WRITER = f"""import base64, hashlib, json, os, re, stat, sys
 
 LIMIT = {MAX_WORKER_PATCH_BYTES}
 ENCODED_LIMIT = 4 * ((LIMIT + 2) // 3)
 FIELDS = {_PATCH_STAT_FIELDS!r}
+PIN_FLAGS = os.O_NOFOLLOW | os.O_CLOEXEC
+
+def require(condition):
+    if not condition:
+        raise ValueError
 
 def mark(info):
     return tuple(getattr(info, name) for name in FIELDS)
 
 def open_parent(parts):
-    flags = os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC
-    descriptor = os.open(".", flags)
+    flags = os.O_RDONLY | os.O_DIRECTORY | PIN_FLAGS
+    parent = os.open(".", flags)
     try:
         for part in parts[:-1]:
-            following = os.open(part, flags, dir_fd=descriptor)
-            os.close(descriptor)
-            descriptor = following
-            info = os.fstat(descriptor)
+            following = os.open(part, flags, dir_fd=parent)
+            os.close(parent)
+            parent = following
+            info = os.fstat(parent)
             if info.st_uid not in (0, os.geteuid()) or info.st_mode & 0o022:
-                raise ValueError("patch target ancestor is not owner-controlled")
-        return descriptor
+                raise ValueError
+        return parent
     except BaseException:
-        os.close(descriptor)
+        os.close(parent)
         raise
 
 def read_current(root, path, expected_mark, expected_sha):
-    pinned = os.open(path, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=root)
+    pinned = os.open(path, os.O_PATH | PIN_FLAGS, dir_fd=root)
     try:
         info = os.fstat(pinned)
         if (not stat.S_ISREG(info.st_mode) or info.st_uid != os.geteuid()
                 or info.st_nlink != 1 or info.st_mode & 0o7022 or mark(info) != expected_mark):
-            raise ValueError("patch target identity changed")
+            raise ValueError
         with open("/proc/self/fd/%d" % pinned, "rb") as current:
             before = current.read(LIMIT + 1)
-            if mark(os.fstat(current.fileno())) != expected_mark:
-                raise ValueError("patch target changed during read")
-        if len(before) > LIMIT or hashlib.sha256(before).hexdigest() != expected_sha:
-            raise ValueError("patch target bytes changed")
+            require(mark(os.fstat(current.fileno())) == expected_mark)
+        require(len(before) <= LIMIT and hashlib.sha256(before).hexdigest() == expected_sha)
         return info
     finally:
         os.close(pinned)
 
 def replace_current(root, path, data, info, temporary, identity):
-    pinned = os.open(temporary, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=root)
+    pinned = os.open(temporary, os.O_PATH | PIN_FLAGS, dir_fd=root)
     try:
         staged_info = os.fstat(pinned)
         if ((staged_info.st_dev, staged_info.st_ino) != identity or not stat.S_ISREG(staged_info.st_mode)
                 or staged_info.st_uid != os.geteuid() or staged_info.st_gid != info.st_gid
                 or staged_info.st_nlink != 1 or staged_info.st_size != 0):
-            raise ValueError("patch staging differs")
+            raise ValueError
         with open("/proc/self/fd/%d" % pinned, "wb") as staged:
-            if staged.write(data) != len(data):
-                raise ValueError("patch staging differs")
+            require(staged.write(data) == len(data))
             staged.flush()
             os.fchmod(staged.fileno(), stat.S_IMODE(info.st_mode))
             os.fsync(staged.fileno())
-        if mark(os.stat(path, dir_fd=root, follow_symlinks=False)) != mark(info):
-            raise ValueError("patch target changed before replacement")
+        require(mark(os.stat(path, dir_fd=root, follow_symlinks=False)) == mark(info))
         current = os.stat(temporary, dir_fd=root, follow_symlinks=False)
-        if not os.path.samestat(current, staged_info) or current.st_nlink != 1:
-            raise ValueError("patch staging changed before replacement")
+        require(os.path.samestat(current, staged_info) and current.st_nlink == 1)
         os.replace(temporary, path, src_dir_fd=root, dst_dir_fd=root)
         os.fsync(root)
     finally:
@@ -129,20 +130,15 @@ def replace_current(root, path, data, info, temporary, identity):
 
 def main():
     path, before_sha, after_sha, raw_mark, temporary = sys.argv[1:]
-    if len(path) > {_MAX_PATCH_PATH_BYTES} or re.fullmatch({_PATCH_PATH.pattern!r}, path) is None:
-        raise ValueError("patch target must be an ordinary relative file")
-    if re.fullmatch({_PATCH_STAGING_NAME!r}, temporary) is None:
-        raise ValueError("patch staging name differs")
+    require(len(path) <= {_MAX_PATCH_PATH_BYTES} and re.fullmatch({_PATCH_PATH.pattern!r}, path) is not None)
+    require(re.fullmatch({_PATCH_STAGING_NAME!r}, temporary) is not None)
     header = sys.stdin.buffer.readline(128)
-    if re.fullmatch(rb"[0-9]+ [0-9]+\\n", header) is None:
-        raise ValueError("patch staging identity differs")
+    require(re.fullmatch(rb"[0-9]+ [0-9]+\\n", header) is not None)
     identity = tuple(map(int, header.split()))
     encoded = sys.stdin.buffer.read(ENCODED_LIMIT + 1)
-    if len(encoded) > ENCODED_LIMIT:
-        raise ValueError("patch payload exceeds its bound")
+    require(len(encoded) <= ENCODED_LIMIT)
     data = base64.b64decode(encoded, validate=True)
-    if len(data) > LIMIT or hashlib.sha256(data).hexdigest() != after_sha:
-        raise ValueError("patch payload differs")
+    require(len(data) <= LIMIT and hashlib.sha256(data).hexdigest() == after_sha)
     parts = path.split("/")
     parent = open_parent(parts)
     try:

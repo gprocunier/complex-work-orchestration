@@ -168,6 +168,18 @@ class CheckedPatchWriterTests(unittest.TestCase):
                 finally:
                     containment._remove_patch_staging(directory, self.stage_name, staging.fileno())
 
+    def test_patch_writer_fits_retained_launcher_argument_bounds(self):
+        worker = SimpleNamespace(spec={'validator': sys.executable}, _output_path=self.target.name)
+        prepared = SimpleNamespace(content=b'updated\n', preimage_sha256=sha256(self.before).hexdigest(),
+                                   target_mark=containment._patch_mark(self.target.stat()))
+        command, _ = containment.PoolWorkerContainment._writer_command(worker, prepared, self.stage_name)
+        lifetime = containment._PoolLifetime(worker, 'tool', command)
+        launcher = '/usr/bin/bwrap'
+        argv = containment.n1._launcher_argv(launcher, 3, lifetime._bootstrap_command(command))
+        workspace = str(self.root)
+        self.assertEqual(containment.n1.owned._freeze('worker-1-tool', argv, workspace, launcher),
+                         ('worker-1-tool', tuple(argv), workspace))
+
     def test_empty_checked_postimage_replaces_the_file_and_preserves_permissions(self):
         nested = self.root / 'src' / 'package'
         nested.mkdir(parents=True)

@@ -1,6 +1,6 @@
 """Exercise signed ordinary pools with inert app servers and actual host custody."""
 
-from contextlib import ExitStack, chdir, redirect_stderr, redirect_stdout
+from contextlib import ExitStack, chdir, contextmanager, redirect_stderr, redirect_stdout
 from hashlib import sha256
 from io import StringIO
 import json
@@ -8,6 +8,7 @@ import os
 from pathlib import Path
 import subprocess
 import sys
+from threading import Barrier, Event
 from types import MethodType
 import unittest
 from unittest.mock import patch
@@ -41,11 +42,17 @@ from tests.ordinary_pool_test_helpers import _PEER, _pool_test_directory
 _EPIC = "epic-ordinary-pool"
 _LAUNCHER = Path("/usr/bin/bwrap")
 _PYTHON = Path("/usr/bin/python3").resolve()
-_PATCH_PATH = "src/result.txt"
-_PATCH_BEFORE = b"Original result for witness 1.\n"
-_PATCH_AFTER = b"Approved result for witness 1.\n"
-_PATCH_DIFF = (f"--- a/{_PATCH_PATH}\n+++ b/{_PATCH_PATH}\n@@ -1 +1 @@\n"
-               "-Original result for witness 1.\n+Approved result for witness 1.\n")
+
+
+def _existing_file_patch(slot):
+    path = "src/result.txt" if slot == 1 else f"src/result-{slot}.txt"
+    before = f"Original result for witness {slot}.\n"
+    after = f"Approved result for witness {slot}.\n"
+    diff = f"--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n-{before}+{after}"
+    return path, before.encode(), after.encode(), diff
+
+
+_PATCH_PATH, _PATCH_BEFORE, _PATCH_AFTER, _PATCH_DIFF = _existing_file_patch(1)
 _PEER_ENTRY = r"""
 import errno
 import json
@@ -109,10 +116,10 @@ class _DisposableBeads:
 
 
 class _HostedPoolFixture:
-    def __init__(self, root, size, stack, *, calibration_behavior="calibration", patch=False):
+    def __init__(self, root, size, stack, *, calibration_behavior="calibration", patch_slots=()):
         self.root = Path(root)
         self.calibration_behavior = calibration_behavior
-        self.patch = patch
+        self.patches = {slot: _existing_file_patch(slot) for slot in patch_slots}
         self.project = self.root / "project"
         self.project.mkdir(mode=0o700)
         self._git("init", "--quiet")
@@ -147,10 +154,10 @@ class _HostedPoolFixture:
         model, effort, tier = producer.SUPPORTED_SELECTION
         for slot in range(1, size + 1):
             bead_id = f"pool-task-{slot}"
-            patch_mode = self.patch and slot == 1
+            patch_mode = slot in self.patches
             verb = "Update" if patch_mode else "Create"
             task = f"{verb} the exact agreed document for ordinary assignment {slot}."
-            output = _PATCH_PATH if patch_mode else f"ordinary-{slot}.txt"
+            output = self.patches[slot][0] if patch_mode else f"ordinary-{slot}.txt"
             requirement = {"record_type": "cwo-requirement-baseline", "version": 1, "bead_id": bead_id,
                 "baseline_version": 1, "criteria": [{"id": "result", "requirement": task, "reference": bead_id,
                     "expected_outcome": "The file holds the approved exact UTF-8 text.",
@@ -167,8 +174,8 @@ class _HostedPoolFixture:
             assignment = {"task": task, "baseline": baseline_name, "output_path": output}
             if patch_mode:
                 path = self.project / output
-                path.parent.mkdir()
-                path.write_bytes(_PATCH_BEFORE)
+                path.parent.mkdir(exist_ok=True)
+                path.write_bytes(self.patches[slot][1])
                 self._git("add", "--", output)
                 self._git("commit", "--quiet", "-m", "Seed the existing file for the patch assignment")
                 assignment["output_mode"] = "unified-diff"
@@ -180,17 +187,19 @@ class _HostedPoolFixture:
 
     def _inert_appserver(self):
         executable = self.root / "inert-appserver"
-        patch_path = _PATCH_PATH if self.patch else None
+        outputs = {slot: row["output_path"] for slot, row in enumerate(self.args["assignments"], 1)}
         check_prompt = f"""
         prompt = params['input'][0]['text']
         assert f'ordinary assignment {{slot}}.' in prompt
-        output = ({patch_path!r} if slot == 1 else None) or f'ordinary-{{slot}}.txt'
-        assert output in prompt and marker in prompt
+        assert {outputs!r}[slot] in prompt and marker in prompt
 """
         peer = _PEER.replace("        assert 'permissions' not in params",
                              "        assert 'permissions' not in params\n" + check_prompt)
-        if self.patch:
-            peer = peer.replace("tool = {'id': call", f"if slot == 1:\n    arguments['diff'] = {_PATCH_DIFF!r}\ntool = {{'id': call")
+        if self.patches:
+            diffs = {slot: diff for slot, (_, _, _, diff) in self.patches.items()}
+            peer = peer.replace("tool = {'id': call",
+                                f"diffs = {diffs!r}\nif slot in diffs:\n    arguments['diff'] = diffs[slot]\n"
+                                "tool = {'id': call")
         header = f"#!{_PYTHON}\ncalibration_behavior = {self.calibration_behavior!r}\n"
         executable.write_text(header + _PEER_ENTRY + peer, encoding="utf-8")
         executable.chmod(0o700)
@@ -240,9 +249,86 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
     def test_signed_n3_settles_exact_writes_and_shared_accounting(self):
         self._exercise_cohort(3)
 
+    def test_signed_n3_settles_simultaneous_existing_file_patches(self):
+        with _pool_test_directory() as scratch, ExitStack() as stack:
+            fixture = _HostedPoolFixture(scratch, 3, stack, patch_slots=(1, 2, 3))
+            self._observe_overlapping_patch_staging(fixture, stack)
+            exit_code, raw, errors = fixture.submit()
+            self.assertEqual((exit_code, errors), (0, ""), (raw, errors))
+            report = json.loads(raw)
+            self._assert_shared_settlement(fixture, 3, report)
+            workers = report["validation"]["worker_observations"]
+            request_digests = set()
+            for slot, child in enumerate(fixture.scope["children"], 1):
+                with self.subTest(slot=slot):
+                    request_digests.add(self._assert_assigned_patch(fixture, slot, child, workers))
+            self.assertEqual(len(request_digests), 3)
+
+    def _observe_overlapping_patch_staging(self, fixture, stack):
+        compare = adapter.PoolWorkspaceMonitor.compare
+        communicate = containment.PoolWorkerContainment._communicate_staged_patch
+        capture_waiting = Event()
+
+        @contextmanager
+        def observe_capture(guard):
+            if not guard.acquire(blocking=False):
+                capture_waiting.set()
+                guard.acquire()
+            try:
+                yield
+            finally:
+                guard.release()
+
+        def compare_workspaces(monitor, *, contract, phase, child_capture_guards=None):
+            guards = {worker_id: observe_capture(guard) for worker_id, guard in (child_capture_guards or {}).items()}
+            return compare(monitor, contract=contract, phase=phase, child_capture_guards=guards)
+
+        def confirm_overlap():
+            for child in fixture.scope["children"]:
+                parent = (Path(child["worktree"]) / child["write_path"]).parent
+                self.assertEqual(len(list(parent.glob(".cwo-patch-*"))), 1)
+            self.assertTrue(capture_waiting.wait(3), "No workspace capture reached an active patch writer")
+
+        staged = Barrier(len(fixture.patches), action=confirm_overlap, timeout=6)
+
+        def communicate_staged(writer, *args, **kwargs):
+            staged.wait()
+            return communicate(writer, *args, **kwargs)
+
+        stack.enter_context(patch.object(adapter.PoolWorkspaceMonitor, "compare", compare_workspaces))
+        stack.enter_context(patch.object(containment.PoolWorkerContainment, "_communicate_staged_patch", communicate_staged))
+
+    def _assert_assigned_patch(self, fixture, slot, child, workers):
+        path, before, after, diff = fixture.patches[slot]
+        worker_id = child["worker_id"]
+        checkout = Path(child["worktree"])
+        self.assertEqual((child["output_mode"], child["write_path"], child["expected_utf8"]),
+                         ("unified-diff", path, None))
+        self.assertEqual(child["patch_preimage_sha256"], sha256(before).hexdigest())
+        host = workers[worker_id]["host"]
+        self.assertEqual((host["worker_id"], host["worktree"], host["spool"]),
+                         (worker_id, child["worktree"], child["productive_spool"]))
+        self.assertTrue(host["cleanup_confirmed"])
+        receipt, = [row["observation"] for row in host["observations"] if row["stage"] == "writer-output"]
+        self.assertRegex(receipt["request_sha256"], "^[0-9a-f]{64}$")
+        self.assertEqual(receipt, {
+            "call_id": f"{worker_id}-call", "path": path, "patch_preimage_sha256": sha256(before).hexdigest(),
+            "request_sha256": receipt["request_sha256"], "diff_sha256": sha256(diff.encode()).hexdigest(),
+            "content_sha256": sha256(after).hexdigest(),
+        })
+        for peer_slot, (peer_path, original, output, _) in fixture.patches.items():
+            self.assertEqual((fixture.project / peer_path).read_bytes(), original)
+            self.assertEqual((checkout / peer_path).read_bytes(), output if slot == peer_slot else original)
+        self.assertFalse(list(checkout.rglob(".cwo-patch-*")))
+        self.assertFalse((checkout / "prohibited-direct-write.txt").exists())
+        self.assertEqual({path.name for path in Path(child["login_home"]).iterdir()}, {"auth.json"})
+        for phase in ("calibration", "productive"):
+            self._assert_login_and_writer_receipts(child, phase)
+        return receipt["request_sha256"]
+
     def test_signed_existing_file_patch_and_fixed_text_settle_together(self):
         with _pool_test_directory() as scratch, ExitStack() as stack:
-            fixture = _HostedPoolFixture(scratch, 2, stack, patch=True)
+            fixture = _HostedPoolFixture(scratch, 2, stack, patch_slots=(1,))
             patch_child, text_child = fixture.scope["children"]
             self.assertEqual(patch_child["output_mode"], "unified-diff")
             self.assertEqual(patch_child["write_path"], _PATCH_PATH)
@@ -288,7 +374,7 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
 
     def test_signed_patch_preimage_drift_refuses_before_admission(self):
         with _pool_test_directory() as scratch, ExitStack() as stack:
-            fixture = _HostedPoolFixture(scratch, 2, stack, patch=True)
+            fixture = _HostedPoolFixture(scratch, 2, stack, patch_slots=(1,))
             child = fixture.scope["children"][0]
             path = Path(child["worktree"]) / child["write_path"]
             path.write_bytes(b"Different preimage bytes.\n")
@@ -424,7 +510,7 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
             return source_digest(path)
 
         with _pool_test_directory() as scratch, ExitStack() as stack:
-            fixture = _HostedPoolFixture(scratch, 2, stack, patch=True)
+            fixture = _HostedPoolFixture(scratch, 2, stack, patch_slots=(1,))
             approval = fixture.approval.read_bytes()
             for changed_name in ("registered_pool_qualification_calibration.py", "worker_patch.py",
                                  "native_pool_deferred_attestation.py", "native_pool_workspace.py"):
@@ -663,6 +749,19 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
                 self.assertEqual(list(Path(child[phase + "_spool"]).iterdir()), [])
 
     def _assert_settled(self, fixture, size, report):
+        self._assert_shared_settlement(fixture, size, report)
+        for child in fixture.scope["children"]:
+            checkout = Path(child["worktree"])
+            output = child["write_path"]
+            self.assertEqual((checkout / output).read_text(encoding="utf-8"), child["expected_utf8"])
+            self.assertEqual({path.name for path in checkout.glob("ordinary-*.txt")}, {output})
+            self.assertFalse((checkout / "prohibited-direct-write.txt").exists())
+            self.assertFalse((fixture.project / output).exists())
+            self.assertEqual({path.name for path in Path(child["login_home"]).iterdir()}, {"auth.json"})
+            for phase in ("calibration", "productive"):
+                self._assert_login_and_writer_receipts(child, phase)
+
+    def _assert_shared_settlement(self, fixture, size, report):
         self.assertEqual(report["execution_route"], "registered-contained-pool")
         self.assertEqual(report["state"], "ACCEPTED")
         self.assertTrue(report["accepted"])
@@ -685,16 +784,6 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
         self._assert_writer_release_order(accounting["productive"], size)
         self.assertFalse(list(fixture.login_state.glob("login-*.lock")))
         self.assertCountEqual(fixture.database.commands.claim_order, [child["bead_id"] for child in fixture.scope["children"]])
-        for child in fixture.scope["children"]:
-            checkout = Path(child["worktree"])
-            output = child["write_path"]
-            self.assertEqual((checkout / output).read_text(encoding="utf-8"), child["expected_utf8"])
-            self.assertEqual({path.name for path in checkout.glob("ordinary-*.txt")}, {output})
-            self.assertFalse((checkout / "prohibited-direct-write.txt").exists())
-            self.assertFalse((fixture.project / output).exists())
-            self.assertEqual({path.name for path in Path(child["login_home"]).iterdir()}, {"auth.json"})
-            for phase in ("calibration", "productive"):
-                self._assert_login_and_writer_receipts(child, phase)
 
     def _assert_login_and_writer_receipts(self, child, phase):
         receipts = Path(child[phase + "_spool"]).parent / "containment-receipts"
