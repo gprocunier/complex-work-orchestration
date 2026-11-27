@@ -18,7 +18,7 @@ verified acceptance.
 | Fixed contained-pool qualification | Retired | The preparation command and protected controller are archived in [v1.45.0](https://github.com/gprocunier/complex-work-orchestration/blob/v1.45.0/references/native-supervision-pools.md#contained-qualification-on-stock-codex). |
 | Legacy serial pool and retry | Retired | The serial host refuses execution before recording intent, claiming work or reserving budget. Signed status readers check the original configuration and source image. See the [v1.46.0 serial integration record](https://github.com/gprocunier/complex-work-orchestration/blob/v1.46.0/references/codex-protocol-capability-matrix.md#protected-serial-pool-integration). |
 | Activation preview | Dedicated `LIVE_ACTIVATION_AVAILABLE` plus N1 for `n1-read-only` and `n1-mutable`; additionally pool for `n2-read-only` | Run entry checks the dedicated hold and N1 before loading inputs; the loaded profile is checked before claims, ledger creation, reservation or launch. Server creation, ledger transport RPC entry points, worker-contract allocation and accepted-child closure recheck the dedicated hold and selected profile. |
-| Retired campaign | Campaign, pool and N1, in that order | The CLI, pool canary, pool preparation, preclaim, global claim and server entry points check the three decisions and then refuse as retired. They refuse before input reads, claims, evidence writes or worker allocation. |
+| Retired campaign | Campaign, pool and N1, in that order | The CLI and library entry points check the three decisions and then refuse as retired. The CLI prints its sealed zero-allocation refusal to stderr and exits 1 without processing legacy arguments. |
 | Admitted v8 multiworker plan | N1 and pool | The loader checks the actual child count before consuming the verified operation or importing its runtime adapter. The concrete installed maintenance runtime supports exactly one worker child and one precommit session; it does not implement a multiworker maintenance cohort. |
 
 The raw transport's N1 decision is a shared prerequisite because its concrete
@@ -52,7 +52,7 @@ record witnesses at commit `a559a0bb2b9fc4e83b8acbef7b13b48172a47983`
 (`v1.37.0`). The Generation 11 source digests are read from
 `e7f540654e0ed605e4720bd4d3b670a11cb8f701`.
 
-The tagged source also retains the campaign proof validators and
+The tagged source also retains the authorization latch, campaign proof validators and
 `build_live_canary_pool_contract` for historical manifests. Current source
 retains the read-only validator-contract digests and private JSON snapshot
 type. The read-only Git checks live in `cwo_core.native_campaign_history`. The ordinary `build_pool_contract` uses the released capacity policy.

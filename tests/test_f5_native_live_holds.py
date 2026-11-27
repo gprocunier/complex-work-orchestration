@@ -288,7 +288,7 @@ class F5NativeLiveHoldTests(unittest.TestCase):
     def test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / 'EXAMPLE-output.json'
-            args = SimpleNamespace(output=str(output))
+            argv = [C.__file__, '--output', str(output), '--authorization', str(output)]
             for n1, pool, campaign, exception, code in (
                 (False, False, False, A.NativeLiveUnavailable, 'native-campaign-live-unavailable'),
                 (False, False, True, A.NativeLiveUnavailable, 'native-pool-live-unavailable'),
@@ -300,7 +300,8 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                 with self.subTest(code=code), \
                      mock.patch.multiple(A, N1_LIVE_AVAILABLE=n1, POOL_LIVE_AVAILABLE=pool,
                                          CAMPAIGN_LIVE_AVAILABLE=campaign), \
-                     mock.patch.object(C.argparse.ArgumentParser, 'parse_args', return_value=args), \
+                     mock.patch.object(sys, 'argv', argv), \
+                     mock.patch.object(C, 'seal_artifact', wraps=C.seal_artifact) as seal, \
                      mock.patch.object(C, 'load_private_json_snapshot') as read, \
                      mock.patch.object(C, 'acquire_global_campaign_claim') as claim, \
                      mock.patch.object(C, 'write_private_artifact') as write, \
@@ -322,9 +323,49 @@ class F5NativeLiveHoldTests(unittest.TestCase):
                     'evidence_sha256': report['evidence_sha256'],
                     'failure_evidence_persisted': False,
                 })
-                self.assertRegex(report['evidence_sha256'], '^[0-9a-f]{64}$')
+                self._assert_zero_campaign_allocation(seal, report)
                 self.assertEqual(stdout.getvalue(), '')
                 self.assertEqual(list(Path(directory).iterdir()), [])
+
+    def _assert_zero_campaign_allocation(self, seal, report):
+        seal.assert_called_once()
+        body, field = seal.call_args.args
+        self.assertEqual(field, 'evidence_sha256')
+        self.assertEqual(body['validation_outcome'], 'rejected')
+        self.assertEqual(body['containment'], {
+            'allocated_count': 0, 'identified_thread_count': 0, 'interrupted_count': 0,
+            'archived_count': 0, 'already_contained_count': 0, 'unresolved_allocation_intent_count': 0,
+            'unresolved_turn_intent_count': 0, 'ambiguous_count': 0, 'all_contained': True,
+            'ledger_consistent': True, 'ledger_error_sha256': [],
+        })
+        self.assertIsNone(body['authorization_state_sha256'])
+        self.assertIsNone(body['allocation_ledger'])
+        self.assertEqual(body['steering_consumptions'], {})
+        self.assertEqual(body['campaign_bindings'], {})
+        self.assertEqual(report['evidence_sha256'], C.seal_artifact(body, field)[field])
+        self.assertRegex(report['evidence_sha256'], '^[0-9a-f]{64}$')
+
+    def test_retired_campaign_cli_ignores_missing_and_unknown_arguments(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            output = root / 'EXAMPLE-output.json'
+            for arguments in ([], ['--authorization'], ['--unknown-option'], ['--help'],
+                              ['--output', str(output), '--campaign-manifest', str(output)]):
+                with self.subTest(arguments=arguments):
+                    completed = subprocess.run([sys.executable, '-I', '-B', C.__file__, *arguments],
+                                               cwd=root, capture_output=True, text=True, timeout=10)
+                    self.assertEqual((completed.returncode, completed.stdout), (1, ''))
+                    report = json.loads(completed.stderr)
+                    self.assertEqual(report, {
+                        'release_gate_passed': False,
+                        'failure_class': 'NativeLiveUnavailable',
+                        'failure_code': 'native-campaign-live-unavailable',
+                        'failure_message_sha256': C.sha256_text('native-campaign-live-unavailable'),
+                        'evidence_sha256': report['evidence_sha256'],
+                        'failure_evidence_persisted': False,
+                    })
+                    self.assertRegex(report['evidence_sha256'], '^[0-9a-f]{64}$')
+                    self.assertEqual(list(root.iterdir()), [])
 
     def test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup(self):
         """Already-created transports still refuse new native work at the wire."""

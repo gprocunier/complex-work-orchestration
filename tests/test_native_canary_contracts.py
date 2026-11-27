@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import copy
-from concurrent.futures import ThreadPoolExecutor
 import hashlib
 import hmac
 import importlib.util
@@ -19,8 +18,6 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.native_canary_contracts import (  # noqa: E402
-    CANARY_AUTHORIZATION_SCHEMA,
-    CanaryAuthorizationStore,
     MATERIALIZATION_EVIDENCE_SCHEMA,
     MATERIALIZATION_EVIDENCE_TYPE,
     NativeCanaryContractError,
@@ -29,13 +26,11 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     length_framed_sha256,
     materialization_execution_correlation,
     materialization_liveness_correlation,
-    new_authorization_state,
     neutral_steering_final_text,
     operator_fact_action_sha256,
     seal_neutral_steering_receipt,
     seal_materialization_evidence,
     validate_capability_rendered_command,
-    validate_authorization_state,
     validate_materialization_evidence,
     validate_steering_receipt,
     verify_operator_fact_authority,
@@ -567,16 +562,6 @@ class NativeCanaryContractTests(unittest.TestCase):
                         phase_nonce=alias,
                         architect_adjudication_sha256=adjudication,
                         architect_decision="go",
-                    )
-            with self.subTest(surface="authorization-v2", alias=repr(alias)):
-                with self.assertRaisesRegex(
-                    NativeCanaryContractError, "authorization-identity-invalid"
-                ):
-                    new_authorization_state(
-                        authorization_id=alias,
-                        run_nonce=str(uuid.uuid4()),
-                        now="2026-07-17T00:00:00Z",
-                        launch_claim_sha256=hash_value("launch"),
                     )
 
     @unittest.skipUnless(
@@ -1334,119 +1319,6 @@ class NativeCanaryContractTests(unittest.TestCase):
             "steering-canonical-sha256-mismatch", validate_steering_receipt(receipt)
         )
 
-    def test_authorization_latch_is_private_monotonic_and_revokes_delayed_actions(
-        self,
-    ) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "authorization.json"
-            store = CanaryAuthorizationStore(path)
-            initial = new_authorization_state(
-                authorization_id="authorization-one",
-                run_nonce=str(uuid.uuid4()),
-                now="2026-07-16T00:00:00Z",
-            )
-            self.assertEqual(validate_authorization_state(initial), [])
-            store.initialize(initial)
-            self.assertEqual(stat.S_IMODE(path.stat().st_mode), 0o600)
-            self.assertEqual(
-                store.require_action("tracked-mutation")["state"], "active"
-            )
-            contained = store.transition(
-                "containment-only", reason="protected-fault", now="2026-07-16T00:00:01Z"
-            )
-            self.assertEqual(contained["sequence"], 1)
-            self.assertIn("tracked-mutation", contained["revoked_actions"])
-            self.assertEqual(
-                store.require_action("interrupt")["state"], "containment-only"
-            )
-            for action in (
-                "retry",
-                "relaunch",
-                "tracked-mutation",
-                "release-enable",
-                "push",
-                "install",
-                "publish",
-            ):
-                with (
-                    self.subTest(action=action),
-                    self.assertRaisesRegex(NativeCanaryContractError, "revoked"),
-                ):
-                    store.require_action(action)
-            with self.assertRaisesRegex(
-                NativeCanaryContractError, "transition-forbidden"
-            ):
-                store.transition(
-                    "active", reason="late-event", now="2026-07-16T00:00:02Z"
-                )
-            parked = store.transition(
-                "parked", reason="evidence-durable", now="2026-07-16T00:00:03Z"
-            )
-            self.assertEqual(parked["state"], "parked")
-
-    def test_authorization_complete_is_terminal(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            store = CanaryAuthorizationStore(Path(temporary) / "authorization.json")
-            store.initialize(
-                new_authorization_state(
-                    authorization_id="a", run_nonce="r", now="2026-07-16T00:00:00Z"
-                )
-            )
-            completed = store.transition(
-                "complete", reason="accepted", now="2026-07-16T00:00:01Z"
-            )
-            self.assertEqual(completed["allowed_actions"], [])
-            with self.assertRaisesRegex(
-                NativeCanaryContractError, "transition-forbidden"
-            ):
-                store.transition(
-                    "containment-only", reason="late", now="2026-07-16T00:00:02Z"
-                )
-
-    def test_v2_launch_claim_is_atomic_and_survives_transitions(self) -> None:
-        with tempfile.TemporaryDirectory() as temporary:
-            path = Path(temporary) / "authorization.json"
-            launch_claim = hash_value("generation-seven-launch")
-            authorization_id = str(uuid.uuid4())
-
-            def claim() -> str:
-                try:
-                    CanaryAuthorizationStore(path).initialize(
-                        new_authorization_state(
-                            authorization_id=authorization_id,
-                            run_nonce=str(uuid.uuid4()),
-                            now="2026-07-17T00:00:00Z",
-                            launch_claim_sha256=launch_claim,
-                        )
-                    )
-                except NativeCanaryContractError as exc:
-                    return str(exc)
-                return "won"
-
-            with ThreadPoolExecutor(max_workers=2) as executor:
-                outcomes = list(executor.map(lambda _index: claim(), range(2)))
-            self.assertEqual(outcomes.count("won"), 1)
-            self.assertEqual(
-                sum("authorization-state-already-exists" in item for item in outcomes),
-                1,
-            )
-            store = CanaryAuthorizationStore(path)
-            active = store.load()
-            self.assertEqual(active["version"], 2)
-            self.assertEqual(active["launch_claim_sha256"], launch_claim)
-            contained = store.transition(
-                "containment-only",
-                reason="protected-fault",
-                now="2026-07-17T00:00:01Z",
-            )
-            self.assertEqual(contained["launch_claim_sha256"], launch_claim)
-            tampered = dict(contained)
-            tampered["launch_claim_sha256"] = hash_value("different-launch")
-            self.assertIn(
-                "authorization-state-sha256-mismatch",
-                validate_authorization_state(tampered),
-            )
-
     def test_canary_schema_oracle_family(self) -> None:
         rows = (
             CanarySchemaRow("tests.test_native_canary_contracts.NativeCanaryContractTests.test_schemas_are_json_and_strict", "strict"),
@@ -1456,7 +1328,7 @@ class NativeCanaryContractTests(unittest.TestCase):
             "schemas/native-steering-receipt.schema.json",
             "schemas/native-steering-receipt-v2.schema.json",
             MATERIALIZATION_EVIDENCE_SCHEMA,
-            CANARY_AUTHORIZATION_SCHEMA,
+            "schemas/native-canary-authorization-state.schema.json",
             "schemas/native-canary-authorization-state-v2.schema.json",
         ):
             schema = json.loads((ROOT / relative).read_text(encoding="utf-8"))

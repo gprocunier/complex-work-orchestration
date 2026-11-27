@@ -20,7 +20,6 @@ even the previously accepted tree before reading inputs or reaching any effect.
 
 from __future__ import annotations
 
-import argparse
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 import hashlib
 import io
@@ -459,27 +458,20 @@ def drive_current_launcher(directory: Path, tree: str) -> dict:
         },
         "campaign_manifest": {"version": 8, "outputs": dict(_OUTPUTS), "candidate": {"tree": tree}},
     }
-    real_parse_args = argparse.ArgumentParser.parse_args
-    before: dict[str, str] = {}
-
-    def parse_args(self, args=None, namespace=None):
-        argv = ["--output", str(output), "--campaign-nonce", nonce]
-        for action in self._actions:
-            if not action.required or action.dest in {"output", "campaign_nonce"}:
-                continue
-            path = inputs / f"{action.dest}.json"
-            path.write_text(json.dumps(contents.get(action.dest, {"placeholder": action.dest})), encoding="utf-8")
-            path.chmod(0o600)
-            argv.extend([action.option_strings[0], str(path)])
-        before.update(_tree_state(directory))
-        return real_parse_args(self, argv, namespace)
+    argv = [LIVE.__file__, "--output", str(output), "--campaign-nonce", nonce]
+    for name, record in contents.items():
+        path = inputs / (name + ".json")
+        path.write_text(json.dumps(record), encoding="utf-8")
+        path.chmod(0o600)
+        argv.extend(["--" + name.replace("_", "-"), str(path)])
+    before = _tree_state(directory)
 
     stdout = io.StringIO()
     stderr = io.StringIO()
     with ExitStack() as stack:
         stack.enter_context(mock.patch.multiple(LIVE.live_availability,
             N1_LIVE_AVAILABLE=True, POOL_LIVE_AVAILABLE=True, CAMPAIGN_LIVE_AVAILABLE=True))
-        stack.enter_context(mock.patch.object(argparse.ArgumentParser, "parse_args", parse_args))
+        stack.enter_context(mock.patch.object(sys, "argv", argv))
         spawn = stack.enter_context(mock.patch("subprocess.Popen", side_effect=_EffectReached))
         request = stack.enter_context(mock.patch.object(LIVE.AppServer, "request", side_effect=_EffectReached))
         server = stack.enter_context(mock.patch.object(LIVE, "AppServer", side_effect=_EffectReached))
