@@ -13,6 +13,7 @@ from site_code import without_token_spans
 
 ROOT = Path(__file__).resolve().parents[1]
 DOCS = ROOT / "docs"
+CLAIMS_REGISTER = ROOT / "references" / "claims-register.md"
 REPO_URL = "https://github.com/gprocunier/complex-work-orchestration"
 GITHUB_HOSTS = {"github.com", "www.github.com"}
 INCIDENT_PLAYBOOK_URL = f"{REPO_URL}/blob/main/references/incident-response-playbook.md"
@@ -149,6 +150,72 @@ SEMANTIC_ROUTES = {
     "optional-lanes": ("./external-contracting.html#collaboration", None),
 }
 
+AVAILABILITY_SUBJECTS = {
+    "Configured local model dispatch": r"(?:configured )?local(?: model| vllm| review| endpoint)? dispatch",
+    "ChatGPT Pro desktop review": r"chatgpt pro(?: desktop| browser)? review|(?:desktop )?browser review",
+    "Legacy browser live transport": (
+        r"(?:legacy )?cdp(?: browser)? transport|legacy browser (?:send and share )?transport|share url or html intake"
+    ),
+    "Concurrent native pool contract": (
+        r"concurrent (?:native )?(?:pools?|groups?)|(?:registered )?(?:contained |native )?pools?(?: execution| routes?)?"
+    ),
+    "Native live campaigns": (
+        r"(?:(?:legacy |concurrent )?(?:native )?pools?(?: routes?)?(?:, | and ))?"
+        r"(?:(?:live|legacy|native) )*campaigns?(?: routes?| execution| launch(?:er)?)?"
+    ),
+    "Optional cyber fallback": r"(?:optional )?cyber(?:_| )fallback(?: role)?",
+}
+PROSE_BLOCKS = {
+    "p", "li", "dt", "dd", "td", "th", "h1", "h2", "h3", "h4", "h5", "h6", "figcaption", "blockquote", "summary", "title",
+}
+PROSE_BREAK = "\0"
+NON_PROSE_TAGS = {"pre", "script", "style", "template"}
+HOLD_WORDING = (
+    r"(?:is|are|remains?|stays?) (?:still )?(?:held|on hold|(?:under )?(?:a )?source hold)"
+    r"|(?:retains?|keeps?) (?:their |its )?source holds?"
+)
+UNAVAILABLE_WORDING = r"(?:is|are|remains?|stays?) (?:still )?(?:unavailable|disabled|not (?:available|supported|enabled))"
+AVAILABLE_WORDING = r"(?:is|are|remains?|stays?) (?:still )?(?:available|enabled|supported|the default)"
+STATUS_WORDING = {
+    "Shipped": f"{HOLD_WORDING}|{UNAVAILABLE_WORDING}",
+    "Retired": f"{HOLD_WORDING}|{UNAVAILABLE_WORDING}|{AVAILABLE_WORDING}",
+    "Held": AVAILABLE_WORDING,
+}
+
+
+def availability_statuses() -> dict[str, str]:
+    register = CLAIMS_REGISTER.read_text(encoding="utf-8")
+    rows = re.findall(r"^\| ([^|]+?) \| \*\*(Shipped|Retired|Held)\.\*\* ", register, re.MULTILINE)
+    statuses = dict(rows)
+    missing = AVAILABILITY_SUBJECTS.keys() - statuses.keys()
+    if missing:
+        raise ValueError(f"claims register missing availability status for {', '.join(sorted(missing))}")
+    if len(rows) != len(statuses):
+        raise ValueError("claims register contains duplicate availability rows")
+    return statuses
+
+
+def validate_availability(prose: list[str], source: Path, statuses: dict[str, str] | None) -> list[str]:
+    if statuses is None:
+        statuses = availability_statuses()
+    sentences = [
+        sentence for block in "".join(prose).split(PROSE_BREAK)
+        for sentence in re.split(r"(?<=[.!?])\s+", " ".join(block.split()))
+    ]
+    errors = []
+    for area, status in statuses.items():
+        subject = AVAILABILITY_SUBJECTS.get(area, re.escape(area))
+        claim = re.compile(
+            rf"^(?:the |cwo['’]s )?(?:{subject})(?:, [^.;:!?]+?| and [^.;:!?]+?)? "
+            rf"(?:{STATUS_WORDING[status]})"
+            r"(?: (?:in|for) (?:this|the current) (?:release|version))?"
+            r"(?: under (?:the )?(?:default-off )?source holds?)?[.!?]?$", re.IGNORECASE,
+        )
+        for sentence in sentences:
+            if claim.fullmatch(sentence):
+                errors.append(f"{source} has stale availability for {area} ({status.lower()} in {CLAIMS_REGISTER.name}): {sentence}")
+    return errors
+
 
 def validate_onboarding(contents: dict[str, str]) -> list[str]:
     from html import unescape
@@ -215,6 +282,8 @@ class SiteParser(HTMLParser):
         self.headings: list[tuple[str, str]] = []
         self.landmarks: set[str] = set()
         self.internal_copy_errors: list[str] = []
+        self.prose: list[str] = []
+        self._non_prose_depth = 0
         self.title = ""
         self._in_title = False
         self._pre_depth = 0
@@ -226,6 +295,11 @@ class SiteParser(HTMLParser):
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         attrs_dict = {key: value or "" for key, value in attrs}
+        if tag in PROSE_BLOCKS:
+            self.prose.append(PROSE_BREAK)
+        if tag in NON_PROSE_TAGS:
+            self._non_prose_depth += 1
+            self.prose.append(PROSE_BREAK)
         if "id" in attrs_dict:
             element_id = attrs_dict["id"]
             if element_id in self.ids:
@@ -248,6 +322,10 @@ class SiteParser(HTMLParser):
             self._heading_text = []
 
     def handle_endtag(self, tag: str) -> None:
+        if tag in PROSE_BLOCKS:
+            self.prose.append(PROSE_BREAK)
+        if tag in NON_PROSE_TAGS and self._non_prose_depth:
+            self._non_prose_depth -= 1
         if tag == "title":
             self._in_title = False
         if tag == "pre" and self._pre_depth:
@@ -273,6 +351,8 @@ class SiteParser(HTMLParser):
             self._public_copy_allow = False
 
     def handle_data(self, data: str) -> None:
+        if not self._non_prose_depth:
+            self.prose.append(data)
         if self._in_title:
             self.title += data
         if self._current_heading:
@@ -309,11 +389,12 @@ def first_screen_term_text(first_screen: str, term: str) -> str:
     return re.sub(r"<[^>]+>", " ", first_screen)
 
 
-def validate_html(path: Path) -> list[str]:
+def validate_html(path: Path, statuses: dict[str, str] | None = None) -> list[str]:
     errors: list[str] = []
     text = path.read_text(encoding="utf-8")
     parser = SiteParser(allow_internal_labels=path.name in INTERNAL_LABEL_REFERENCE_PAGES)
     parser.feed(text)
+    errors.extend(validate_availability(parser.prose, path.relative_to(ROOT), statuses))
 
     if not parser.title.strip():
         errors.append(f"{path.relative_to(ROOT)} missing <title>")
@@ -417,12 +498,17 @@ def validate_html(path: Path) -> list[str]:
 
 def main() -> int:
     errors: list[str] = []
+    try:
+        statuses = availability_statuses()
+    except (OSError, ValueError) as error:
+        print(f"ERROR: {error}", file=sys.stderr)
+        return 1
     required = [DOCS / page for page in REQUIRED_PAGES] + [DOCS / "styles.css", DOCS / ".nojekyll"]
     for path in required:
         if not path.exists():
             errors.append(f"missing required site file: {path.relative_to(ROOT)}")
     for path in sorted(DOCS.glob("*.html")):
-        errors.extend(validate_html(path))
+        errors.extend(validate_html(path, statuses))
     errors.extend(validate_onboarding({page: (DOCS / page).read_text() for page in ["get-started.html", *ONBOARDING_PAGE_STEPS] if (DOCS / page).is_file()}))
     if (DOCS / "styles.css").exists():
         css = (DOCS / "styles.css").read_text(encoding="utf-8")

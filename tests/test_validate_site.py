@@ -4,6 +4,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from typing import Iterator, NamedTuple
 from tests.structural_assertions import Check, assert_checks
@@ -195,6 +196,55 @@ class ValidateSiteTests(unittest.TestCase):
             with self.subTest(original=row.original):
                 result = self.validate_snippet(row.page, row.markup, **row.options)
                 assert_checks(self, result, row.checks)
+
+    def test_flags_stale_availability_in_site_prose(self) -> None:
+        cases = (
+            ("Concurrent native groups are unavailable in this release under default-off source holds.", "Concurrent native pool contract"),
+            ("Registered native pools remain held.", "Concurrent native pool contract"),
+            ("Concurrent <em>pools</em>, campaigns and new worker-surface qualification retain their source holds.", "Concurrent native pool contract"),
+            ("Concurrent pools, campaigns and new worker-surface qualification retain their source holds.", "Native live campaigns"),
+            ("Pool and campaign routes and new worker-surface qualification remain held.", "Native live campaigns"),
+            ("Legacy pool routes, campaigns, activation preview and new worker-surface qualification retain their source holds.", "Native live campaigns"),
+            ("The legacy native campaign launcher is unavailable.", "Native live campaigns"),
+            ("Configured local model dispatch is unavailable in this release.", "Configured local model dispatch"),
+            ("ChatGPT Pro desktop review remains held.", "ChatGPT Pro desktop review"),
+            ("Browser review is unavailable in this release.", "ChatGPT Pro desktop review"),
+            ("Legacy CDP browser transport is available.", "Legacy browser live transport"),
+            ("The optional cyber fallback remains unavailable in this release.", "Optional cyber fallback"),
+        )
+        for prose, area in cases:
+            with self.subTest(area=area, prose=prose):
+                errors = self.validate_snippet("use-cases.html", f"<p>{prose}</p>")
+                self.assertTrue(any("stale availability" in error and area in error for error in errors), errors)
+
+    def test_allows_scoped_and_historical_availability(self) -> None:
+        prose = (
+            "<p>Registered contained pools are unavailable without host approval.</p>"
+            "<p>Legacy pool and retry routes remain held.</p>"
+            "<p>Live campaigns and the legacy campaign launcher are retired, not held: the command refuses before any effect.</p>"
+            "<p>Before 1.46.0, concurrent native groups were unavailable.</p>"
+            "<p>Configured local model dispatch is unavailable when no endpoint is configured.</p>"
+            "<p>ChatGPT Pro desktop review is unavailable without the operator present.</p>"
+            "<p>Legacy CDP browser transport and share URL or HTML intake are retired.</p>"
+            "<p>The optional cyber fallback is unavailable when the account lacks access.</p>"
+            "<!-- Concurrent native groups are unavailable. -->"
+            "<pre>ChatGPT Pro desktop review remains held.</pre>"
+            "<p>Concurrent pools</p><p>are unavailable.</p>"
+        )
+        self.assertEqual(self.validate_snippet("use-cases.html", prose), [])
+
+    def test_reads_availability_from_the_claims_register(self) -> None:
+        register = (ROOT / "references" / "claims-register.md").read_text(encoding="utf-8")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "fixture-register.md"
+            path.write_text(register.replace(
+                "| Concurrent native pool contract | **Shipped.**",
+                "| Concurrent native pool contract | **Held.**",
+            ) + "\n| Future capability (example) | **Shipped.** Example | Limit | Evidence |\n", encoding="utf-8")
+            with patch("validate_site.CLAIMS_REGISTER", path):
+                self.assertEqual(self.validate_snippet("use-cases.html", "<p>Concurrent pools remain held.</p>"), [])
+                errors = self.validate_snippet("use-cases.html", "<p>Future capability (example) remains held.</p>")
+                self.assertTrue(any("stale availability for Future capability (example)" in error for error in errors), errors)
 
 
     def test_rejects_missing_cross_page_fragment(self) -> None:
