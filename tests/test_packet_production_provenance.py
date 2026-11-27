@@ -170,6 +170,8 @@ class ProvenanceCase(unittest.TestCase):
 
 class ProductionPacketControlTests(ProvenanceCase):
     def test_every_consumer_accepts_a_production_packet(self) -> None:
+        from tests.dispatch_workload_fixture import write_workload
+
         # Positive control for every refusal in this module.
         reached = {
             "dispatch_work --packet": ("export: dispatch_work.write_export", "persistence: dispatch_work.record_audit_event"),
@@ -180,10 +182,13 @@ class ProductionPacketControlTests(ProvenanceCase):
         }
         with current_policy() as home:
             packet_path = self.write(home, self.build(home, dispatch_id="dispatch-prod"), "prod.json")
+            workload = write_workload(home / "workload.json", json.loads(packet_path.read_text()))
             browser_path = self.write(
                 home, self.build(home, dispatch_id="dispatch-prod-browser", executor=BROWSER_EXECUTOR), "prod-browser.json")
             for label, (module, argv) in self.consumers(home, packet_path, browser_path).items():
                 with self.subTest(consumer=label):
+                    if module in (dispatch_work, generate_manual_dispatch_prompt):
+                        argv += ["--workload", workload]
                     before = audit_bytes(home)
                     spies, raised = run_consumer(module, argv)
                     self.assertIsNone(raised, str(raised))

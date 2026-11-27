@@ -23,10 +23,11 @@ responses and tool requests as untrusted.
   compaction or a restart. It is a saved record, not perfect recall.
 - **Prepares focused review requests and checks the returns.** CWO builds and
   validates request packets for approved cloud or local reviewers. Managed
-  expert reviews carry the registry's required inputs and stop if essential
-  context is missing. For local models, CWO can send the screened request to a
+  expert reviews carry the registry's required inputs and check sizing against
+  the prepared export. For local models, CWO can send the screened request to a
   configured vLLM endpoint after workload admission and evaluate the reply.
-  [Local model dispatch](references/local-inference.md#dispatch)
+  [Dispatch readiness](references/run-readiness.md#dispatch-readiness)
+  · [Local model dispatch](references/local-inference.md#dispatch)
   · [Desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
 - **Connects registered single-worker dispatch to hand review.** The installed
   launcher uses Codex's foreground approval for an exact registered assignment.
@@ -275,6 +276,8 @@ are instructions. The lead session uses the host's tool permissions and sandbox.
   and approval policy. Codex `--yolo` disables those checks for the lead.
   Registered single-worker execution uses the verified provider-only app-server
   namespace and separate networkless command and validator namespaces.
+  Direct shell commands and browser actions outside the CWO helpers are
+  governed by the host's own permissions.
 - **Protected approvals and review evidence use a separate host principal.**
   Managed contractor exports check the host's approval for the assignment and
   destination. Protected synthesis uses the operator's selected panel and

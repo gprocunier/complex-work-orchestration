@@ -7,8 +7,12 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from routing_cli_options import (
+    DISCLOSURE_ESCALATION_HELP, add_local_route_arguments, add_route_boundary_arguments, route_decision_options,
+)
 from cwo_core.routing import current_authority_file_arguments
 
+from cwo_core.dispatch_workload import WorkloadRefused, read_export_workload, validate_export_workload
 from cwo_core.errors import CWOError
 from cwo_core.prepared_outbound import PreparedOutbound, PreparedSource
 from cwo_core.outbound_screen import (
@@ -317,6 +321,21 @@ def export_screened(text: str, *, as_json: bool, capture: PreparedSource | None 
     write_export(screened, prepared=prepared, source=source)
 
 
+def require_packet_workload(path, packet, prompt, files, *, rehearsal=False, wire_text=None):
+    if rehearsal:
+        return None
+    transport = packet.get("executor_transport") or {}
+    try:
+        return validate_export_workload(
+            read_export_workload(path, files), request_text=prompt, wire_text=wire_text,
+            executor=packet["executor"], provider=packet["provider_key"], bead_id=packet["bead_id"],
+            model=transport.get("model") or transport.get("default_model_label"),
+            effort=transport.get("effort") or transport.get("default_reasoning_label"), captures=files,
+        )
+    except WorkloadRefused as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def main() -> None:
     # Diagnostics before the final screen can repeat caller input; withhold any the screen refuses.
     with withheld_diagnostics("generate_manual_dispatch_prompt"):
@@ -328,6 +347,7 @@ def _main() -> None:
     parser.add_argument("text", nargs="*")
     parser.add_argument("--file")
     parser.add_argument("--packet", help="Boundary-gated contractor packet JSON to render.")
+    parser.add_argument("--workload", help="Whole-route sizing JSON and selected node for a managed packet export.")
     parser.add_argument(
         "--allow-degraded-packet",
         action="store_true",
@@ -344,19 +364,9 @@ def _main() -> None:
         help="Permit degraded prompt rendering only as a local rehearsal; do not use as production dispatch evidence.",
     )
     parser.add_argument("--external-ok", action="store_true")
-    parser.add_argument(
-        "--allow-disclosure-escalation",
-        action="store_true",
-        help="Explicitly approve repo-readonly or patch-branch disclosure routing.",
-    )
-    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
-    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
-    parser.add_argument("--share-boundary", default="no-outside-sharing", help="Disclosure boundary for routing; outside disclosure must be chosen explicitly.")
-    parser.add_argument(
-        "--data-sensitivity",
-        choices=["public", "redacted", "internal", "restricted"],
-        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
-    )
+    parser.add_argument("--allow-disclosure-escalation", action="store_true", help=DISCLOSURE_ESCALATION_HELP)
+    add_local_route_arguments(parser, profile=False)
+    add_route_boundary_arguments(parser, boundary_help="Disclosure boundary for routing; outside disclosure must be chosen explicitly.")
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--json", action="store_true")
     add_waiver_reason_argument(parser)
@@ -376,11 +386,12 @@ def _main() -> None:
         captured = capture.value()
         prompt = label_rehearsal(render_packet_prompt(captured["packet"]), args.rehearsal)
         capture.require_unchanged(captured)
-        if args.json:
-            export_screened(json.dumps({"packet": captured["packet"], "prompt": prompt, **rehearsal_result(args.rehearsal)},
-                                       indent=2, sort_keys=True), as_json=True, capture=capture, source=source)
-        else:
-            export_screened(prompt, as_json=False, capture=capture, source=source)
+        artifact = {"packet": captured["packet"], "prompt": prompt, **rehearsal_result(args.rehearsal)}
+        screened = screen_export(json.dumps(artifact, indent=2, sort_keys=True) if args.json else prompt, as_json=args.json)
+        require_packet_workload(args.workload, captured["packet"], prompt, files, rehearsal=args.rehearsal)
+        capture.require_unchanged(source)
+        prepared = PreparedSource.capture(source, files).bind(source, screened)
+        write_export(screened, prepared=prepared, source=source)
         return
 
     task_segments = read_task_segments(" ".join(args.text).strip() or None, args.file, captures=files)
@@ -392,13 +403,7 @@ def _main() -> None:
         route = classify_work(
             task,
             text_segments=task_segments,
-            external_ok=args.external_ok,
-            allow_disclosure_escalation=args.allow_disclosure_escalation,
-            local_ok=args.local_ok,
-            prefer_local=args.prefer_local,
-            share_boundary=args.share_boundary,
-            data_sensitivity=args.data_sensitivity,
-            requested_roles=args.requested_role,
+            **route_decision_options(args),
             **current_authority_file_arguments(args.current_authority),
         )
     except CWOError as exc:

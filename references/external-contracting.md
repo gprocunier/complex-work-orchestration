@@ -288,6 +288,7 @@ python3 scripts/build_contractor_packet.py \
 python3 scripts/dispatch_work.py \
   --packet claude-architect-critique-packet.json \
   --mode manual \
+  --workload "$CLAUDE_WORKLOAD" \
   > claude-architect-critique-dispatch-prompt.md
 
 python3 scripts/build_contractor_packet.py \
@@ -303,6 +304,7 @@ python3 scripts/build_contractor_packet.py \
 python3 scripts/dispatch_work.py \
   --packet architect-critique-packet.json \
   --mode manual \
+  --workload "$GEMINI_WORKLOAD" \
   > gemini-architect-critique-dispatch-prompt.md
 
 WORK_PACKET_DIR="${WORK_PACKET_DIR:-$PWD/work-packets}"
@@ -657,13 +659,23 @@ python3 scripts/build_contractor_packet.py \
 7. PM generates a manual dispatch prompt. Dispatch revalidates the packet hash,
    executor, provider binding, opt-in basis, boundary, disclosure stage,
    expert-profile state, mandatory exclusions, selected snippet fields, snippet
-   line limits, snippet SHA-256 values, and artifact whitelist before it records
-   an audit event by default:
+   line limits, snippet SHA-256 values, and artifact whitelist. It verifies
+   workload sizing for the exact rendered request before exporting it and
+   recording dispatch. [Dispatch readiness](run-readiness.md#dispatch-readiness)
+
+   To measure the complete prompt, use
+   `cwo manual-prompt --packet contractor-packet.json --rehearsal --json`.
+   Use the `prompt` value without the leading `Local rehearsal only.` line
+   and its following blank line. Put the result in the selected node's
+   `prompt` field of the original sizing plan. The admitted request is the
+   `manual_prompt` value in `dispatch_work.py --json`. Plain-text export
+   adds a framing newline.
 
    ```bash
    python3 scripts/dispatch_work.py \
      --packet contractor-packet.json \
      --mode manual \
+     --workload "$WORKLOAD_FILE" \
      > contractor-dispatch-prompt.md
    ```
 

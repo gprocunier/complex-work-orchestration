@@ -2,18 +2,23 @@
 from __future__ import annotations
 
 from copy import deepcopy
+from dataclasses import replace
 import hashlib
 import json
 from pathlib import Path
 import sys
 import tempfile
+from types import SimpleNamespace
 import unittest
+from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 from cwo_core.codex_critic_capture import (  # noqa: E402
     MAX_CODEX_CAPTURE_BYTES,
+    _peer_review_request,
+    prepare_codex_critic_request,
     prepare_codex_peer_review_request,
     record_codex_critic_completion,
     record_codex_peer_review_completion,
@@ -22,13 +27,35 @@ from cwo_core.errors import CWOPolicyError  # noqa: E402
 from cwo_core.host_records import HostRecordStore, using_test_store  # noqa: E402
 from cwo_core.host_return_intake import record_received_return  # noqa: E402
 from cwo_core.model_identities import resolve_model  # noqa: E402
+from cwo_core.outbound_screen import OutboundRefused  # noqa: E402
 from cwo_core.peer_review import pending_evaluation_sha256  # noqa: E402
 from cwo_core.policy import configured_gemini_critic  # noqa: E402
 from cwo_core.returns import make_acceptance_decision  # noqa: E402
+from cwo_core.routing import classify_work  # noqa: E402
+from dispatch_work import record_route_preparation  # noqa: E402
+from tests.test_route_feasibility_preparation import bind, planner, record, work_sizing  # noqa: E402
 
 
 def sha(raw):
     return hashlib.sha256(raw).hexdigest()
+
+
+def planned_critic(text, *, bead_id="test-critic", effort="xhigh", model=None, extra_inputs=20_000, output=2048):
+    """Produce a real, synthetic route bound to the embedding host's source prompt."""
+    route = record(tiny=True)
+    route["parent_id"] = bead_id
+    node, = route["nodes"]
+    model = model or resolve_model("sol")
+    node["execution"].update(executor="codex_architecture_critic", provider="internal_codex",
+                             model=model, effort=effort, output_tokens_upper=output)
+    node.update(prompt=text, wrappers=[], attachments=[], sources=[], additional_input_tokens_upper=extra_inputs)
+    source = node["estimate_source"]
+    source.update(bead_id=bead_id, requested_model=model, context_manifest=[])
+    node["source_sha256"] = work_sizing.canonical_work_estimate_sha256(source)
+    unit = work_sizing.evaluate_work_estimate(source, policy=route["policy"])
+    node.update(unit_estimate=unit, unit_sha256=work_sizing.canonical_work_estimate_sha256(unit),
+                rendered_request=planner.render_request(node))
+    return {"route_input": bind(route), "node_id": node["id"]}
 
 
 def jsonl(rows):
@@ -98,7 +125,15 @@ class CodexCriticCaptureTests(unittest.TestCase):
         self.original = OriginalCodexProcess(self.root, self.request, "  exact return — café\r\n\n")
         self.prepared = self._prepare_critic("critic")
 
-    def _prepare_critic(self, dispatch_id):
+    def _prepare_critic(self, dispatch_id, *, legacy=False):
+        if not legacy:
+            prepared = prepare_codex_critic_request(self.store, dispatch_id, request=self.request,
+                bead_id="test-critic", workload=planned_critic(self.request.decode()),
+                evaluation_metadata={"peer_review_required": False})
+            self.assertEqual(prepared.request, self.request)
+            record = self.store.require_dispatch(dispatch_id)
+            self.assertEqual(record["evaluation_metadata"]["dispatch_workload"], prepared.workload_binding)
+            return record["_record_sha256"]
         return self.store.write_dispatch(dispatch_id=dispatch_id, dispatch_role="executor", provider="openai",
             model_family=None, model_id=None, reasoning_effort=None, session_id=None,
             request_sha256=sha(self.request), bead_id="test-critic", executor="codex_architecture_critic",
@@ -108,6 +143,33 @@ class CodexCriticCaptureTests(unittest.TestCase):
     def _finish_critic(self, *, dispatch_id="critic", request=None, **changes):
         return record_codex_critic_completion(self.store, dispatch_id,
             request=self.request if request is None else request, **{**self.original.inputs(), **changes})
+
+    def test_internal_critic_route_without_workload_refuses_before_host_record(self):
+        task = "Use Codex counter-review on the cross-cutting architecture migration with production rollback."
+        route = classify_work(task, execution_environment="connected-codex-glm-primary")
+        critic = next(item for item in route["critic_route"]["contracts"]
+                      if item["executor"] == "codex_architecture_critic")
+        route.update(recommended_executor=critic["executor"], selected_executor=critic["selected_executor"])
+        args = SimpleNamespace(audit=True, bead="test-critic", workload=None)
+        with patch("dispatch_work.configured_store", return_value=self.store):
+            with self.assertRaisesRegex(SystemExit, "workload"):
+                record_route_preparation(args, route, task, "unsized", None, None)
+        self.assertEqual(self.store.find("dispatch", dispatch_id="unsized"), [])
+
+    def test_internal_critic_requires_bounded_sizing_and_exact_screened_input(self):
+        launch = []
+        for workload in (None, 10, planned_critic("Some other request."),
+                         planned_critic(self.request.decode(), model="EXAMPLE-unregistered-model"),
+                         planned_critic(self.request.decode(), output=None)):
+            with self.subTest(workload=type(workload)), self.assertRaisesRegex(CWOPolicyError, "workload"):
+                launch.append(prepare_codex_critic_request(
+                    self.store, "unsized", request=self.request, bead_id="test-critic", workload=workload))
+        unsafe = b"Review this example. api_key: test-placeholder-secret-value"
+        with self.assertRaises(OutboundRefused):
+            launch.append(prepare_codex_critic_request(self.store, "unsized", request=unsafe,
+                bead_id="test-critic", workload=planned_critic(unsafe.decode())))
+        self.assertEqual(launch, [])
+        self.assertEqual(self.store.find("dispatch", dispatch_id="unsized"), [])
 
     def test_preserves_exact_return_and_observed_dispatch_on_retry(self):
         result = self._finish_critic()
@@ -169,7 +231,7 @@ class CodexCriticCaptureTests(unittest.TestCase):
     def test_allows_absent_tier_and_rejects_session_reuse(self):
         del self.original.rollout[7]["payload"]["thread_settings"]["service_tier"]
         self._finish_critic()
-        self._prepare_critic("second")
+        self._prepare_critic("second", legacy=True)
         with self.assertRaises(CWOPolicyError):
             self._finish_critic(dispatch_id="second")
 
@@ -188,8 +250,28 @@ class CodexCriticCaptureTests(unittest.TestCase):
         record_received_return(self.store, "gemini", report)
         return report, metadata
 
-    def _review(self, report):
-        return prepare_codex_peer_review_request(self.store, "peer", target_dispatch_id="gemini", target_return=report)
+    def _review(self, report, **plan_options):
+        plan = planned_critic(json.dumps(report.decode(), ensure_ascii=False), **plan_options)
+        return prepare_codex_peer_review_request(
+            self.store, "peer", target_dispatch_id="gemini", target_return=report, workload=plan)
+
+    def test_peer_without_workload_refuses_before_launch_request(self):
+        report, _ = self._gemini()
+        launch = []
+
+        with self.assertRaisesRegex(CWOPolicyError, "workload"):
+            launch.append(prepare_codex_peer_review_request(
+                self.store, "peer", target_dispatch_id="gemini", target_return=report))
+
+        self.assertEqual(launch, [])
+        self.assertEqual(self.store.find("dispatch", dispatch_id="peer"), [])
+
+    def test_peer_refuses_unbudgeted_evaluator_wrapper_and_execution_drift(self):
+        report, _ = self._gemini()
+        for options in ({"extra_inputs": 0}, {"effort": "high"}, {"bead_id": "other-bead"}):
+            with self.subTest(options=options), self.assertRaisesRegex(CWOPolicyError, "workload"):
+                self._review(report, **options)
+        self.assertEqual(self.store.find("dispatch", dispatch_id="peer"), [])
 
     def test_peer_refuses_mismatched_target_before_writing_identity(self):
         report, _ = self._gemini()
@@ -205,6 +287,10 @@ class CodexCriticCaptureTests(unittest.TestCase):
     def test_peer_reuses_evaluator_and_cannot_substitute_for_critic(self):
         report, metadata = self._gemini()
         request = self._review(report)
+        self.assertEqual(request.workload_binding, self._review(report).workload_binding)
+        self.store.require_audit_event("codex_peer_review_prepared", dispatch_id="peer")
+        self.assertEqual(request.workload_binding["request_sha256"], sha(request.request))
+        self.assertEqual(request.workload_binding["execution"]["output_tokens_upper"], 2048)
         reviewer = dict(provider="openai", model_family="gpt", model_id=resolve_model("sol"),
                         reasoning_effort="xhigh", dispatch_id="peer")
         accepted_inputs = dict(bead_id="test-critic", dispatch_id="gemini", executor="gemini_architecture_critic",
@@ -213,6 +299,10 @@ class CodexCriticCaptureTests(unittest.TestCase):
         decision = dict(record_type="cwo-peer-review", version=2, decision="passed", reviewer_identity=reviewer,
                         return_sha256=sha(report), evaluation_sha256=pending_evaluation_sha256(pending))
         process = OriginalCodexProcess(self.root, request.request, "\n" + json.dumps(decision, indent=2) + "\n")
+        for changed in (None, b"{}"):
+            with self.subTest(changed=changed), self.assertRaisesRegex(CWOPolicyError, "workload"):
+                record_codex_peer_review_completion(self.store, replace(request, _workload_bytes=changed),
+                    target_return=report, **process.inputs())
         result = record_codex_peer_review_completion(self.store, request, target_return=report, **process.inputs())
         self.assertEqual(result.final, process.final.encode())
         self.assertEqual(result, record_codex_peer_review_completion(
@@ -220,12 +310,22 @@ class CodexCriticCaptureTests(unittest.TestCase):
         self.assertEqual(self.store.require_dispatch("peer")["review_target"],
                          dict(dispatch_id="gemini", return_sha256=sha(report),
                               evaluation_sha256=pending_evaluation_sha256(pending)))
+        self.assertEqual(self.store.require_dispatch("peer")["evaluation_metadata"]["dispatch_workload"],
+                         request.workload_binding)
         actual = make_acceptance_decision(report.decode(), peer_review_status="passed", peer_review_reviewer=reviewer,
                                           peer_review_record=decision, **accepted_inputs)
         self.assertEqual(actual["peer_review_separation"]["level"], "cross-family")
         self.assertFalse(set(actual["hold_reasons"]) & {"peer-review-pending", "provider-conflict-peer-review-pending"})
         with self.assertRaises(CWOPolicyError):
             self._finish_critic(dispatch_id="peer")
+
+    def test_peer_capture_accepts_historical_request_without_managed_receipt(self):
+        report, _ = self._gemini()
+        historical = replace(_peer_review_request(self.store, "old-peer", "gemini", report), launch_identity=None)
+        decision = json.loads(historical.request.split(b"\n\n", 1)[1])["passed_response"]
+        process = OriginalCodexProcess(self.root, historical.request, json.dumps(decision))
+        record_codex_peer_review_completion(self.store, historical, target_return=report, **process.inputs())
+        self.assertNotIn("dispatch_workload", self.store.require_dispatch("old-peer")["evaluation_metadata"])
 
 
 if __name__ == "__main__":

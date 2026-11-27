@@ -169,22 +169,22 @@ three units or six reads warn; four or eleven require replanning.
 
 ## Contractor And Local Worker Gates
 
-Outside packets require explicit opt-in, one primary `contract-jd-*` label, guard labels,
-share boundary, provider metadata, redaction, screening, validation, audit,
-return normalization, evaluation and architect adjudication.
+Outside packets need opt-in, a primary `contract-jd-*` label, guard labels, a share boundary,
+provider metadata, redaction, screening, validation, [sizing](references/run-readiness.md#dispatch-readiness),
+audit, return normalization, evaluation and architect adjudication.
 
 ```bash
 python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --opt-in-record="$APPROVAL_REF" --format json --output contractor-packet.json
-python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
+python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual --workload "$WORKLOAD_FILE"
 python3 scripts/normalize_contractor_return.py --bead <id> --dispatch-id <id> --packet-sha256 <sha> --file contractor-return.md --output contractor-return-bundle.json
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
 Required plan reviews remain blocking until the approved route, model and any
 required settings, return evidence, evaluation and adjudication are established
-or the operator explicitly changes that requirement. For ChatGPT Pro, follow the
-[ChatGPT desktop app workflow](references/chatgpt-pro-browser.md). Local inference
-requires `--local-ok`. Use `--prefer-local` only for an intended low-risk local review lane.
+or the operator explicitly changes that requirement. Use the
+[ChatGPT Pro desktop workflow](references/chatgpt-pro-browser.md). Local inference
+requires `--local-ok`. Use `--prefer-local` only for low-risk local reviews.
 
 Use the configured Luna model first for focused native work. Each assignment fixes its exact model.
 Stop on missing or mismatched attestation. Do not substitute another model.

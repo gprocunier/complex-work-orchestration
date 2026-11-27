@@ -95,11 +95,15 @@ class AlternateEvaluatorTests(unittest.TestCase):
                 self.assertTrue(result['implementation_blocked'])
 
     def test_normalizer_real_writer_control_and_sentinel(self):
+        from tests.dispatch_workload_fixture import write_workload
+
         helper = fixture.ProvenanceCase()
         with current_policy() as home, fixture.packet_approvals():
             return_file=home/'return.md';return_file.write_text(RETURN_TEXT)
-            prod=helper.write(home,helper.build(home,dispatch_id='writer-prod'),'prod.json')
-            with mock.patch.object(sys, 'argv', ['dispatch_work.py', '--packet', str(prod)]), \
+            packet=helper.build(home,dispatch_id='writer-prod')
+            prod=helper.write(home,packet,'prod.json')
+            workload = write_workload(home / 'workload.json', packet)
+            with mock.patch.object(sys, 'argv', ['dispatch_work.py', '--packet', str(prod), '--workload', workload]), \
                     contextlib.redirect_stdout(io.StringIO()):
                 dispatch_work.main()
             output=home/'normalized.json'
