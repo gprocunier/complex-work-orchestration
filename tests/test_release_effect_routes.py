@@ -1347,49 +1347,6 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         start = code.index("wrapper")
         self.assertEqual(R._effect_interval(code.encode(), inner), (start, start + len("wrapper(allowed)")))
 
-    def _probe_listener_pair(self):
-        import check_codex_worker_surface as surface
-        from cwo_core import native_live_availability as availability
-        events, calls = [], []
-        event_type = surface.threading.Event
-        def event():
-            value = event_type()
-            events.append(value)
-            return value
-        listener = mock.Mock(server_address=("127.0.0.1", 12345))
-        listener.handle_request.side_effect = lambda: (calls.append("serve"), events[1].set())
-        listener.server_close.side_effect = lambda: calls.append("close")
-        listener.socket.fileno.return_value = -1
-        def construct(address, handler):
-            self.assertEqual(address, ("127.0.0.1", 0))
-            self.assertTrue(issubclass(handler, surface.BaseHTTPRequestHandler))
-            calls.append("construct")
-            return listener
-        def thread(*, target, daemon):
-            self.assertTrue(daemon)
-            return mock.Mock(start=target, ident=123, is_alive=lambda: False)
-        evidence = {}
-        with mock.patch.object(surface, "ThreadingHTTPServer", side_effect=construct) as factory, \
-             mock.patch.object(surface, "prepare_capture_binding", return_value={"lockdown_config_sha256": "mismatch"}) as prepare, \
-             mock.patch.object(surface, "probe_thread_config", return_value={}), \
-             mock.patch.object(surface.threading, "Thread", side_effect=thread), \
-             mock.patch.object(surface.threading, "Event", side_effect=event):
-            failure = None
-            with mock.patch.object(availability, "N1_LIVE_AVAILABLE", False):
-                try:
-                    surface.capture_tool_request(codex_home=self.root, requested_model="EXAMPLE", timeout_seconds=1)
-                except BaseException as error:
-                    failure = error
-            self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))
-            self.assertIsInstance(failure, availability.NativeLiveUnavailable)
-            with mock.patch.object(availability, "N1_LIVE_AVAILABLE", True), \
-                 self.assertRaisesRegex(surface.CodexToolSurfaceError, "configuration-binding-drift"):
-                surface.capture_tool_request(codex_home=self.root, requested_model="EXAMPLE", timeout_seconds=1, evidence=evidence)
-        self.assertEqual(calls, ["construct", "serve", "close"])
-        self.assertEqual((evidence["probe_cleanup"]["serving_thread_stopped"],
-                          evidence["probe_cleanup"]["listener_closed"]), (True, True))
-
-
     def _installer_pair(self):
         skills = self.root / "install/skills"
         marker = self.root / "validator-argv.json"
@@ -1496,7 +1453,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
     def test_remaining_boundary_pairs_at_actual_effects(self):
         with tempfile.TemporaryDirectory() as directory:
             self.root = Path(directory)
-            for row in (self._probe_listener_pair, self._installer_pair, self._driver_pair, self._dns_pair, self._expert_pair):
+            for row in (self._installer_pair, self._driver_pair, self._dns_pair, self._expert_pair):
                 with self.subTest(row=row.__name__):
                     row()
 

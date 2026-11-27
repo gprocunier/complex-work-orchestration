@@ -127,11 +127,10 @@ class TransportImportPathTests(unittest.TestCase):
     def test_script_and_core_importers_bind_the_core_objects(self) -> None:
         app_server = transport("app_server")
         errors = transport("errors")
-        import check_codex_worker_surface
         import run_native_pool_activation_preview
         from cwo_core import maintenance_native_runtime
 
-        for module in (check_codex_worker_surface, run_native_pool_activation_preview, maintenance_native_runtime):
+        for module in (run_native_pool_activation_preview, maintenance_native_runtime):
             with self.subTest(module=module.__name__):
                 self.assertIs(module.AppServer, app_server.AppServer)
                 self.assertIs(module.AppServerError, errors.AppServerError)

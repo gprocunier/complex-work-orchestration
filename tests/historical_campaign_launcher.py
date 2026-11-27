@@ -17,6 +17,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 PRE_RETIREMENT = "d0e2d682659fd724ddb9f50cd50beb6877fb1eda"
 RETIRED_CAMPAIGN = "a559a0bb2b9fc4e83b8acbef7b13b48172a47983"  # v1.37.0
+HELD_QUALIFICATION_PRODUCERS = "7b2f3db802d7b1d1c4c555960d65d2502220f93b"  # v1.48.0
 RUNNER_PATH = "scripts/run_native_pool_live_canaries.py"
 
 
@@ -59,9 +60,10 @@ def launcher_before_retirement() -> str:
     return historical
 
 
-def run_archived_cases(case: unittest.TestCase, revision: str, *tests: str) -> None:
+def run_archived_cases(case: unittest.TestCase, revision: str, *tests: str, all_paths: bool = False) -> None:
     """Use the fixed revision's matching helpers and existing effect spies."""
-    raw = pinned_git(revision, "archive", "--format=tar", revision, "scripts", "schemas", "policy", "tests", "references")
+    paths = () if all_paths else ("scripts", "schemas", "policy", "tests", "references")
+    raw = pinned_git(revision, "archive", "--format=tar", revision, *paths)
     environment = {key: value for key, value in os.environ.items() if not key.startswith(("GIT_", "PYTHON"))}
     environment.update(GIT_ALLOW_PROTOCOL="", GIT_NO_LAZY_FETCH="1", GIT_NO_REPLACE_OBJECTS="1",
                        GIT_CONFIG_NOSYSTEM="1", GIT_CONFIG_GLOBAL=os.devnull)

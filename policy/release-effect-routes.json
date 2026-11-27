@@ -36,7 +36,7 @@
 
 "H5":{"admission":{"$":2},"authority":"The caller explicitly selects a saved private artifact, the current production packet and the independently persisted capture event.","effect":"Saved private browser intake and explicitly selected local output","effect_points":["bq7","bq8","bq9"],"gates":["bq6","Y"],"limits":"Legacy URL and HTML selections refuse before reads or output. Saved private intake requires the independently selected v5 record. Default JSON omits response text; an explicit output path renders Markdown containing the exact response. No capture, network, adjudication or closure authority.","manual_decisions":["D","x"],"ordering":"Require exactly one source and refuse legacy URL or HTML before selecting capture inputs. Validate the current packet and audit provenance before reading the pinned response and publishing the selected local output.","trace_files":[{"$":400},{"$":30},{"$":26},{"$":271},{"$":105},{"$":418},{"$":266}],"witnesses":["ct","cm","bq3"]},
 
-"H6":{"authority":"Operator chooses preview port; documentation handler path boundary. Probe requires exact native capability/selected original process and no source authority from captured request.","effect":"Operator docs listener and held probe listener","limits":"Preview constructor/address assertion is bind-policy proof, not a refusal; foreground serve unbounded by design. Probe refusal/fake lifecycle N2. No real socket exercised by fake constructors. Handler prefix/CSP does not authenticate arbitrary substituted handler.","manual_decisions":["u"],"ordering":"Preview constructor then try serve_forever finally server_close; probe N1 before binding/preparer; process/thread/config/tool/containment checks follow. Probe listener cleanup keeps unknown failures unproved.","trace_files":[{"$":62},{"$":114}]},
+"H6":{"authority":"Operator chooses the port. The handler enforces the documentation path boundary.","effect":"Loopback documentation preview listener","limits":"The fake constructor checks loopback without a real socket. The foreground server runs until stopped. Prefix and CSP checks cover the original handler.","manual_decisions":["u"],"ordering":"Bind loopback, serve in the foreground and close in finally.","trace_files":[{"$":114}]},
 
 "H7":{"admission":{"$":4},"authority":"The protected host supplies a reusable grant for the invoking worktree, exact Bead and epic, canonical executor and provider, and maximum disclosure boundary.","gate_limits":"Scope checks cross helpers and IPC. Exact bytes are screened at the export boundary.","gates":[],"manual_decisions":[],"review_gates":["h1","e1"]},
 
@@ -64,7 +64,9 @@
 
 "N13":{"admission":{"$":4},"authority":"Explicit operator fixed offline diagnostics only; no native factory, maintenance, model-turn or accepted-artifact authority.","effect":"Disposable repository/listener setup, fixed command/config RPCs, trusted bootstrap/watchdog execution and retained-handle cleanup","gates":[],"limits":"No model/thread/turn, arbitrary command API, stdin delivery or accepted output. Original selected never configuration is unchanged. Diagnostic effects bypass no production hold and establish only enumerated observations; required omissions keep selected-unqualified/confidential unsupported. Private helpers retain trusted internal-caller prerequisites.","manual_decisions":["E","w"],"ordering":"Verify the selected executable capabilities in a confined schema process and bind its observed identity. Apply the fixed runtime and configuration, retain the original owner and verified namespace handle, check mounts, then release the bootstrap gate. Bound the fixed RPC and empty-poll observations and clean up independently.","trace_files":[{"$":74},{"$":16},{"$":17},{"$":10},{"$":342}],"witnesses":["aC","br","bt","pC"]},
 
-"N2":{"admission":{"$":2},"authority":"Explicit probe CLI/model/home/catalog or opaque verified maintenance operation/context and qualification; not worker JSON.","effect":"Probe loopback listener; maintenance preparation/qualification native launch","gate_limits":"The other two checks belong to sibling entrypoints, not this constructor path. Each entry retains its own N1 refusal.","gates":["vR"],"limits":"P listener pair proves zero construct/preparer/serve then fake construct/serve/close on admitted binding-drift path; not complete probe session. Maintenance positives in existing runtime families use opaque current operation/context/qualification. Observation mints are process-local capabilities, not external identity. Earlier probe/maintenance construction grants no final egress authority: supported host model-context wire screening is separately reviewed at N10.9, finite reply screening at N10.8; source/pipe controls are not live native qualification.","manual_decisions":["z","o","t","d","p"],"ordering":"N1 at each supported entry before proof/listener/output/prepare. Maintenance guard revalidates operation, task/worktree/config, session ledger and qualification before AppServer.","review_gates":["vT","vL"],"trace_files":[{"$":62},{"$":65},{"$":66},{"$":326},{"$":28}],"witnesses":["cu","b0"]},
+"N2":{"admission":{"$":2},"authority":"Trusted embedding supplies an opaque operation, original context and current qualification.","effect":"Installed maintenance runtime preparation and native launch","gates":["vT"],"limits":"Default N1 blocks preparation. The matched fake control reaches its guard. The original constructor requires current operation, context and qualification. N10.9 and N10.8 cover final model-context and reply screening.","manual_decisions":["z","o","t","d","p"],"ordering":"Check N1 before prepare. Revalidate operation, task, workspace, config, session ledger and qualification before AppServer.","trace_files":[{"$":65},{"$":66},{"$":326},{"$":28}],"witnesses":["cu"]},
+
+"N2-retired":{"admission":{"$":1},"gate_limits":"These checks order refusal before effects.","gates":[],"manual_decisions":[]},
 
 "N3":{"admission":{"$":2},"authority":"Exact protected host/factory/capability/admission and immutable configuration and graph intent. Signed production requires the enabled registered switch and original workflow. Other ordinary N1 remains held. Qualification requires the original registered receiver, signed unexpired version 2 operation permit and an available start under the fixed 20-start campaign limit.","effect":"Registered N1 workflow/factory/contained process launch","effect_points":["A"],"gate_chains":[{"calls":[{"call":"za","direction":"return","target":"zd"}],"effect":"A","gate":"s"}],"gate_limits":"The local require_effect check controls spawn. Ordinary and signed branches have distinct source selectors. Earlier workflow, login, factory and constructed receiver checks are manual context.","gates":["s"],"limits":"Ordinary N1 stays held with fake transport controls. Signed production checks adoption, whole-route receipt, disclosure, configuration and dedicated login before claims or intent. Qualification v2 binds expiry, one start per operation, 20 total, gpt-6.2-sol/xhigh/default and optional repair provenance to the same v1 journal. A contained birth may precede release refusal. App-server-only broker serves both signed routes. Offline evidence uses fake RPC or local TLS.","manual_decisions":["g","n","s"],"ordering":"Check admission and role argv before owned birth. Seal options and bind exact bootstrap argv and original-parent/birth namespace handles. Check mount and intent before the final stdin gate. Fsync qualification start before app-server release. Tools retain the finite-input fence. Durable login lease precedes mount and retires after verified cleanup.","review_gates":["v0","vH"],"trace_files":[{"$":329},{"$":328},{"$":10},{"$":17}],"witnesses":["6","l","e","k","s","a","c","d","B"]},
 
@@ -212,7 +214,7 @@
 
 "o":{"conclusion":"Retain real state/read/claim/context callback alternatives at the actual nested call.","evidence_contracts":["B5","B6","N6","X3"],"external_trust_limit":"Embedding callables are trusted programmes, not source-derived safe leaves. Returned data cannot self-mint operation authority; synchronous callout may have earlier effects.","reason":"Maintenance verifier captures state_reader and claim_operation. Outer _state(...) validates the return; nested _state_reader() selects MaintenanceStateStore.read_state. Same support principle applies to live_revalidate/rebuild/adapters: known source remains internal alongside embedding programme alternatives. B6 lock2001 is ordering, with availability2002/revalidation2038 as actual checks.","review_evidence":{"$":7},"source":["hM","e7","cp","p0"]},
 
-"p":{"conclusion":"Final supported host model-context requests and finite tool replies bind and screen actual producer/frame bytes without granting authority or refunding ambiguous effects.","evidence_contracts":["N2","N10"],"external_trust_limit":"Trusted original internal callers, writer condition and original descriptors remain prerequisites. Source/fake-wire plus real anonymous-pipe controls prove only exact supported host boundaries; no live model/server-built-in/provider/helper screen, universal RPC semantics, native grant/retry/recovery, arbitrary injected Python stream boundedness or profile qualification is inferred. Earlier probe/maintenance construction is not final egress authority. Selected profile remains unqualified; confidential unsupported.","reason":"Shared prepare_json_frame captures canonical producer source, scans complete actual JSON bytes, rejects duplicate/incomplete/nonfinite/typed-different frames and binds decoded producer identity plus unchanged screened bytes. Core method/payload equality selects exact supported host model-context methods; fixed command diagnostics keep their separate unchanged wire behavior. Same-condition native writer rechecks producer/frame/deadline after callouts and before each real-pipe chunk; partial drift terminal-faults the original connection, preserving existing turn intent/reservation and no replay. Writer restoration/termination/containment secondary failures cannot replace the original controlled refusal or disclose cleanup text. Registered replies retain original locked ticket/epoch/authority checks and one-use unknown-send accounting; flush precedes final source/frame scan and physical write. Screening creates no new admission. The required original absolute reply deadline is forwarded unchanged, checked after flush/scan/descriptor/source callouts immediately before the physical write; expired replies send zero bytes and retain unknown-send without a new poll or authority cycle. Inner postbinding deadline failures preserve the original safe AppServerError timeout reason in the permanent reader latch; OutboundRefused retains only the fixed redacted outbound-frame reason. Both terminal paths preserve their original primary, terminate the same connection and prohibit later frames.","review_evidence":"Actual method/source/frame/typed JSON, per-chunk hold/deadline, partial-write fault, primary preservation and original accounting gates reviewed with matched useful/refusal controls; no new authority inferred.","source":["pX","pZ","pm","pq","pT","oz","oy","pL","O","aY","pi","pW","pp","pP","lm","pn"]},
+"p":{"conclusion":"Final supported host model-context requests and finite tool replies bind and screen actual producer/frame bytes without granting authority or refunding ambiguous effects.","evidence_contracts":["N2","N10"],"external_trust_limit":"Trusted original internal callers, writer condition and original descriptors remain prerequisites. Source/fake-wire plus real anonymous-pipe controls prove only exact supported host boundaries; no live model/server-built-in/provider/helper screen, universal RPC semantics, native grant/retry/recovery, arbitrary injected Python stream boundedness or profile qualification is inferred. Earlier maintenance construction is not final egress authority. Selected profile remains unqualified; confidential unsupported.","reason":"Shared prepare_json_frame captures canonical producer source, scans complete actual JSON bytes, rejects duplicate/incomplete/nonfinite/typed-different frames and binds decoded producer identity plus unchanged screened bytes. Core method/payload equality selects exact supported host model-context methods; fixed command diagnostics keep their separate unchanged wire behavior. Same-condition native writer rechecks producer/frame/deadline after callouts and before each real-pipe chunk; partial drift terminal-faults the original connection, preserving existing turn intent/reservation and no replay. Writer restoration/termination/containment secondary failures cannot replace the original controlled refusal or disclose cleanup text. Registered replies retain original locked ticket/epoch/authority checks and one-use unknown-send accounting; flush precedes final source/frame scan and physical write. Screening creates no new admission. The required original absolute reply deadline is forwarded unchanged, checked after flush/scan/descriptor/source callouts immediately before the physical write; expired replies send zero bytes and retain unknown-send without a new poll or authority cycle. Inner postbinding deadline failures preserve the original safe AppServerError timeout reason in the permanent reader latch; OutboundRefused retains only the fixed redacted outbound-frame reason. Both terminal paths preserve their original primary, terminate the same connection and prohibit later frames.","review_evidence":"Actual method/source/frame/typed JSON, per-chunk hold/deadline, partial-write fault, primary preservation and original accounting gates reviewed with matched useful/refusal controls; no new authority inferred.","source":["pX","pZ","pm","pq","pT","oz","oy","pL","O","aY","pi","pW","pp","pP","lm","pn"]},
 
 "pool101":{"conclusion":"Only the installed ordinary producer can compose a signed current cohort with original containment and callback authority.","evidence_contracts":["N3","N4","N5","N12","I5"],"external_trust_limit":"Hosted witnesses substitute disposable Beads and inert stock-wire peers. Physical containment and receipt custody remain the selected original paths. This review supports the scoped capability and leaves provider availability and other model selections outside its evidence.","reason":"The real pool request accepts bounded IDs, the current protected original host and exact bound receiver. Signed current project, database, worktree, configured login and implementation selections precede claims. One writer-held calibration and the productive run charge separate reservations within one aggregate allowance. Legacy serial and live activation execution refuse. Recovery has its own gates.","review_evidence":"Original foreground and hosted N=2/N=3 witnesses, plus explicit no-effect refusals. Independent review required.","source":["p101-alias","p101-wrapper","p101-foreground","p101-prepare","p101-host","p101-approval","p101-claim","p101-runtime","p101-configure","p101-source"]},
 
@@ -224,6 +226,8 @@
 
 "retired-preview-activation":{"conclusion":"The preview live entry and its direct compatibility methods always refuse. The standalone calibration producer is retired.","evidence_contracts":["N7"],"external_trust_limit":"Current refusal controls use inert input and RPC spies. Historical calibration witnesses run against the pinned source with fake effects.","reason":"The entry, server constructor, thread and turn methods, worker-contract producer and close helper call the same unconditional typed refusal. The current facade no longer exports calibration. B7 covers the offline prepare graph.","review_evidence":"Named preview refusals, exact CLI stderr and current calibration absence. The archived replay is separate evidence.","source":["cV","b0","fy","fh","q7","ih","retired-preview-contract",{"$":463}]},
 
+"retired-probe-profile-ordering":{"conclusion":"Validate the exact profile before refusal.","evidence_contracts":["N2-retired"],"external_trust_limit":"Argument validation grants no capture authority.","reason":"Malformed-profile and sealed-refusal tests cover the shared normalized_tools validator outside the checker gate forms.","review_evidence":"Current malformed-profile and refusal tests.","source":["retired-probe-library-profile"]},
+
 "s":{"conclusion":"The registered launcher may complete cleanup after a natural exit removed the original monitor executable link. The raw original controller report stays unchanged.","evidence_contracts":["N3","N9"],"external_trust_limit":"Only the exact retained original monitor and its existing PIDFD waitid accounting can establish exit and reaping. A disappearing proc link alone grants no effect authority. Namespace containment still requires its own retained evidence. The generic controller and private watchdog retain their original outcomes and wait budget.","reason":"Only an identity-unavailable report with the exact original monitor executable ENOENT, same PID and receipt, retired registration, positive original reaping and exit facts, and no signal can resolve the registered cleanup exception. It does not add a poll, change generic termination outcomes or retry cleanup.","review_evidence":{"$":7},"source":["zj","z2","xq"]},
 
 "t":{"conclusion":"Controller binding is actual selected context, with ordering limits.","evidence_contracts":["N6","B6","X3"],"external_trust_limit":"Do not retroactively protect binder effects with a later type check. Exact parent-selected context/callbacks/adapter bytes are external programme trust at module boundary.","reason":"Canonical build_transaction_runtime requires exact MaintenanceControllerContext, exact plan/task/ledger/adapter, authority and reservation. _load_runtime may call the supplied bind_operation before canonical builder type validation.","review_evidence":{"$":7},"source":["vW","bF"]},
@@ -234,7 +238,7 @@
 
 "x":{"conclusion":"Literal dispatcher aliases retained; no computed target expansion.","evidence_contracts":["B1","B3","B10","H1","H4","H5","X6"],"external_trust_limit":"Operator selects command/argv and source checkout. Aliases do not prove arbitrary dynamically replaced target code safe.","reason":"cwo COMMANDS has17 literal targets, runpy passes remaining argv. Explicit route aliases enumerate source selectors; pure rendering/export alternatives are not claimed guarded effects.","review_evidence":{"$":7},"source":["ea"]},
 
-"z":{"conclusion":"Class construction requires actual constructors; _mint is not recursive.","evidence_contracts":["N2","N6","B4"],"explicit_constructor_sites":[{"caller":{"point":"p0299dee1f257"},"constructors":[{"point":"v5"}],"expression":"cls(HOST_STATE_ROOT)"},{"caller":{"point":"p1ca848bdce79"},"constructors":[{"point":"v5"}],"expression":"cls(Path(state_root), _test_only=True, worker_writable_roots=worker_writable_roots, limits=limits)"},{"caller":{"point":"p478ce6651915"},"constructors":[{"point":"p09294f1b4b36"}],"expression":"type(self)(self._ledger, self._reservation_id, self._request_bytes, self._observers)"},{"caller":{"point":"p4584a24d395c"},"constructors":[{"point":"pc5f1764ec395"}],"expression":"type(self)(*self._args)"},{"caller":{"point":"p72565227e963"},"constructors":[{"point":"pc047ea91f251"}],"expression":"cls(target)"},{"caller":{"point":"p1e4b9e72bf5c"},"constructors":[{"point":"p26ff9bcf8d75"}],"expression":"VerifiedContainedTurnDispatch(\n                    _VERIFIED_CONTAINED_TURN_DISPATCH_MINT\n                )"},{"caller":{"point":"pab419d6c15f3"},"constructors":[{"point":"pf2a43b09e5e2"}],"expression":"VerifiedRecoveryAction(_ACTION_MINT)"},{"caller":{"point":"p6617aeb9009c"},"constructors":[{"point":"pb8f92fc8842d"}],"expression":"FixedCohortControllerRoot(_FIXED_ROOT_MINT)"},{"caller":{"point":"p6617aeb9009c"},"constructors":[{"point":"p59719e74e029"}],"expression":"cls(\n            target,\n            root=root,\n            lock_identity=expected_lock_identity,\n            mint=_FIXED_STORE_MINT,\n        )"},{"caller":{"point":"p347a4bee2142"},"constructors":[{"point":"p59719e74e029"}],"expression":"cls(\n            target,\n            root=retained_root,\n            lock_identity=expected_lock_identity,\n            mint=_FIXED_STORE_MINT,\n        )"},{"caller":{"point":"p29016e5192d2"},"constructors":[{"point":"p99d0e55a02aa"}],"expression":"VerifiedRecoveryEvidence(_FIXED_EVIDENCE_MINT)"},{"caller":{"point":"pfbe86e7e64d2"},"constructors":[{"point":"p7519a87dd17b"}],"expression":"VerifiedFixedCohortRecoveryAction(_FIXED_ACTION_MINT)"},{"caller":{"point":"p67f6437ae0f6"},"constructors":[{"point":"p2fc1cd7f4f71"}],"expression":"cls(artifact_path(path), descriptor)"}],"external_trust_limit":"Process-local tokens/registries enforce cooperative object identity, not independent OS/host authentication. No invented source constructor or all-subclasses inference.","reason":"Three _mint callers select actual dataclass subclasses; inherited generated __init__ assigns fields then _Capability.__post_init__ checks _TOKEN before _ISSUED registration. Thirteen earlier omitted sites select concrete source __init__/__new__; class-body hashing alone is not execution proof.","review_evidence":{"$":7},"source":["cg","fJ","aZ","bI"]}
+"z":{"conclusion":"Class construction requires actual constructors; _mint is not recursive.","evidence_contracts":["N2","N6","B4"],"explicit_constructor_sites":[{"caller":{"point":"p0299dee1f257"},"constructors":[{"point":"v5"}],"expression":"cls(HOST_STATE_ROOT)"},{"caller":{"point":"p1ca848bdce79"},"constructors":[{"point":"v5"}],"expression":"cls(Path(state_root), _test_only=True, worker_writable_roots=worker_writable_roots, limits=limits)"},{"caller":{"point":"p478ce6651915"},"constructors":[{"point":"p09294f1b4b36"}],"expression":"type(self)(self._ledger, self._reservation_id, self._request_bytes, self._observers)"},{"caller":{"point":"p4584a24d395c"},"constructors":[{"point":"pc5f1764ec395"}],"expression":"type(self)(*self._args)"},{"caller":{"point":"p72565227e963"},"constructors":[{"point":"pc047ea91f251"}],"expression":"cls(target)"},{"caller":{"point":"p1e4b9e72bf5c"},"constructors":[{"point":"p26ff9bcf8d75"}],"expression":"VerifiedContainedTurnDispatch(\n                    _VERIFIED_CONTAINED_TURN_DISPATCH_MINT\n                )"},{"caller":{"point":"pab419d6c15f3"},"constructors":[{"point":"pf2a43b09e5e2"}],"expression":"VerifiedRecoveryAction(_ACTION_MINT)"},{"caller":{"point":"p6617aeb9009c"},"constructors":[{"point":"pb8f92fc8842d"}],"expression":"FixedCohortControllerRoot(_FIXED_ROOT_MINT)"},{"caller":{"point":"p6617aeb9009c"},"constructors":[{"point":"p59719e74e029"}],"expression":"cls(\n            target,\n            root=root,\n            lock_identity=expected_lock_identity,\n            mint=_FIXED_STORE_MINT,\n        )"},{"caller":{"point":"p347a4bee2142"},"constructors":[{"point":"p59719e74e029"}],"expression":"cls(\n            target,\n            root=retained_root,\n            lock_identity=expected_lock_identity,\n            mint=_FIXED_STORE_MINT,\n        )"},{"caller":{"point":"p29016e5192d2"},"constructors":[{"point":"p99d0e55a02aa"}],"expression":"VerifiedRecoveryEvidence(_FIXED_EVIDENCE_MINT)"},{"caller":{"point":"pfbe86e7e64d2"},"constructors":[{"point":"p7519a87dd17b"}],"expression":"VerifiedFixedCohortRecoveryAction(_FIXED_ACTION_MINT)"},{"caller":{"point":"p67f6437ae0f6"},"constructors":[{"point":"p2fc1cd7f4f71"}],"expression":"cls(artifact_path(path), descriptor)"}],"external_trust_limit":"Process-local tokens/registries enforce cooperative object identity, not independent OS/host authentication. No invented source constructor or all-subclasses inference.","reason":"Two installed _mint callers select actual dataclass subclasses; inherited generated __init__ assigns fields then _Capability.__post_init__ checks _TOKEN before _ISSUED registration. Thirteen earlier omitted sites select concrete source __init__/__new__; class-body hashing alone is not execution proof.","review_evidence":{"$":7},"source":["cg","fJ","bI","maintenance-qualification-adjudication"]}
 },
 
 "point_columns":"[file index,symbol,line,raw declaration SHA256] or [file index,line,actual source text[,col,end_line,end_col]]",
@@ -682,12 +686,14 @@
 
 {"$":414},
 
-{"$":430}
+{"$":430},
+
+"tests/test_maintenance_qualification.py",
+
+"tests/test_check_codex_worker_surface.py"
 ],
 
 "points":{
-"0":[10,143,"listener = ThreadingHTTPServer((\"127.0.0.1\", 0), Handler)"],
-
 "1":[17,422,{"$":325},12,422,45],
 
 "2":[59,491,"return state.bridge(args)"],
@@ -806,11 +812,11 @@
 
 "aY":[62,"RegisteredFiniteInput._write_reply_frame",1660,"dbS0hg__PpzD1yg1Ig7vDSBE3AmFnSfFfnpvxVu5Loo"],
 
-"aZ":[33,"observe_qualification",511,"l34IIk5_kpgFG8_fwAiSt2P1FUxKKRQMuuyVLW2Vprc"],
+"aZ":[33,"observe_qualification",507,"eQDwK3UlEcqNihUDETQzEbaKGyehWoTFb5oziSVVHDQ"],
 
 "aa":[61,"RegisteredAppServer._initialize_protocol",167,"qZz-kQat6ltm1IrKQHz2MNqpA32OTKDxIfir6uKQK3w"],
 
-"ab":[130,"ReleaseEffectRoutesTests._expert_pair",1468,"kbSL3z98wq8WFbfj0KkDTNRoVaiQppuvgqDUaS6drPs"],
+"ab":[130,"ReleaseEffectRoutesTests._expert_pair",1425,"kbSL3z98wq8WFbfj0KkDTNRoVaiQppuvgqDUaS6drPs"],
 
 "ac":[11,151,"if path.is_symlink() or not path.is_file() or path.resolve() != path.absolute():"],
 
@@ -818,9 +824,7 @@
 
 "ag":[25,334,"completed = subprocess.run(executable_argv, cwd=cwd, env=environment, input=spec[\"stdin\"], text=True, capture_output=True, timeout=spec[\"timeout_seconds\"], shell=False)"],
 
-"ah":[10,161,"server = AppServer(requested_model=requested_model,"],
-
-"ai":[130,"ReleaseEffectRoutesTests._installer_pair",1393,"PeJB8_Fa5_Pc8qlt_DDPMDjcxgumHkoZgf-D6Wfdrw0"],
+"ai":[130,"ReleaseEffectRoutesTests._installer_pair",1350,"PeJB8_Fa5_Pc8qlt_DDPMDjcxgumHkoZgf-D6Wfdrw0"],
 
 "aj":[2,33,"require_waiver_reason(args, [\"allow_sol_breakfix\"])"],
 
@@ -846,7 +850,7 @@
 
 "ay":[23,"add_dependency",351,{"$":177}],
 
-"az":[130,"ReleaseEffectRoutesTests._driver_pair",1421,"-91-odVuLzHrmAize7uXBmwjiOIWTjnzObvWTBrQ65A"],
+"az":[130,"ReleaseEffectRoutesTests._driver_pair",1378,"-91-odVuLzHrmAize7uXBmwjiOIWTjnzObvWTBrQ65A"],
 
 "b":[183,177,"shutil.rmtree(root.name, dir_fd=parent)"],
 
@@ -878,7 +882,7 @@
 
 "bH":[112,"NativePoolAdmissionTests.test_close_owned_reconciles_exact_success_timeout_and_error",793,"ECXXl7slTUmpKREbYP-eZjhOO-MFzuZ3ErEohwphE4k"],
 
-"bI":[33,"check_qualification",716,"39Sg3J1c7FiISAQ5oHZn0NQuTdkq549EnHCh3-6aaJk"],
+"bI":[33,"check_qualification",548,"39Sg3J1c7FiISAQ5oHZn0NQuTdkq549EnHCh3-6aaJk"],
 
 "bJ":[47,"GuardedArtifactTarget._apply_one",512,"wHGH-34pJNWfv3Xqptk5tJ491DfVvVkQlfxwbqFaBxA"],
 
@@ -926,7 +930,7 @@
 
 "bo":[43,"run_git",435,{"$":213}],
 
-"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",360,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
+"bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",389,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
 
 "bq":[122,"R5TransportLaunchTests.test_r5_raw_default_refuses_and_explicit_launch_ignores_ambient_home_and_path",24,"r29AX7D4zfBY0RijwzTrLRf7zc8J_Jydc_SETcjV3gs"],
 
@@ -1044,7 +1048,7 @@
 
 "cf":[39,126,"if registration is None:"],
 
-"cg":[33,"_mint",464,"l2zjlWQQhh_ohGs_VxNTr7HhP8er0pyOP57Ljzn_AxQ"],
+"cg":[33,"_mint",460,"l2zjlWQQhh_ohGs_VxNTr7HhP8er0pyOP57Ljzn_AxQ"],
 
 "cj":[139,"MetadataScopeTests.test_within_capture_indirection_retarget_is_incomplete",498,"EAxFWYOM2TT85egjGgCw-rMxznve50u5YipwZJ6XMIU"],
 
@@ -1064,7 +1068,7 @@
 
 "cr":[2,"main",39,"RPlwMiU085h9ygKvtYS3xvfoy-hVjhFTjcbMHElxgLk"],
 
-"cs":[10,"capture_tool_request",85,"LE-QNxSV74jGFSsvmJRu2wfso4opJPP__mMz6k4eqms"],
+"cs":[10,"capture_tool_request",30,"38ShDqpkO9QYzYJXQoo9AV8VOW-WHc-Aa-CMzCNmnkQ"],
 
 "ct":[19,"main",21,"eThUxT4TXbu8TqdPK6Wi12h0D5ETuSNvripDT6BiUbg"],
 
@@ -1148,7 +1152,7 @@
 
 "dc":[12,744,"atomic_write_text(manifest_path, json.dumps(payload, indent=2, sort_keys=True) + \"\\n\")"],
 
-"dd":[99,"F5NativeLiveHoldTests.test_f5_campaign_server_refuses_without_a_launch",232,"AR_oS5gNMAjDzT-KwgcTZH4fGdj6a6JCthpbwv1gVuU"],
+"dd":[99,"F5NativeLiveHoldTests.test_f5_campaign_server_refuses_without_a_launch",261,"AR_oS5gNMAjDzT-KwgcTZH4fGdj6a6JCthpbwv1gVuU"],
 
 "de":[76,1327,"if not closure_pressure[\"allowed\"]:"],
 
@@ -1190,7 +1194,7 @@
 
 "dz":[84,"AuthorizeSolBreakfixTests.test_expiry_cannot_outlive_authorized_bead",103,"MYBnswC-omK0YkpQQyjF8UCypR3wztzAchvTnRi-It0"],
 
-"e":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",268,"ImgJmcgipOEerP1uxxaV2PFJ61sytk7jiv5D70RqmTo"],
+"e":[99,"F5NativeLiveHoldTests.test_retired_campaign_wrappers_refuse_with_all_holds_patched",297,"ImgJmcgipOEerP1uxxaV2PFJ61sytk7jiv5D70RqmTo"],
 
 "e0":[78,"main",173,"h-Z-awxboYnd7AtNncMiJB2KYkUDLu54RoA8onqulsw"],
 
@@ -1218,11 +1222,11 @@
 
 "eC":[37,452,"result = self._run((\"update\", \"--claim\", \"--json\", \"--\", issue_id))"],
 
-"eD":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",185,"nLB-9jq7QWyk-CDvJcoVcGW8QLERi2n1tlolTfekaVk"],
+"eD":[99,"F5NativeLiveHoldTests.test_f5_held_pool_v8_multiworker_loader_refuses_before_operation_claim",214,"nLB-9jq7QWyk-CDvJcoVcGW8QLERi2n1tlolTfekaVk"],
 
 "eE":[43,"trusted_git_completed",555,"rct8y2700SsiMbnuefo2TVA2CkqzAPpkX9zcz3stMrc"],
 
-"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",442,"9fef8AtKR6lN7GeQvt7jvJtitozWthzKew0c7zva1uI"],
+"eF":[99,"F5NativeLiveHoldTests.test_n8_campaign_adapter_late_turn_rechecks_each_hold_and_keeps_generic_adapter",471,"9fef8AtKR6lN7GeQvt7jvJtitozWthzKew0c7zva1uI"],
 
 "eG":[23,74,"if not database_value:"],
 
@@ -1251,8 +1255,6 @@
 "eZ":[64,"_RegisteredServer._launch_process",1613,"N7eg3RFZseWKgsd2KqONT4gGNm0KLLEu4nl33F_xSOo"],
 
 "ea":[21,"main",45,"IgAulEK2M7iX9IUlv4Ss0OGT_gtWptNcqagr_ax3WaA"],
-
-"eb":[33,561,"server = AppServer(requested_model=scope[\"model\"], reasoning_effort=\"low\", tool_surface_proof=proof,"],
 
 "ed":[123,"RegisteredTransportF2Tests.test_f2_base_transport_refuses_before_any_launch",87,"bLdTHIbtF_t5-Y4WJBO1L-qTzOYA9nzNnOGH4jPnH-Q"],
 
@@ -1288,7 +1290,7 @@
 
 "f":[184,"DelegationPreparationTests.test_foreground_discards_refused_offer_and_preserves_retained_offer",623,"7erO7u0Y-omQZo7zhaMsn_cr9_iuBK687t1dXYGsRGM"],
 
-"f0":[99,"F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write",131,"yKwa8PLCMe6n7YGjgoVtCPfdC9PTa573eaPkGx8CTek"],
+"f0":[99,"F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write",131,"ju8J6Q4hMj-VhlylZ_sjYIwWC38R9HfwO7MS756GG_g"],
 
 "f1":[43,"WorktreeCapture._resolve_dirs",1936,"dZQH4PuBIaB09y0Jingn5BDs2emfwevCel8prUvPWws"],
 
@@ -1326,7 +1328,7 @@
 
 "fI":[116,"OwnershipProducerTests.test_cleanup_consumes_controller_owned_lifetime",271,"58IxzCluVIbqb6QCciS1Qz49bwVCGYJYADiXPIwPs4w"],
 
-"fJ":[33,"_Capability.__post_init__",440,"Efv-s1DaTMOr2mIRmx3RlSeMxNJJpmI8OaXJ4LzP8h0"],
+"fJ":[33,"_Capability.__post_init__",436,"Efv-s1DaTMOr2mIRmx3RlSeMxNJJpmI8OaXJ4LzP8h0"],
 
 "fK":[112,"NativePoolAdmissionTests.test_public_consumer_revalidates_claims_under_capability_lock",769,"fjDedIDFsMjrJaWet5aKegJ__paUUI72Hd3Qi9I6vWo"],
 
@@ -1504,7 +1506,7 @@
 
 "go":[23,72,"if not target.is_dir():"],
 
-"gp":[10,"main",308,"RgOvIrHsdtWJpZ76gAaMQdcw8vRU3q90phstOEm7L5g"],
+"gp":[10,"main",45,"4wBm7EBMwMMSNY3fn4I6sLgo3MyvmohnXZHYhnQFG5Q"],
 
 "gq":[23,336,"if value.startswith(\"-\"):"],
 
@@ -1618,7 +1620,7 @@
 
 "hl":[41,1533,"_review(directory, json.loads(review_raw), current, digest(raw))",14,1533,78],
 
-"hm":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",250,"h-nvdzgp17NzXzHhQIOCUaU17GOZBsPQT3emm2XjfwY"],
+"hm":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_supplied_server_pool_entries_cannot_bypass_route_holds",279,"h-nvdzgp17NzXzHhQIOCUaU17GOZBsPQT3emm2XjfwY"],
 
 "hn":[25,258,"spec = normalize_command_spec(value)"],
 
@@ -1732,7 +1734,7 @@
 
 "ij":[209,"ApprovedRetryTests.test_signed_retry_reads_only_original_bound_records",38,"tb9pDzqq-wd6BvxMSV0ggklV_rs0LjN9TpWKAiEsUM8"],
 
-"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",278,"9D9_4VTU-qsxywmCEleIz0NZBeLWqNngvcr7TASZyCQ"],
+"ik":[99,"F5NativeLiveHoldTests.test_f5_held_campaign_main_and_preclaim_zero_input_claim_write_or_launch",307,"9D9_4VTU-qsxywmCEleIz0NZBeLWqNngvcr7TASZyCQ"],
 
 "il":[47,501,"os.replace(f\"new-{index:04d}\", path, src_dir_fd=source, dst_dir_fd=target)",8,501,82],
 
@@ -1766,7 +1768,7 @@
 
 "j0":[155,276,"os.unlink(name, dir_fd=self._directory_fd)",16,276,58],
 
-"j1":[99,"F5NativeLiveHoldTests.test_f5_legacy_retry_holds_and_retirement_precede_effects",174,"-q-xFXwNo4Ubx9QxQBPIfeExWAk5Mu6tnPaO0eN8KDQ"],
+"j1":[99,"F5NativeLiveHoldTests.test_f5_legacy_retry_holds_and_retirement_precede_effects",203,"-q-xFXwNo4Ubx9QxQBPIfeExWAk5Mu6tnPaO0eN8KDQ"],
 
 "j3":[201,{"$":438},568,{"$":447}],
 
@@ -1836,13 +1838,13 @@
 
 "jg":[153,"WorkflowTests.test_production_refuses_wrong_signed_selection_before_claim",516,"bWd0HRqfHiAjGqL4Rh2OCGCk-stWxvg_fuS3wGkwhOo"],
 
-"jh":[154,"FakeAppServerTransportTests.test_registered_production_rechecks_authority_after_partial_turn_write",1078,"kh9lI5ktNgQf1FULZMnWrX3mhyXGNu8MjzcBEw7WHZE"],
+"jh":[154,"FakeAppServerTransportTests.test_registered_production_rechecks_authority_after_partial_turn_write",1077,"kh9lI5ktNgQf1FULZMnWrX3mhyXGNu8MjzcBEw7WHZE"],
 
 "ji":[153,"WorkflowTests.test_production_refuses_protected_login_homes_before_claim",440,"by01nAo4Q_Uv1pKcPEMjctqhRskDKDKYY1rFUu_YhNE"],
 
 "jj":[149,"WorkerLoginMount.claim",292,"PhDbIILxkMNqTrvq-uZtKKrOX5eFRL1xQN2Ce9GGIU0"],
 
-"jk":[148,"ManagedLoginNamespaceTests.test_real_worker_mount_persists_refresh_without_qualification_campaign",217,"7--8xD5h47oOZJaIMLAJ731_SpVDVBoVjJi-x9TFgQs"],
+"jk":[148,"ManagedLoginNamespaceTests.test_real_worker_mount_persists_refresh_without_qualification_campaign",221,"7--8xD5h47oOZJaIMLAJ731_SpVDVBoVjJi-x9TFgQs"],
 
 "jl":[153,"WorkflowTests.test_production_retains_worker_login_lease_when_namespace_cleanup_is_unknown",591,"wCSDXZvSW5Hg-Bd3qMFQEg7azTNPMG7zNEXCOkkc-FA"],
 
@@ -1900,13 +1902,9 @@
 
 "kI":[77,1356,{"$":366},24,1356,43],
 
-"kJ":[33,561,"AppServer(requested_model=scope[\"model\"], reasoning_effort=\"low\", tool_surface_proof=proof,\n            operation_metadata=metadata)",17,562,40],
-
 "kL":[23,365,{"$":258},4,365,106],
 
 "kM":[32,784,"subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,\n                    timeout=command.timeout_seconds, env={**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"}, check=False)",28,785,117],
-
-"kO":[10,161,"AppServer(requested_model=requested_model,\n                           tool_surface_probe_binding=binding)",17,162,62],
 
 "kP":[27,147,"subprocess.run(\n        [str(binary), \"--version\"],\n        check=False,\n        capture_output=True,\n        text=True,\n        timeout=10,\n        env=None if codex_home is None else dict(os.environ, CODEX_HOME=str(codex_home),\n                                                PATH=str(binary.parent) + os.pathsep + os.defpath),\n    )",16,155,5],
 
@@ -1945,8 +1943,6 @@
 "km":[9,230,"subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)",13,230,95],
 
 "kn":[76,1373,"create_bead(\n                item[\"title\"],\n                parent=epic[\"id\"],\n                # One priority rule for direct creation and the Beads graph plan.\n                priority=item_priority(item, index),\n                labels=item[\"labels\"],\n                skills=item[\"skills\"],\n                description=body(f\"Complete the {key} lane.\", f\"Evidence and result for {key}.\"),\n                acceptance=str(item[\"acceptance\"]),\n                design=str(item[\"design\"]),\n                notes=str(item[\"notes\"]),\n                metadata=item.get(\"metadata\"),\n            )",19,1385,13],
-
-"kp":[10,211,"server.request(\n            \"turn/start\",\n            {\n                \"threadId\": thread[\"id\"],\n                \"input\": [\n                    {\n                        \"type\": \"text\",\n                        \"text\": \"Return exactly PROBE without using tools.\",\n                        \"text_elements\": [],\n                    }\n                ],\n                \"model\": requested_model,\n                \"effort\": \"low\",\n            },\n            timeout=30,\n        )",8,226,9],
 
 "kq":[77,1038,"os.waitid(os.P_PIDFD, birth.descriptor, os.WEXITED | os.WNOHANG)",13,1038,77],
 
@@ -2039,8 +2035,6 @@
 "lf":[16,329,{"$":257},4,329,61],
 
 "lh":[43,388,"subprocess.run([path, \"--version\"], env=_environment(), stdin=subprocess.DEVNULL,\n                                capture_output=True, timeout=max(0.1, min(10.0, timeout)), check=False)",17,389,103],
-
-"li":[10,143,"ThreadingHTTPServer((\"127.0.0.1\", 0), Handler)",19,143,65],
 
 "lj":[56,46,"ThreadingHTTPServer((\"127.0.0.1\", args.port), partial(PagesHandler, directory=str(DOCS)))",13,46,102],
 
@@ -2140,6 +2134,8 @@
 
 "ma":[41,"_review",1493,{"$":155}],
 
+"maintenance-qualification-adjudication":[33,"adjudicate_qualification",583,"7NPj-zrFw-a_X9JBElUmloFNRRoUh36VgdowdcHIwxk"],
+
 "mb":[77,50,{"$":248},112,50,146],
 
 "mc":[77,"SelectedNativeProbe.close",777,"flqggGl2iumFqY0NZm8ADISvtNFTPJcquqZoNcb1yF0"],
@@ -2202,7 +2198,7 @@
 
 "n106-history":[208,"verify_historical_serial_pool",190,"0o3EYrf5OYJLoS4b4SIFTL9GH2DMsRBDDQSFz4WoFbk"],
 
-"n106-hold-order-body":[99,"F5NativeLiveHoldTests.test_f5_legacy_pool_holds_and_retirement_precede_effects",162,"xtoXqEVXXGjNmfYCAVNgb73Evsqwc9__2SvkvDSK4qA"],
+"n106-hold-order-body":[99,"F5NativeLiveHoldTests.test_f5_legacy_pool_holds_and_retirement_precede_effects",191,"xtoXqEVXXGjNmfYCAVNgb73Evsqwc9__2SvkvDSK4qA"],
 
 "n106-host-refusal-body":[128,"PoolTests.test_legacy_pool_execute_and_adoption_refuse_before_effects",228,"CPOM8Nzgxrl-7hUGMzkpWxCjuo6hrcZ7HJ-FX5rBj-c"],
 
@@ -2238,7 +2234,7 @@
 
 "n106-status-terminal":[67,265,"self._load('terminal.json')",19,265,46],
 
-"n107-cli-body":[99,"F5NativeLiveHoldTests.test_retired_campaign_cli_ignores_missing_and_unknown_arguments",338,"hK0b-BgNvsR3w6G4WuUbRc5IMWuy1t-YDx2vG5SNO-8"],
+"n107-cli-body":[99,"F5NativeLiveHoldTests.test_retired_campaign_cli_ignores_missing_and_unknown_arguments",367,"hK0b-BgNvsR3w6G4WuUbRc5IMWuy1t-YDx2vG5SNO-8"],
 
 "n2":[51,831,"def spawn_owned(self, session_id: str, argv: list[str] | tuple[str, ...], workspace: str) -> dict[str, Any]:"],
 
@@ -2606,8 +2602,6 @@
 
 "pc":[14,67,"subprocess.check_output(\n                ['stat', '-f', '-c', '%T', tempfile.gettempdir()], text=True)",34,68,77],
 
-"pe":[10,167,"server.request(\n            \"thread/start\",\n            {\n                \"model\": requested_model,\n                \"modelProvider\": \"cwo-loopback-probe\",\n                \"allowProviderModelFallback\": False,\n                \"cwd\": directory,\n                \"runtimeWorkspaceRoots\": [directory],\n                \"approvalPolicy\": \"never\",\n                \"sandbox\": \"read-only\" if not tools_are_mutable(tools) else \"workspace-write\",\n                \"ephemeral\": True,\n                \"historyMode\": \"legacy\",\n                \"dynamicTools\": [],\n                \"config\": config,\n                \"developerInstructions\": (\n                    \"This is a local tool-surface probe. Return PROBE and do not use tools.\"\n                ),\n            },\n            timeout=30,\n        )",28,186,9],
-
 "pg":[111,"NativeOutboundScreenTests.test_json_frame_binding_rejects_typed_drift_duplicates_and_incomplete_frames",142,"eEB834cv1hNLG7TZ_lCB5WHjXaoLi1JNOAzqnJak5XI"],
 
 "ph":[111,"NativeOutboundScreenTests.test_inner_writer_deadline_preserves_original_timeout_latch",168,"CPvaP92-nlQkIewLUmPyjuIDl-wEpS6SJTlN25GuAIY"],
@@ -2694,7 +2688,7 @@
 
 "pz":[77,"_reuse_exec_context",975,"HEaH0hXbj1yAFb06T4LdiTIM5Mdv7x6yZJc-psFEPy8"],
 
-"q":[130,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1496,"coaiJkxKVKNk7O86G_9T7D1-v53C7geD_UQ-sEm3aM8"],
+"q":[130,"ReleaseEffectRoutesTests.test_remaining_boundary_pairs_at_actual_effects",1453,"e4IG4_DdEHoNB2vX3_80A-2z9I0FDoVCYpWBRVCIUGE"],
 
 "q0":[43,"WorktreeCapture._run_bound",2610,"pKOcFA8UqqJUISnZCVIBYd8dlgOc0kfLNeyeVhkoTK4"],
 
@@ -2856,6 +2850,14 @@
 
 "re":[37,"consume_pool_admission",1978,"bch8Tk1qzu7ORNP0_wkGu6kCjvqlgpU5M9Zj_KHsrMY"],
 
+"retired-maintenance-claimed-observer-body":[220,"QualificationTests.test_retired_observer_refuses_a_real_claimed_operation",102,"0yw2Z_vlw2L84d0TQqkF44MbpRdUwiC5eqTalN1JmQo"],
+
+"retired-maintenance-observer-guard-body":[99,"F5NativeLiveHoldTests.test_retired_maintenance_observer_validates_operation_before_unconditional_refusal",169,"3elna9Nz3nYsCo1imEc2FM_iIngsCjoBThXRfiCYNBU"],
+
+"retired-maintenance-observer-operation":[33,511,"require_maintenance_operation(operation, verifier=verifier, plan=plan)"],
+
+"retired-maintenance-observer-refusal":[33,513,{"$":465}],
+
 "retired-preview-cli-body":[121,"R1ActivationPreviewHoldTests.test_cli_retains_the_exact_refusal_with_former_switches_on",63,"RUiG1w9vuvMMF2qpZlXJArogQ3c8N3AnwbV9eq1QcBo"],
 
 "retired-preview-contract":[73,"_write_worker_contracts",86,"cROrQ6m9DGwJq6UdFJ5JT5k8O_7Hao5jrTD7gzYnxhk"],
@@ -2864,9 +2866,23 @@
 
 "retired-preview-contract-refusal-body":[121,"R1ActivationPreviewHoldTests.test_retired_worker_contract_refuses_before_reads_rpc_or_artifact_effects",115,"ioUAIIRW55pNEXFN3txRF-q5th_n1-V0CF5xuRIcuvo"],
 
-"retired-preview-profiles-body":[99,"F5NativeLiveHoldTests.test_r1_f5_retired_preview_refuses_all_profiles_even_with_flags_on",223,"HJ4DTMUv48uA8yyqc4GqeizE12GgkAlV7L4CxU7pAWo"],
+"retired-preview-profiles-body":[99,"F5NativeLiveHoldTests.test_r1_f5_retired_preview_refuses_all_profiles_even_with_flags_on",252,"HJ4DTMUv48uA8yyqc4GqeizE12GgkAlV7L4CxU7pAWo"],
 
 "retired-preview-refusal":[73,48,"raise LiveActivationUnavailable(LIVE_ACTIVATION_UNAVAILABLE)"],
+
+"retired-probe-cli-refusal":[10,69,{"$":465}],
+
+"retired-probe-cli-source-hold":[10,68,{"$":13}],
+
+"retired-probe-cli-status-body":[221,"WorkerSurfaceRefusalTests.test_shipped_cli_refuses_before_reading_or_writing_probe_files",27,"ps-Lu6x8bwRbmo57TLrM40N0g96w3Nlhb03vfNgMpjo"],
+
+"retired-probe-library-holds-body":[99,"F5NativeLiveHoldTests.test_retired_surface_probe_refuses_even_when_generic_n1_is_enabled",145,"8VqMKBvALkm3O4gQzipSB5VcsEm092-Cpn30cpV44cI"],
+
+"retired-probe-library-profile":[10,40,"normalized_tools(permitted_tools)"],
+
+"retired-probe-library-refusal":[10,42,{"$":465}],
+
+"retired-probe-profile-validation-body":[221,"WorkerSurfaceRefusalTests.test_library_keeps_exact_tool_profile_validation",20,"1hF0X4cQZFduCIPVDisOmwusn32csFH2r9JI5c5cnQQ"],
 
 "rf":[136,"ScaffoldDependencyValidationTests.test_main_closure_pressure_refuses_before_create_and_dependency",320,"WSSL_rBnUi1Xu5Y69zdJb8u_RDTOg6w4VVNvQf_9gs4"],
 
@@ -2950,7 +2966,7 @@
 
 "us":[65,718,"_need(provider_access_token is None, 'Registered production cannot accept a provider access token.')"],
 
-"ut":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",227,"1V4JIAPaoLLhIH-buh_fAbwUnE3Z9HCYA09DAh85iwk"],
+"ut":[148,"ManagedLoginNamespaceTests.assert_atomic_refresh_and_runtime_isolation",231,"1V4JIAPaoLLhIH-buh_fAbwUnE3Z9HCYA09DAh85iwk"],
 
 "uu":[153,"WorkflowTests.assert_unstarted",256,"c6Lr1V3xkHMxJ-HAT_ueKkb0X1pTYyhDb2OxFroHS40"],
 
@@ -2965,8 +2981,6 @@
 "v0":[65,731,{"$":460}],
 
 "v2":[59,306,{"$":57}],
-
-"v3":[130,"ReleaseEffectRoutesTests._probe_listener_pair",1350,"pzMdZkc2i0pi9_BYzo1iHR-i7oa2BUYIx0AZXjRBIPk"],
 
 "v5":[29,"HostRecordStore.__init__",385,"rSJ9YvuKtR1_X3rYVk76a160bX1T5VCDmYkrR8TjReg"],
 
@@ -2990,7 +3004,7 @@
 
 "vJ":[59,415,{"$":57}],
 
-"vL":[33,521,{"$":13}],
+"vL":[33,512,{"$":13}],
 
 "vM":[51,660,"if supported is not True:"],
 
@@ -3000,9 +3014,9 @@
 
 "vP":[43,463,{"$":256}],
 
-"vQ":[130,"ReleaseEffectRoutesTests._dns_pair",1446,"mGCmGmwaUSFToZXzdwDpC6KLMBvih05KEc6mZQYqKEk"],
+"vQ":[130,"ReleaseEffectRoutesTests._dns_pair",1403,"mGCmGmwaUSFToZXzdwDpC6KLMBvih05KEc6mZQYqKEk"],
 
-"vR":[10,95,{"$":13}],
+"vR":[10,41,{"$":13}],
 
 "vT":[32,430,{"$":13}],
 
@@ -3066,7 +3080,7 @@
 
 "x0":[149,"claim_managed_login",470,"uWJepFXiItQQNClCipDn_Ehq0-Y80G1Hf6OJ8xd_2xM"],
 
-"x1":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",662,"9d7NeOugVLiGTQyDA3CYCVabtUD0SEIcl-M3YQfGti4"],
+"x1":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",684,"9d7NeOugVLiGTQyDA3CYCVabtUD0SEIcl-M3YQfGti4"],
 
 "x2":[64,"_RegisteredServer._observe_qualified_tool_item",1351,"5uJd7CynBr4HXyVHbcs8FDxRiP1nMMwQuYOaGK_p0RQ"],
 
@@ -3082,7 +3096,7 @@
 
 "x8":[149,"_check_available",535,"NRsRwitkkSgUCjAi_ptjlet74EOp5HxVg5zGYfyfLB4"],
 
-"x9":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",392,"PV2NJuMF_6ABe30xaPTy5SvQ0UdWxuV6VgAonULCWTo"],
+"x9":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",414,"PV2NJuMF_6ABe30xaPTy5SvQ0UdWxuV6VgAonULCWTo"],
 
 "xA":[149,445,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
@@ -3090,9 +3104,9 @@
 
 "xD":[149,"_read_starts",509,"2Oi-LhNBtgUNvkcxWxJiO6OdxN1pWAmKFqMiu2xkVVE"],
 
-"xE":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",611,"UlehT9UtBFayl63NZf1X2U2FqDQIaKS_IMejhFRCze8"],
+"xE":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",633,"UlehT9UtBFayl63NZf1X2U2FqDQIaKS_IMejhFRCze8"],
 
-"xF":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",436,"YcE84J0upisnMb8WT6palpk5FGrPq1sbOl3d0tmqCG0"],
+"xF":[148,"FactoryQualificationTests.test_managed_login_captures_and_archives_the_original_reported_rollout",458,"YcE84J0upisnMb8WT6palpk5FGrPq1sbOl3d0tmqCG0"],
 
 "xG":[64,"_Containment._confirm_login_mount",695,"BNDnkhNmB8dgn5r6TWg3AmfNFxhfdguiLjxIOZJJLu0"],
 
@@ -3128,7 +3142,7 @@
 
 "xX":[149,"_StartRequest.authorization",387,"k4iqmJ_MKe5nPtALm7snK2-486n-FSG98xr2AsQnLBs"],
 
-"xY":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",402,"zht_ejcvPCBdIUGtRo_qFm2DF1X51riSMDfSGFDkkS0"],
+"xY":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",424,"zht_ejcvPCBdIUGtRo_qFm2DF1X51riSMDfSGFDkkS0"],
 
 "xZ":[149,"ManagedLoginMount.prepare",184,"xBjS_yw1BFc3tzxG2gBH1dDkp1jnS17lndTbgzqgf4Y"],
 
@@ -3138,7 +3152,7 @@
 
 "xc":[146,"_read_access_token",449,"v8xez3TX8q50H-Q3vXghvB4DVW_uBxJ5fU2A5r7ceio"],
 
-"xd":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",635,"C7QM2DeNJ3lAkQK5CiSYGFKAm9c21surO1IIwruZeJI"],
+"xd":[148,"FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit",657,"C7QM2DeNJ3lAkQK5CiSYGFKAm9c21surO1IIwruZeJI"],
 
 "xe":[146,443,"listener.listen(_MAX_CONNECTIONS)"],
 
@@ -3166,7 +3180,7 @@
 
 "xr":[77,"_schema_launcher",201,"hiksp3oukBxkFyXHVDodoe6r0XsGpPTLrPnP1gj9EfI"],
 
-"xs":[148,"FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit",587,"6rRVn0HfkhAFuvpCZlE1palcc5f5mAXNZwsJz2mxCws"],
+"xs":[148,"FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit",609,"6rRVn0HfkhAFuvpCZlE1palcc5f5mAXNZwsJz2mxCws"],
 
 "xt":[149,"require_executable_schema",339,"_sNtyxu7DnTGdo7wfiyYZIzutl2-J8-BmhlMHbSkpIg"],
 
@@ -3208,17 +3222,17 @@
 
 "yG":[16,329,{"$":257}],
 
-"yH":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",284,"zOmgD3bejrv-7BwMNuwrOGXyV-vmy9AYd6M7f-nwbPg"],
+"yH":[148,"FactoryQualificationTests.test_qualification_requires_permit_and_does_not_open_production",288,"zOmgD3bejrv-7BwMNuwrOGXyV-vmy9AYd6M7f-nwbPg"],
 
-"yI":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",100,"TKDM2EN_5McvMjnNuLeDhdM1TUyN9uxjnhOWJCsKBWM"],
+"yI":[148,"CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles",104,"TKDM2EN_5McvMjnNuLeDhdM1TUyN9uxjnhOWJCsKBWM"],
 
 "yJ":[126,"RegisteredFiniteToolWiringTests.test_live_capture_refuses_nonempty_app_server_input_before_delivery",1731,"tsH4Z3gZ9Ra2STShuInXDTY8l2DpDEKO8dP7Ez0_wgc"],
 
-"yK":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",574,"2XqBeAPDT_YaZTNhI5Y7an2_oAV7Fs6Jk_yGDVjTDvo"],
+"yK":[148,"FactoryQualificationTests.test_tampered_permit_and_expiry_refused_before_worker",596,"2XqBeAPDT_YaZTNhI5Y7an2_oAV7Fs6Jk_yGDVjTDvo"],
 
 "yL":[146,"ProviderBroker._handle",363,"Vdyj5_tDCtlAzGZDDZREI1ZviIKwXy_vo_bSQ-UVj-c"],
 
-"yM":[148,"CampaignTests.test_one_budget_preserves_version_one_history_and_refuses_start_twenty_one",52,"aJ9DMCdL0sM48ps9xvg2DwmFy6f8kFE6xhPi75qm6SQ"],
+"yM":[148,"CampaignTests.test_one_budget_preserves_version_one_history_and_refuses_start_twenty_one",56,"aJ9DMCdL0sM48ps9xvg2DwmFy6f8kFE6xhPi75qm6SQ"],
 
 "yO":[53,"_drive",361,"cHHa_ILz8iRj0Hdmoa-jhlKLDN_aZ-TZLQAOXpDUcyQ"],
 
@@ -3236,9 +3250,9 @@
 
 "yW":[44,647,"records = socket.getaddrinfo(host, port or 0, type=socket.SOCK_STREAM)"],
 
-"ya":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",209,"irrar8PAdgARaO0gkkNNLeFd6X2-YLSY40YgDCNcyFk"],
+"ya":[148,"ManagedLoginNamespaceTests.test_real_mount_is_appserver_only_and_preserves_atomic_file_and_archive_writes",213,"irrar8PAdgARaO0gkkNNLeFd6X2-YLSY40YgDCNcyFk"],
 
-"yb":[148,"CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release",113,"rPhbsnkS0-bSA1Vc5_T7T0uel6TmlNlfItg4yBsApyI"],
+"yb":[148,"CampaignTests.test_managed_login_lease_is_exclusive_and_requires_original_release",117,"rPhbsnkS0-bSA1Vc5_T7T0uel6TmlNlfItg4yBsApyI"],
 
 "yd":[64,"_RegisteredServer._check_qualification_wire",1270,"oCkA-pQKcaklegmFwoadOEApu0wV0P4jT0glqhrL8zM"],
 
@@ -3314,7 +3328,7 @@
 
 "zM":[145,"InstallScriptTests.test_install_offers_only_architect_and_launches_with_installed_role_policy",130,"RVohodyga-plkSNI3Y3zdW-owi3ahw_j9offygVxV_Q"],
 
-"zN":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",718,"43nPbZClg2NJBgq1ROeqiOgIh7eAcYpMkv6nTJ10POo"],
+"zN":[148,"FactoryQualificationTests.test_registered_startup_retains_timestamped_notifications_and_stops_before_turn",740,"43nPbZClg2NJBgq1ROeqiOgIh7eAcYpMkv6nTJ10POo"],
 
 "zO":[151,"ServerRequestPreparationTests.test_timestamped_envelope_refuses_bad_timestamps_and_non_notifications",353,"3zvNhHEkwrHFFrfInLBiJqPdvP7zUGhmXvGstI126z4"],
 
@@ -3324,7 +3338,7 @@
 
 "zR":[62,"_FiniteLifecycle.authority_terminal_reply_sent",207,"GdCok_ORaIrkGqU-vduErNZklaIButod30Rx-ywsT6o"],
 
-"zS":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",553,"JlnpFTAoS4Oeo4R6Q7Le1oo7WvcUhvYyfApROeH4Mjk"],
+"zS":[148,"FactoryQualificationTests.test_early_launch_refusal_releases_the_staged_attachment",575,"JlnpFTAoS4Oeo4R6Q7Le1oo7WvcUhvYyfApROeH4Mjk"],
 
 "zT":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"A8gKF8grrSFM3l4p_rgbzGXhHmcErV2qw7A7Cfxvj7o"],
 
@@ -3344,7 +3358,7 @@
 
 "zb":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1941,"w9DenRejWKX2So9OGxgtuDcHJ5HU-1Gnl9OeZYdHHHo"],
 
-"zc":[148,{"$":330},650,{"$":343}],
+"zc":[148,{"$":330},672,{"$":343}],
 
 "zd":[64,"_Containment._require_launch_command",735,"lTWOR6VsN8RLdFPs6kyd9EsxnuR7KnSLCozYbCCtVEc"],
 
@@ -3445,7 +3459,7 @@
 
 "_owned_read: ",
 
-"observe_qualification: ",
+" gaps remain finding 7",
 
 "Reads the local sealed or mint identity marker before a record/store mutation; it is an identity check rather than a dispatch target.",
 
@@ -3555,9 +3569,9 @@
 
 "Selects the control require_active/observe callback for revocation or admission checking. Arbitrary control behaviour remains a pinned caller contract, not an RPC safety claim.",
 
-"FiniteN1Lifecycle._check: ",
+"ActivationLedger",
 
-"Checks the archive callback __self__/__func__ binding against its retained owner; no archive method is called by this lookup.",
+"_with_identity: ",
 
 "RegisteredAppServer._register_local_negative: ",
 
@@ -3685,7 +3699,7 @@
 
 "StagedThreadArchive.",
 
-"capture_tool_request",
+"read_private_bytes",
 
 "e_acceptance_proof: ",
 
@@ -3695,7 +3709,7 @@
 
 "AppServer.archiv",
 
-"FiniteN1Lifecycle._",
+"d_replay_store: ",
 
 "say prints bd version ",
 
@@ -3705,17 +3719,7 @@
 
 "AppServer.request",
 
-"_run_after_intent",
-
-" gaps remain finding 7",
-
-"ActivationLedger",
-
-"_with_identity: ",
-
-"read_private_bytes",
-
-"d_replay_store: "
+"_run_after_intent"
 ],
 
 "exclusions":{
@@ -3861,7 +3865,7 @@
 
 "XR423":[[125,95],2,null],
 
-"XR424":[[156,": ",95],2,null],
+"XR424":[[142,": ",95],2,null],
 
 "XR425":[[97,95],2,null],
 
@@ -3915,18 +3919,6 @@
 
 "a9":[[13,0],2,null],
 
-"aH":[[142,".cleanup: ",3],2,null],
-
-"aI":[[142,": ",3],2,null],
-
-"aJ":[[6,3],2,null],
-
-"aK":[[6,3],2,null],
-
-"aL":[[6,3],2,null],
-
-"aM":[[6,3],2,null],
-
 "aN":[[109,1],2,null],
 
 "aO":[[109,1],2,null],
@@ -3969,7 +3961,7 @@
 
 "aq":[["_load_pool_request: ","Reads the optional numeric O_CLOEXEC constant with zero default; no callable, command or host authority is selected."],2,null],
 
-"ar":[["Native",154,"Store.append: ",95],2,null],
+"ar":[["Native",77,"Store.append: ",95],2,null],
 
 "as":[["_observe_adapter_failure preserves the first original action exception before independent transport revocation",115],98,"N3.3"],
 
@@ -4017,25 +4009,21 @@
 
 "bB":[[21,20],2,null],
 
-"bC":[[22,3],2,null],
-
-"bD":[[22,3],2,null],
-
 "bE":[["ProtectedChangeAssessment.__setattr__: ",23],2,null],
 
-"bF":[["_rea",157,14],2,null],
+"bF":[["_rea",147,14],2,null],
 
 "bG":[["_write_replay_store: ",14],2,null],
 
-"bH":[["_locke",157,14],2,null],
+"bH":[["_locke",147,14],2,null],
 
 "bI":[[134,14],2,null],
 
 "bJ":[[24,14],2,null],
 
-"bK":[["_read_private_json",155,14],2,null],
+"bK":[["_read_private_json",78,14],2,null],
 
-"bL":[["_",156,155,14],2,null],
+"bL":[["_",142,78,14],2,null],
 
 "bM":[["_read_private_audit_tail: ",14],2,null],
 
@@ -4109,7 +4097,7 @@
 
 "bv":[[19,20],2,null],
 
-"bw":[["_Guarded",136,122,"supplied server. It can expose RPC methods; specific raw RPC refusal",153,", so this is not a held or safe-dispatch claim."],2,"N2.3"],
+"bw":[["_Guarded",136,122,"supplied server. It can expose RPC methods; specific raw RPC refusal",22,", so this is not a held or safe-dispatch claim."],2,"N2.3"],
 
 "bx":[["_Runtime.prepare: ",3],2,null],
 
@@ -4401,14 +4389,6 @@
 
 "eO":[["_bd: ","Invokes the exact _EXAMPLE_CALL bridge after original type/function identity checks; Beads-family copy maps to B4.3, while this alias-ambiguous dynamic classification retains its explicit scope exclusion."],2,"B4.3"],
 
-"eP":[[77,78],2,null],
-
-"eQ":[[77,78],2,null],
-
-"eR":[[147,"spawn: ",3],2,null],
-
-"eS":[[147,"terminate: ",3],2,null],
-
 "eT":[[132,"truction_cleanup: ",3],2,null],
 
 "eU":[[132,"ume_raw_stdout_line: ",5],2,null],
@@ -4528,26 +4508,6 @@
 [2,212,13,215,5,"process","Vqqyc6cslSRuy_gBcQ2meCuywNgY_WoJRVBpviXLFxo",["route","X6.1","lH"]],
 
 [2,230,13,230,95,"process","De-OB8tdNxgWygd728zcDVX79HXNPKA1XYcHJMFIv28",["route","X6.1","km"]],
-
-[3,143,19,143,65,"network","dEbMc4U521q-cdh5BAXizIcBLAd2gC5BYe6DVIqpNlY",["route","N2.2","li"]],
-
-[3,161,17,162,62,{"$":3},"Jy1rLRpHLeYO6s-N4syqcsZzFQo2tmjtXJz2AsajVg4",["route","N2.2","kO"]],
-
-[3,167,28,186,9,{"$":3},"6DIfsHblhtcXN1lH-n8mJNG5by_fzuEJmoRBf58mAM8",["route","N2.2","pe"]],
-
-[3,211,8,226,9,{"$":3},"SVG5gC61UE3soxLpYn4AdzoJ8v00X7x8LFSyWt1rz_g",["route","N2.2","kp"]],
-
-[3,255,23,255,63,"dynamic",{"$":39},[{"$":9},"aH"]],
-
-[3,256,19,256,69,"dynamic","Md9FYohIVYoiYfooL5o9SDFs81sMZvVE_dNSTZSJfIg",[{"$":9},"aI"]],
-
-[3,368,65,368,132,"dynamic","HRLmaQytgTt8sha8E3SWSZqbTpZEVW4EiwXG69ClVrE",[{"$":9},"aJ"]],
-
-[3,369,36,369,96,"dynamic","FCAEkKnb7mTjTBPy8GNR973DjOOyfgInDCbgiiV657s",[{"$":9},"aK"]],
-
-[3,370,48,370,88,"dynamic","sxGQtBh1wxU-UjxUUqstMrO8_ikxVlTxfgs_RMclhOI",[{"$":9},"aL"]],
-
-[3,371,33,371,62,"dynamic",{"$":34},[{"$":9},"aM"]],
 
 [4,51,13,52,72,"process","DS1sHSyKOm6xYz6E4zrShSWvTPZzFKc1j8Ug4uVg3Ng",["route","X6.2","le"]],
 
@@ -4725,17 +4685,11 @@
 
 [21,784,28,785,117,"process","upEnaOt9x33ZupADPfKNWmPWeaH9ACIg-fhZUgJbNJA",["route","X3.1","kM"]],
 
-[22,123,17,123,35,"dynamic","O6zN3qycMru3XLSGJocVP0c8y6VUNUVFTU0nrNr_v3w",[{"$":9},"bz"]],
+[22,119,17,119,35,"dynamic","O6zN3qycMru3XLSGJocVP0c8y6VUNUVFTU0nrNr_v3w",[{"$":9},"bz"]],
 
-[22,123,39,123,56,"dynamic","pNAwE4toLH_iTIznYDNQnjIbgb6zQ6DcRFDeqvF5PgA",[{"$":9},"bA"]],
+[22,119,39,119,56,"dynamic","pNAwE4toLH_iTIznYDNQnjIbgb6zQ6DcRFDeqvF5PgA",[{"$":9},"bA"]],
 
-[22,126,27,126,48,"dynamic",{"$":185},[{"$":9},"bB"]],
-
-[22,561,17,562,40,{"$":3},"cpM5kY-z1G1P6cqb_IUAhclf9sTqeYTF5ONQ_ZSQbjM",["route","N2.4","kJ"]],
-
-[22,629,39,629,79,"dynamic",{"$":39},[{"$":9},"bC"]],
-
-[22,644,51,644,91,"dynamic",{"$":39},[{"$":9},"bD"]],
+[22,122,27,122,48,"dynamic",{"$":185},[{"$":9},"bB"]],
 
 [88,120,14,120,79,"beads","2OBxTe8L3BXE9ddGMvpYxZ2vHepuWd2JMVvaxCgjlnc",["route","B10.7","un"]],
 
@@ -4903,11 +4857,11 @@
 
 [94,1742,27,1742,74,"dynamic","NNNiwmdaq9MHSIy69kfSofp5jGCKtMxods9F32uNs9M",[{"$":9},"XR394"]],
 
-[95,384,30,384,57,"dynamic","prnKiUwHNekJM1zNC31vdO3F5jFteDJWVFQcqCnqso8",[{"$":9},"XR382"]],
+[3,384,30,384,57,"dynamic","prnKiUwHNekJM1zNC31vdO3F5jFteDJWVFQcqCnqso8",[{"$":9},"XR382"]],
 
-[95,384,60,386,9,"dynamic","s3-jdHsbXCKATrwY1r3o56t8oB-RCDKdC-4w_JSHLQM",[{"$":9},"XR383"]],
+[3,384,60,386,9,"dynamic","s3-jdHsbXCKATrwY1r3o56t8oB-RCDKdC-4w_JSHLQM",[{"$":9},"XR383"]],
 
-[95,771,13,771,61,"dynamic","Xn7QdrAxsKVC9SJYyKwDZXHyN_lT957yADBPL_I7P4M",[{"$":9},"XR384"]],
+[3,771,13,771,61,"dynamic","Xn7QdrAxsKVC9SJYyKwDZXHyN_lT957yADBPL_I7P4M",[{"$":9},"XR384"]],
 
 [39,363,27,364,91,"process","SfT1I2sw5_bT-p8v4UBcyj9uhtyJQcWrzNagsK_tmpU",["route","N1.1","p8"]],
 
@@ -5317,14 +5271,6 @@
 
 [61,743,8,743,67,"beads","_RmvYbYAHPPzKcnDM1cMTJzcQY_ofsIjY1k7dlP1f1c",["route","B4.3","lW"]],
 
-[62,134,14,134,48,"dynamic","vW68LMQDogZozPbL_MwNREERCdmtabNiZAlItTYe0_Q",[{"$":9},"eP"]],
-
-[62,135,18,135,52,"dynamic","oxf1n11yJb43LQ5bGuLLQP8Jy1rzaJkppLDo5djTYJk",[{"$":9},"eQ"]],
-
-[62,161,31,161,73,"dynamic",{"$":235},[{"$":9},"eR"]],
-
-[62,185,46,185,88,"dynamic",{"$":235},[{"$":9},"eS"]],
-
 [63,168,20,179,9,{"$":3},"yxaczEcfdA08IK3HSwF5w3BCGEVryInDI4HhA0R84Tw",["route","N4.2","pa"]],
 
 [63,189,8,189,38,{"$":3},{"$":156},["route","N4.2","iq"]],
@@ -5401,7 +5347,7 @@
 
 [85,623,18,623,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
 
-[96,164,26,164,47,"dynamic","6Udd_Lk_-YdcDSCjV4DMrOOutvv2IFVEU4jXcLiIlf8",[{"$":9},"XPool101-2"]],
+[62,164,26,164,47,"dynamic","6Udd_Lk_-YdcDSCjV4DMrOOutvv2IFVEU4jXcLiIlf8",[{"$":9},"XPool101-2"]],
 
 [86,248,15,248,94,{"$":3},"k9v9TIBzAvfsm4g-p0xcA49hWoxqg8jO4SXZwJ4H1SU",["route","N4.3","zp"]],
 
@@ -5513,7 +5459,7 @@
 
 {"$":100},
 
-{"$":62},
+{"$":417},
 
 {"$":101},
 
@@ -5631,7 +5577,7 @@
 
 {"$":70},
 
-"scripts/qualified_n1_host.py",
+{"$":412},
 
 {"$":115},
 
@@ -5695,11 +5641,7 @@
 
 {"$":425},
 
-{"$":424},
-
-{"$":417},
-
-{"$":412}
+{"$":424}
 ],
 
 "schema":"bounded-primitives-v2"
@@ -5758,13 +5700,13 @@
 
 {"contract":"N1","effect_points":["c2","p8","kR","lF"],"entrypoint":"a3","id":"N1.1","witnesses":["aS","aH","1"]},
 
-{"contract":"N2","effect_points":["0","ah"],"entrypoint":"gp","id":"N2.1"},
+{"authority":"CLI arguments select a profile for validation.","contract":"N2-retired","effect":"Retired tool-surface CLI refusal","entrypoint":"gp","id":"N2.1","limits":"The CLI retains its refusal and writes no evidence with either N1 flag.","ordering":"Validate timeout and profile/catalog pairing. Check N1, then refuse before model, catalog, capture or output handling.","review_gates":["retired-probe-cli-source-hold","retired-probe-cli-refusal"],"trace_files":[{"$":62},{"$":270}],"witnesses":["retired-probe-cli-status","retired-probe-library-holds"]},
 
-{"contract":"N2","effect_points":["0","ah","li","kO","pe","kp"],"entrypoint":"cs","id":"N2.2"},
+{"authority":"The caller supplies an exact tool profile.","contract":"N2-retired","effect":"Retired tool-surface library refusal","entrypoint":"cs","id":"N2.2","limits":"Both N1 flag values refuse. Fake capture tests replay pinned source.","manual_decisions":["retired-probe-profile-ordering"],"ordering":"Validate the profile and check N1. Refuse before capture binding, listener startup or process construction.","review_gates":["vR","retired-probe-library-refusal"],"trace_files":[{"$":62},{"$":270},{"$":104}],"witnesses":["retired-probe-library-holds","retired-probe-profile-validation"]},
 
-{"contract":"N2","effect_points":["gS","ky"],"entrypoint":"hW","gates":["vT"],"id":"N2.3","review_gates":["vR","vL"]},
+{"contract":"N2","effect_points":["gS","ky"],"entrypoint":"hW","gates":["vT"],"id":"N2.3"},
 
-{"contract":"N2","effect_points":["eb","kJ"],"entrypoint":"aZ","gates":["vL"],"id":"N2.4","review_gates":["vR","vT"]},
+{"authority":"The original opaque operation and verifier are checked.","contract":"N2-retired","effect":"Retired maintenance observation refusal","entrypoint":"aZ","id":"N2.4","limits":"Invalid operations retain their validation refusal. Valid claimed operations refuse with either N1 flag. The reader checks the issuing image.","ordering":"Verify the claimed operation against its verifier and plan. Check N1 and refuse before intent, output or launch.","review_gates":["retired-maintenance-observer-operation","vL","retired-maintenance-observer-refusal"],"trace_files":[{"$":66},{"$":270},"scripts/check_maintenance_qualification.py",{"$":269}],"witnesses":["retired-maintenance-observer-guard","retired-maintenance-claimed-observer"]},
 
 {"contract":"N3","entrypoint":"qV","id":"N3.1","manual_decisions":["d","f","k","j","l","g","n","m"],"review_gates":["v0","vH","vu","ux","uw","vt","us","M","L"],"trace_files":[{"$":16},{"$":23},{"$":17},{"$":10},{"$":36},{"$":15},{"$":329},{"$":328},{"$":29},{"$":394}],"witnesses":["6","bx","l","e","k","s","n","o","p","j","z","c","d","Z","8","ao"]},
 
@@ -6110,8 +6052,6 @@
 
 "124":"self.assertEqual([effect[0] for effect in process.effects], ['comment', 'close'])",
 
-"125":"self.assertEqual(calls, [\"construct\", \"serve\", \"close\"])",
-
 "126":"self.assertEqual(creates.call_count, 0 if refused or dry else 4)",
 
 "127":"self.assertEqual(execute.call_args_list[0], mock.call(str(driver), run_name=\"__w21_measurement__\"))",
@@ -6281,8 +6221,6 @@
 "232":"connect.assert_called_once_with((\"10.2.3.4\", 443), 2, None)",
 
 "234":"d725780e0aa6e0a1f740c973031fdf2df1b5cad2424e776a2ec25ccfe568ccd9",
-
-"235":"dc58b8533e4a57f39063f1d3ed21536717425565eda462fe45815d7053e82892",
 
 "237":"df03982192cab7b5e649994eb33f6776e1875c7d8c6dd687b5008f2c8ea1c0ce",
 
@@ -6712,6 +6650,10 @@
 
 "464":"self.assertTrue(json.loads(raw)[\"authority_validated\"])",
 
+"465":"raise live_availability.NativeLiveUnavailable(\"native-n1-live-unavailable\")",
+
+"466":"self.assertRaisesRegex(CodexToolSurfaceError, \"codex-tool-surface-permitted-tools-\")",
+
 "47":"self.assertEqual(address, (\"127.0.0.1\", port))",
 
 "48":"self.assertFalse(marker.exists(), f\"{kind} must not run\")",
@@ -6834,7 +6776,7 @@
 
 "@1":["5Gat1nN7uaJEwMv2u5h3vp8__zV1t6rTih6WDuKJgPo",420,23935],
 
-"@10":["9nFVKiOXpywZ7KKcevBDz5b8zwaoXgDf3UwP-Ns1yQM",420,17986],
+"@10":["awmbH4ANId0Gt10fy8QEFTryBOiajdTeAc99hSfsjTU",420,2700],
 
 "@100":["jINPIu4hM0nNVAqiu2rTiKrPQVeJVVMT2Ou1xHtzSRM",420,2675],
 
@@ -6902,7 +6844,7 @@
 
 "@13":["UHOXjc03Ho_CKy-t43lH-IsxCCeEHfZXU_4ag3xZNXQ",493,1275],
 
-"@130":["ENdAGlY2YbtcX1E89OOj8xCdbC77as9vDawzCIHebQ4",420,109974],
+"@130":["CC-USxNjgOH3JcPbBToAPy0_kqp4IzAQDju1DeCx1RM",420,107376],
 
 "@131":["X8t6M_ka0o8QQcFJimHUfyKmfUtVAn94a1wd9kWE4hI",420,16860],
 
@@ -6940,7 +6882,7 @@
 
 "@147":["3K0586o-nIrszGq1-AD_LMMiuqi4zJ3E44jXyWX8nHg",420,26627],
 
-"@148":["sTykj15MQFCUoiMVYLm2VeDJ_ecXRBHEC3ToPJi3u9g",420,40680],
+"@148":["Z9C-SyNs5lqsBvleYuxGTtEbvI_mFkAFzwJLKx-lHZI",420,42007],
 
 "@149":["lUD9WPLvcr-TSYgNG_d9h7RPsCDgp0Rrvo0eCjUPIJE",420,24263],
 
@@ -6954,7 +6896,7 @@
 
 "@153":["9Z9x0ElXX3yjZsc2p3aQHUILQ0HUCQgjpH3eWEniKyM",420,61741],
 
-"@154":["R83XbIbIfuXB67y5hacpKmQfGMVRsNRLzh7LzYZ5j2s",420,62259],
+"@154":["x2UI314Vv2fP_bBW7NDDA0KsqO_6S9DeXMvlcUDLrjg",420,62189],
 
 "@155":["anpsNpcS3ojtzS5WOeYP5ktv_jL239OjAWLSuvbwu8k",420,32908],
 
@@ -7096,6 +7038,10 @@
 
 "@22":["ewJSKxVn2jq2eKqe7FYAXnzBaj27aPuInnaDtkbwHQU",420,15853],
 
+"@220":["KAxYB56cSvrpYM7otSp4wRmrkXdFDBuyvNf9M3eIttA",420,28567],
+
+"@221":["fc3Nnb7sDyPNBbqsFv7NtEwk-OrDaIrI0h-X4v6Sgt4",420,2357],
+
 "@23":["pbteF2w87kaTs5RW7m5Un9vOMecduKtBl5puD4O2zuE",420,11552],
 
 "@24":["pKGj8uJjdUNB6GQ8BgA-82KfToyth-kox9dkS5kjxAU",420,17058],
@@ -7116,7 +7062,7 @@
 
 "@32":["znan4zVBITO-LVGn7IXKHLQ88mfcIaZiCOK3mRMTcCo",420,56944],
 
-"@33":["Dy50YFCuwd4QEIvltcMQzHNgQo0xKV33qgorcs_OEcI",420,55573],
+"@33":["eC0NHegmkfIMZID6OFa0M31qreu9jsTiX5ouSm0vFTE",420,43844],
 
 "@34":["39tEe7wbEiIC2p0bSSRAgwHtmCXGRaod_30wcA9uJtM",420,62820],
 
@@ -7248,7 +7194,7 @@
 
 "@98":["qbPY0tljgBYKQbIgz_fR9hhakfS3DXoFnXlzD-9MdRI",420,14498],
 
-"@99":["Oc2f2GuwMbQZZGn1PfgaY8ijjlF_f0xUVvA7CeqRDYw",420,32018],
+"@99":["p8bgjnQuqv8QS4rZDcfR_vCY8i_3kwMibzZnm5VhXiE",420,33936],
 
 "policy/model-roles.yaml":["gnnS0Pw2tLCzppZfzYr289jJhAIF2U9-RD5ii4nrTg8",420,765],
 
@@ -7566,8 +7512,6 @@
 
 "scripts/qualified_adjudication.py":["i69CdArvzoTx3uOI_-VUNxKTeUK3Nr1zSHbYwC07wzk",420,16909],
 
-"scripts/qualified_n1_host.py":["joEHIu8atcZCyOaYTSNQrg3hNe-paLDKxCgVN29Blqk",420,12500],
-
 "scripts/qualified_risk_use.py":["-JIlAQueCzWELDyyHm1ewX8KbABVrbr4B1Hmrwg53VQ",420,13133],
 
 "scripts/qualified_workflow_adjudication.py":["yqjoGs_9g_QyQuxQ5j1vTJ7EkEkQkecdtR2YwQ9sk-E",420,31735],
@@ -7632,7 +7576,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["G2X6GK8QXcKDVV1HWN_6tYaJn_6a5Ldgks6OWA8aM8s",420,141135],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["argOSmf3LdMIEfGALbwwNN2pDjjtz9N5wLAoWBRphOQ",420,140533],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7666,7 +7610,7 @@
 
 "tests/test_validate_repository.py":["-pEmBkx1HmMOByPH-mM72huS-wQbYiOHPbFZEMs4HeQ",420,42861],
 
-"tests/test_w20_affected_contract_w13.py":["UqpDppkGlVlePvVIyZaI9sw0omof5PZjHTQlxDNKvIM",420,69652]
+"tests/test_w20_affected_contract_w13.py":["ob1G31T2M8rlhKGQBtB5eL8QYtYApP9b67NGbF5SjZs",420,69277]
 },
 
 "witness_columns":[
@@ -7850,8 +7794,6 @@
 
 "b":["server.start_turn('thread', 'benign fixture')","xd",{"$":0},{"$":332},["zc"],"tests.test_registered_n1_qualification.FactoryQualificationTests.test_raw_transport_cannot_adopt_another_factory_permit"],
 
-"b0":[{"$":125},"q",{"$":6},{"$":125},["v3"],{"$":20}],
-
 "b1":["self.assertEqual(forged_runner.claim_order, [])","dj",{"$":0},"self.assertEqual(runner.claim_order, [\"bead-a\", \"bead-b\", \"bead-c\"])",[],"tests.test_native_pool_admission.NativePoolAdmissionTests.test_productive_n3_succeeds_and_forged_n4_rejects_before_claim"],
 
 "b2":["self.assertEqual(profile.read_text(encoding=\"utf-8\"), \"locally modified\\n\")","hD",{"$":0},{"$":351},["aA"],"tests.test_instruction_profiles.InstructionProfileTests.test_modified_profile_requires_force_to_overwrite_or_remove"],
@@ -7992,8 +7934,6 @@
 
 "cE":["spy_detect.assert_not_called()","em",{"$":0},{"$":77},["vx"],"tests.test_configure_codex_beads_hooks_w18a_f1.ProbeOrderingTests.test_enforcement_hook_refusal_does_not_invoke_probe_or_write"],
 
-"cF":["self.assertEqual((factory.call_count, prepare.call_count, calls), (0, 0, []))","q",{"$":0},{"$":47},["v3","vw"],{"$":20}],
-
 "cG":[{"$":47},"vw",{"$":6},{"$":47},[],{"$":318}],
 
 "ca":[{"$":47},"vw",{"$":1},{"$":47},[],{"$":318}],
@@ -8034,7 +7974,7 @@
 
 "ct":[{"$":239},"gF",{"$":0},{"$":434},["aM","bqa"],"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_retired_sources_refuse_before_reads_or_writes"],
 
-"cu":["self.assertEqual(guard.call_count, 0)","f0",{"$":0},{"$":125},["q","v3"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write"],
+"cu":["self.assertEqual(guard.call_count, 0)","f0",{"$":0},"guard.assert_called_once()",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write"],
 
 "cv":["self.assertEqual(marker.read_text(), \"preserved\")","fA",{"$":0},{"$":136},["vv"],"tests.test_first_project.FirstProjectTests.test_creation_refuses_existing_directory"],
 
@@ -8148,11 +8088,21 @@
 
 "r":["with self.assertRaisesRegex(runtime.native.OfflineHostError, 'same-handle reaping'):","xy",{"$":0},"self.assertIs(lifetime._terminate_monitor(), complete)",[],"tests.test_registered_provider_network.RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal"],
 
+"retired-maintenance-claimed-observer":["write.assert_not_called()","retired-maintenance-claimed-observer-body",{"$":1},"self.assertFalse(self.output.exists())",[],"tests.test_maintenance_qualification.QualificationTests.test_retired_observer_refuses_a_real_claimed_operation"],
+
+"retired-maintenance-observer-guard":["verify.assert_called_once_with(None, verifier=None, plan=None)","retired-maintenance-observer-guard-body",{"$":1},"self.assertRaisesRegex(ValueError, \"opaque-operation-required\")",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_retired_maintenance_observer_validates_operation_before_unconditional_refusal"],
+
 "retired-preview-cli":["self.assertEqual(code, 1)","retired-preview-cli-body",{"$":1},"\"failure_message_sha256\": hashlib.sha256(expected.encode()).hexdigest(),",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_cli_retains_the_exact_refusal_with_former_switches_on"],
 
 "retired-preview-contract-refusal":["self.assertEqual(value.mock_calls, [])","retired-preview-contract-refusal-body",{"$":1},"V._write_worker_contracts(*inputs)",[],"tests.test_r1_activation_preview_hold.R1ActivationPreviewHoldTests.test_retired_worker_contract_refuses_before_reads_rpc_or_artifact_effects"],
 
 "retired-preview-profiles":[{"$":97},"retired-preview-profiles-body",{"$":1},"for profile in (\"n1-read-only\", \"n1-mutable\", \"n2-read-only\"):",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_r1_f5_retired_preview_refuses_all_profiles_even_with_flags_on"],
+
+"retired-probe-cli-status":["self.assertEqual(list(root.iterdir()), [])","retired-probe-cli-status-body",{"$":1},"self.assertEqual(result.returncode, 1, result.stderr)",[],"tests.test_check_codex_worker_surface.WorkerSurfaceRefusalTests.test_shipped_cli_refuses_before_reading_or_writing_probe_files"],
+
+"retired-probe-library-holds":[{"$":239},"retired-probe-library-holds-body",{"$":1},"self.assertRaisesRegex(A.NativeLiveUnavailable, \"^native-n1-live-unavailable$\")",[],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_retired_surface_probe_refuses_even_when_generic_n1_is_enabled"],
+
+"retired-probe-profile-validation":[{"$":466},"retired-probe-profile-validation-body",{"$":1},{"$":466},[],"tests.test_check_codex_worker_surface.WorkerSurfaceRefusalTests.test_library_keeps_exact_tool_profile_validation"],
 
 "s":["with self.assertRaisesRegex(qualification.QualificationError, 'role'):","yI",{"$":1},"{'model': 'gpt-6.2-sol', 'effort': 'xhigh', 'service_tier': 'default', 'provider': 'openai'}",[],"tests.test_registered_n1_qualification.CampaignTests.test_run_local_model_mapping_keeps_normal_roles_and_rejects_unknown_roles"],
 

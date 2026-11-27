@@ -317,13 +317,13 @@ class PreparedRouteTraceTests(unittest.TestCase):
         helper = "scripts/cwo_core/prepared_outbound.py"
         # Local HTTP and registered review dispatch call the helper through the
         # same consumer. Browser dry-run uses it to bind the packet inputs.
-        # Native N10.8/N10.9 bind final reply/model bytes. The shared N2/N10
-        # source traces also select construction, receiver and containment paths
-        # for contextual review; they confer no separate final-screen authority.
-        # N10.6 retains its explicit trace scope rather than inheriting that family.
+        # Native N10.8/N10.9 bind final reply and model bytes. N2.3 keeps the
+        # installed maintenance runtime trace. The N10 family also traces receiver
+        # and containment paths, with a separate scope for N10.6. The retired
+        # probe and observer refuse before this helper.
         expected = {
             "H1.1", "H1.2", "H2.1", "H4.1",
-            "N2.1", "N2.2", "N2.3", "N2.4", "N10.1", "N10.2", "N10.3",
+            "N2.3", "N10.1", "N10.2", "N10.3",
             "N10.4", "N10.5", "N10.7", "N10.8", "N10.9", "N10.10",
         }
         observed = {route["id"] for route in routes._routes(inventory) if helper in route["trace_files"]}

@@ -1,10 +1,8 @@
-"""Prospective maintenance qualification: observed provider + checked reader CLI.
+"""Check maintenance observations and their process-local authority lineage.
 
-Only the trusted parent mints process-local observation/execution capabilities.
-The reader CLI validates evidence, not authority. No worker JSON, copied object,
-self-selected runner, receipt or hash can create a live qualification. Failed
-observations retain their original failure and cleanup evidence, never a grant.
-This is not a replacement for any frozen historical qualification protocol.
+New observations are retired. The reader CLI validates evidence from the exact
+issuing control image. Its output carries no authority. Opaque qualification
+adjudication still requires the original parent-issued objects.
 """
 from __future__ import annotations
 
@@ -19,14 +17,13 @@ from pathlib import Path
 import stat
 import sys
 import threading
-import time
 from typing import Any, Mapping
 import uuid
 
 from . import checked_command
 from . import native_live_availability as live_availability
 from .maintenance_authority import require_maintenance_operation
-from .maintenance_image import capture_control_image, require_control_image
+from .maintenance_image import require_control_image
 from .native_pool_contracts import canonical_sha256
 from .native_authority import canonical_authority_sha256
 
@@ -52,7 +49,6 @@ REPORT_FIELDS = frozenset({
 })
 _LOCK = threading.RLock()
 _ISSUED: dict[str, dict[str, Any]] = {}
-_ATTEMPTS: dict[tuple[object, str], str] = {}
 _TOKEN = object()
 
 
@@ -511,174 +507,10 @@ def _observation_current(value, *, operation, verifier, now=None, same_operation
 def observe_qualification(*, operation, verifier, plan, workspace: Path, output: Path,
                           session_ledger, tool_surface_proof: Mapping[str, Any], control_image_sha256: str,
                           fit_prompt: str, timeout_seconds: int = 180, ttl_seconds: int = 900):
-    """Observe a genuine bounded no-tools provider turn; failures retain evidence."""
-    from .codex_tool_surface import require_surface_proof, ALLOWLIST_PARAMETER
-    from .supervision.containment import contain_started_threads
-    from .supervision.transport.app_server import AppServer, THREAD_PHASE_PRECOMMIT_FIT
-    from .supervision.transport.errors import AppServerRpcError
-    from .maintenance_runtime_support import MaintenanceSessionLedger
-    cap = require_maintenance_operation(operation, verifier=verifier, plan=plan)
+    """Validate the original operation and refuse new observations."""
+    require_maintenance_operation(operation, verifier=verifier, plan=plan)
     live_availability.require_n1_live()
-    scope = cap.evidence()["operation"]
-    need(scope["workspace"] == str(workspace), "workspace-mismatch")
-    need(type(session_ledger) is MaintenanceSessionLedger and session_ledger.mission_id == scope["mission_id"], "owner-session-ledger-required")
-    need(type(timeout_seconds) is int and 1 <= timeout_seconds <= min(900, scope["reservation"]["runtime_seconds"]), "timeout-invalid")
-    need(type(ttl_seconds) is int and 1 <= ttl_seconds <= 3600, "expiry-invalid")
-    _hash(control_image_sha256, "control-image-hash-invalid")
-    control_image = capture_control_image()
-    need(control_image["image_sha256"] == control_image_sha256, "actual-control-image-required")
-    _text(fit_prompt, "prompt-invalid")
-    _path(output)
-    need(not output.exists() and not output.is_relative_to(workspace), "fresh-private-output-required")
-    key = (verifier, cap.operation_sha256)
-    with _LOCK:
-        if key in _ATTEMPTS:
-            _ATTEMPTS[key] = "invalidated"
-            raise QualificationError("maintenance-qualification-operation-already-observed")
-        _ATTEMPTS[key] = "observing"
-    origin_code_pins = _code_pins()
-    proof = require_surface_proof(tool_surface_proof, requested_model=scope["model"], permitted_tools=tool_surface_proof.get("requested_tools"))
-    output.mkdir(parents=True, mode=0o700)
-    need(stat.S_IMODE(output.stat().st_mode) == 0o700, "output-not-private")
-    issued = dt.datetime.now(dt.timezone.utc)
-    pins, server, primary, cleanup_errors = {}, None, None, []
-    started_ns = time.monotonic_ns()
-    terminal_ns = None
-    started_at = time.monotonic()
-    metadata = {"cwo_bead": plan["children"][0]["bead_id"],
-                "cwo_control_turn": plan["transaction_id"], "cwo_mission": scope["mission_id"]}
-    source = before_identity = before_raw = archived = None
-    tid = None
-    keep = lambda name, value: pins.update({name: private_write(output, name, value)})
-    keep("intent.json", {"operation": scope, "plan_sha256": plan["plan_sha256"], "issued_at": issued.isoformat(),
-        "tool_surface_proof_sha256": canonical_sha256(proof), "control_image_sha256": control_image_sha256,
-        "prompt_sha256": digest(fit_prompt.encode()), "operation_metadata": metadata, "qualification": False})
-    keep("prompt.txt", fit_prompt.encode())
-    keep("tool-surface.json", proof)
-    keep("control-image.json", control_image)
-    try:
-        cap.revalidate(plan=plan)
-        server = AppServer(requested_model=scope["model"], reasoning_effort="low", tool_surface_proof=proof,
-            operation_metadata=metadata)
-        keep("process-start.json", {"pid": server.process.pid, "executable": server.launched_executable,
-            "codex_home": str(server.codex_home), "connection_epoch_sha256": server.connection_epoch_sha256,
-            "requested_model": server.requested_model, "reasoning_effort": server.reasoning_effort})
-        keep("model-discovery.json", server.model_discovery())
-        cap.revalidate(plan=plan)
-        intent = {"allocation_id": canonical_sha256({"operation_sha256": cap.operation_sha256, "purpose": "qualification"}),
-                  "allocation_class": "prelude", "ordinal": 0, "child_id": None}
-        count = session_ledger.record_intent(scope["operation_id"], intent)
-        keep("allocation-intent.json", {"mission_id": scope["mission_id"], "operation_id": scope["operation_id"],
-                                        "allocation_id": intent["allocation_id"], "ledger_sequence": count})
-        cap.revalidate(plan=plan)
-        require_control_image(control_image)
-        response, _ = server.start_thread(workspace, mutable=False, thread_phase=THREAD_PHASE_PRECOMMIT_FIT,
-            permitted_tools=list(proof["requested_tools"]), allowlist_parameter=ALLOWLIST_PARAMETER)
-        keep("thread-start.json", response)
-        tid = response["thread"]["id"]
-        keep("thread-config.json", server._effective_thread_start_evidence[tid])
-        keep("endpoint-inventory-before.json", server.require_zero_mcp_endpoints(tid))
-        keep("turn-intent.json", {"thread_id": tid, "prompt_sha256": digest(fit_prompt.encode()),
-                                  "connection_epoch_sha256": server.connection_epoch_sha256})
-        cap.revalidate(plan=plan)
-        require_control_image(control_image)
-        turn, _ = server.start_turn(tid, fit_prompt)
-        keep("turn-start.json", turn)
-        keep("turn-dispatch.json", server.turn_dispatch_record(tid))
-        deadline = started_at + timeout_seconds
-        # An acknowledged turn can precede its persisted thread history. Retry
-        # only this owned, idempotent read, within one fixed startup horizon.
-        # This never supplies a terminal receipt, repeats turn/start or accepts
-        # a candidate. Any successful observation ends the startup grace.
-        read_startup_deadline = min(deadline, time.monotonic() + 3.0)
-        observed_current_turn = False
-        read_startup_count = 0
-        while True:
-            cap.revalidate(plan=plan)
-            remaining = deadline - time.monotonic()
-            need(remaining > 0, "terminal-timeout")
-            try:
-                thread, _ = server.read_thread(tid, timeout=min(15, remaining))
-            except AppServerRpcError as exc:
-                if (exc.method != "thread/read" or exc.code != -32603
-                        or observed_current_turn or time.monotonic() >= read_startup_deadline):
-                    raise
-                # Local diagnostic evidence only; not a success/provenance grant.
-                private_write(output, f"thread-read-startup-{read_startup_count}.json", {
-                    "classification": "owned-idempotent-startup-read-retry", "thread_id": tid,
-                    "turn_id": turn["id"], "method": exc.method, "code": exc.code,
-                    "request_id": exc.request_id, "latency_ms": exc.latency_ms,
-                    "connection_epoch_sha256": server.connection_epoch_sha256,
-                    "read_startup_deadline_monotonic": read_startup_deadline})
-                read_startup_count += 1
-                time.sleep(min(.25, max(0, read_startup_deadline-time.monotonic())))
-                continue
-            current = next((t for t in thread.get("turns", []) if t.get("id") == turn["id"]), None)
-            observed_current_turn = observed_current_turn or current is not None
-            if current and current.get("status") in ("completed", "failed", "interrupted"):
-                terminal_ns = time.monotonic_ns()
-                keep("terminal.json", thread)
-                keep("endpoint-inventory-after.json", server.require_zero_mcp_endpoints(tid))
-                break
-            time.sleep(min(.25, max(0, deadline - time.monotonic())))
-        source = _session_path(response["thread"]["path"], str(server.codex_home))
-        before_raw, before_identity = _owned_read(source)
-        keep("session-before-closure.jsonl", before_raw)
-    except BaseException as exc:
-        primary = {"type": type(exc).__name__, "message": str(exc),
-                   "observed_cleanup": getattr(exc, "app_server_cleanup", None)}
-    finally:
-        cleanup_started = time.monotonic()
-        if server is not None:
-            try:
-                keep("thread-closure.json", contain_started_threads(server, allow_same_process_proofs=True))
-                if tid is not None:
-                    archived, _ = server.read_thread(tid)
-                    keep("archived-thread.json", archived)
-            except BaseException as exc:
-                cleanup_errors.append({"resource": "threads", "type": type(exc).__name__, "message": str(exc)})
-            try:
-                keep("process-closure.json", server.close())
-            except BaseException as exc:
-                cleanup_errors.append({"resource": "process", "type": type(exc).__name__, "message": str(exc),
-                                       "observed": getattr(exc, "app_server_cleanup", None)})
-            if source is not None and archived is not None:
-                try:
-                    final_path = _session_path(archived["path"], str(server.codex_home))
-                    actual, identity = _owned_read(final_path)
-                    need(actual.startswith(before_raw) and identity["inode"] == before_identity["inode"]
-                         and identity["device"] == before_identity["device"], "session-archive-replaced")
-                    keep("session.jsonl", actual)
-                    keep("session-source.json", {"start_path": str(source), "path": str(final_path),
-                        "before_identity": before_identity, "identity": identity, "sha256": digest(actual)})
-                except BaseException as exc:
-                    cleanup_errors.append({"resource": "source-capture", "type": type(exc).__name__, "message": str(exc)})
-        if time.monotonic() - cleanup_started > scope["reservation"]["cleanup_seconds"]:
-            cleanup_errors.append({"resource": "cleanup-reservation", "type": "TimeoutError", "message": "cleanup bound exceeded"})
-        if cleanup_started - started_at > scope["reservation"]["runtime_seconds"]:
-            primary = primary or {"type": "TimeoutError", "message": "operation runtime bound exceeded"}
-        if server is not None and terminal_ns is not None:
-            keep("observation-times.json", {"source": "trusted-parent-monotonic-clock-v1",
-                "pid": server.process.pid, "connection_epoch_sha256": server.connection_epoch_sha256,
-                "started_monotonic_ns": started_ns, "terminal_monotonic_ns": terminal_ns,
-                "cleanup_complete_monotonic_ns": time.monotonic_ns()})
-        report = {"kind": "cwo-maintenance-qualification-observation", "version": 3, "mission_id": scope["mission_id"],
-            "operation_sha256": cap.operation_sha256, "model": scope["model"], "origin_issued_at": issued.isoformat(),
-            "origin_expires_at": (issued + dt.timedelta(seconds=ttl_seconds)).isoformat(),
-            "tool_profile_sha256": canonical_sha256(proof["requested_tools"]), "tool_surface_proof_sha256": canonical_sha256(proof),
-            "control_image_sha256": control_image_sha256, "host_provenance_sha256": canonical_sha256(proof["capture_binding"]),
-            "pins": pins, "primary_error": primary, "cleanup_errors": cleanup_errors, "qualified": False}
-        observation_hash = private_write(output, "observation.json", report)
-    need(primary is None and cleanup_errors == [], "capture-or-cleanup-failed:" + str(output))
-    cap.revalidate(plan=plan)
-    summary = inspect_observation(root=output, observation_sha256=observation_hash)
-    with _LOCK:
-        need(_ATTEMPTS[key] == "observing", "observation-reentrant-or-replayed")
-        need(origin_code_pins == _code_pins(), "observation-code-drift")
-        _ATTEMPTS[key] = "observed"
-        return _mint(VerifiedQualificationObservation, operation=cap, verifier=verifier, record=report,
-            root=output, root_identity=_directory_identity(output), observation_sha256=observation_hash,
-            scope=scope, summary=summary, origin_code_pins=origin_code_pins, check_started=False)
+    raise live_availability.NativeLiveUnavailable("native-n1-live-unavailable")
 
 
 def _code_pins() -> dict[str, str]:

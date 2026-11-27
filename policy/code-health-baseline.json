@@ -5,7 +5,6 @@
   },
   "complexity_threshold": 15,
   "f_e9": {
-    "scripts/check_codex_worker_surface.py::<module>::F401::time": 1,
     "scripts/cleanup_stale_agents.py::<module>::F401::datetime.UTC": 1,
     "scripts/cleanup_stale_agents.py::<module>::F401::datetime.datetime": 1,
     "scripts/cwo_core/maintenance_native_runtime.py::<module>::F401::typing.Sequence": 1,
@@ -63,7 +62,6 @@
     "scripts/chatgpt_browser_review.py::load_browser_config": 18,
     "scripts/chatgpt_browser_review.py::main": 30,
     "scripts/check_code_health.py::_python_files_in_tree.scan_directory": 17,
-    "scripts/check_codex_worker_surface.py::capture_tool_request": 49,
     "scripts/check_documentation.py::check": 16,
     "scripts/check_installed_skill.py::compare_manifests": 18,
     "scripts/check_installed_skill.py::load_projection": 33,
@@ -141,7 +139,6 @@
     "scripts/cwo_core/maintenance_qualification.py::_validate_session_metadata": 38,
     "scripts/cwo_core/maintenance_qualification.py::check_qualification": 16,
     "scripts/cwo_core/maintenance_qualification.py::inspect_observation": 183,
-    "scripts/cwo_core/maintenance_qualification.py::observe_qualification": 33,
     "scripts/cwo_core/maintenance_release.py::build_maintenance_release_evidence": 19,
     "scripts/cwo_core/maintenance_release.py::validate_maintenance_release_evidence": 35,
     "scripts/cwo_core/maintenance_runtime_support.py::MaintenanceTask.blueprint": 24,

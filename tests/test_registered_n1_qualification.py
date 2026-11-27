@@ -1,11 +1,14 @@
 """Offline qualification authority and campaign accounting fixtures."""
 
 from concurrent.futures import ThreadPoolExecutor
+import hashlib
+import io
 import json
 import os
 from pathlib import Path
 import select
 import subprocess
+import tarfile
 import tempfile
 import threading
 import time
@@ -22,6 +25,7 @@ from cwo_core import model_identities
 from cwo_core.maintenance_authority import MaintenanceAuthorityError, canonical_authority_sha256
 from cwo_core.outbound_screen import OutboundRefused
 from cwo_core.supervision.transport.app_server import AppServer
+from tests.historical_campaign_launcher import pinned_git
 
 runtime = family.runtime
 _EXAMPLE_ACCESS_TOKEN = 'at-EXAMPLE-offline-qualification'
@@ -294,6 +298,24 @@ class FactoryQualificationTests(unittest.TestCase):
                 guard()
         self.assertEqual(qualification.campaign_usage()['total'], 0)
         self.assertEqual(self.fixture.spawned, [])
+
+    def test_previous_import_image_refuses_signed_permit_before_launch_or_charge(self):
+        revision = '265d87f655956688e20bb3d5bb8466524ddd0929'
+        archived = pinned_git(revision, 'archive', '--format=tar', revision, 'scripts')
+        with tarfile.open(fileobj=io.BytesIO(archived), mode='r:') as source:
+            files = {entry.name.removeprefix('scripts/'): hashlib.sha256(source.extractfile(entry).read()).hexdigest()
+                     for entry in source if entry.isfile() and entry.name.endswith('.py')}
+        previous = hashlib.sha256(runtime._snapshot(files)).hexdigest()
+        self.assertNotEqual(previous, runtime.implementation_sha256())
+        with patch.object(runtime, 'implementation_sha256', return_value=previous):
+            case = self.fixture.case(qualification=True)
+        factory = self.fixture.factory(case)
+        factory.require_launch_selection()
+        with self.assertRaisesRegex(ValueError, 'Registered host import image drift'):
+            factory.run()
+        self.assertEqual(self.fixture.spawned, [])
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
+        self.assertFalse((case.ledger.root / runtime.admission.ledger_api.LEDGER_FILE).exists())
 
     def test_qualification_refuses_history_readback_drift_before_turn(self):
         case = self.fixture.case(qualification=True, no_fake_scheduler=True)

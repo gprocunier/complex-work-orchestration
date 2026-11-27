@@ -274,14 +274,17 @@ are instructions. The lead session uses the host's tool permissions and sandbox.
   risk evidence can still route low.
   [Routing risk details](references/prompt-coach.md#routing-risk)
 - **Disabled in this version:** raw native launch,
-  ordinary productive pool plans passed to the standalone launcher, live campaigns, new
-  worker-surface qualification, and
+  ordinary productive pool plans passed to the standalone launcher, live campaigns, and
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`
   are refused).
 - **The activation preview is offline.** It supports key generation,
   preparation, approval and dry-run validation. The live preview and
   standalone native callback calibration are retired.
   [Native supervision pools](references/native-supervision-pools.md#temporary-audited-tool-boundary)
+- **Worker tool-surface capture and maintenance observation are retired.** The
+  maintenance checker verifies unexpired observations using the exact issuing
+  control image and original session file.
+  [Archived producers and observation verification](references/native-live-route-holds.md#archived-tool-surface-and-maintenance-observation-producers)
 - **Verified successful closure is a library route for embedding hosts.** It
   requires the original dispatch, exact baseline and candidate, current policy,
   setup database identity and single-use host acceptance from an adjudicator
