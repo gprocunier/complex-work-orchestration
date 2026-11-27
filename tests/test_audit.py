@@ -16,7 +16,14 @@ import cwo_core.audit as lib  # noqa: E402
 from cwo_core.audit import record_audit_event  # noqa: E402
 
 
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant
+
+
 class AuditTests(unittest.TestCase):
+    def setUp(self):
+        self.enterContext(approved_outbound(outbound_grant(
+            "complex-work-orchestration-example", None, "claude_code_manual")))
+
     def test_audit_event_records_jsonl(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             audit = Path(tmp) / "audit.jsonl"
@@ -211,7 +218,7 @@ class AuditTests(unittest.TestCase):
                     "claude_code_manual",
                     "--share-boundary",
                     "redacted-packet",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--dispatch-id",
                     "dispatch-default-audit",
                     "--format",
@@ -319,7 +326,7 @@ class AuditTests(unittest.TestCase):
                     "claude_code_manual",
                     "--share-boundary",
                     "redacted-packet",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--dispatch-id",
                     "dispatch-audit-fails",
                     "--format",

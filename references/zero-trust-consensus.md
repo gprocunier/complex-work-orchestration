@@ -19,10 +19,13 @@ boundary, while the control plane remains responsible for routing and record
 integrity. Consensus compares claims and records divergence; it does not grant
 RBAC, dispatch authority, or proof of a security property.
 
-Hash-bound or immutable fields in a consensus record freeze the contract and
-binding semantics only. They do not prevent a privileged same-user writer,
-compromised control plane, or an operator from creating an unrecorded input.
-The resulting status is therefore evidence for adjudication, not authorization.
+The protected workflow keeps the operator-approved panel and original records
+under a controller account separate from the lead. The controller runs the
+comparison using its protected code and policy. The lead can request a panel by
+reference. Without that separation, hash-linked dispatch and evaluation records
+provide consistency checks against local evidence. A privileged writer or
+compromised controller can still alter the evidence it controls. The report is
+evidence for adjudication and grants no execution or closure authority.
 Suspected disclosure or manipulation follows the repository [security
 policy](../SECURITY.md), retaining the relevant claim, evidence, and audit
 identifiers for responsible disclosure.
@@ -45,6 +48,81 @@ It can also activate for security-sensitive review work, such as authentication,
 authorization, TLS, cryptography, supply chain, privilege boundaries,
 concurrency, or network configuration when the surrounding request is
 implementation, architecture, review, contractor, or synthesis work.
+
+## Operator-authorized comparison
+
+The administrator sets up the Linux controller once in the root-owned
+`/etc/cwo/lead-authority.json`. Set `schema_version` to `1`, `host_uid` and
+`lead_uid` to the separate Unix account IDs, and `source_root`, `state_root`,
+and `socket_path` to absolute paths. Make the root-owned configuration file
+readable by both accounts. The host account needs read and traverse access to
+the protected installation. If root installs it, check this access explicitly
+because the installer activates a private staging directory. Keep the
+installation and socket directory outside the lead's write access. Create the
+state directory for the host account with mode `0700`. The protected installation's
+`policy/workspace-host-state.json` must resolve to that same state directory.
+Provision a dedicated host-owned socket directory under `/run` and have the
+service manager recreate it when starting the service. Run the controller
+from the protected installation as the host account, using the administrator's
+trusted Python interpreter.
+
+```bash
+python3 -E -s -B scripts/lead_authority_host.py serve
+```
+
+The controller removes its socket on normal termination. After an unclean
+stop, the service manager can recreate the runtime directory. For a manual
+restart, confirm the controller is stopped before removing the stale socket.
+Keep the persistent state directory and its approvals and records.
+
+Packet preparation and evaluation commands run from the lead's checkout use
+that checkout's `policy/workspace-host-state.json` and the lead's Unix account.
+A protected outbound approval authorizes the scoped export. It does not move
+the checkout's records into the protected store. Copying or rehashing those
+records provides no protected observation.
+
+For a protected review, run the original preparation and capture as the host
+account. Invoke the helpers by path from the protected installation while
+working in the assigned target checkout. An embedding host uses
+`record_codex_critic_completion` or `record_gemini_critic_completion` with
+`configured_store()` to verify the process it launched, record the observed
+dispatch, and bind the exact reply to its receipt. Use `evaluate_return.py`
+under the same host account for a captured contractor packet return. For an
+internal Codex critique, the embedding host evaluates the captured final bytes
+with the original dispatch metadata and calls `record_received_evaluation`.
+Retain the evaluation reference. Where policy requires peer review, record that
+separate observation in the same store.
+
+The operator prepares an approval JSON object with `candidate`, `scope`,
+`inputs`, and `adjudications`. Each `inputs` entry contains the exact
+`evaluation_record_sha256` and its `zero_trust_claims` list. An eligible salvage
+return can also request `"synthesis_use": "primary"`. The operator reviews the
+full panel and the adjudication records before publishing it once.
+
+```bash
+python3 -E -s -B scripts/lead_authority_host.py publish synthesis < approved-review.json
+```
+
+Each evaluation reference binds a host-observed executor dispatch and an exact
+host-captured return receipt. Where the dispatch recorded candidate and scope,
+the approval must match. For older observed dispatches that omitted both, the
+approval supplies the association and the report labels it `operator-selected`.
+The controller applies the current policy, preserves peer-review holds, and
+requires claim comparison.
+
+The lead requests the registered review using its reference.
+
+```bash
+python3 scripts/evaluate_synthesis.py --protected-review REVIEW_REFERENCE
+```
+
+This form accepts only the reference. It requires an authenticated connection to
+the configured controller and returns `provenance_basis: operator-authorized`.
+The controller reads the approved inputs. Workspace claim files, dispatch records,
+and route flags cannot supplement the approved review. If protected records are
+unavailable or no longer match, request a new review after correcting the source
+records. A copied JSON report has no independent authentication. Obtain the
+report from the configured controller when its provenance matters.
 
 ## Invocation boundary
 
@@ -137,24 +215,17 @@ absent dispatch binding. Primary inputs alone count toward consensus.
 Peer-review verification, implementation and closure require their own
 recorded evidence.
 
-The command reads local evidence and prints a JSON report for the architect.
+The file-based command reads local evidence and prints a JSON report for the
+architect with `provenance_basis: advisory`.
 Prepared manual-review dispatches still need observed peer-review evidence
 when required. `status: ready` means the supplied records meet the synthesis
 policy. Implementation or closure requires its own decision. The offline
 workflow test uses fake observed Codex and Claude returns for agreement and
 disagreement. Live route checks are separate.
 
-An embedding host can record an original Codex or Antigravity completion from a
-read-only process it launched. The capture checks the prepared request, observed
-model and session, completed turn and exact response before writing a dispatch
-observation and return receipt. A separate observed Codex turn can review the
-exact Gemini return and pending evaluation. The synthesis command consumes the
-resulting recorded evaluations through the same peer review and adjudication
-checks. A saved critique can still be included through the advisory capture
-described above.
-
-The Python helper `evaluate_synthesis_inputs` also accepts explicit input,
-dispatch and adjudication records using the contract below.
+The Python helpers `evaluate_synthesis_inputs` and `evaluate_zero_trust_consensus`
+perform cooperative comparisons with caller-supplied data. The former accepts
+explicit input, dispatch and adjudication records using the contract below.
 
 Different models can broaden review evidence, but model count is not a measured
 accuracy guarantee. Default local/OpenShift aliases form one local trust domain;
@@ -212,9 +283,11 @@ record that is not an object or has no readable `dispatch_id` may be a second
 record for any dispatch, so no attempted binding holds beside it either.
 Legacy inputs, which attempt no binding, are not affected.
 
-These records are cooperative. Whoever writes the inputs can also write the
-records, so a digest does not make a record trusted-host authority; the result
-reports `authority_enforcement: cooperative`.
+The Python and advisory CLI forms apply these checks to cooperative records.
+Their reported `authority_enforcement: cooperative` describes the consistency
+checks. The protected workflow additionally verifies the independently approved
+panel and original record custody. Both forms leave adjudication with the
+architect.
 
 ## What Counts
 

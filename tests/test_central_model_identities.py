@@ -79,10 +79,11 @@ class CentralPacketProvenanceTests(unittest.TestCase):
     """The production-packet rule is stated once and every consumer goes through it."""
 
     CONSUMER_CALLS = {
-        "dispatch_work": "require_production_contractor_packet",
-        "generate_manual_dispatch_prompt": "require_production_contractor_packet",
+        "dispatch_work": "require_packet_export_approval",
+        "generate_manual_dispatch_prompt": "require_packet_export_approval",
         "chatgpt_browser_review": "load_browser_packet_prompt",
-        "browser_request": "require_production_contractor_packet",
+        "browser_request": "require_packet_export_approval",
+        "desktop_browser_review": "require_production_contractor_packet",
         "normalize_contractor_return": "require_production_contractor_packet",
         "evaluate_return": "require_production_contractor_packet",
     }
@@ -97,6 +98,16 @@ class CentralPacketProvenanceTests(unittest.TestCase):
                 }
                 self.assertIn(expected_call, called)
                 self.assertNotIn("require_valid_contractor_packet", called)
+
+    def test_export_approval_reuses_production_provenance(self) -> None:
+        path = ROOT / "scripts/cwo_core/packet_provenance.py"
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        export = next(node for node in tree.body if isinstance(node, ast.FunctionDef)
+                      and node.name == "require_packet_export_approval")
+        called = {node.func.id for node in ast.walk(export)
+                  if isinstance(node, ast.Call) and isinstance(node.func, ast.Name)}
+        self.assertIn("require_production_contractor_packet", called)
+        self.assertIn("require_outbound_approval", called)
 
 
 if __name__ == "__main__":

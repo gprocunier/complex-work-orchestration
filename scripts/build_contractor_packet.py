@@ -37,12 +37,14 @@ from cwo_core.telemetry import telemetry_fields
 from cwo_core.return_language import default_expected_return_language, validate_expected_return_language
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 from cwo_core.errors import CWOPolicyError
+from cwo_core.outbound_approval import require_outbound_approval, require_outbound_project
+from cwo_core.outbound_screen import require_clean, screen_outbound
+from cwo_core.packet_provenance import rehearsal_result
 from cwo_core.packets import (
     fenced_block,
     file_snippet,
     load_expert_profile,
     make_attestation,
-    NONPRODUCTION_RESULT_CLASS,
     redact_text,
     sanitize_bead,
     validate_contractor_packet,
@@ -364,15 +366,10 @@ def build_packet(
         packet["requested_executor"] = requested_executor
         packet["canonical_executor"] = executor
     packet.update(quota_info or {"quota_checked": False, "quota_remaining": None})
-    packet.update(_result_class_fields(nonproduction))
+    packet.update(rehearsal_result(nonproduction))  # Inside the packet hash.
     packet["subject"] = packet_subject(packet, candidate_record=candidate_record, candidate_root=candidate_root)
     packet["packet_sha256"] = packet_payload_hash(packet)
     return packet
-
-
-def _result_class_fields(nonproduction: bool) -> dict[str, str]:
-    # Inside the hashed payload, so removing the label changes packet_sha256.
-    return {"result_class": NONPRODUCTION_RESULT_CLASS} if nonproduction else {}
 
 
 def _result_class_line(packet: dict[str, Any]) -> str:
@@ -397,6 +394,48 @@ def resolve_share_boundary(explicit: str | None) -> str:
             "disclosure; pass --share-boundary redacted-packet (or another outside boundary) explicitly"
         )
     return default
+
+
+def _packet_assignment(args):
+    project = None if args.rehearsal else require_outbound_project()
+    if args.bead_json_file:
+        return json.loads(Path(args.bead_json_file).read_text(encoding="utf-8")), project
+    return show_bead_json(args.bead, directory=project), project
+
+
+def _packet_opt_in(args, bead_json, epic_id, job_label, executor_info, project):
+    basis = validate_gate(
+        args.executor, args.share_boundary, extract_labels(bead_json), job_label,
+        external_ok=args.external_ok or not args.rehearsal,
+        opt_in_record=args.opt_in_record if args.rehearsal else None, bead_id=args.bead, epic_id=epic_id,
+        allow_disclosure_escalation=args.allow_disclosure_escalation,
+    )
+    if args.rehearsal:
+        return basis, None
+    if _single_bead_object(bead_json).get("id") != args.bead:
+        raise SystemExit("contractor Bead source does not match the assigned Bead ID")
+    require_outbound_approval(args.opt_in_record, {
+        "bead_id": args.bead, "epic_id": epic_id, "executor": args.executor,
+        "provider_key": executor_info.get("provider_key"), "share_boundary": args.share_boundary,
+    }, project=project)
+    return "host-approval", args.opt_in_record
+
+
+def _render_packet(packet, args):
+    is_json = args.format == "json"
+    rendered = json.dumps(packet, indent=2, sort_keys=True) if is_json else packet_markdown(packet)
+    if not args.rehearsal:
+        require_clean(rendered if args.output else rendered + "\n", surface="contractor packet",
+                      content_type="application/json" if is_json else "text/plain")
+    return rendered
+
+
+def _packet_dispatch_id(args: argparse.Namespace) -> str:
+    dispatch_id = args.dispatch_id or make_dispatch_id(args.bead)
+    if args.dispatch_id or args.rehearsal or screen_outbound(dispatch_id, surface="contractor packet").allowed:
+        return dispatch_id
+    # The readable suffix can trip screening. Keep the UUID already generated for this dispatch.
+    return dispatch_id.split(".", 1)[0]
 
 
 def packet_markdown(packet: dict[str, Any]) -> str:
@@ -491,8 +530,8 @@ def main() -> None:
     parser.add_argument("--job-description")
     parser.add_argument("--expected-return-language")
     parser.add_argument("--bead-json-file")
-    parser.add_argument("--external-ok", action="store_true")
-    parser.add_argument("--opt-in-record")
+    parser.add_argument("--external-ok", action="store_true", help="Simulate consent during rehearsal.")
+    parser.add_argument("--opt-in-record", help="Protected outbound approval reference, or a local JSON file in rehearsal.")
     parser.add_argument("--epic", help="Epic quota scope. Defaults to the assigned Bead parent when present.")
     parser.add_argument("--expert-profile")
     profile_group = parser.add_mutually_exclusive_group()
@@ -528,21 +567,11 @@ def main() -> None:
     requested_executor = executor_info.get("requested_key")
     args.executor = str(executor_info.get("key", args.executor))
 
-    bead_json = json.loads(Path(args.bead_json_file).read_text(encoding="utf-8")) if args.bead_json_file else show_bead_json(args.bead)
+    bead_json, project = _packet_assignment(args)
     effective_epic_id = resolve_effective_epic_id(args.epic, bead_json)
     labels = extract_labels(bead_json)
     job_label = args.job_description or find_job_label(labels)
-    opt_in_basis = validate_gate(
-        args.executor,
-        args.share_boundary,
-        labels,
-        job_label,
-        external_ok=args.external_ok,
-        opt_in_record=args.opt_in_record,
-        bead_id=args.bead,
-        epic_id=effective_epic_id,
-        allow_disclosure_escalation=args.allow_disclosure_escalation,
-    )
+    opt_in_basis, approval_ref = _packet_opt_in(args, bead_json, effective_epic_id, job_label, executor_info, project)
     try:
         sanitize_bead(
             bead_json,
@@ -551,7 +580,7 @@ def main() -> None:
         )
     except (CWOPolicyError, SystemExit) as exc:
         raise SystemExit(f"contractor packet preflight failed: {exc}") from exc
-    dispatch_id = args.dispatch_id or make_dispatch_id(args.bead)
+    dispatch_id = _packet_dispatch_id(args)
     quota_info = enforce_contracting_quota(
         effective_epic_id,
         args.executor,
@@ -588,7 +617,7 @@ def main() -> None:
     )
     if packet_errors:
         raise SystemExit("contractor packet validation failed before render: " + "; ".join(packet_errors))
-    rendered = json.dumps(packet, indent=2, sort_keys=True) if args.format == "json" else packet_markdown(packet)
+    rendered = _render_packet(packet, args)
     if args.audit:
         included_artifacts = packet.get("included_artifacts") if isinstance(packet.get("included_artifacts"), list) else []
         selected_snippets = packet.get("selected_snippets") if isinstance(packet.get("selected_snippets"), list) else []
@@ -607,6 +636,7 @@ def main() -> None:
                 "share_boundary": args.share_boundary,
                 "disclosure_stage": packet.get("disclosure_stage"),
                 "opt_in_basis": opt_in_basis,
+                "operator_approval_ref": approval_ref,
                 "quota_remaining": quota_info.get("quota_remaining"),
                 "packet_sha256": packet["packet_sha256"],
                 **waiver_audit_fields(args, ["allow_disclosure_escalation", "audit"]),

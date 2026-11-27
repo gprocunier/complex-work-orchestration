@@ -653,9 +653,10 @@ default.
    that dispatch, while the role's access profile still records the access path.
 6. `--model` and `--model-profile` are mutually exclusive.
 
-Resolved model-profile dispatch is still render-only. It creates the prompt,
-hash, suggested OpenCode command, and reviewable envelope; it does not call
-OpenCode or the vLLM endpoint.
+The internal and local model-profile renderer creates a prompt, hash, suggested
+command, and reviewable envelope. External executor bindings require the
+[approved contractor packet workflow](external-contracting.md#dispatch-flow).
+For a ChatGPT Pro master review, [prepare the approved packet for desktop Chrome](chatgpt-pro-browser.md).
 
 ## Harness Decision Matrix
 

@@ -178,7 +178,8 @@ class PreparedManualTests(unittest.TestCase):
         for module in (manual, dispatch_work):
             with self.subTest(route=module.__name__), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "packet.json"
-                path.write_text(json.dumps(helpers.packet_with("Review the plan.")), encoding="utf-8")
+                packet = helpers.packet_with("Review the plan.")
+                path.write_text(json.dumps(packet), encoding="utf-8")
                 target = "screen_export" if module is dispatch_work else "require_clean"
                 original = getattr(module, target)
 
@@ -190,7 +191,7 @@ class PreparedManualTests(unittest.TestCase):
                 output = io.StringIO()
                 with patch.object(sys, "argv", [module.__name__, "--packet", str(path)]), \
                         contextlib.redirect_stdout(output), patch.object(module, target, side_effect=change), \
-                        patch.object(module, "require_production_contractor_packet"), contextlib.ExitStack() as stack:
+                        helpers.with_provenance(packet), contextlib.ExitStack() as stack:
                     if module is dispatch_work:
                         stack.enter_context(patch.object(module, "enforce_contracting_quota", return_value=helpers.QUOTA_INFO))
                         host = stack.enter_context(patch.object(module, "record_prepared_dispatch"))
@@ -244,7 +245,7 @@ class PreparedManualTests(unittest.TestCase):
                 stack.enter_context(patch.object(sys, "argv", argv))
                 stack.enter_context(contextlib.redirect_stdout(output))
                 stack.enter_context(patch.object(module, "load_packet_file", return_value=packet))
-                stack.enter_context(patch.object(module, "require_production_contractor_packet"))
+                stack.enter_context(helpers.with_provenance(packet))
                 stack.enter_context(patch.object(module, "screen_export" if module is dispatch_work else "require_clean", side_effect=screen))
                 host_spy = audit_spy = None
                 if module is dispatch_work:

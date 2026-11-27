@@ -38,6 +38,10 @@
 
 "H6":{"authority":"Operator chooses preview port; documentation handler path boundary. Probe requires exact native capability/selected original process and no source authority from captured request.","effect":"Operator docs listener and held probe listener","limits":"Preview constructor/address assertion is bind-policy proof, not a refusal; foreground serve unbounded by design. Probe refusal/fake lifecycle N2. No real socket exercised by fake constructors. Handler prefix/CSP does not authenticate arbitrary substituted handler.","manual_decisions":["u"],"ordering":"Preview constructor then try serve_forever finally server_close; probe N1 before binding/preparer; process/thread/config/tool/containment checks follow. Probe listener cleanup keeps unknown failures unproved.","trace_files":[{"$":62},{"$":114}]},
 
+"H7":{"admission":{"$":4},"authority":"The protected host supplies a reusable grant for the invoking worktree, exact Bead and epic, canonical executor and provider, and maximum disclosure boundary.","gate_limits":"Scope checks cross helpers and IPC. Exact bytes are screened at the export boundary.","gates":[],"manual_decisions":[],"review_gates":["custody-scope-check","custody-boundary-check"]},
+
+"H8":{"admission":{"$":4},"gate_limits":"Review host and peer identities, protected state and provenance across entry and helpers.","gates":[],"manual_decisions":[]},
+
 "HD":{"authority":"Approved linked production packet, configured host audit and operator-present desktop @Chrome.","gates":[],"manual_decisions":["MD"]},
 
 "I1":{"admission":{"$":2},"authority":"Explicit install action and selected destination plus source projection/checker. confirm is optional interactive confirmation, not an unconditional --yes requirement.","effect":"Installer projection/stage/backup/activation","effect_points":["q3","fD"],"gates":["id","ap","ms"],"limits":"Projection before writes; dry returns before stage/validator. Stage verified before backup/activation. Signal positive proves previous install restored on TERM after backup; SIGKILL not rollback. Interactive confirm is conditional, not mandatory --yes. Prior staged writes allowed before tampered-stage refusal.","manual_decisions":["i","B"],"ordering":"Projection validation before writes; DRY_RUN before stage; cp projection then checker; backup then activation; failed activation restore; trap cleanup limited selected stage. Postactivation selected validator is I2 external contract.","trace_files":[{"$":69}],"witnesses":["bL","cs"]},
@@ -656,7 +660,27 @@
 
 "scripts/verify_affected_historical_contract.py",
 
-"tests/test_registered_native_pool_retry.py"
+"tests/test_registered_native_pool_retry.py",
+
+"scripts/cwo_core/outbound_approval.py",
+
+"scripts/cwo_core/packet_provenance.py",
+
+"tests/test_outbound_approval.py",
+
+"tests/test_packet_production_provenance.py",
+
+"scripts/generate_manual_dispatch_prompt.py",
+
+"tests/test_lead_authority.py",
+
+"tests/test_synthesis_workflow.py",
+
+"scripts/lead_authority_host.py",
+
+"scripts/cwo_core/lead_authority.py",
+
+"scripts/evaluate_synthesis.py"
 ],
 
 "points":{
@@ -726,7 +750,7 @@
 
 "a3":[42,"AppServer.__init__",285,"9wYwP2n_3-r5HXW0yQtD-hrPT6klnB5C0OgSR2FxNNU"],
 
-"a4":[23,"run_bd",182,"NDyTp7ec516tPfk-ILuhF8HFL9ksYRCSF2_Pg3i30Us"],
+"a4":[23,"run_bd",182,"Om-pXLEvveIxEplqYtOOPHOwtNE0010Wz3ogRL4t4Qg"],
 
 "a5":[17,400,{"$":324}],
 
@@ -794,7 +818,7 @@
 
 "ap":[49,344,{"$":94}],
 
-"aq":[23,361,{"$":258}],
+"aq":[23,365,{"$":258}],
 
 "ar":[64,"_RegisteredServer.request",1583,"F7qUf87ct4grQA3qqyu0PPu8grnCDj62kKmQ705-mW4"],
 
@@ -810,7 +834,7 @@
 
 "ax":[24,254,"if not isinstance(expected, PrivateCaptureExpectation) or _EXPECTATIONS.get(id(expected)) is not expected:"],
 
-"ay":[23,"add_dependency",347,{"$":177}],
+"ay":[23,"add_dependency",351,{"$":177}],
 
 "az":[130,"ReleaseEffectRoutesTests._driver_pair",1421,"-91-odVuLzHrmAize7uXBmwjiOIWTjnzObvWTBrQ65A"],
 
@@ -820,7 +844,7 @@
 
 "b1":[44,644,"if literal is not None:"],
 
-"b2":[87,"BrowserProvenanceTests.validate",66,"Isma6s-ZfrrC22CU0IR6wFy7P25CJ96ofzK0hy4FocA"],
+"b2":[87,"BrowserProvenanceTests.validate",69,"Isma6s-ZfrrC22CU0IR6wFy7P25CJ96ofzK0hy4FocA"],
 
 "b3":[73,214,"turn, latency = self.server.start_turn("],
 
@@ -864,7 +888,7 @@
 
 "bS":[15,"cleanup",387,"N7wsOhV2KmZ4lQIahPsfLwXuiOYqPRwohOznV-zwrJw"],
 
-"bT":[188,107,"return configured_store().write_dispatch("],
+"bT":[188,109,"return configured_store().write_dispatch("],
 
 "bV":[92,"InterpreterSourceTests.test_real_interpreter_option_matrix_and_zero_guard_launches",25,"N78TiZINy57De1QoPzJpR-IOQw0T6OLWNlw5xIV2pO4"],
 
@@ -924,9 +948,9 @@
 
 "bqb":[24,259,"if sha256_bytes(provenance_bytes) != event.get(\"private_provenance_sha256\"):"],
 
-"bqc":[87,"BrowserProvenanceTests.test_saved_capture_without_independent_audit_refuses",84,"U7lKLTsKd479kkVOGkYvV4vrCQs6MEYtU17GbbUiozU"],
+"bqc":[87,"BrowserProvenanceTests.test_saved_capture_without_independent_audit_refuses",87,"U7lKLTsKd479kkVOGkYvV4vrCQs6MEYtU17GbbUiozU"],
 
-"bqd":[87,"BrowserProvenanceTests.test_evaluate_saved_capture_uses_observed_release_dispatch",105,"mfFJceDfNvuQmbg5Bjij-lVysbq_h3PXvFm6WEE2pxo"],
+"bqd":[87,"BrowserProvenanceTests.test_evaluate_saved_capture_uses_observed_release_dispatch",108,"mfFJceDfNvuQmbg5Bjij-lVysbq_h3PXvFm6WEE2pxo"],
 
 "bqe":[105,"ShippedRouteAdmissionTests.test_cold_browser_refusals_do_not_read_local_configuration",89,"cIPPEw29uw0tdtTUTb0gxnq3Hy_iUB9c73-DpXUBLgE"],
 
@@ -1038,6 +1062,86 @@
 
 "ct":[19,"main",21,"eThUxT4TXbu8TqdPK6Wi12h0D5ETuSNvripDT6BiUbg"],
 
+"custody-approval-publish":[217,32,"print(approvals.publish(operation, payload))"],
+
+"custody-approval-write":[218,170,"directory.write(reference + \".json\", raw)"],
+
+"custody-beads-cwd":[212,"OutboundApprovalTests.test_one_skill_keeps_target_checkout_approvals_separate",85,"JmjgB1ttcPo6V4qrFAwFzwzu84Df-cjNlqwEo9l1kEU"],
+
+"custody-beads-show":[23,323,"run_bd(args, directory=directory)",52,323,85],
+
+"custody-boundary-check":[210,59,"if not 0 < rank <= _BOUNDARY_RANK[grant[\"maximum_share_boundary\"]]:"],
+
+"custody-browser-approval":[191,"DesktopBrowserReviewTests.test_unresolved_host_approval_stops_preparation_before_output_or_dispatch",137,"IX8nNON8iMH8rNSuEHa_6WiPgqd1hEIzsrStSrhDD04"],
+
+"custody-build-approval":[212,"OutboundApprovalTests.test_flags_and_editable_opt_in_json_cannot_build_a_production_packet",49,"dLY3jZv8_w0VPZCkS4hP4nz6SLgYE2YlQTsFBYoPIc4"],
+
+"custody-build-attestation":[6,685,"atomic_write_text(attestation_path, json.dumps(attestation, indent=2, sort_keys=True))"],
+
+"custody-build-audit":[6,625,"record_audit_event("],
+
+"custody-build-file":[6,669,"atomic_write_text(output_path, rendered)"],
+
+"custody-build-positive":[212,"OutboundApprovalTests.test_one_grant_covers_repeat_builds_and_exports",66,"0l8zZyCLvawMCJNYRHyBXcfjzf1FNf0qdUsAIZmQric"],
+
+"custody-build-stdout":[6,687,"print(rendered)"],
+
+"custody-cli-publish-support":[215,"_publish_cli",370,"Iu3fM_NghnanIBjoLTCYfIfeOGu28mJHx0RmY7KHL0Y"],
+
+"custody-cli-report-support":[215,"_check_cli_results",427,"GXCwe808BMJMuTBBKWJQU8fzbSuuUxzeSfSP59d_awQ"],
+
+"custody-cli-serve-support":[215,"_exercise_cli_commands",395,"tGRJuQdyrWmRquX_MyawO61528J5TN_oLzF_LmsRuoE"],
+
+"custody-dispatch-approval":[212,"OutboundApprovalTests.test_forged_packet_and_audit_pointer_need_current_host_approval",176,"NAbONf6SsZSMQM_kemsLn8Zyr4SHKVSo8fim2XPk6kU"],
+
+"custody-dispatch-audit":[44,2579,"record_audit_event("],
+
+"custody-dispatch-positive":[213,"ProductionPacketControlTests.test_every_consumer_accepts_a_production_packet",172,"ng97iNFrjqBW9tUkszsV1R7MbDasT4355ICifMecPvM"],
+
+"custody-dispatch-record":[44,2561,"record_prepared_dispatch("],
+
+"custody-dispatch-stdout":[44,2617,"write_export(screened_output, prepared=prepared, source=source)"],
+
+"custody-host-main":[217,"main",54,"Iu2c03p9FcMdkLfCLs4ewR0CzkGF7YfsIUSn0JltYuk"],
+
+"custody-host-peer":[218,282,"if _peer_uid(connection) != self._layout.lead_uid:"],
+
+"custody-host-state":[217,41,"if records.state_root != layout.state_root:"],
+
+"custody-local-bind":[218,247,"listener.bind(str(path))"],
+
+"custody-local-reply":[218,284,"_send(connection, self._reply(_receive(connection, _MAX_REQUEST)), _MAX_DOCUMENT)"],
+
+"custody-manual-approval":[212,"OutboundApprovalTests.test_one_skill_keeps_target_checkout_approvals_separate",85,"JmjgB1ttcPo6V4qrFAwFzwzu84Df-cjNlqwEo9l1kEU"],
+
+"custody-manual-main":[214,"main",320,"vYgR4_dzcOU_e6WIu-etabsThy31twuhIqS-Z5gzYPs"],
+
+"custody-manual-stdout":[214,317,"write_export(screened, prepared=prepared, source=source)"],
+
+"custody-packet-check":[211,94,"if packet.get(\"opt_in_basis\") != \"host-approval\" or packet[\"bead_summary\"].get(\"id\") != packet.get(\"bead_id\"):"],
+
+"custody-publish-bound":[217,28,"if len(raw) > MAX_RETURN_BYTES:"],
+
+"custody-publish-stdin":[216,"SynthesisWorkflowTests.test_operator_publication_validates_stdin_before_retaining_a_panel",279,"tNSi4ase1IXa2YesSEsZSwsZyWlc9brh2hPMiGE8u-s"],
+
+"custody-publish-uid":[215,"AuthorityControlTests.test_documented_authority_commands_under_distinct_uids",63,"xSLX4Nw6gBhMOHm4tnKWJ5G9V9jrVFCpI_Gi5mdLv74"],
+
+"custody-request-review":[216,"SynthesisWorkflowTests.test_protected_cli_refuses_caller_context_and_does_not_fall_back",255,"npUGYUoPWpQlvs5kdgI2PQC3JJedJq6Pg08N6vgNiM0"],
+
+"custody-review-consensus":[216,"SynthesisWorkflowTests.test_protected_review_uses_only_authorized_originals_and_preserves_disagreement",167,"Q1ogiSJ9bkrKLNS2nPc3jY0Q3Jluwj0LB_tC29qafSk"],
+
+"custody-scope-check":[210,56,"if any(grant[key] != actual.get(key) for key in _SCOPE):"],
+
+"custody-serve-store":[216,"SynthesisWorkflowTests.test_operator_host_refuses_an_advisory_store_before_listening",301,"8B5ofx4T4fi_Ogtl0etObq3z4N6Gj9Exqe0i96_utaQ"],
+
+"custody-serve-uid":[215,"AuthorityControlTests.test_documented_authority_commands_under_distinct_uids",63,"xSLX4Nw6gBhMOHm4tnKWJ5G9V9jrVFCpI_Gi5mdLv74"],
+
+"custody-synthesis-context":[219,319,"if any(value is not None for value in (args.candidate, args.scope, args.adjudications, args.route)) or args.zero_trust_required:"],
+
+"custody-synthesis-main":[219,"main",326,"Vb76PIbxNjJ5JX8ZA7PrwFTN96CU1Syr71Gj3V5Bnu8"],
+
+"custody-synthesis-report":[219,342,"print(json.dumps(result, indent=2, sort_keys=True))"],
+
 "cv":[11,148,"interpreter()",11,148,24],
 
 "cw":[67,252,{"$":13},12,252,47],
@@ -1092,7 +1196,7 @@
 
 "dO":[189,149,"sys.stdout.write(prepare_desktop_request(args.packet).decode(\"utf-8\"))"],
 
-"dP":[191,"DesktopBrowserReviewTests.test_screening_stops_preparation_before_output_or_dispatch",123,"fgOF068zVCN02Ees5uggSOmUFd_49TJiEgSr_RG5EtQ"],
+"dP":[191,"DesktopBrowserReviewTests.test_screening_stops_preparation_before_output_or_dispatch",127,"fgOF068zVCN02Ees5uggSOmUFd_49TJiEgSr_RG5EtQ"],
 
 "dQ":[189,64,"enforce_contracting_quota(metadata[\"epic_id\"], EXECUTOR_KEY, \"external-contract\","],
 
@@ -1100,9 +1204,9 @@
 
 "dS":[51,"_LinuxBackend._spawn_atomic",355,"fIP58HIAOZ7b12IPv932gpEqzYSacwA7T2MNzkVbF7o"],
 
-"dT":[191,"DesktopBrowserReviewTests.test_desktop_round_trip_records_private_reply_and_sender_label",67,"7P8badJZzeuzBoZ9u6ArsSqhawV_vtSQ9ZqYxXkW4l4"],
+"dT":[191,"DesktopBrowserReviewTests.test_desktop_round_trip_records_private_reply_and_sender_label",71,"7P8badJZzeuzBoZ9u6ArsSqhawV_vtSQ9ZqYxXkW4l4"],
 
-"dU":[191,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",98,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
+"dU":[191,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",102,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
 
 "dV":[190,826,"record = _record_host_evaluation(return_text, result, tracked=tracked)"],
 
@@ -1204,11 +1308,11 @@
 
 "eO":[113,"NativePoolTransactionTests.test_final_horizon_overrun_contains_before_admitted_pool_commit",713,"u8WCpajPshJs2-OOIr1ERZVUOGVufv9ktcBjW4sdcMs"],
 
-"eS":[87,"BrowserProvenanceTests.setUp",39,"zuYaqjhDz8nTq2lolqmh3SYG0joayhyJl5ATjpiq7oc"],
+"eS":[87,"BrowserProvenanceTests.setUp",41,"VwEKCbRC1fuYGto15Kr6N3S5j8uTCMxxPfGC82ZybRg"],
 
 "eT":[74,255,{"$":43}],
 
-"eV":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",74,"9sPMvHT7yn95MYjBeOHeituB83ewKE0SD7D2mhIQhIQ"],
+"eV":[87,"BrowserProvenanceTests.test_real_preparation_and_persisted_sanitizer_positive",77,"9sPMvHT7yn95MYjBeOHeituB83ewKE0SD7D2mhIQhIQ"],
 
 "eX":[73,715,{"$":58}],
 
@@ -1382,7 +1486,7 @@
 
 "g8":[135,"ParallelUnittestTests._process_fixture",46,"76WhduRgRbif_KYggqyd5pYfkomI0JbiKw_0Ss-izJU"],
 
-"g9":[44,"main",2377,"DDno88EJ3SbFD9rM6p4ANBcx518pQSACgJqIVUwDyO4"],
+"g9":[44,"main",2382,"DDno88EJ3SbFD9rM6p4ANBcx518pQSACgJqIVUwDyO4"],
 
 "gA":[73,704,"return AppServer()"],
 
@@ -1414,7 +1518,7 @@
 
 "gQ":[44,"pinned_local_endpoint_address",709,"GiAVdU00SEa3x16aM25LXAy6PC8uEmEKIWOHmSZAgL8"],
 
-"gR":[87,"BrowserProvenanceTests.expected",61,"U2EUO4VRnr0u-Nqax479hTTxoR9bx9xchZhFSEE2vaY"],
+"gR":[87,"BrowserProvenanceTests.expected",64,"U2EUO4VRnr0u-Nqax479hTTxoR9bx9xchZhFSEE2vaY"],
 
 "gS":[32,444,"self.server = AppServer(requested_model=plan[\"selected_model\"],"],
 
@@ -1454,7 +1558,7 @@
 
 "gp":[10,"main",308,"RgOvIrHsdtWJpZ76gAaMQdcw8vRU3q90phstOEm7L5g"],
 
-"gq":[23,332,"if value.startswith(\"-\"):"],
+"gq":[23,336,"if value.startswith(\"-\"):"],
 
 "gr":[14,"source_identity",52,"25uhm2D-C5NG_9GKwwLKeRg8mNEtIWWKRmmSrZNpMNg"],
 
@@ -1496,7 +1600,7 @@
 
 "hH":[2,54,"if not all((payload[\"operator_approval_ref\"], payload[\"sol_breakfix_scope\"], payload[\"sol_breakfix_expiry\"])):"],
 
-"hI":[23,"create_bead",231,"hrYGKYvwsktuJBa0X32SqDLECK6k8q4NELPb1lJFsHk"],
+"hI":[23,"create_bead",235,"hrYGKYvwsktuJBa0X32SqDLECK6k8q4NELPb1lJFsHk"],
 
 "hK":[43,"WorktreeCapture._git",1544,"lXu6_ArjpCYeUEmR_L2Xs7reKAgMAGXD542i66JeQZw"],
 
@@ -1524,7 +1628,7 @@
 
 "hW":[32,"_Runtime.prepare",429,"OBTLkV2Ew7wXiG0UzklCycWxMJJgCEHG4pY2W5jI93k"],
 
-"hY":[6,"main",474,"5fbQ8I4dJCGqRH3RPggJrAzwWZBVy6aVKGHY5tKL1NM"],
+"hY":[6,"main",513,"2sRb6eyhDCx1owOfw3kdhstLUd-DYXozdfl6Vw2pGUE"],
 
 "hZ":[73,815,"transition = adapter.close_owned("],
 
@@ -1622,7 +1726,7 @@
 
 "ia":[43,"WorktreeCapture._dirs",1550,"RyInlKdBKwbYhDsTBCa-7-OCgTXi5_PVtGLlXm54Cs0"],
 
-"ib":[87,"BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal",344,"GBCZC7XLKsWdI3VdJOUgU1lNxI3ibjQhbOSqJ4uhO0Y"],
+"ib":[87,"BrowserProvenanceTests.test_coherent_provenance_rewrite_retains_independent_audit_refusal",347,"GBCZC7XLKsWdI3VdJOUgU1lNxI3ibjQhbOSqJ4uhO0Y"],
 
 "ic":[66,"submit",26,"FaM78CPE01WmEanfMziojmcgHFDC40tgCjFKS4U-OCU"],
 
@@ -1776,7 +1880,7 @@
 
 "k4":[67,"RegisteredNativePoolHost.adopt_execution",211,"hPaUZPVGKttYOR2VAZIicdfOmqVvGjyFMbgizvqDHMA"],
 
-"kA":[23,317,"run_bd(\n        show_bead_args(bead_id, include_comments=include_comments, include_dependents=include_dependents)\n    )",13,319,5],
+"kA":[23,323,"run_bd(args)",13,323,25],
 
 "kB":[44,1445,"request.build_opener(*opener_handlers)",11,1445,49],
 
@@ -1796,7 +1900,7 @@
 
 "kK":[73,704,"AppServer()",11,704,22],
 
-"kL":[23,361,{"$":258},4,361,106],
+"kL":[23,365,{"$":258},4,365,106],
 
 "kM":[32,784,"subprocess.run(command.argv, cwd=self.task.worktree, capture_output=True,\n                    timeout=command.timeout_seconds, env={**os.environ, \"PYTHONDONTWRITEBYTECODE\": \"1\"}, check=False)",28,785,117],
 
@@ -1828,13 +1932,13 @@
 
 "kd":[190,"main",576,"sL2-xf1bi9t4LEhnqMeg8CXysN8p2dA0gFNuwRXPWCM"],
 
-"ke":[188,106,"submitted = self.require_unchanged().decode(\"utf-8\")"],
+"ke":[188,108,"submitted = self.require_unchanged().decode(\"utf-8\")"],
 
 "ki":[17,51,"subprocess.run(\n            [codex_bin, \"--version\"],\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            check=False,\n            timeout=10,\n        )",17,58,9],
 
 "kj":[34,259,"subprocess.run(\n            args,\n            cwd=cwd,\n            env=dict(env) if env is not None else None,\n            check=False,\n            capture_output=True,\n            text=True,\n            timeout=60,\n        )",20,267,9],
 
-"kl":[23,291,"run_bd(args)",17,291,29],
+"kl":[23,295,"run_bd(args)",17,295,29],
 
 "km":[9,230,"subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)",13,230,95],
 
@@ -1884,7 +1988,7 @@
 
 "lA":[43,463,"subprocess.Popen(\n        [git.path, \"-C\", str(root), *INERT_GIT_CONFIG, *args],\n        env=environment,\n        stdin=subprocess.DEVNULL,\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n    )",14,469,5],
 
-"lD":[23,187,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,195,9],
+"lD":[23,190,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT if directory is None else directory,\n            env=project_env,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,199,9],
 
 "lF":[42,419,{"$":310},12,419,42],
 
@@ -1998,7 +2102,7 @@
 
 "mG":[190,208,"if ("],
 
-"mH":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",221,"AZ6V16vtyNtTPMLVbrc4UPcl5xgbxqPl4HArCgjZ2-M"],
+"mH":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",224,"AZ6V16vtyNtTPMLVbrc4UPcl5xgbxqPl4HArCgjZ2-M"],
 
 "mI":[42,2515,"self.request(\n            \"turn/interrupt\",\n            {\"threadId\": thread_id, \"turnId\": turn_id},\n            timeout=timeout,\n        )",27,2519,9],
 
@@ -2926,7 +3030,7 @@
 
 "vc":[42,988,{"$":333}],
 
-"ve":[188,78,"screened = require_clean(submitted, surface=\"ChatGPT browser Send\")"],
+"ve":[188,80,"screened = require_clean(submitted, surface=\"ChatGPT browser Send\")"],
 
 "vf":[99,"F5NativeLiveHoldTests.test_f5_held_n1_registered_run_zero_effect_and_original_fake_launch_control",86,"8ge8L46cFReNDcv98YBgIYRUPGBHghaEgm4f9JRW7eo"],
 
@@ -3110,7 +3214,7 @@
 
 "yD":[64,"_Containment._appserver_mounts",559,"8mUM_A8QGWPM_ehlgncoHuxscpKRUXDKtf_MAVHOXyM"],
 
-"yF":[23,187,{"$":61}],
+"yF":[23,190,{"$":61}],
 
 "yG":[16,329,{"$":257}],
 
@@ -3897,6 +4001,16 @@
 
 "au":[["_require_summary_primary selects the retained original exception before success-only session capture",115],98,"N3.3"],
 
+"authority-approved-reference-client":["Read an existing operator decision through the configured local peer lookup.","The fixed AF_UNIX client carries an operation and opaque reference without opening a model app-server.","H7.1"],
+
+"authority-protected-synthesis-client":["Ask the configured local host to evaluate one previously approved panel.","This requests an offline evaluation by opaque reference and launches no model or app-server.","H8.3"],
+
+"authority-unix-client":["Create the local client for a request to the protected approval host.","AF_UNIX confines the connection to the verified local socket; the client has no external transport.","H8.3"],
+
+"authority-unix-connect":["Connect to the fixed configured local Unix socket and verify the host peer UID.","This is local authority IPC without browser automation or a provider endpoint.","H8.3"],
+
+"authority-unix-listener":["Create the operator authority listener in the verified host-owned socket directory.","The effect is confined to local Unix IPC with kernel peer UID checks and an allowlisted request surface.","H8.2"],
+
 "av":[[10,1],2,null],
 
 "aw":[[10,1],2,null],
@@ -4551,13 +4665,15 @@
 
 [13,140,13,146,5,"beads","vUz4zg6wdH6MShcns-GeRceprS6jYmccFaA4ck9qM48",[{"$":9},"D"]],
 
-[13,187,20,195,9,"process","fkxh1P3A6IRzzwyR5ApOHXnpxVgIy_DqE29H64kHocY",["route","B9.1","lD"]],
+[13,190,20,199,9,"process","KmDp2-sqfnxYz1MOvAOjnElBVuXX9Ig5KTTTmidk6Hs",["route","B9.1","lD"]],
 
-[13,291,17,291,29,"beads",{"$":92},["route","B9.3","kl"]],
+[13,295,17,295,29,"beads",{"$":92},["route","B9.3","kl"]],
 
-[13,317,13,319,5,"beads","u6nOT4YE2HjCbaNMxg7iYaEAkJ0b79xsXnOJWTmGIG4",["route","B9.1","kA"]],
+[13,323,13,323,25,"beads",{"$":92},["route","B9.1","kA"]],
 
-[13,361,4,361,106,"beads","Yhhiw5H3JRsyuTPfU9bXEqjEmPLCS_EcslEYHTvjUZY",["route","B9.4","kL"]],
+[13,323,52,323,85,"beads","JMmQFeEP7B_Qjr8gV3IcRuYj_esbH9bLPrWxP6ZBeSA",["route","B10.2","custody-beads-show"]],
+
+[13,365,4,365,106,"beads","Yhhiw5H3JRsyuTPfU9bXEqjEmPLCS_EcslEYHTvjUZY",["route","B9.4","kL"]],
 
 [14,1258,21,1258,40,"dynamic",{"$":89},[{"$":9},"a9"]],
 
@@ -4600,6 +4716,14 @@
 [18,1277,8,1277,33,{"$":3},{"$":50},[{"$":9},"bn"]],
 
 [18,1305,17,1305,75,"dynamic",{"$":84},[{"$":9},"bo"]],
+
+[97,243,19,243,68,"network","dwktk4fq3DihdxiV-BM_WvpGDbd8WdOzTk8pCHQ0JoE",[{"$":9},"authority-unix-listener"]],
+
+[97,309,12,309,41,"browser","z2eNb7QrInpxR_Bm6Z31FI42g79CAksGbVmQIgACyGs",[{"$":9},"authority-unix-connect"]],
+
+[97,320,17,320,66,"network","dwktk4fq3DihdxiV-BM_WvpGDbd8WdOzTk8pCHQ0JoE",[{"$":9},"authority-unix-client"]],
+
+[97,379,11,379,93,{"$":3},"fm024s_oA_m-Mnna8zLQidQp6THqBZer1hHmUL2y3bE",[{"$":9},"authority-approved-reference-client"]],
 
 [19,190,31,190,59,"dynamic","nTh-3r6FHnZZOnfvekU16y57zeLHSvvOoQGvMw7Um5A",[{"$":9},"bp"]],
 
@@ -4778,6 +4902,44 @@
 [38,184,41,184,74,"dynamic","745w8UQeATo48XKwyPB6JPYAj5ylfC8uV697xlFsHxs",[{"$":9},"cn"]],
 
 [38,185,48,185,88,"dynamic","WABWXI1ugaJ1ip82WkIZpxY8n1VtfDKP-dAoeUGYiWc",[{"$":9},"co"]],
+
+[92,151,21,151,68,"dynamic","A-QPTdpbNcoRKoMd4fd4QqWYgUufk4P85vQIh7Tpgh0",[{"$":9},"XR395"]],
+
+[92,155,23,155,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
+
+[92,386,11,386,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
+
+[92,1802,34,1806,5,"dynamic","_vsOm9U5QmF2crFVjWI5y-zRI8KU1ud56UHamtGXyC8",[{"$":9},"XR398"]],
+
+[93,61,27,61,81,"dynamic","blXLfMgcHuRF0h2Gz5mJKvmD75G97wl-0Yu0stmPwCc",[{"$":9},"XR385"]],
+
+[93,76,23,76,76,"dynamic","wM7l60D0h_Ab8K4L_AvmL79_6j1jKEmIb5DHFqCCQGY",[{"$":9},"XR386"]],
+
+[93,143,13,143,55,"dynamic","Ybynqw2sUHocnFN458gQd057Vs7vTqKveSoinfmGNnM",[{"$":9},"XR399"]],
+
+[93,176,8,176,53,"dynamic","Gau4K7gkps26vbMtHH-_YhaRQbP-pQ42x1BZobXeR1U",[{"$":9},"XR400"]],
+
+[94,144,27,144,76,"dynamic",{"$":165},[{"$":9},"XR387"]],
+
+[94,292,29,294,9,"dynamic","G68AY2_rubqUk-8uN4q3LJLl2GaBdldUlbIU3oItbpA",[{"$":9},"XR388"]],
+
+[94,312,35,314,17,"dynamic","ZPn1OQsKgAbOiLyiWZlsIRIzjNGk9EMprT1gt9VF1Vw",[{"$":9},"XR389"]],
+
+[94,390,26,390,78,"dynamic",{"$":153},[{"$":9},"XR390"]],
+
+[94,707,60,709,21,"dynamic","dNsuhucs7uHeAvWJtlV0397o9LUMH23ZdgHJQYiPvE0",[{"$":9},"XR391"]],
+
+[94,1390,19,1394,9,"dynamic","ZDVPXYO4m4mtDySlZM6V3Ud8dk2YY_v_hZbJNxicCak",[{"$":9},"XR392"]],
+
+[94,1741,26,1741,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
+
+[94,1742,27,1742,74,"dynamic","NNNiwmdaq9MHSIy69kfSofp5jGCKtMxods9F32uNs9M",[{"$":9},"XR394"]],
+
+[95,384,30,384,57,"dynamic","prnKiUwHNekJM1zNC31vdO3F5jFteDJWVFQcqCnqso8",[{"$":9},"XR382"]],
+
+[95,384,60,386,9,"dynamic","s3-jdHsbXCKATrwY1r3o56t8oB-RCDKdC-4w_JSHLQM",[{"$":9},"XR383"]],
+
+[95,771,13,771,61,"dynamic","Xn7QdrAxsKVC9SJYyKwDZXHyN_lT957yADBPL_I7P4M",[{"$":9},"XR384"]],
 
 [39,363,27,364,91,"process","SfT1I2sw5_bT-p8v4UBcyj9uhtyJQcWrzNagsK_tmpU",["route","N1.1","p8"]],
 
@@ -5011,11 +5173,13 @@
 
 [43,2203,7,2203,35,"dynamic","xSJNQIkOpFVJ3mt_MoZ4WUX-G5XDqb_0ILldS7mIojM",[{"$":9},"dP"]],
 
-[43,2311,26,2311,59,"dynamic","cpSJBwVAVFnH1YDZHCxzUhlRx3vibCttH9wtSz9Fl54",[{"$":9},"dQ"]],
+[43,2316,26,2316,59,"dynamic","cpSJBwVAVFnH1YDZHCxzUhlRx3vibCttH9wtSz9Fl54",[{"$":9},"dQ"]],
 
-[43,2311,63,2311,100,"dynamic","ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
+[43,2316,63,2316,100,"dynamic","ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
 
 [44,693,19,693,44,"dynamic",{"$":192},[{"$":9},"dS"]],
+
+[98,323,11,323,84,{"$":3},"BxQXymhrN4ga9Ofy-LQe2k22wNBOFhfkBKy2nxFw14g",[{"$":9},"authority-protected-synthesis-client"]],
 
 [90,70,4,70,53,"beads","tL-5k4gLzdn43GnJyjbm47nstYqCfzOB5L9s-GCvqN0",["route","B11.2","mz"]],
 
@@ -5209,6 +5373,8 @@
 
 [63,395,8,395,85,"dynamic","6lJSrnnucgIJlyjJAK6o8PVZmrZGKNZWSXwDHz5xWug",[{"$":9},"eY"]],
 
+[67,157,14,157,108,"process","hJmlINBB3jI2ihcAeX-6TuxmARXYQzh6QJoa9GVpjd0",["route","N12.3","p101-catalog"]],
+
 [91,98,17,99,110,"process","CZ5Xiphf3Nnx8t5YKZkz0Rp7x2rrphScK0CSMHjyCIE",["route","N12.1","g"]],
 
 [64,752,23,752,65,"dynamic",{"$":151},[{"$":9},"eZ"]],
@@ -5267,6 +5433,8 @@
 
 [85,623,18,623,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
 
+[96,160,26,160,47,"dynamic","6Udd_Lk_-YdcDSCjV4DMrOOutvv2IFVEU4jXcLiIlf8",[{"$":9},"XPool101-2"]],
+
 [86,248,15,248,94,{"$":3},"k9v9TIBzAvfsm4g-p0xcA49hWoxqg8jO4SXZwJ4H1SU",["route","N4.3","zp"]],
 
 [86,256,15,256,45,{"$":3},"zn2F8ic2CBXkGOU3-IAm68NPKRDdOD8VOJnhLuG1IWI",["route","N4.3","zz"]],
@@ -5314,44 +5482,6 @@
 [70,704,11,704,22,{"$":3},{"$":226},["route","N7.2","kK"]],
 
 [70,1005,23,1009,9,"dynamic","B4765SyLKExxM3ItdUA_STNHTvNEakCnEpVHTT-TfTA",[{"$":9},"XR381"]],
-
-[95,384,30,384,57,"dynamic","prnKiUwHNekJM1zNC31vdO3F5jFteDJWVFQcqCnqso8",[{"$":9},"XR382"]],
-
-[95,384,60,386,9,"dynamic","s3-jdHsbXCKATrwY1r3o56t8oB-RCDKdC-4w_JSHLQM",[{"$":9},"XR383"]],
-
-[95,771,13,771,61,"dynamic","Xn7QdrAxsKVC9SJYyKwDZXHyN_lT957yADBPL_I7P4M",[{"$":9},"XR384"]],
-
-[93,61,27,61,81,"dynamic","blXLfMgcHuRF0h2Gz5mJKvmD75G97wl-0Yu0stmPwCc",[{"$":9},"XR385"]],
-
-[93,76,23,76,76,"dynamic","wM7l60D0h_Ab8K4L_AvmL79_6j1jKEmIb5DHFqCCQGY",[{"$":9},"XR386"]],
-
-[94,144,27,144,76,"dynamic",{"$":165},[{"$":9},"XR387"]],
-
-[94,292,29,294,9,"dynamic","G68AY2_rubqUk-8uN4q3LJLl2GaBdldUlbIU3oItbpA",[{"$":9},"XR388"]],
-
-[94,312,35,314,17,"dynamic","ZPn1OQsKgAbOiLyiWZlsIRIzjNGk9EMprT1gt9VF1Vw",[{"$":9},"XR389"]],
-
-[94,390,26,390,78,"dynamic",{"$":153},[{"$":9},"XR390"]],
-
-[94,707,60,709,21,"dynamic","dNsuhucs7uHeAvWJtlV0397o9LUMH23ZdgHJQYiPvE0",[{"$":9},"XR391"]],
-
-[94,1390,19,1394,9,"dynamic","ZDVPXYO4m4mtDySlZM6V3Ud8dk2YY_v_hZbJNxicCak",[{"$":9},"XR392"]],
-
-[94,1741,26,1741,78,"dynamic",{"$":153},[{"$":9},"XR393"]],
-
-[94,1742,27,1742,74,"dynamic","NNNiwmdaq9MHSIy69kfSofp5jGCKtMxods9F32uNs9M",[{"$":9},"XR394"]],
-
-[92,151,21,151,68,"dynamic","A-QPTdpbNcoRKoMd4fd4QqWYgUufk4P85vQIh7Tpgh0",[{"$":9},"XR395"]],
-
-[92,155,23,155,72,"dynamic",{"$":165},[{"$":9},"XR396"]],
-
-[92,386,11,386,54,"dynamic",{"$":218},[{"$":9},"XR397"]],
-
-[92,1802,34,1806,5,"dynamic","_vsOm9U5QmF2crFVjWI5y-zRI8KU1ud56UHamtGXyC8",[{"$":9},"XR398"]],
-
-[93,143,13,143,55,"dynamic","Ybynqw2sUHocnFN458gQd057Vs7vTqKveSoinfmGNnM",[{"$":9},"XR399"]],
-
-[93,176,8,176,53,"dynamic","Gau4K7gkps26vbMtHH-_YhaRQbP-pQ42x1BZobXeR1U",[{"$":9},"XR400"]],
 
 [71,395,41,395,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
 
@@ -5411,11 +5541,7 @@
 
 [78,2574,7,2574,35,"dynamic","ZqM55jIrdP6oEzt1vtV5EwWp002RB0IRK6c5CjHFxPc",[{"$":9},"XR416"]],
 
-[79,412,14,412,47,"dynamic","jq8fhK7bfZhEkYv-3Y2x1pyCoEK_70USv5dO-j-XVNU",[{"$":9},"XR417"]],
-
-[67,157,14,157,108,"process","hJmlINBB3jI2ihcAeX-6TuxmARXYQzh6QJoa9GVpjd0",["route","N12.3","p101-catalog"]],
-
-[96,160,26,160,47,"dynamic","6Udd_Lk_-YdcDSCjV4DMrOOutvv2IFVEU4jXcLiIlf8",[{"$":9},"XPool101-2"]]
+[79,412,14,412,47,"dynamic","jq8fhK7bfZhEkYv-3Y2x1pyCoEK_70USv5dO-j-XVNU",[{"$":9},"XR417"]]
 ],
 
 "paths":[
@@ -5611,7 +5737,11 @@
 
 "scripts/cwo_core/supervision/session_evidence.py",
 
-"scripts/registered_pool_ordinary_runtime.py"
+"scripts/registered_pool_ordinary_runtime.py",
+
+"scripts/cwo_core/lead_authority.py",
+
+"scripts/evaluate_synthesis.py"
 ],
 
 "schema":"bounded-primitives-v2"
@@ -5660,7 +5790,7 @@
 
 {"contract":"B10","entrypoint":"fp","id":"B10.1","trace_files":[{"$":261},{"$":21}]},
 
-{"contract":"B10","entry_aliases":["cwo build-packet"],"entrypoint":"hY","id":"B10.2","trace_files":[{"$":262},{"$":21},{"$":26},{"$":266},"scripts/cwo_core/packets.py"]},
+{"authority":"The production builder discovers the invoking worktree through filesystem preflight and reads its assigned Bead. Rehearsal keeps the ordinary checkout default.","contract":"B10","effect_points":["yF","custody-beads-show"],"entry_aliases":["cwo build-packet"],"entrypoint":"hY","id":"B10.2","limits":"Explicit production cwd filters GIT_* from the bd subprocess environment. The selected binary and downstream database still require operator trust.","ordering":"Select the worktree before the live Bead read. Pass show options before -- and its Bead ID after it. The read can precede disclosure approval.","selector":"Contractor packet assignment read. A saved assignment skips Beads.","trace_files":[{"$":262},{"$":21},{"$":26},{"$":266},"scripts/cwo_core/packets.py","scripts/cwo_core/outbound_approval.py",{"$":109}],"witnesses":["cf","custody-beads-cwd"]},
 
 {"contract":"B10","entrypoint":"ru","id":"B10.3","trace_files":[{"$":263},{"$":21}]},
 
@@ -5932,7 +6062,7 @@
 
 {"authority":"Original host observation.","contract":"H5","effect":"Private browser receipt","effect_points":["mD"],"entry_aliases":["cwo evaluate"],"entrypoint":"kd","gate_chains":[],"gate_limits":"Manual cross-function order.","gates":["mE"],"id":"H5.8","limits":"Saved CDP evidence only. Missing or mismatched observed dispatch refuses before a return receipt. A matched capture feeds evaluation and grants no implementation or closure authority.","manual_decisions":["D"],"ordering":"Check exact capture and preparation first.","review_gates":["mG","mF"],"trace_files":[{"$":404},{"$":30},{"$":26},"scripts/cwo_core/host_return_intake.py",{"$":105}],"witnesses":["cy","bq1"]},
 
-{"admission":{"$":4},"contract":"HD","effect":"Prepared host dispatch and screened stdout","effect_points":["bT","dO"],"entry_aliases":["cwo prepare-browser"],"entrypoint":"dM","gate_limits":"Manual order across dispatch and nested export.","id":"H4.7","limits":"Screen refusal: zero dispatch/stdout. Resume preserves bytes/ID. Dispatch can persist on stdout failure. Desktop @Chrome sends separately.","ordering":"Production packet, exact screen, quota, current-byte check, host dispatch, stdout. Resume verifies original preparation.","review_gates":["ve","dH"],"trace_files":[{"$":400},{"$":405},{"$":406},{"$":105}],"witnesses":["cz","aX"]},
+{"admission":{"$":4},"authority":"The linked desktop request needs a current operator grant for the invoking checkout, assignment, destination and boundary.","contract":"HD","effect":"Prepared host dispatch and screened stdout","effect_points":["bT","dO"],"entry_aliases":["cwo prepare-browser"],"entrypoint":"dM","gate_limits":"Checkout, approval and export order crosses request and dispatch helpers.","id":"H4.7","limits":"Unresolved approval and screening refusal leave zero dispatch and stdout. Resume preserves request bytes and ID. Dispatch can precede stdout failure. The operator sends separately through desktop Chrome.","ordering":"Resolve linked packet and current approval before rendering and screening. Recheck approval and exact bytes before recording a fresh dispatch. Resume rechecks approval and the original pin before stdout.","review_gates":["ve","dH","custody-packet-check","custody-scope-check","custody-boundary-check"],"trace_files":[{"$":400},{"$":405},{"$":406},{"$":105},"scripts/cwo_core/packet_provenance.py","scripts/cwo_core/outbound_approval.py","scripts/cwo_core/lead_authority.py",{"$":109}],"witnesses":["cz","aX","custody-browser-approval"]},
 
 {"contract":"HD","effect":"Owner-only reply, host receipt and evaluation","effect_points":["dW","dA","dV"],"entry_aliases":["cwo evaluate"],"entrypoint":"kd","gate_limits":"Local guards cover writes. Request and prior receipt checks require cross-function review.","gates":["dG","dN","dE"],"id":"H5.9","limits":"Wrong ID/audit override/malformed reply: zero receipt/evaluation. Private storage can precede receipt failure. One receipt on replay; changed reply or label refuses. Stdout/audit omit body.","ordering":"Check packet, posted ID, label, reply and prior receipt; retain/recheck private bytes before receipt and evaluation.","review_gates":["dI","dR"],"trace_files":[{"$":400},{"$":405},{"$":404},{"$":105},{"$":271},{"$":268}],"witnesses":["cA","aX"]},
 
@@ -5944,7 +6074,19 @@
 
 {"admission":{"$":4},"authority":"Current signed project and database binding, exact ordered selected workers, fresh original ready-set evidence and original adapter.","contract":"N5","earlier_effects":"Verify current login roster, clean bound worktrees and output scope, exact requested model and finite allowance.","effect":"Record the ordinary execution intent and claim the exact approved Beads cohort","effect_points":["p101-execution-intent","p101-claim-effect","p101-claim-reserve","p101-claim-receipt"],"entrypoint":"p101-host","gate_chains":[],"gate_limits":"The read-only branch returns before the factory check and private execution intent. The executing host calls the original factory source validator before claims. Original Beads ownership and signed checks cross helper calls and are traced manually.","gates":[],"id":"N5.11","limits":"Existing B5.1 and B6.1 establish exact pre-show, claim ownership and partial-claim handling. Validate-only, stale factory source and invalid or changed scope perform no productive effects. A private execution intent fences replays.","manual_decisions":["pool101","pool105-source"],"ordering":"Check readiness, proportionality, packet hashes and budget. Revalidate the installed factory source against the signed digest before the one-shot private intent and original Beads admission. Record each approved claim intent and repeat its current authority check at the original compare-and-set claim boundary. Retain the reservation receipt.","review_gates":["p101-nonspending"],"selector":"Execute mode requires current protected authority and factory source. Validate-only checks signed authority without entering execution.","trace_files":["scripts/registered_contained_pool_host.py","scripts/registered_contained_pool_preparation.py",{"$":45},{"$":21},{"$":394},{"$":270},"scripts/registered_pool_ordinary_runtime.py",{"$":371},{"$":374}],"witnesses":["pool101-scope","pool101-login","pool105-stale","pool101-n2","pool101-n3"]},
 
-{"admission":{"$":4},"authority":"Original signed current ordinary cohort and claim adapter, same-owner connected callback measurement and one-shot admitted dispatch capability.","contract":"N5","earlier_effects":"The host has retained real claims, the original packets, selected worktrees, and current finite signed budget in protected custody.","effect":"Charge shared limits and run protected writer-held calibration and productive dispatch","effect_points":["p101-allowance","p101-calibrate","p101-productive"],"entrypoint":"p101-runtime","gate_chains":[],"gate_limits":"The original signed approval, calibration capability and phase checks cross helpers. Their identity and ordering remain manual review.","gates":[],"id":"N5.12","limits":"Calibration and production charge separate original ledger rows in one shared allowance. After the release barrier a selected writer failure can retain healthy peer output and full charge. Unknown cleanup retains its original custody. Publication remains outside this route.","manual_decisions":["pool101"],"ordering":"Seal calibration, reserve finite aggregate room, measure original callbacks and settle the writer-held phase. Seal productive phase with the original capability, start contained sessions and revalidate exact Beads and dispatch artifacts before scheduler commit. Verify workspace and lease settlement before returning.","review_gates":[],"selector":"Ordinary contained execution after original signed cohort admission, with separate calibration and productive reservations.","trace_files":["scripts/registered_contained_pool_host.py","scripts/registered_pool_ordinary_runtime.py",{"$":371},{"$":374},{"$":373},"scripts/registered_pool_qualification_capability.py",{"$":108},{"$":45},"scripts/cwo_core/native_pool_admitted.py"],"witnesses":["pool101-scope","pool101-n2","pool101-n3","pool101-peer"]}
+{"admission":{"$":4},"authority":"Original signed current ordinary cohort and claim adapter, same-owner connected callback measurement and one-shot admitted dispatch capability.","contract":"N5","earlier_effects":"The host has retained real claims, the original packets, selected worktrees, and current finite signed budget in protected custody.","effect":"Charge shared limits and run protected writer-held calibration and productive dispatch","effect_points":["p101-allowance","p101-calibrate","p101-productive"],"entrypoint":"p101-runtime","gate_chains":[],"gate_limits":"The original signed approval, calibration capability and phase checks cross helpers. Their identity and ordering remain manual review.","gates":[],"id":"N5.12","limits":"Calibration and production charge separate original ledger rows in one shared allowance. After the release barrier a selected writer failure can retain healthy peer output and full charge. Unknown cleanup retains its original custody. Publication remains outside this route.","manual_decisions":["pool101"],"ordering":"Seal calibration, reserve finite aggregate room, measure original callbacks and settle the writer-held phase. Seal productive phase with the original capability, start contained sessions and revalidate exact Beads and dispatch artifacts before scheduler commit. Verify workspace and lease settlement before returning.","review_gates":[],"selector":"Ordinary contained execution after original signed cohort admission, with separate calibration and productive reservations.","trace_files":["scripts/registered_contained_pool_host.py","scripts/registered_pool_ordinary_runtime.py",{"$":371},{"$":374},{"$":373},"scripts/registered_pool_qualification_capability.py",{"$":108},{"$":45},"scripts/cwo_core/native_pool_admitted.py"],"witnesses":["pool101-scope","pool101-n2","pool101-n3","pool101-peer"]},
+
+{"contract":"H7","effect":"Publish a managed contractor packet and reserve audit quota.","effect_points":["custody-build-audit","custody-build-file","custody-build-stdout","custody-build-attestation"],"entry_aliases":["cwo build-packet"],"entrypoint":"hY","id":"H7.1","limits":"Wrong opt-in leaves zero production audit or output. Beads can be read before approval. Audit can precede output failure. Rehearsal is labeled nonproduction.","ordering":"Read the assignment, match scope and boundary, check quota, then validate and screen exact output before audit and publication.","trace_files":[{"$":262},{"$":21},"scripts/cwo_core/outbound_approval.py","scripts/cwo_core/lead_authority.py",{"$":109}],"witnesses":["custody-build-approval"]},
+
+{"contract":"H7","effect":"Record the prepared manual dispatch and quota, and print screened output.","effect_points":["custody-dispatch-record","custody-dispatch-stdout","custody-dispatch-audit"],"entry_aliases":["cwo dispatch"],"entrypoint":"g9","id":"H7.2","limits":"Missing approval leaves zero dispatch, quota consumption and stdout. Persistence can precede stdout failure. Labeled rehearsal is nonproduction.","ordering":"Validate linked provenance and recheck current approval. Bind and screen exact output before dispatch and audit persistence or stdout.","review_gates":["custody-packet-check","custody-scope-check","custody-boundary-check"],"selector":"--packet manual export. The local HTTP branch retains H1.1.","trace_files":[{"$":68},"scripts/cwo_core/packet_provenance.py","scripts/cwo_core/outbound_approval.py","scripts/cwo_core/lead_authority.py",{"$":109},{"$":105}],"witnesses":["custody-dispatch-approval"]},
+
+{"contract":"H7","effect":"Print the screened prompt or JSON for a linked packet.","effect_points":["custody-manual-stdout"],"entry_aliases":["cwo manual-prompt"],"entrypoint":"custody-manual-main","id":"H7.3","limits":"Another checkout or unavailable grant leaves zero production stdout. Raw outside prompts are limited to labeled rehearsal.","ordering":"Require linked provenance and current scoped approval before rendering. Bind captured source and screen exact bytes before stdout.","review_gates":["custody-packet-check","custody-scope-check","custody-boundary-check"],"selector":"--packet manual prompt","trace_files":["scripts/generate_manual_dispatch_prompt.py","scripts/cwo_core/packet_provenance.py","scripts/cwo_core/outbound_approval.py","scripts/cwo_core/lead_authority.py",{"$":109}],"witnesses":["custody-manual-approval"]},
+
+{"authority":"The configured host principal publishes from the protected installation and private state.","contract":"H8","effect":"Retain a private operator approval and print its opaque reference.","effect_points":["custody-approval-publish","custody-approval-write"],"entrypoint":"custody-host-main","id":"H8.1","limits":"Bad stdin leaves zero approval writes. The lead cannot publish. A stdout failure can follow retention.","ordering":"Check configured host UID and protected installation. Read bounded strict stdin JSON, validate the selected payload, retain without overwrite and print its reference.","review_gates":["custody-publish-bound"],"selector":"publish outbound-approval or synthesis","trace_files":["scripts/lead_authority_host.py","scripts/cwo_core/lead_authority.py","scripts/cwo_core/outbound_approval.py","scripts/evaluate_synthesis.py",{"$":271}],"witnesses":["custody-publish-stdin","custody-publish-uid"]},
+
+{"authority":"The administrator selects distinct Linux UIDs, fixed paths and private state. The kernel identifies the enrolled lead.","contract":"H8","effect":"Listen on the protected local socket and answer supported requests.","effect_points":["custody-local-bind","custody-local-reply"],"entrypoint":"custody-host-main","id":"H8.2","limits":"Store mismatch leaves zero listener. A wrong peer receives no authorized result. The listener has no provider transport or publish operation.","ordering":"Check host UID and matching authority and record state roots before listening. Verify peer UID, allowlisted operation and opaque reference, then return its retained grant or offline evaluation.","review_gates":["custody-host-state","custody-host-peer"],"selector":"serve","trace_files":["scripts/lead_authority_host.py","scripts/cwo_core/lead_authority.py","scripts/cwo_core/outbound_approval.py","scripts/evaluate_synthesis.py",{"$":105},{"$":271}],"witnesses":["custody-serve-store","custody-serve-uid"]},
+
+{"authority":"The enrolled lead requests a retained operator panel. The protected controller uses its anchored records.","contract":"H8","effect":"Print the operator-authorized offline consensus report.","effect_points":["custody-synthesis-report"],"entrypoint":"custody-synthesis-main","id":"H8.3","limits":"Unavailable approval or records refuse without file-based fallback. Reports inform adjudication and grant no execution or closure authority.","ordering":"Refuse caller context and authenticate the local host. Resolve approved evaluations against the original observed dispatch and exact captured return, apply current policy and peer holds, then compare explicit claims.","review_gates":["custody-synthesis-context"],"selector":"--protected-review reference. File-based synthesis remains advisory.","trace_files":["scripts/evaluate_synthesis.py","scripts/lead_authority_host.py","scripts/cwo_core/lead_authority.py",{"$":105},{"$":268},"scripts/cwo_core/synthesis.py"],"witnesses":["custody-request-review","custody-review-consensus"]}
 ],
 
 "schema":"compact-release-routes-v1",
@@ -6820,7 +6962,7 @@
 
 "@187":["4XgQe0ry2IBOcxeKC1p-G--YuVMKGhwjzyae_-f9Mb4",420,14785],
 
-"@188":["zn2TFApdTHY7QO-YFvLTE8sAvkb0ydYCgMqHYXk4oVM",420,6645],
+"@188":["DsT_9PeN3u1g9ofn63g3-Um_EdYoinOh2jT1XyHBZNc",420,6837],
 
 "@189":["zDmMozd6E-te8S2o64E_AWX1UcDS0Z38h4dcCGzlHDs",420,7460],
 
@@ -6828,7 +6970,7 @@
 
 "@190":["x4H6Aj85Hvs9_VPCi_jMZwfGs-8L2nkfsGwPZKlwM0Y",493,47389],
 
-"@191":["SXu6Yj22_Ug5o_QrdX8p8qA_vos4YYSJ8eVwvYtRZ6k",420,9375],
+"@191":["nNKM7OGyVGQfrMWLBWu6aOcJ2-MaLMpiHkDxdQIqCuE",420,10335],
 
 "@192":["TeaEjsYlnZHg3YYo5_ThfNjreE3clzgp6VpIsx6fd4c",420,4111],
 
@@ -6872,9 +7014,29 @@
 
 "@21":["7BnBPBe6fA9E1JBsRq_WU3VWMlVLyHZ_pS3hqjH7J2U",493,2227],
 
+"@210":["yuxKzJzosoqMWMDQDUe6Tzg1BP1SJ1Paz6yq7uEEC4w",420,3353],
+
+"@211":["ZV-b-OzMCY0ompqQMMcpv4kMHIjkmtlyKMq-o8NMcw8",420,5252],
+
+"@212":["FJ7CHN2apky2uBJXZsXeVOdOocRx2b7tx_iUwkyFVcM",420,12094],
+
+"@213":["yZFtTzc94fC63VM_ePtGH__DygTHQtaDghuyzDiLNdg",420,17569],
+
+"@214":["bm4Wk927iSuysQFPV31KbeV6c6HIrHXVX-jHKoOPCHI",493,20730],
+
+"@215":["OGdtn2gSPEkEewsKXjXSXRf9IDQU9Og1ZGxTT9YqnVM",420,19720],
+
+"@216":["m_qviZtfU1ZxsT0EE6IewE8HTKJ23CPL53IyloJPZro",420,46624],
+
+"@217":["P7TM8wW2ydw-0BXwug8Jpol3RrK59ZLvDMoSobSDmlM",420,2843],
+
+"@218":["dmAbyrwsZ_H2-cju0VFxPELrxIto89FIQjz8Uf24q2c",420,15537],
+
+"@219":["eyVAjaoAL_-6c8YMqPyZ1BflfBfzjgx799J94Ui7viI",493,19200],
+
 "@22":["ewJSKxVn2jq2eKqe7FYAXnzBaj27aPuInnaDtkbwHQU",420,15853],
 
-"@23":["1p7Gy8AdLHKGxi3lF9NCaH5yJCkujNDNaPOtYRG_u_A",420,11195],
+"@23":["pbteF2w87kaTs5RW7m5Un9vOMecduKtBl5puD4O2zuE",420,11552],
 
 "@24":["pKGj8uJjdUNB6GQ8BgA-82KfToyth-kox9dkS5kjxAU",420,17058],
 
@@ -6916,7 +7078,7 @@
 
 "@43":["9w8bQOlNREtec7b59oXyZm9Bzz5F7O2JgRcx3rdLfA0",420,137371],
 
-"@44":["We_kW7-9rHIhJL12Nkm8h-k3Ht5-ETIpobwts41CBlk",493,133102],
+"@44":["E9gatPASsLBlxVNAeQmMBv_bWbPkWC3WmFtmfW1VgMI",493,133419],
 
 "@45":["V0VoLos6CQ05w6ITK4xYVjfMqnjIwNcDo9Pe6fqrDMk",420,17243],
 
@@ -6948,7 +7110,7 @@
 
 "@59":["Cnj6xCGu_pJDgrivycxrwSzTdKxjciPuD-2UKoOIJCc",420,37740],
 
-"@6":["W8C2BNYyRVILDGhfp6U1LGXOUyOpLJ01FQ-Y40BBgrs",493,28417],
+"@6":["S-suXG4q7SD3dR1D7jr9WILFszllPQZb-t_xkbQUUkA",493,30196],
 
 "@60":["yEPxt-r385HJ-rR1u4feDlBQ8VpocckFbLthupIvNsg",420,23536],
 
@@ -7004,7 +7166,7 @@
 
 "@85":["VXgH8WxgEMKedfcuIUpmeRy1BgM-b2Yu_3rIFdEOznI",420,35682],
 
-"@87":["YM3G2uSse-tqmcut3Z8wd5iY7rjAUFOoeZoDZrD8bmo",420,23049],
+"@87":["leDQwp7DFiFb68KAeREVfKk3ixNx-lJoca41JiiieSw",420,23334],
 
 "@9":["5bzlm98aIwSUJ7uujDKGYv6mSSW0yRx0gjDcmsYs5uw",420,49677],
 
@@ -7052,7 +7214,7 @@
 
 "scripts/comparative_evaluation.py":["BvLNyTirvieN46vVUMLLTZHoEvtyjqkxifJytJnUdKU",420,3825],
 
-"scripts/cwo_core/__init__.py":["D86Cza4TDsoW9isQKGBRzZjAImM8d4PHU755qpfb4wA",420,3836],
+"scripts/cwo_core/__init__.py":["x9S_Cjy5sQVyhM7-AXrXkNktxXr5AjCM9uVnSdkXidU",420,3883],
 
 "scripts/cwo_core/access_profiles.py":["2lC0xX3ZK3Ut05NAyEuODqb3Q78Tw8DuakVP-4ppiqQ",420,12119],
 
@@ -7092,7 +7254,7 @@
 
 "scripts/cwo_core/git_store.py":["L6gbNc_dl6hZy0SsdzApc1_gzeHb7jjlmSMetZ24eVE",420,45093],
 
-"scripts/cwo_core/harness.py":["IIXdLOIbeJzUApW7gmMCJM3LJQVDmXVSooiq1szsbsU",420,28468],
+"scripts/cwo_core/harness.py":["yKBaYw9CELSTHmOE47bYknmPduAusquv1rYIXwCKJ58",420,28653],
 
 "scripts/cwo_core/host_record_inventory.py":["8njAtQwtkx8zeHaa85j9_C-pMEC0rzJa7xNiDCtBXxw",420,1659],
 
@@ -7196,8 +7358,6 @@
 
 "scripts/cwo_core/operative_routing.py":["frkqxb7VLLRyI4mjdqPEfSaGkeNqMBVI-D08C3Bm2RM",420,127229],
 
-"scripts/cwo_core/packet_provenance.py":["KwSG35SL9ilBosxL4vJErV-SUzr3gJUP__n2_3aOfjs",420,3901],
-
 "scripts/cwo_core/packets.py":["Bj47dlT6gly0f2N5YX1KiT_TFhWljTvsG_QaCdoVoeg",420,66953],
 
 "scripts/cwo_core/path_contract.py":["d8i_BP0RB2JjzzTuCCeIZf4nfPQkWa15C_uMXOdVckU",420,1575],
@@ -7288,8 +7448,6 @@
 
 "scripts/evaluate_proportional_execution.py":["5MTmn-RkqlATAoenwraW_GL9iosewg1BwLeq3YiX8wk",420,1824],
 
-"scripts/evaluate_synthesis.py":["vyUNFYSZeejL6wVGpUWyJC30IZyW1lJbHtNkKTLw-18",493,14978],
-
 "scripts/everyday_delegation_delivery.py":["LuLHo3j3CYlKaM9oxbQdlEpXIIG8LXsMaibYt4zi0NQ",420,3657],
 
 "scripts/evidence_use.py":["YDhwd-mV9n2mCcuh_n34-2p7Y_b9VSYHj41wfBpSv6Q",420,9494],
@@ -7297,8 +7455,6 @@
 "scripts/example_diagrams.py":["MC2TU6qc0wuqeHaVd-sGPl8DLm7mvam1SwetZ2O-KKQ",420,13410],
 
 "scripts/generate_diagram_themes.py":["2wixK0IwQ5FCM1qlClOiGs8NoxSNqWXYEcnhkVwTS8g",420,2070],
-
-"scripts/generate_manual_dispatch_prompt.py":["l0YatzcNkRoLiSNRHWOP60brXusZ50Yyd_vQWkZTLFI",493,20575],
 
 "scripts/guide_diagrams.py":["1fEkD30zR7nIFDeHgALfEM1oAVaaLMhSpPJnvDYa8ho",420,18037],
 
@@ -7406,7 +7562,7 @@
 
 "scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
-"scripts/validate_repository.py":["vyD0YPg_krGIsVwXn7JGOhUoDRt_IKmx8d_6qzUmhV0",420,116126],
+"scripts/validate_repository.py":["vMG93hS1SQAUCrWflqy1_TmXYaR0LEhw8vs2FqxpU80",420,116284],
 
 "scripts/validate_run_readiness_plan.py":["eOh8Jx0MhjjmZlqhcUFpe5E6tYTyKsSuz8Cm0vg8nq8",493,19544],
 
@@ -7418,7 +7574,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["rQ8Ktv2HU0k7y-cL9sIX08sG4Bg4KsXnsv71WpNufww",420,143073],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["8jmghUrydx5wvqP0OCRgb_AfpUq3JR1iznbBhTtuYr4",420,143073],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7444,7 +7600,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["BKBHrtK8SnM0T14qLWVSr9v1dLL-ElFVCiRXWXY-Arw",420,25898],
+"tests/test_cwo_core_import_contract.py":["5zMSzku6GDQ2iFJguT0Re640ptU1pEEKbMqD-QBQNvg",420,26056],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 
@@ -7819,6 +7975,28 @@
 "ct":[{"$":239},"gF",{"$":0},"self.assertIn(response, target.read_bytes())",["aM","bqa"],"tests.test_chatgpt_share_ingest.ChatGPTShareIngestTests.test_retired_sources_refuse_before_reads_or_writes"],
 
 "cu":["self.assertEqual(guard.call_count, 0)","f0",{"$":0},{"$":125},["q","v3"],"tests.test_f5_native_live_holds.F5NativeLiveHoldTests.test_f5_held_n1_workflow_maintenance_and_probes_before_claim_or_write"],
+
+"custody-beads-cwd":["self.assertEqual(show.call_args.kwargs[\"cwd\"], first.resolve())","custody-beads-cwd",{"$":1},"self.assertTrue(wrong_git.keys().isdisjoint(show.call_args.kwargs[\"env\"]))",[],"tests.test_outbound_approval.OutboundApprovalTests.test_one_skill_keeps_target_checkout_approvals_separate"],
+
+"custody-browser-approval":["self.assertFalse(self.store.find(\"dispatch\"))","custody-browser-approval",{"$":0},"self.assertEqual(self.invoke(\"prepare-browser\", \"--packet\", str(self.packet_path)), request)",["dT"],"tests.test_desktop_browser_review.DesktopBrowserReviewTests.test_unresolved_host_approval_stops_preparation_before_output_or_dispatch"],
+
+"custody-build-approval":["self.assertFalse(packet.exists())","custody-build-approval",{"$":0},"self.assertEqual(document[\"opt_in_basis\"], \"host-approval\")",["custody-build-positive"],"tests.test_outbound_approval.OutboundApprovalTests.test_flags_and_editable_opt_in_json_cannot_build_a_production_packet"],
+
+"custody-dispatch-approval":["self.assertEqual(spies.stdout.getvalue(), \"\")","custody-dispatch-approval",{"$":0},"self.assertEqual(spies.mocks[spy].call_count, 1, spy)",["custody-dispatch-positive"],"tests.test_outbound_approval.OutboundApprovalTests.test_forged_packet_and_audit_pointer_need_current_host_approval"],
+
+"custody-manual-approval":["self.assertEqual(spies.stdout.getvalue(), \"\")","custody-manual-approval",{"$":0},"self.assertIn(\"Review the public retry plan.\", spies.stdout.getvalue())",[],"tests.test_outbound_approval.OutboundApprovalTests.test_one_skill_keeps_target_checkout_approvals_separate"],
+
+"custody-publish-stdin":["approvals.return_value.publish.assert_not_called()","custody-publish-stdin",{"$":0},"approvals.return_value.publish.assert_called_once_with(\"synthesis\", panel)",[],"tests.test_synthesis_workflow.SynthesisWorkflowTests.test_operator_publication_validates_stdin_before_retaining_a_panel"],
+
+"custody-publish-uid":["assert not rejected.stdout, rejected","custody-publish-uid",{"$":12},"assert authority._REFERENCE.fullmatch(reference), published",["custody-cli-publish-support"],"tests.test_lead_authority.AuthorityControlTests.test_documented_authority_commands_under_distinct_uids"],
+
+"custody-request-review":["with self.assertRaisesRegex(SystemExit, \"protected review accepts only\"):","custody-request-review",{"$":12},"assert result[\"candidate\"] == \"approved\" and result[\"provenance_basis\"] == \"operator-authorized\", result",["custody-cli-report-support"],"tests.test_synthesis_workflow.SynthesisWorkflowTests.test_protected_cli_refuses_caller_context_and_does_not_fall_back"],
+
+"custody-review-consensus":["self.assertEqual(different[\"status\"], \"blocked\")","custody-review-consensus",{"$":12},"self.assertEqual(report[\"zero_trust_consensus\"][\"independent_trust_domains\"], [\"anthropic\", \"openai\"])",[],"tests.test_synthesis_workflow.SynthesisWorkflowTests.test_protected_review_uses_only_authorized_originals_and_preserves_disagreement"],
+
+"custody-serve-store":["listener.assert_not_called()","custody-serve-store",{"$":0},"assert service.returncode == 0, stdout + stderr",["custody-cli-serve-support"],"tests.test_synthesis_workflow.SynthesisWorkflowTests.test_operator_host_refuses_an_advisory_store_before_listening"],
+
+"custody-serve-uid":["assert reject.returncode == 1 and \"wrong authority principal\" in reject.stderr, reject","custody-serve-uid",{"$":12},"assert response.returncode == 0 and json.loads(response.stdout) == grant, response",["custody-cli-serve-support","custody-cli-report-support"],"tests.test_lead_authority.AuthorityControlTests.test_documented_authority_commands_under_distinct_uids"],
 
 "cv":["self.assertEqual(marker.read_text(), \"preserved\")","fA",{"$":0},{"$":136},["vv"],"tests.test_first_project.FirstProjectTests.test_creation_refuses_existing_directory"],
 

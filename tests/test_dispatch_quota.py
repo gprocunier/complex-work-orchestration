@@ -19,7 +19,14 @@ from contextlib import redirect_stdout
 from io import StringIO
 import dispatch_work
 
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant
+
+
 class DispatchQuotaTests(unittest.TestCase):
+    @staticmethod
+    def _approve_bead(bead, executor="chatgpt_pro_browser_master_reviewer"):
+        return approved_outbound(outbound_grant(bead[0]["id"], bead[0].get("parent"), executor))
+
     def setUp(self) -> None:
         temporary = tempfile.TemporaryDirectory()
         self.addCleanup(temporary.cleanup)
@@ -167,13 +174,13 @@ class DispatchQuotaTests(unittest.TestCase):
                     "chatgpt_pro_browser_master_reviewer",
                     "--share-boundary",
                     "redacted-packet",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--format",
                     "json",
                     "--output",
                     str(output_path),
                 ]
-                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                with self._approve_bead(bead_json), patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
                     build_contractor_packet.main()
 
                 packet = json.loads(output_path.read_text(encoding="utf-8"))
@@ -216,13 +223,13 @@ class DispatchQuotaTests(unittest.TestCase):
                     "chatgpt_pro_browser_master_reviewer",
                     "--share-boundary",
                     "redacted-packet",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--format",
                     "json",
                     "--output",
                     str(output_path),
                 ]
-                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                with self._approve_bead(bead_json), patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
                     build_contractor_packet.main()
 
                 packet = json.loads(output_path.read_text(encoding="utf-8"))
@@ -259,13 +266,13 @@ class DispatchQuotaTests(unittest.TestCase):
                     "chatgpt_pro_browser_master_reviewer",
                     "--share-boundary",
                     "redacted-packet",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--format",
                     "json",
                     "--output",
                     str(output_path),
                 ]
-                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                with self._approve_bead(bead_json), patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
                     build_contractor_packet.main()
 
                 packet = json.loads(output_path.read_text(encoding="utf-8"))
@@ -306,13 +313,13 @@ class DispatchQuotaTests(unittest.TestCase):
                     "chatgpt_pro_browser_master_reviewer",
                     "--share-boundary",
                     "redacted-packet",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--format",
                     "json",
                     "--output",
                     str(output_path),
                 ]
-                with patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
+                with self._approve_bead(bead_json), patch.object(build_contractor_packet, "show_bead_json", return_value=bead_json):
                     with self.assertRaises(SystemExit) as raised:
                         build_contractor_packet.main()
 
@@ -353,13 +360,14 @@ class DispatchQuotaTests(unittest.TestCase):
                     "--allow-disclosure-escalation",
                     "--waiver-reason",
                     "focused preflight test",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--format",
                     "json",
                     "--output",
                     str(output_path),
                 ]
                 with (
+                    self._approve_bead(bead_json, "claude_code_manual"),
                     patch.object(
                         build_contractor_packet,
                         "show_bead_json",
@@ -410,13 +418,14 @@ class DispatchQuotaTests(unittest.TestCase):
                     "--allow-disclosure-escalation",
                     "--waiver-reason",
                     "focused preflight test",
-                    "--external-ok",
+                    "--opt-in-record", REFERENCE,
                     "--format",
                     "json",
                     "--output",
                     str(output_path),
                 ]
                 with (
+                    self._approve_bead(bead_json, "claude_code_manual"),
                     patch.object(
                         build_contractor_packet,
                         "show_bead_json",

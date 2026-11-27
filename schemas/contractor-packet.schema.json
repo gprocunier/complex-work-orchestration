@@ -55,7 +55,7 @@
     "expert_profile_included": {"type": "boolean"},
     "degraded_context_justification": {"type": "string"},
     "external_opt_in": {"type": "boolean"},
-    "opt_in_basis": {"enum": ["cli-flag", "audit-record", "manual-note", "not-recorded"]},
+    "opt_in_basis": {"enum": ["host-approval", "cli-flag", "audit-record", "manual-note", "not-recorded"]},
     "boundary_description": {"type": "string"},
     "bead_summary": {"type": "object"},
     "selected_snippets": {

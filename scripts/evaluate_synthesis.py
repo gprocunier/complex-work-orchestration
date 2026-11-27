@@ -10,7 +10,7 @@ import re
 
 from cwo_core.adjudication_binding import _evaluation_disposition
 from cwo_core.errors import CWOPolicyError
-from cwo_core.host_acceptance import _policy_sha256, _source_context, _verify_review_dispatch
+from cwo_core.host_acceptance import _current_policy, _policy_sha256, _source_context, _verify_review_dispatch
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import MAX_RETURN_BYTES
 from cwo_core.peer_review import pending_evaluation_sha256, validate_peer_review_request
@@ -148,15 +148,31 @@ def _primary_use_request(item, evaluation, exact_return):
 def _recorded_lane(store, item, directory, candidate, scope, policy_sha256):
     evaluation, selected_record = _evaluation_input(store, item, directory)
     raw = _read_bytes(_input_file(item, "return", directory))
-    return_sha256 = hashlib.sha256(raw).hexdigest()
+    return _project_recorded_lane(store, item, evaluation, selected_record, hashlib.sha256(raw).hexdigest(),
+                                  candidate, scope, policy_sha256)
+
+
+def _require_protected_capture(dispatch, receipt, context):
+    if receipt.get("capture_provenance") != "host-capture-v1":
+        raise ValueError("protected synthesis requires an original host-captured return")
+    if dispatch.get("stage") != "observed":
+        raise ValueError("protected synthesis requires an observed executor dispatch")
+    if context is None and "source_context" in dispatch["evaluation_metadata"]:
+        raise ValueError("protected synthesis dispatch context is incomplete")
+
+
+def _project_recorded_lane(store, item, evaluation, selected_record, return_sha256, candidate, scope,
+                           policy_sha256, *, protected=False):
     dispatch = store.require_dispatch(evaluation.get("dispatch_id"))
     if dispatch["dispatch_role"] != "executor":
         raise ValueError("a critic return must come from a recorded executor dispatch")
     receipt = store.require_return(dispatch["dispatch_id"], return_sha256)
     if selected_record is not None and receipt["return_sha256"] != return_sha256:
-        raise ValueError("return file does not match the exact host return receipt")
+        raise ValueError("selected return does not match the exact host return receipt")
     evaluation_digest = _recorded_evaluation(store, dispatch, receipt, evaluation, policy_sha256, selected_record)
     context = _source_context(dispatch)
+    if protected:
+        _require_protected_capture(dispatch, receipt, context)
     if context is not None and (context["candidate"], context["scope"]) != (candidate, scope):
         raise ValueError("recorded dispatch candidate or scope differs from the synthesis selection")
     binding = dict(record_type="cwo-dispatch-record", version=1,
@@ -239,30 +255,88 @@ def _synthesize(args):
     store = configured_store()
     policy_sha256 = _policy_sha256()
     lanes = [_input_lane(store, item, args.inputs.parent, candidate, scope, policy_sha256) for item in items]
-    bindings = [binding for _, binding, _ in lanes if binding is not None]
     capture_ids = [origin["capture_id"] for _, binding, origin in lanes if binding is None]
     capture_names = set(capture_ids)
-    if len(capture_names) != len(capture_ids) or capture_names.intersection(binding["dispatch_id"] for binding in bindings):
+    if len(capture_names) != len(capture_ids) or capture_names.intersection(
+            binding["dispatch_id"] for _, binding, _ in lanes if binding is not None):
         raise ValueError("operator_codex capture_id must be unique in the input list")
+    return _synthesis_result(lanes, adjudications, candidate, scope, required or args.zero_trust_required,
+                             flags, provenance_basis="advisory")
+
+
+def _synthesis_result(lanes, adjudications, candidate, scope, required, flags, *, provenance_basis):
+    bindings = [binding for _, binding, _ in lanes if binding is not None]
     result = evaluate_synthesis_inputs([entry for entry, _, _ in lanes],
         dispatch_records=bindings, adjudications=adjudications,
-        candidate=candidate, scope=scope, zero_trust_required=required or args.zero_trust_required)
+        candidate=candidate, scope=scope, zero_trust_required=required)
     return dict(result, input_provenance=[provenance for _, _, provenance in lanes],
-                provider_conflict_flags=flags, execution_permitted=False)
+                provider_conflict_flags=flags, provenance_basis=provenance_basis, execution_permitted=False)
+
+
+def _protected_lane_input(value):
+    lane = _object(value, "protected synthesis lane")
+    required = {"evaluation_record_sha256", "zero_trust_claims"}
+    if set(lane) not in (required, required | {"synthesis_use"}):
+        raise ValueError("protected synthesis lane requires an evaluation reference and explicit claims")
+    if digest(lane["evaluation_record_sha256"]) is None:
+        raise ValueError("protected synthesis lane requires a SHA-256 evaluation reference")
+    if "synthesis_use" in lane and lane["synthesis_use"] != "primary":
+        raise ValueError('protected synthesis_use must be "primary" when supplied')
+    _list(lane["zero_trust_claims"], "protected synthesis lane claims")
+    return lane
+
+
+def _protected_lane(store, lane, candidate, scope, policy_sha256):
+    selected = store.get(lane["evaluation_record_sha256"], record_type="evaluation")
+    evaluation = _object(selected.get("evaluation"), "recorded evaluation")
+    return _project_recorded_lane(store, lane, evaluation, selected, selected["return_sha256"],
+                                  candidate, scope, policy_sha256, protected=True)
+
+
+def validate_synthesis_approval(payload):
+    """Read the panel selection shared by operator publication and host evaluation."""
+    panel = _object(payload, "protected synthesis review")
+    if set(panel) != {"candidate", "scope", "inputs", "adjudications"}:
+        raise ValueError("protected synthesis review requires candidate, scope, inputs and adjudications")
+    candidate, scope = text(panel["candidate"]), text(panel["scope"])
+    if candidate is None or scope is None:
+        raise ValueError("protected synthesis candidate and scope must be nonempty")
+    inputs = [_protected_lane_input(lane) for lane in _list(panel["inputs"], "protected synthesis inputs")]
+    adjudications = _list(panel["adjudications"], "protected synthesis adjudications")
+    return candidate, scope, inputs, adjudications
+
+
+def evaluate_protected_synthesis(store, payload):
+    """Host handler for an operator-authorized panel resolved by the authority broker."""
+    candidate, scope, inputs, adjudications = validate_synthesis_approval(payload)
+    policy_sha256 = _policy_sha256()
+    lanes = [_protected_lane(store, value, candidate, scope, policy_sha256) for value in inputs]
+    _current_policy("zero-trust-consensus-policy")
+    return _synthesis_result(lanes, adjudications, candidate, scope, True, [], provenance_basis="operator-authorized")
+
+
+def _protected_request(args):
+    if any(value is not None for value in (args.candidate, args.scope, args.adjudications, args.route)) or args.zero_trust_required:
+        raise ValueError("protected review accepts only the operator-authorized review reference")
+    from cwo_core.lead_authority import configured_authority_client
+
+    return configured_authority_client().request("synthesis", args.protected_review)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--inputs", required=True, type=Path,
-                        help="JSON list of return files with recorded evaluations or explicit operator_codex evidence. "
-                        'An accepted salvage-only evaluation may request synthesis_use "primary" for adjudication.')
-    parser.add_argument("--candidate", required=True, help="Candidate or plan revision under review.")
-    parser.add_argument("--scope", required=True, help="Adjudication scope for the selected candidate.")
+    sources = parser.add_mutually_exclusive_group(required=True)
+    sources.add_argument("--inputs", type=Path,
+                         help="Advisory report from return files with recorded evaluations or operator Codex evidence.")
+    sources.add_argument("--protected-review", help="Operator-authorized review reference for the host controller.")
+    parser.add_argument("--candidate", help="Candidate or plan revision under advisory review.")
+    parser.add_argument("--scope", help="Adjudication scope for the advisory review.")
     parser.add_argument("--adjudications", type=Path, help="JSON list of bound return adjudication records.")
     parser.add_argument("--route", type=Path, help="Optional route_work.py JSON with consensus and conflict signals.")
     parser.add_argument("--zero-trust-required", action="store_true", help="Require cross-domain claim comparison.")
     try:
-        result = _synthesize(parser.parse_args())
+        args = parser.parse_args()
+        result = _protected_request(args) if args.protected_review is not None else _synthesize(args)
     except (CWOPolicyError, ValueError, OSError, KeyError, TypeError, RecursionError) as failure:
         raise SystemExit(str(failure)) from failure
     print(json.dumps(result, indent=2, sort_keys=True))

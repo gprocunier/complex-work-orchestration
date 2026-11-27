@@ -51,10 +51,13 @@ from cwo_core import beads, policy  # noqa: E402
 from cwo_core.util import packet_payload_hash  # noqa: E402
 
 from tests.test_policy_current_effects import RETURN_TEXT, EffectSpies, current_policy  # noqa: E402
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant  # noqa: E402
 
 NO_PROVENANCE = "contractor packet has no production provenance"
 BEAD_FILE = str(ROOT / "examples" / "sample-bead.json")
 BROWSER_EXECUTOR = "chatgpt_pro_browser_master_reviewer"
+BEAD_ID = "complex-work-orchestration-example"
+BROWSER_REFERENCE = "0" * 63 + "1"
 
 
 class ConsumerSpies(EffectSpies):
@@ -102,6 +105,10 @@ def write_browser_config(directory: Path) -> Path:
 
 
 class ProvenanceCase(unittest.TestCase):
+    def setUp(self) -> None:
+        self.enterContext(approved_outbound(outbound_grant(BEAD_ID, "epic-1", "claude_code_manual"),
+                                            outbound_grant(BEAD_ID, "epic-1", BROWSER_EXECUTOR)))
+
     def tearDown(self) -> None:
         policy.clear_policy_cache()
 
@@ -112,6 +119,8 @@ class ProvenanceCase(unittest.TestCase):
             "--executor", executor, "--external-ok", "--epic", "epic-1", "--dispatch-id", dispatch_id,
             "--share-boundary", "redacted-packet", "--format", "json", "--output", str(output), *extra,
         ]
+        if "--rehearsal" not in extra:
+            argv += ["--opt-in-record", BROWSER_REFERENCE if executor == BROWSER_EXECUTOR else REFERENCE]
         if executor == BROWSER_EXECUTOR:
             argv += ["--job-description", "contract-jd-security-reasoning"]
         with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(io.StringIO()):
@@ -289,7 +298,10 @@ class RehearsalOutputTests(ProvenanceCase):
             stdout = io.StringIO()
             with mock.patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout):
                 module.main()
-            outputs[name] = self.write(home, json.loads(stdout.getvalue()), f"{name.replace(' ', '-')}.json")
+            document = json.loads(stdout.getvalue())
+            self.assertEqual(document["result_class"], "nonproduction-rehearsal")
+            self.assertTrue((document.get("prompt") or document["manual_prompt"]).startswith("Local rehearsal only."))
+            outputs[name] = self.write(home, document, f"{name.replace(' ', '-')}.json")
         return outputs
 
     def test_unhashed_rehearsal_outputs_are_refused_as_packets(self) -> None:

@@ -59,7 +59,7 @@ from cwo_core.util import (
     artifact_hash,
     make_dispatch_id,
 )
-from cwo_core.packet_provenance import require_production_contractor_packet
+from cwo_core.packet_provenance import label_rehearsal, rehearsal_result, require_packet_export_approval
 from cwo_core.packets import contractor_packet_language_metadata, redact_text
 
 
@@ -2208,6 +2208,11 @@ def audited_dispatch(args: argparse.Namespace) -> bool:
     return args.audit and (args.execute_local or not args.rehearsal)
 
 
+def _packet_dispatch_epic(packet, args):
+    epic = packet.get("epic_id")
+    return (epic or args.epic) if args.rehearsal else epic
+
+
 def require_requested_local_execution(args: argparse.Namespace) -> None:
     if args.execute_local:
         if not LOCAL_INVOCATION_AVAILABLE:
@@ -2396,12 +2401,12 @@ def _main() -> None:
     parser.add_argument(
         "--allow-unlinked-packet",
         action="store_true",
-        help="Operator-only escape hatch: allow a valid packet without a matching packet_built audit event.",
+        help="Rehearse with a valid packet without a matching packet_built audit event.",
     )
     parser.add_argument(
         "--allow-raw-manual-prompt",
         action="store_true",
-        help="Operator-only degraded path: render an external manual prompt without a validated packet.",
+        help="Render an external manual prompt without a packet for local rehearsal.",
     )
     parser.add_argument(
         "--rehearsal",
@@ -2508,18 +2513,19 @@ def _main() -> None:
         packet = load_packet_file(args.packet, captures=files)
         inputs = {"packet": packet, "options": vars(args)}
         input_capture = PreparedSource.capture(inputs, files)
-        require_production_contractor_packet(
-            packet, allow_degraded_packet=args.allow_degraded_packet, allow_unlinked_packet=args.allow_unlinked_packet
+        require_packet_export_approval(
+            packet, allow_degraded_packet=args.allow_degraded_packet,
+            allow_unlinked_packet=args.allow_unlinked_packet, rehearsal=args.rehearsal,
         )
         expected_language, expected_language_source = contractor_packet_language_metadata(packet)
         captured = input_capture.value()
-        manual_prompt = render_packet_prompt(captured["packet"])
+        manual_prompt = label_rehearsal(render_packet_prompt(captured["packet"]), args.rehearsal)
         input_capture.require_unchanged(captured)
         input_capture.require_unchanged(inputs)
         artifact = {
             "dispatch_id": packet.get("dispatch_id"),
             "bead_id": packet.get("bead_id"),
-            "epic_id": packet.get("epic_id") or args.epic,
+            "epic_id": _packet_dispatch_epic(packet, args),
             "executor_key": packet.get("executor"),
             "provider_key": packet.get("provider_key"),
             "provider_trust_tier": packet.get("provider_trust_tier"),
@@ -2531,12 +2537,13 @@ def _main() -> None:
             "expected_return_language": expected_language,
             "expected_return_language_source": expected_language_source,
             "manual_prompt": manual_prompt,
+            **rehearsal_result(args.rehearsal),
         }
         # The quota check only reads the audit log; consumption is the audit
         # event below. The exact output is screened before that event and
         # before anything is printed.
         quota_info = enforce_contracting_quota(
-            packet.get("epic_id") or args.epic,
+            artifact["epic_id"],
             packet["executor"],
             "external-contract",
             dispatch_id=packet.get("dispatch_id"),
@@ -2634,7 +2641,7 @@ def _main() -> None:
         raise SystemExit(str(exc))
     if route.get("route") == "external-contract" and not args.allow_raw_manual_prompt:
         raise SystemExit(
-            "external manual dispatch requires --packet; pass --allow-raw-manual-prompt only for an operator-only degraded dispatch"
+            "external manual dispatch requires --packet; for local rehearsal use --allow-raw-manual-prompt with --rehearsal"
         )
     if route.get("route") == "external-contract" and args.allow_raw_manual_prompt and not args.rehearsal:
         raise SystemExit("--allow-raw-manual-prompt requires --rehearsal and must not be used as production dispatch evidence")
@@ -2644,7 +2651,8 @@ def _main() -> None:
     inputs = {"task": task, "segments": task_segments, "route": route, "options": vars(args)}
     input_capture = PreparedSource.capture(inputs, files)
     captured = input_capture.value()
-    manual_prompt = render_prompt(captured["task"], captured["route"]) if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None
+    manual_prompt = (label_rehearsal(render_prompt(captured["task"], captured["route"]), args.rehearsal)
+                     if route["selected_executor"]["dispatch_mode"] == "manual_ui" else None)
     input_capture.require_unchanged(captured)
     input_capture.require_unchanged(inputs)
     _stage_requested_local_admission(args, workload, task, route, dispatch_id, files)
@@ -2687,6 +2695,7 @@ def _main() -> None:
         "manual_prompt": manual_prompt,
         "local_envelope": local_envelope,
         "local_response": local_response,
+        **rehearsal_result(args.rehearsal),
         **codex_dispatch_command_settings(route),
         **quota_info,
     }

@@ -74,6 +74,9 @@ BASE_TASK_SELECTED_POLICY_SHA256 = "26257b1b997ada4a9583c0ed7cd09c99ecff4923aff8
 HISTORICAL_V2_REFUSAL = "historical v2 route is parseable but cannot authorize new dispatch"
 
 
+from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant  # noqa: E402
+
+
 def _read(name: str) -> dict[str, Any]:
     return json.loads((ROOT / "policy" / f"{name}.yaml").read_text(encoding="utf-8"))
 
@@ -235,6 +238,10 @@ THRESHOLD_CASE = {
 
 
 class CurrentEntryPointRefusalTests(RefusalAssertions):
+    def setUp(self):
+        self.enterContext(approved_outbound(outbound_grant(
+            "complex-work-orchestration-example", "epic-1", "claude_code_manual")))
+
     """Malformed current policy stops each current consumer before any effect."""
 
     ROUTE_ARGV = ["route_work.py", "Documentation review for public README examples.", "--json"]
@@ -248,7 +255,7 @@ class CurrentEntryPointRefusalTests(RefusalAssertions):
         return [
             "build_contractor_packet.py", "--bead", "complex-work-orchestration-example",
             "--bead-json-file", str(ROOT / "examples" / "sample-bead.json"), "--executor", "claude_code_manual",
-            "--share-boundary", "redacted-packet", "--external-ok", "--epic", "epic-1",
+            "--share-boundary", "redacted-packet", "--opt-in-record", REFERENCE, "--epic", "epic-1",
             "--dispatch-id", "dispatch-w10-packet", "--format", "json", "--output", str(output),
         ]
 
@@ -426,6 +433,7 @@ class ExceptionTypeChangeTests(RefusalAssertions):
             self.assertIn(fragment, str(raised.exception))
             self.assertNotIn("Invalid local dispatch language metadata", str(raised.exception))
 
+    setUp = CurrentEntryPointRefusalTests.setUp
     packet_argv = CurrentEntryPointRefusalTests.packet_argv
 
 
