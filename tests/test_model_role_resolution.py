@@ -153,6 +153,8 @@ class ModelRoleResolutionTests(unittest.TestCase):
             {**CYBER_ROLE, "extra": True},
             {**CYBER_ROLE, "model": "gpt-daybreak-blue-latest"},
             {**CYBER_ROLE, "previous": "not-a-model"},
+            {**CYBER_ROLE, "model": "gpt-6.2-astra"},
+            {**CYBER_ROLE, "model": "gpt-6-luna"},
         )
         for entry in invalid:
             with self.subTest(entry=entry), self.assertRaisesRegex(ValueError, "cyber_fallback"):

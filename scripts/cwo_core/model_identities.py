@@ -52,9 +52,20 @@ def _validate_role(role: str, entry: Any) -> None:
         raise ValueError(f"model-roles {role} reviewer_rank must be a positive integer")
 
 
+CYBER_FALLBACK_FAMILY = "sol"
+CYBER_FALLBACK_MAX_EFFORT = "xhigh"
+CYBER_FALLBACK_SERVICE_TIER = "default"
+_EFFORT_ORDER = ("low", "medium", "high", "xhigh")
+
+
 def is_cyber_fallback_model(model: Any) -> bool:
-    """Accept an exact canonical model ID for the optional Daybreak role."""
-    return model_family_role(model) is not None
+    """Accept an exact canonical Sol-family model ID for the optional Daybreak role."""
+    return model_family_role(model) == CYBER_FALLBACK_FAMILY
+
+
+def bounded_cyber_fallback_effort(effort: Any) -> str:
+    """Carry the original effort, capped at xhigh; unknown or higher values become xhigh."""
+    return effort if effort in _EFFORT_ORDER else CYBER_FALLBACK_MAX_EFFORT
 
 
 def _validate_cyber_fallback(entry: Any, sol: Mapping[str, Any]) -> None:
