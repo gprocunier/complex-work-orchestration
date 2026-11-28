@@ -37,6 +37,7 @@ SOURCE_BLOB_LINK_ALLOWLIST.update(
         "references/execution-environments.md", "references/native-pool-capacity-migration.md",
         "references/run-readiness.md", "references/security-threat-model.md",
         "references/frozen-protocol-lock.md", "references/pre-dispatch-readiness.md",
+        "references/evaluation-evidence.md#workshop-handoff-comparison",
         "policy/native-worker-execution.yaml", "policy/executor-registry.yaml",
         "policy/access-profiles.yaml", "policy/execution-environments.yaml", "policy/synthesis-policy.yaml",
         "scripts/manage_instruction_profile.py", "scripts/check_installed_skill.py",

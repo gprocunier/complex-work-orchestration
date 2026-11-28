@@ -6,6 +6,7 @@
 - Publish the [six-case workshop handoff comparison](references/evaluation-evidence.md#workshop-handoff-comparison) with check outcomes, elapsed time, and token use for CWO and plain Codex.
 - Update the public guides for protected review approvals and sizing, return screening, delivery readiness, saved runs and plan analysis, architecture design, and retired native controls.
 - Explain how approved workers in a registered contained pool propose one-file patches and how the host verifies the writer’s result.
+- Summarize the measured workshop handoff comparison and explain the code-health check and required documentation terms. [Examples](docs/use-cases.html#workshop-handoff-comparison) · [Reference](docs/reference.html#maintain)
 
 ## 1.49.0 - 2026-11-28
 
