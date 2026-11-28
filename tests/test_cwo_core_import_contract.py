@@ -112,7 +112,7 @@ ALLOWED_IMPORTS = {
     "lead_authority": {"errors", "policy_schema", "private_artifact"},
     "model_identities": {"policy"},
     "model_catalog_startup": set(),
-    "cyber_fallback": {"invocation_ledger", "model_identities"},
+    "cyber_fallback": {"invocation_ledger", "lead_authority", "model_identities"},
     "outbound_screen": {"policy"},
     "prepared_outbound": {"outbound_screen"},
     "return_common": {"errors", "policy"},

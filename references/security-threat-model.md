@@ -179,3 +179,7 @@ The model assumes an uncompromised host, account, credentials, software and
 trust root. Provider compromise or retention, malicious maintainers, OS and
 dependency vulnerabilities, availability and deliberate operator disclosure are
 outside its scope.
+
+## Security-work marks
+
+The Daybreak Blue fallback requires an operator security-work mark. In production the mark is published by the separate authority-host account (`lead_authority_host.py publish security-work-mark`) and resolved by reference through `AuthorityMarkStore`, so the lead and workers cannot create, widen or replace it. A file-based mark is accepted only when the embedding caller passes `allow_file_marks=True` for fixtures or non-production use; that path is writable by the same account and is not a boundary.

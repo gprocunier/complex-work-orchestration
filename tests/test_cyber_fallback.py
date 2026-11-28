@@ -10,6 +10,7 @@ import tempfile
 import unittest
 
 from cwo_core.cyber_fallback import (
+    AuthorityMarkStore,
     CyberFallbackController,
     CyberFallbackError,
     SecurityMarkStore,
@@ -138,7 +139,8 @@ class CyberFallbackTests(unittest.TestCase):
         )
 
     def controller(self, store: SecurityMarkStore) -> CyberFallbackController:
-        return CyberFallbackController(self.ledger, store, self.records.append, clock=self.clock)
+        return CyberFallbackController(self.ledger, store, self.records.append, clock=self.clock,
+                                       allow_file_marks=type(store) is SecurityMarkStore)
 
     def recover(self, controller: CyberFallbackController, dispatch: FakeDispatch, *, mark=..., refusal=None,
                 role=None) -> dict:
@@ -243,6 +245,53 @@ class CyberFallbackTests(unittest.TestCase):
         for model in ("gpt-6.2-astra", "gpt-6-luna", "gpt-6-terra"):
             with self.subTest(model=model), self.assertRaisesRegex(CyberFallbackError, "Daybreak Blue"):
                 self.recover(self.controller(self.mark_store()), FakeDispatch(), role={**self.available, "model": model})
+
+    def authority_store(self, document=None, calls=None):
+        document = document or {"version": 1, "marks": [{
+            "scope": "work-item", "id": "EXAMPLE-security-work", "source": "user",
+            "marked_by": "EXAMPLE operator", "marked_at": "2026-11-28T09:00:00-05:00"}]}
+        def reader(operation, reference):
+            if calls is not None:
+                calls.append((operation, reference))
+            return json.loads(json.dumps(document))
+        return AuthorityMarkStore("a" * 64, approval_reader=reader)
+
+    def test_protected_authority_mark_permits_the_single_fallback(self) -> None:
+        calls = []
+        store = self.authority_store(calls=calls)
+        controller = CyberFallbackController(self.ledger, store, self.records.append, clock=self.clock)
+        dispatch = FakeDispatch({"outcome": "completed", "usage": ZERO_USAGE})
+        result = self.recover(controller, dispatch)
+        self.assertEqual(result["status"], "completed")
+        self.assertEqual(len(dispatch.calls), 1)
+        self.assertEqual(dispatch.calls[0]["mark"]["marked_by"], "EXAMPLE operator")
+        self.assertTrue(calls and all(call == ("security-work-mark", "a" * 64) for call in calls))
+
+    def test_production_controller_refuses_a_file_mark(self) -> None:
+        with self.assertRaisesRegex(CyberFallbackError, "protected security-work mark"):
+            CyberFallbackController(self.ledger, self.mark_store(), self.records.append, clock=self.clock)
+
+    def test_authority_mark_refuses_unavailable_invalid_or_lead_sourced_marks(self) -> None:
+        def unavailable(_operation, _reference):
+            raise ValueError("authority host is unavailable")
+        with self.assertRaisesRegex(CyberFallbackError, "unavailable"):
+            AuthorityMarkStore("b" * 64, approval_reader=unavailable)
+        with self.assertRaisesRegex(CyberFallbackError, "reference"):
+            AuthorityMarkStore("not-a-reference", approval_reader=lambda *_: {})
+        for source in ("lead", "worker"):
+            with self.subTest(source=source), self.assertRaisesRegex(CyberFallbackError, "user action"):
+                self.authority_store({"version": 1, "marks": [{
+                    "scope": "work-item", "id": "EXAMPLE-security-work", "source": source,
+                    "marked_by": "EXAMPLE lead", "marked_at": "2026-11-28T09:00:00-05:00"}]})
+
+    def test_authority_mark_change_after_capture_is_refused(self) -> None:
+        document = {"version": 1, "marks": [{
+            "scope": "work-item", "id": "EXAMPLE-security-work", "source": "user",
+            "marked_by": "EXAMPLE operator", "marked_at": "2026-11-28T09:00:00-05:00"}]}
+        store = self.authority_store(document)
+        document["marks"][0]["id"] = "EXAMPLE-other-work"
+        with self.assertRaisesRegex(CyberFallbackError, "changed after"):
+            store.issue(work_item_id="EXAMPLE-security-work")
 
     def test_only_a_cyber_policy_refusal_triggers_recovery(self) -> None:
         dispatch = FakeDispatch()

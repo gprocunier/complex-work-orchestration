@@ -225,6 +225,34 @@ class SecurityMarkStore:
         return record
 
 
+SECURITY_MARK_APPROVAL = "security-work-mark"
+
+
+def security_mark_payload(payload: Any) -> dict[str, Any]:
+    _validate_mark_document(payload)
+    return payload
+
+
+class AuthorityMarkStore(SecurityMarkStore):
+    """Operator marks published by the authority-host account; the lead can only request them."""
+
+    def __init__(self, reference: str, *, approval_reader: Callable[[str, str], dict] | None = None) -> None:
+        if type(reference) is not str or _SHA256.fullmatch(reference) is None:
+            raise CyberFallbackError("protected security-work mark reference is invalid")
+        if approval_reader is None:
+            from .lead_authority import configured_approval as approval_reader
+        self.reference, self._reader, self.path, self._secret, self._issued = reference, approval_reader, None, object(), {}
+        self._marks = self._load()
+        self.expected_sha256 = _canonical_sha256(list(self._marks))
+
+    def _load(self) -> tuple[dict[str, Any], ...]:
+        try:
+            payload = self._reader(SECURITY_MARK_APPROVAL, self.reference)
+        except (ValueError, OSError) as exc:
+            raise CyberFallbackError("protected security-work mark is unavailable") from exc
+        return _validate_mark_document(payload)
+
+
 class CyberFallbackController:
     """Consume one terminal refusal and launch at most one fallback attempt."""
 
@@ -235,9 +263,12 @@ class CyberFallbackController:
         recorder: Callable[[dict[str, Any]], None],
         *,
         clock: Callable[[], float],
+        allow_file_marks: bool = False,
     ) -> None:
-        if type(ledger) is not InvocationLedger or type(mark_store) is not SecurityMarkStore or not callable(recorder):
+        if type(ledger) is not InvocationLedger or not callable(recorder) or type(mark_store) not in (SecurityMarkStore, AuthorityMarkStore):
             raise CyberFallbackError("exact parent ledger, mark store and recorder are required")
+        if type(mark_store) is SecurityMarkStore and allow_file_marks is not True:
+            raise CyberFallbackError("production recovery requires a protected security-work mark from the authority host")
         self.ledger = ledger
         self.mark_store = mark_store
         self.recorder = recorder
