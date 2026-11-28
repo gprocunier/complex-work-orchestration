@@ -1718,6 +1718,41 @@ def read_replanning_state(state: Any) -> dict[str, Any]:
     return copy.deepcopy(dict(source))
 
 
+def _record_mutation_observation(
+    next_state: dict[str, Any], evidence_payload: Mapping[str, Any]
+) -> bool:
+    """Project mutation and terminal-latch observations onto the copied state."""
+    prior_mutation = _normalize_mutation(
+        next_state.get("mutation", {}), path="state.mutation"
+    )
+    prior_latches = _normalize_terminal_latches(
+        next_state.get("terminal_latches", {}), path="state.terminal_latches"
+    )
+    observed_mutation = _normalize_mutation(
+        evidence_payload.get("mutation", next_state.get("mutation", {})),
+        path="evidence.mutation",
+    )
+    next_state["mutation"] = {
+        "out_of_scope": prior_mutation["out_of_scope"]
+        or observed_mutation["out_of_scope"],
+        "tainted": prior_latches["tainted"]
+        or prior_mutation["tainted"]
+        or observed_mutation["tainted"],
+    }
+    contradictory_observation = _ensure_bool(
+        evidence_payload.get("contradictory_validation", False),
+        path="evidence.contradictory_validation",
+    )
+    contradictory_sticky = (
+        prior_latches["contradictory_validation"] or contradictory_observation
+    )
+    next_state["terminal_latches"] = {
+        "tainted": next_state["mutation"]["tainted"],
+        "contradictory_validation": contradictory_sticky,
+    }
+    return contradictory_sticky
+
+
 def _transition_replanning_state(
     state: Any,
     event: Any,
@@ -1812,34 +1847,7 @@ def _transition_replanning_state(
         evidence=evidence_payload,
         path="state.main_thread",
     )
-    prior_mutation = _normalize_mutation(
-        next_state.get("mutation", {}), path="state.mutation"
-    )
-    prior_latches = _normalize_terminal_latches(
-        next_state.get("terminal_latches", {}), path="state.terminal_latches"
-    )
-    observed_mutation = _normalize_mutation(
-        evidence_payload.get("mutation", next_state.get("mutation", {})),
-        path="evidence.mutation",
-    )
-    next_state["mutation"] = {
-        "out_of_scope": prior_mutation["out_of_scope"]
-        or observed_mutation["out_of_scope"],
-        "tainted": prior_latches["tainted"]
-        or prior_mutation["tainted"]
-        or observed_mutation["tainted"],
-    }
-    contradictory_observation = _ensure_bool(
-        evidence_payload.get("contradictory_validation", False),
-        path="evidence.contradictory_validation",
-    )
-    contradictory_sticky = (
-        prior_latches["contradictory_validation"] or contradictory_observation
-    )
-    next_state["terminal_latches"] = {
-        "tainted": next_state["mutation"]["tainted"],
-        "contradictory_validation": contradictory_sticky,
-    }
+    contradictory_sticky = _record_mutation_observation(next_state, evidence_payload)
     _apply_usage(next_state, evidence_payload)
 
     def protected_stop(
