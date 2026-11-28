@@ -10,6 +10,40 @@ cannot continue. It summarizes saved Beads state rather than creating a second
 task database. Passing its validator checks the required structure; it does not
 prove the work or a live integration succeeds.
 
+## Dispatch readiness
+
+Size the request after assembling its prompt, context, and output requirements.
+Use the selected model and effort, record what the runtime estimate is based on,
+and include the dependent work and aggregate limits. A timeout in a command
+line records a cutoff. The workload plan explains how that cutoff fits the work.
+
+| Route | Where CWO checks sizing |
+| --- | --- |
+| Managed contractor export | Before releasing the screened prompt for a manual send. |
+| Desktop ChatGPT Pro preparation | Before releasing the screened request and its request ID for the operator-supervised send. |
+| Internal Codex critic and peer review | At managed request preparation, before the embedding host can use the prepared request. |
+| Ordinary local HTTP and registered advisory HTTP | Before the bounded transport effect. [Local workload admission](local-inference.md#workload-admission-coverage-and-limits) |
+| Registered native worker and contained pool | Before starting workers, against the signed assignment and current sizing and readiness. [Native supervision](native-supervision.md) |
+
+For managed review exports, the workload file contains `route_input` (the
+original whole-route planning input) and `node_id` (its primary request).
+Check the plan with
+`python3 scripts/prepare_route_feasibility.py < route-input.json`. Supply the
+same original input at preparation so CWO can recompute the estimate against
+the current sizing policy and compare the prepared prompt. The plan's
+projections are declared bounds. Provider measurements, if available, are
+recorded separately.
+
+The local HTTP consumer applies its admitted runtime bound. When the operator
+or embedding host sends a prepared request, that sender is responsible for
+applying the recorded bounds and retaining the observed result. The manual
+export checks the declared plan at preparation. It cannot observe a provider's
+remaining budget, send, or cutoff.
+
+CWO controls its preparation and transport entry points. An operator running
+a custom shell command or pressing Send outside those entry points has to
+apply the same sizing discipline independently.
+
 ## Adaptation Roadmap
 
 | Adaptation | Status | Rule |
@@ -82,6 +116,13 @@ Convergence replay is append-only: historical unknowns stay null rather than
 being inferred or rewritten. Status output reports absolute productive,
 validation, attestation, fit, monitoring, recovery, PM, architect, and unknown
 call counts together with replay-target results.
+
+Delivery accounting tracks initial work, correction, mixed work, and unknown
+work. Reports count a corrective pass once when several findings or recorded
+events refer to the same pass. A correction can still be productive and yield
+accepted artifacts. First-pass rates use explicitly recorded first acceptance
+attempts for known requirement or delivery references and show coverage gaps
+when the references lack a first attempt or have conflicting results.
 
 Closure pressure begins when acceptance or independent validation starts. The
 current work unit must carry any routine correction and one explicit
@@ -290,6 +331,49 @@ existing `operator_handoff_packet`. The work graph provides tracker status.
 Use closeout evidence to establish delivery and verification. The execution
 status report projects audit, evaluator, and readiness telemetry.
 
+### Saved continuation and plan analysis
+
+Run `continue` from the project directory, using the installed script path if
+the project is separate from the CWO checkout.
+
+```bash
+python3 scripts/cwo.py continue --epic project-epic --record-run --format json
+python3 scripts/cwo.py continue --epic project-epic --markdown-workgraph graph.md \
+  --record-run --coach coach.json
+```
+
+`--record-run` atomically refreshes one advisory record under the ignored
+`.orchestration-audit/active-runs/` directory. Its ID is stable for the current
+directory, epic, optional sprint and Markdown source path. The record gives the
+current step, gate, unresolved coach decision IDs and exact resume hint. The
+handoff includes the run ID and the hint. The gate reflects the current Beads
+or Markdown input. An optional current `coach --json` result can pause the
+recommended next action until its operator selections are resolved.
+
+After accepting a coach decision, update the coach artifact at the supplied
+path and rerun the recorded `continue` command. The command reads the current
+inputs again and refreshes the record. It never reads the saved record as an
+input or executes commands from it. Beads remains the shared tracker. A
+Markdown fallback has reduced durability and candidate evidence still carries
+no dispatch authority.
+
+```bash
+python3 scripts/cwo.py analyze --workgraph graph.json --coach coach.json \
+  --route route.json --readiness-plan readiness.json --handoff handoff.md \
+  --convergence-ledger convergence.jsonl
+```
+
+Supply a scaffold dry-run JSON export or a Markdown fallback as `--workgraph`.
+Add only the companion artifacts available for this plan. The JSON report lists
+the inspected artifacts and stable findings for open coach selections, route
+and workgraph disagreements, missing validation lanes or evidence references,
+readiness scope and invalid handoffs. A dry-run graph may lack a concrete
+epic ID. The report then warns that readiness scope could not be compared.
+Errors exit 1, warnings alone exit 0, and unreadable or malformed inputs exit 2.
+Analysis reads the supplied files without changing them or contacting Beads.
+When supplied, the convergence ledger is checked using the existing append-only
+chain validator. [Replay convergence](#projection-rules) for execution evidence.
+
 ## Authority Model
 
 ```mermaid
@@ -396,6 +480,16 @@ boundary. Unrestricted processes that can directly change Beads or rewrite
 the host audit history remain outside that boundary.
 
 ### Verified closure library
+
+Evidence disposition describes whether a return can be used as evidence. The
+evaluator can accept a well-supported report of a failed or unrun check.
+Delivery readiness uses the current requirement baseline and the original
+checked observations. Required checks must pass, and a not-applicable check
+uses the reason recorded in the baseline. Failed and unrun required checks
+block readiness. `Observation.delivery_readiness` describes the captured
+checks. The production report shows `ready` once it binds the same
+observations to the accepted final review. A detected change to that binding
+blocks readiness and retains the captured check results.
 
 Production closure is enabled: `PRODUCTION_CLOSURE_AVAILABLE = True`, following
 the operator release decision of 2026-11-15. Closing acceptance must have a

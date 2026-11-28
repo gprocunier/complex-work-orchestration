@@ -28,6 +28,7 @@ SCHEMA_POLICIES = ('qualification-target', 'contracting-controls',
  'model-identity-scope',
  'outbound-screening',
  'peer-review-policy',
+ 'return-structure-rules',
  'return-tripwires',
  'provider-registry',
  'routing-policy',
@@ -258,6 +259,26 @@ class FormerlyUnvalidatedPoliciesAtConsumersTests(unittest.TestCase):
         self.assert_refused_at("return-tripwires", lambda d: d["rules"][0].update(pattern=7), self.scan(), "pattern")
         self.assert_refused_at("return-tripwires", lambda d: d["rules"][0].update(directve=True), self.scan(), "directve")
         self.assert_refused_at("return-tripwires", lambda d: d.update(rules=[]), self.scan(), "rules")
+
+    def test_return_structural_rules_require_complete_typed_patterns_and_selectors(self) -> None:
+        self.assert_refused_at("return-structure-rules", lambda d: d["patterns"].pop("gate_status"),
+                               self.scan(), "gate_status", "missing required field")
+        self.assert_refused_at("return-structure-rules", lambda d: d["patterns"].update(gate_status=7),
+                               self.scan(), "gate_status", "expected string")
+        self.assert_refused_at("return-structure-rules", lambda d: d["selectors"].update(action_fields=[]),
+                               self.scan(), "action_fields")
+        self.assert_refused_at("return-structure-rules", lambda d: d["gate_controls"].update(skip_review="true"),
+                               self.scan(), "skip_review", "expected boolean")
+
+    def test_return_structural_rules_are_bound_to_both_evaluation_policy_snapshots(self) -> None:
+        from cwo_core.adjudication_binding import _policies
+        from cwo_core.host_acceptance import _policy_sha256
+
+        original = (_policy_sha256(), _policies())
+        with malformed_policy("return-structure-rules", lambda d: d["patterns"].update(gate_status="^example$")):
+            self.assertNotEqual(original[0], _policy_sha256())
+            self.assertNotEqual(original[1], _policies())
+        self.assertEqual(original, (_policy_sha256(), _policies()))
 
     def test_outbound_screen_rules_are_typed_and_non_empty(self) -> None:
         # int("20") accepted a string tail; an empty header list compiled to an empty alternation.

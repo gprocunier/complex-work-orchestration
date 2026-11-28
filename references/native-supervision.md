@@ -154,14 +154,16 @@ routes can dispatch.
 For a fresh internal Codex dispatch preparation after an embedding host
 records a rejection through `record_received_evaluation`, give
 `dispatch_work.py --retry-dispatch` the original dispatch ID and its `--bead`,
-submit the same task and use a new dispatch ID. CWO checks the original request
+submit the same task and use a new dispatch ID and current `--workload` for
+an internal critic request. CWO checks the original request
 digest, recorded effort, host-captured return receipt and evaluation. The
 evaluation must reject the delivery on its merits and clear screening and
 review holds. Preparation prints the Codex effort argument and records the
 choice. The next attempt still needs its usual approval. Standing delegation uses the selected effort in the
 signed worker configuration and records it with the worker dispatch. A recorded
-Codex peer request supplies its effort argument to the embedding host and
-completion checks that effort against the original session.
+Codex peer request supplies its effort argument and workload allowance to
+the embedding host. Completion checks that effort against the original
+session. [Dispatch readiness](run-readiness.md#dispatch-readiness)
 
 
 ## Current host tool profiles

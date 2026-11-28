@@ -11,10 +11,10 @@ from cwo_core.util import read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 
 from routing_cli_options import (
+    DISCLOSURE_ESCALATION_HELP,
     add_beads_context_depth_argument,
     add_operative_route_arguments,
-    add_route_access_arguments,
-    add_route_selection_arguments,
+    add_task_routing_arguments,
     routing_options,
 )
 
@@ -151,17 +151,8 @@ def main() -> None:
     parser.add_argument("text", nargs="*", help="Task text to coach.")
     parser.add_argument("--file", help="Read task text from a file.")
     parser.add_argument("--external-ok", action="store_true", help="User has opted in to third-party contracting.")
-    parser.add_argument(
-        "--allow-disclosure-escalation",
-        action="store_true",
-        help="Explicitly approve repo-readonly or patch-branch disclosure routing.",
-    )
-    add_route_access_arguments(parser)
-    parser.add_argument("--requested-role", action="append", default=[], help="Explicit expert role requested by the user.")
-    parser.add_argument("--file-path", action="append", default=[], help="Relevant repository path for path-pattern scoring.")
-    parser.add_argument("--stage", help="Review stage such as pre-implementation, implementation-review, or pre-release.")
-    parser.add_argument("--unattended", action="store_true", help="Penalize manual dispatch executors.")
-    add_route_selection_arguments(parser)
+    parser.add_argument("--allow-disclosure-escalation", action="store_true", help=DISCLOSURE_ESCALATION_HELP)
+    add_task_routing_arguments(parser)
     parser.add_argument(
         "--scaffold-size",
         choices=["full", "tight"],

@@ -34,8 +34,11 @@ The maintained offline witnesses cover these boundaries:
 | Finite advisory HTTP composition | The original HTTP consumer receives the admitted prompt, wrappers, source and attachment text, model, effort, options and output limit. Its effective timeout cannot exceed remaining runtime or admission lifetime; a final configuration-check delay cannot send an expired request: [registered review consumer](../tests/test_qualified_review_dispatch.py). Tests replace DNS and HTTP effects. |
 | Durable invocation accounting | Intent and observer registration precede synchronous callbacks and effects. One-use claims, aggregate exhaustion, crashes, unknown usage and cancellation preserve conservative charges: [ledger](../tests/test_invocation_ledger.py), [HTTP reservation](../tests/test_local_invocation_reservation.py). |
 | Legacy CDP Send and sharing | Default and confirmation calls refuse before reading inputs. The redacted rehearsal remains available. Transport and consent witnesses are preserved with their implementation in [v1.37.0](https://github.com/gprocunier/complex-work-orchestration/tree/v1.37.0). |
-| Native/process launch | The registered single-worker route requires exact signed workflow and disclosure adoption, production authentication and provider-only egress. The contained pool has a separate approved cohort route. Raw native, generic pool plans and new surface qualification retain source holds. Campaign and live activation execution are retired. A precommit packet receipt supplies no launch authority or aggregate accounting. [Native route requirements](native-live-route-holds.md) |
+| Native/process launch | The registered single-worker route requires exact signed workflow and disclosure adoption, production authentication and provider-only egress. The contained pool has a separate approved cohort route. Raw native and generic pool plans retain source holds. Campaign execution, live activation, standalone calibration, tool-surface capture and maintenance observation are retired. A precommit packet receipt supplies no launch authority or aggregate accounting. [Native route requirements](native-live-route-holds.md) |
 | Manual preparation/export | [Outbound screening](../tests/test_outbound_screen.py) checks the exact emitted text. Export proves preparation/disclosure only; a packet or preparation receipt grants no remote invocation, billing or cancellation allowance. |
+
+Local HTTP request bodies use the same [outbound checks for sensitive content](external-contracting.md#trust-model-and-enforcement-boundary)
+as manual exports. A finding stops the request before transport.
 
 For a one-use local invocation, racing consumers cannot both enter its registered
 effect. Browser probes may repeat only after a definite waiting observation that
@@ -264,6 +267,12 @@ python3 scripts/route_work.py \
 `scripts/dispatch_work.py` prepares a `local_envelope` by default. It does not
 call the endpoint unless `--execute-local` is set.
 
+For a managed review, pass the assigned `--bead` and put the approved review
+material in the task text or `--file`. Retain the assignment's
+`Expert profile: experts/<profile>.md` line and one
+`Review input [input name]: concrete evidence` line for each declared input.
+An incomplete assignment is refused before preparing or sending the request.
+
 ```bash
 export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
 export CWO_OPENSHIFT_AI_VLLM_MODEL="vllm-local"
@@ -339,6 +348,46 @@ python3 scripts/render_access_profile_status.py --profile rhoai-glm-bf16-256k --
 For GLM-5.2 BF16 reviews, use the architecture role and the executor
 selected by its profile in the original workload. The hardened 256K lane uses
 `--local-profile openshift-ai-glm-256k` once its access profile is available.
+
+### Screen a received return
+
+You can ask the configured OpenShift AI vLLM worker to look for additional
+[return-screening findings](external-contracting.md#return-screening). Use an
+admitted local workload whose selected node contains the exact received UTF-8
+return as its prompt, up to 8,192 bytes. Leave the node's wrappers, attachments
+and sources empty.
+Use a new classifier dispatch ID and the existing vLLM endpoint, model and
+request options. Set the selected node to executor `openshift_ai_vllm_worker`,
+provider `openshift_ai_vllm`, the configured model, and `default` effort. The
+source return must already have a host receipt.
+
+```bash
+screen_args=(
+  --screen-return "$SOURCE_DISPATCH_ID" --local-workload "$WORKLOAD_FILE"
+  --local-ok --local-profile openshift-ai-vllm --share-boundary no-outside-sharing
+  --local-max-tokens "$VLLM_MAX_TOKENS"
+)
+
+python3 scripts/dispatch_work.py "${screen_args[@]}" --prepare-local-admission &&
+  python3 scripts/dispatch_work.py "${screen_args[@]}" --execute-local --json
+```
+
+The request contains a redacted copy of the return and passes the ordinary
+outbound checks. Restricted returns are refused before redaction and
+admission. Private-network HTTPS requires certificate verification. Keep the
+same endpoint, model, timeout and request options for preparation and execution.
+A valid result records only finding codes and the source and request bindings.
+Re-evaluate the original return to see the combined holds. Empty, invalid or
+unavailable model results leave all existing holds in effect.
+
+For an already captured local return, inspect the current holds with its exact
+return file and source dispatch ID.
+
+```bash
+python3 scripts/evaluate_return.py --file "$RETURN_FILE" \
+  --dispatch-id "$SOURCE_DISPATCH_ID" --advisory --no-audit \
+  --waiver-reason "inspect existing local return" --json
+```
 
 ### GLM-5.2 BF16 thinking modes
 

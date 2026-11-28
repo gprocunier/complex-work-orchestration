@@ -525,6 +525,16 @@ python3 scripts/scaffold_workgraph.py \
 The convergence ledger and replay are append-only. Historical unknowns remain
 null; replay must not rewrite old receipts to fit a newer schema.
 
+New ledger records can include `delivery_accounting` with a `classification` of
+`initial-delivery`, `correction`, `mixed`, or `unknown`. Use the same
+`original_ref` for a requirement or delivery across its first acceptance
+decision and later corrections. For correction or mixed work, record the
+`discovery_source` and reuse one `corrective_pass_id` in each record of that
+pass. Record `first_acceptance_outcome` only for an observed first attempt.
+The report calculates a first-pass rate when every known delivery has a
+consistent first outcome. Tool counts, tokens, and elapsed time remain usage
+measurements.
+
 ```bash
 python3 scripts/replay_epic_convergence.py \
   --input "<ledger-or-summary-a.json>" \

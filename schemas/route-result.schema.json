@@ -66,8 +66,10 @@
         "features": {"type": "array", "items": {"type": "object", "required": ["feature", "terms", "resolved"], "properties": {"feature": {"type": "string"}, "terms": {"type": "array", "items": {"type": "string"}}, "resolved": {"type": ["string", "null"], "description": "Always null in this version: risk narrowing is not supported. A string appears only in older records."}}}},
         "floor": {"type": ["string", "null"]},
         "floor_reasons": {"type": "array", "items": {"type": "string"}},
+        "prefix_floor": {"enum": ["medium", "high", "critical"], "description": "Additional risk from character-prefix evidence, reported when it exceeds the whole-token feature floor."},
+        "prefix_floor_reasons": {"type": "array", "items": {"type": "string"}},
         "required_experts": {"type": "array", "items": {"type": "string"}},
-        "expert_risk": {"type": "string"},
+        "expert_risk": {"type": "string", "description": "Risk from expert trigger, scope, review gate and risk-feature evidence before expert selection filters."},
         "risk_level": {"type": "string"},
         "assessed_segments": {"type": "integer", "minimum": 1, "description": "The joined text plus each original or appended segment the caller passed."},
         "assessed_prefixes": {"type": "integer", "minimum": 0, "description": "How many cumulative prefixes of the segments (segments 0..i, concatenated directly) were also assessed; 0 when no segments were passed."},
@@ -179,6 +181,8 @@
       "items": {
         "type": "object",
         "properties": {
+          "persona_file": {"type": ["string", "null"]},
+          "required_inputs": {"type": "array", "items": {"type": "string", "minLength": 1}},
           "recommended_executor": {"type": "string"},
           "selected_executor": {"type": "object"},
           "executor_policy_violations": {"type": "array", "items": {"type": "string"}},

@@ -123,7 +123,7 @@ def require_named_deny_policy(worktree: Path, content: bytes):
             'The named login deny policy or its worker scope differs.')
 
 
-def _writer_registration(*, patch_mode):
+def _writer_registration(*, patch_mode: bool):
     tool = {'type': 'function', 'name': WRITER_TOOL,
             'description': 'The controller writes the signed fixture already selected for this worker. '
                            'The worker shell and checkout stay read-only.',
@@ -140,7 +140,7 @@ def _writer_registration(*, patch_mode):
     return [{'type': 'namespace', 'name': FINITE_TOOL_NAMESPACE, 'description': description, 'tools': [tool]}]
 
 
-def thread_start_selectors(worktree, *, patch_mode=False):
+def thread_start_selectors(worktree, *, patch_mode: bool = False):
     require(type(patch_mode) is bool, 'The original writer mode is required.')
     return {'cwd': str(worktree), 'runtimeWorkspaceRoots': [str(worktree)], 'permissions': PROFILE,
             'approvalPolicy': APPROVAL_POLICY, 'approvalsReviewer': 'user', 'ephemeral': False,

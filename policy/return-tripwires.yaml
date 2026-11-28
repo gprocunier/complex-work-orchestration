@@ -1,6 +1,12 @@
 {
   "version": 1,
-  "description": "Contextual tripwires for contractor and worker returns, read by cwo_core.return_tripwires. A hit holds the return for adjudication; it is a heuristic signal, not injection detection or factual verification, and a return with no hit gains no authority. Patterns match one clause at a time in a normalized, lower-cased copy of the whole return, code fences and quotations included.",
+  "description": "Contextual tripwires and structural findings for contractor and worker returns, read by cwo_core.return_tripwires. A finding holds the return for adjudication. Findings flag risk for review rather than verify claims or grant authority. Context includes the surrounding report fields, addressed actions, and typed JSON controls.",
+  "structural_findings": {
+    "structural_directive": "addresses the lead or a tool with a decision or execution instruction",
+    "structural_scope_change": "directs a change to the assigned objective, deliverable, or boundary",
+    "structural_gate_bypass": "asks to omit or waive review or validation",
+    "structural_unsupported_claim": "asserts validation or release readiness without corresponding support"
+  },
   "confusables": {
     "а": "a",
     "е": "e",

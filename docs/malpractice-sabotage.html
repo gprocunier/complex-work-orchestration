@@ -261,14 +261,14 @@
               model's intent, and the architect remains the decision owner.
             </p>
             <p>
-              Return-language calibration runs the strict synthetic corpus in
-              <code>calibration/skl-return-language-corpus-v1.json</code> against
-              the contract in <code>calibration/skl-return-language-contract-v1.json</code>.
-              It executes both analyzer and pipeline scoring paths, records
-              per-layer confusion matrices, and fails closed when metrics, hash,
-              fields, coverage, or category constraints are not met. New
-              expected-return languages are still unsupported and remain fail
-              closed.
+              The installed calibration report at
+              <code>calibration/skl-return-language-calibration-report-latest.json</code>
+              records analyzer and pipeline scores for the synthetic corpus.
+              The corpus, contract, and tuning record are also available in
+              <code>calibration/</code>. To reproduce the report, run
+              <code>scripts/calibrate_return_language.py</code> from the v1.48.0
+              checkout with its matching inputs. The current return evaluator
+              refuses unsupported expected languages.
             </p>
           </section>
 

@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import fnmatch
 import re
+from collections.abc import Sequence
+from functools import lru_cache
 from pathlib import Path
 from typing import Any
 
@@ -15,8 +17,15 @@ from .errors import CWOPolicyError, CWOValidationError
 from .harness import binding_model
 from .native_containment import native_operative_containment
 from .operative_routing import NONOPERATIVE_ROLE, nonoperative_model_refusal, resolve_operative_route
-from .risk_features import (RiskAssessment, assess_risk_features, refuse_risk_narrowing,
-    registered_assessment, finish_registered_assessment)
+from .risk_features import (
+    RiskAssessment,
+    assess_prefix_risk,
+    assess_risk_features,
+    assessed_texts,
+    finish_registered_assessment,
+    refuse_risk_narrowing,
+    registered_assessment,
+)
 from .policy import (
     CLAUDE_CRITIC_EXECUTOR,
     GEMINI_CRITIC_EXECUTOR,
@@ -450,6 +459,7 @@ def expert_result_from_profile(
         "display_name": profile.get("display_name", name),
         "discipline": profile.get("discipline", name),
         "persona_file": profile.get("persona_file"),
+        "required_inputs": profile.get("required_inputs", []),
         "job_description_label": profile.get("job_description_label", "contract-jd-general-reasoning"),
         "task_class": profile.get("task_class", "domain-review"),
         "review_stage": profile.get("review_stage", "pre-implementation"),
@@ -538,6 +548,19 @@ def is_public_docs_page_path(path: str) -> bool:
 DOC_SAFE_EXPERTS_FOR_TRIVIAL_CHANGE = {"documentation", "general_reasoning"}
 DOC_FILE_SUFFIXES = {".adoc", ".md", ".mdx", ".rst", ".txt"}
 DOC_PATH_PREFIXES = ("docs/", "references/", "templates/", "examples/")
+TRIVIAL_DOC_EDIT_TERMS = (
+    "typo",
+    "spelling",
+    "grammar",
+    "punctuation",
+    "copy edit",
+    "copy-edit",
+    "wording",
+    "single-file",
+    "single file",
+    "one-file",
+    "one file",
+)
 
 
 def is_documentation_file_path(path: str) -> bool:
@@ -566,19 +589,6 @@ def public_docs_page_review_required(text: str, file_paths: list[str] | None = N
 
 def trivial_single_file_docs_change(text: str, file_paths: list[str] | None = None) -> bool:
     lowered = text.lower()
-    trivial_terms = [
-        "typo",
-        "spelling",
-        "grammar",
-        "punctuation",
-        "copy edit",
-        "copy-edit",
-        "wording",
-        "single-file",
-        "single file",
-        "one-file",
-        "one file",
-    ]
     public_or_publish_terms = [
         "publish",
         "release",
@@ -617,7 +627,7 @@ def trivial_single_file_docs_change(text: str, file_paths: list[str] | None = No
         "documentation",
         "markdown",
     ]
-    if not any(term in lowered for term in trivial_terms):
+    if not any(term in lowered for term in TRIVIAL_DOC_EDIT_TERMS):
         return False
     if any(term in lowered for term in public_or_publish_terms):
         return False
@@ -653,6 +663,115 @@ def trivial_docs_only_change(
         if expert_has_non_path_reason(expert):
             return False
     return True
+
+
+def _expert_risk_text(text: str) -> str:
+    # Lowercase each code point independently so later letters cannot change
+    # the casing of a prefix. Treat both forms of Greek lowercase sigma alike.
+    return text.lower() if text.isascii() else "".join(map(str.lower, text)).replace("ς", "σ")
+
+
+@lru_cache(maxsize=256)
+def _expert_risk_pattern(terms: tuple[str, ...]) -> re.Pattern[str]:
+    needles = [_expert_risk_text(term) for term in terms if term]
+    return re.compile("|".join(
+        (r"(?<![a-z0-9])" if needle[0].isalnum() else "") + re.escape(needle) for needle in needles
+    ) or r"(?!)")
+
+
+def _text_expert_risks(texts: Sequence[str], profiles: dict[str, Any]) -> list[str]:
+    risks = []
+    for name, profile in profiles.items():
+        # Copy editing alone is routine. Explicit editorial review and
+        # publication signals can still raise risk.
+        terms = tuple(term for term in profile.get("trigger_terms", [])
+                      if (name, term) != (EDITOR_GATE_EXPERT, "copy edit"))
+        pattern = _expert_risk_pattern(terms)
+        if any(pattern.search(text) for text in texts):
+            risks.append(profile.get("default_risk", "medium"))
+    return risks
+
+
+def _scope_expert_risks(
+    expert_registry: dict[str, Any],
+    requested_roles: list[str] | None,
+    file_paths: list[str] | None,
+    stage: str | None,
+    *,
+    substantive_docs_scope: bool,
+) -> list[str]:
+    paths = [path for path in (file_paths or []) if path.strip()]
+    # A single document path can match broad path patterns across the registry.
+    # Add those matches after a positive review signal, while keeping the
+    # fixed role and stage contributions even with negative score weights.
+    path_scopes = [paths]
+    if len(paths) == 1 and is_documentation_file_path(paths[0]):
+        path_scopes = [[], paths] if substantive_docs_scope else [[]]
+    return [
+        expert["default_risk"]
+        for scope in path_scopes if requested_roles or scope or stage
+        for expert in score_experts_v2(
+            "", expert_registry, requested_roles=requested_roles, file_paths=scope, stage=stage,
+        )
+    ]
+
+
+def _substantive_readme_mention(text: str) -> bool:
+    before, mention, _ = text.partition("readme")
+    if not mention:
+        return False
+    # Routine markers to the left are fixed when a mention first appears.
+    # A later claim that the work is a typo cannot remove review risk.
+    return not (term_hits(before, ["fix"]) or any(term in before for term in TRIVIAL_DOC_EDIT_TERMS))
+
+
+def _docs_gate_risks(texts: Sequence[str], paths: Sequence[str]) -> list[str]:
+    terms = {*PUBLIC_DOCS_EDITOR_TEXT_TERMS, "publish"} - {"readme"}
+    public_path = any(is_public_docs_path(path) and not is_documentation_file_path(path) for path in paths)
+    public_text = any(_substantive_readme_mention(text) or any(term in text for term in terms) for text in texts)
+    if not (public_path or public_text):
+        return []
+    page_path = any(is_public_docs_page_path(path) for path in paths)
+    page_text = any(term in text for text in texts for term in PUBLIC_DOCS_PAGE_TEXT_TERMS)
+    return [EDITOR_GATE_EXPERT, "web_design"] if page_path or page_text else [EDITOR_GATE_EXPERT]
+
+
+def _routed_risk(
+    text: str,
+    segments: list[str] | None,
+    expert_registry: dict[str, Any],
+    assessment: RiskAssessment,
+    *,
+    registered: bool,
+    requested_roles: list[str] | None,
+    file_paths: list[str] | None,
+    stage: str | None,
+) -> tuple[str, str, dict[str, Any]]:
+    # Every text view of an earlier call is a prefix of a current view or still
+    # appears verbatim. Retain positive evidence without replaying route ranking.
+    views = assessed_texts(text, segments)
+    texts = [_expert_risk_text(view) for view in views]
+    profiles = expert_registry.get("experts", {})
+    floor, reasons, required = (assessment.floor, assessment.floor_reasons, assessment.required_experts)
+    if not registered:
+        floor, reasons, required = assess_prefix_risk(views)
+    docs_experts = _docs_gate_risks(texts, file_paths or [])
+    text_risks = _text_expert_risks(texts, profiles)
+    substantive_docs_scope = bool(docs_experts) or (
+        not registered and rank_max([*text_risks, floor or "low"], RISK_ORDER, "low") != "low"
+    )
+    contributors = {*required, *docs_experts}
+    expert_risk = rank_max([
+        *text_risks,
+        *_scope_expert_risks(expert_registry, requested_roles, file_paths, stage,
+                            substantive_docs_scope=substantive_docs_scope),
+        *(profiles[name].get("default_risk", "medium") for name in contributors if name in profiles),
+    ], RISK_ORDER, "low")
+    risk = rank_max([expert_risk, floor or "low"], RISK_ORDER, "low")
+    details = {}
+    if rank_max([floor or "low", assessment.floor or "low"], RISK_ORDER, "low") != (assessment.floor or "low"):
+        details = {"prefix_floor": floor, "prefix_floor_reasons": reasons}
+    return expert_risk, risk, details
 
 
 def ensure_risk_feature_experts(
@@ -1051,6 +1170,35 @@ def select_executor_for_expert(
     }
 
 
+def _critic_route_record(
+    route: str,
+    recommended_executor: str | None,
+    requested_critic_keys: Sequence[str],
+    architecture_critic_contracts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "route_type": "cwo-critic-route",
+        "selected_executor": recommended_executor if route in {"external-contract", "local-worker", "architect-review"} else None,
+        "requested_executors": list(requested_critic_keys),
+        "contracts": architecture_critic_contracts,
+        "evidence_only": True,
+        "may_change_operative_route": False,
+    }
+
+
+def _peer_review_route_record(
+    peer_required: bool, peer_review_count: int, peer_policy: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "route_type": "cwo-peer-review-route",
+        "required": peer_required,
+        "minimum_reviews": peer_review_count,
+        "executor": peer_policy.get("defaults", {}).get("local_secure_review_executor") if peer_required else None,
+        "evidence_only": True,
+        "may_change_operative_route": False,
+    }
+
+
 def classify_work(
     text: str,
     *,
@@ -1088,7 +1236,8 @@ def classify_work(
     ``text_segments`` lists the original task text and each piece of free text appended to it, in order, when a
     caller joined them into ``text``; risk features are assessed on ``text``, on each segment and on every cumulative
     prefix of the segments, and the union is kept, so no append can remove a feature formed earlier in the history
-    or lower its floor. The finite host task-risk adapter uses an in-process registered use; public
+    or lower its floor. Character-prefix evidence also keeps the routed risk from dropping when text is appended
+    under unchanged scope. The finite host task-risk adapter uses an in-process registered use; public
     narrowing inputs remain refused. A ``risk_scope`` or
     ``risk_evidence_dir`` value is refused with ``CWOValidationError`` before anything is routed, and a
     ``file_paths`` or ``stage`` value never resolves a feature.
@@ -1176,10 +1325,10 @@ def classify_work(
     sensitivity_signal = resolve_data_sensitivity(text, routing, data_sensitivity=data_sensitivity)
     sensitivity = sensitivity_signal["data_sensitivity"]
     dispatch_sensitivity = dispatch_sensitivity_for_boundary(sensitivity, share_boundary)
-    expert_risk = rank_max([expert.get("default_risk", "medium") for expert in experts], RISK_ORDER, "low")
-    if small_docs_change:
-        expert_risk = "low"
-    risk = rank_max([expert_risk, risk_assessment.floor or "low"], RISK_ORDER, "low")
+    expert_risk, risk, prefix_risk = _routed_risk(
+        text, text_segments, expert_registry, risk_assessment, registered=risk_use is not None,
+        requested_roles=requested_roles, file_paths=file_paths, stage=stage,
+    )
     provider_conflict_domains = detect_provider_conflicts(text)
     enriched_experts: list[dict[str, Any]] = []
     for expert in experts:
@@ -1410,22 +1559,10 @@ def classify_work(
         evaluated_at=operative_evaluated_at,
         **authority_arguments,
     )
-    critic_route = {
-        "route_type": "cwo-critic-route",
-        "selected_executor": recommended_executor if route in {"external-contract", "local-worker", "architect-review"} else None,
-        "requested_executors": list(requested_critic_keys),
-        "contracts": architecture_critic_contracts,
-        "evidence_only": True,
-        "may_change_operative_route": False,
-    }
-    peer_review_route = {
-        "route_type": "cwo-peer-review-route",
-        "required": peer_required,
-        "minimum_reviews": peer_review_count,
-        "executor": peer_policy.get("defaults", {}).get("local_secure_review_executor") if peer_required else None,
-        "evidence_only": True,
-        "may_change_operative_route": False,
-    }
+    critic_route = _critic_route_record(
+        route, recommended_executor, requested_critic_keys, architecture_critic_contracts
+    )
+    peer_review_route = _peer_review_route_record(peer_required, peer_review_count, peer_policy)
 
     synthesis_result = recommend_model_synthesis(text, {}, force_accepted=model_synthesis)
     beads_depth = resolve_beads_context_depth(
@@ -1445,6 +1582,7 @@ def classify_work(
         "risk_level": risk,
         "risk_assessment": {
             **risk_assessment.as_record(),
+            **prefix_risk,
             "unmet_required_experts": unmet_risk_experts,
             "expert_risk": expert_risk,
             "risk_level": risk,
@@ -1617,6 +1755,8 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
     contract_codex_pickup = contract.get("codex_pickup")
     metadata = {
         "expert": expert.get("name"),
+        "persona_file": expert.get("persona_file"),
+        "required_inputs": expert.get("required_inputs", []),
         "discipline": expert.get("discipline"),
         "job_description_label": expert.get("job_description_label"),
         "review_stage": expert.get("review_stage"),

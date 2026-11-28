@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from base64 import b64encode
+from collections.abc import Callable, Iterator
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
@@ -16,16 +17,20 @@ import secrets
 import stat
 from threading import Lock, RLock, get_ident
 from time import monotonic, monotonic_ns
-from types import MappingProxyType, MethodType, SimpleNamespace
+from types import MappingProxyType, MethodType, SimpleNamespace, TracebackType
+from typing import TYPE_CHECKING
 
 from cwo_core import native_live_availability as availability
 from cwo_core.host_records import _directory, configured_store
 from cwo_core.maintenance_authority import _state_descriptor
 from cwo_core.worker_patch import MAX_WORKER_PATCH_BYTES, WorkerPatchError, apply_worker_patch
-from cwo_core.workspace_capture import BudgetExhausted, _pin_directory, read_at
+from cwo_core.workspace_capture import BudgetExhausted, pin_private_directory, read_at
 import registered_n1_factory as n1
 import registered_n1_qualification as qualification
 import registered_pool_configuration as config
+
+if TYPE_CHECKING:
+    from registered_pool_qualification import _PoolWriterAuthorization
 
 native = n1.native
 require = config.require
@@ -226,13 +231,13 @@ def pool_patch_path(path: object) -> bool:
             and _PATCH_PATH.fullmatch(path) is not None)
 
 
-def _patch_mark(info):
+def _patch_mark(info: os.stat_result) -> tuple[int, ...]:
     return tuple(getattr(info, name) for name in _PATCH_STAT_FIELDS)
 
 
 @contextmanager
-def _patch_parent(worktree, path, *, worktree_identity=None):
-    pinned = _pin_directory(str(worktree))
+def _patch_parent(worktree: Path, path: str, *, worktree_identity: tuple[int, ...] | None = None) -> Iterator[tuple[int, str]]:
+    pinned = pin_private_directory(str(worktree))
     require(pinned is not None, 'The checked patch worktree could not be pinned.')
     directory, _ = pinned
     parts = path.split('/')
@@ -254,7 +259,7 @@ def _patch_parent(worktree, path, *, worktree_identity=None):
         os.close(directory)
 
 
-def _read_patch_target(worktree, path, *, deadline=None):
+def _read_patch_target(worktree: Path, path: str, *, deadline: float | None = None) -> tuple[bytes, os.stat_result]:
     require(pool_patch_path(path), 'The checked patch requires one ordinary relative worktree file.')
     try:
         with _patch_parent(worktree, path) as (directory, name):
@@ -278,14 +283,14 @@ def read_pool_patch_file(worktree: Path, path: str) -> bytes:
     return data
 
 
-def _stat_patch_staging(directory, name):
+def _stat_patch_staging(directory: int, name: str) -> os.stat_result | None:
     try:
         return os.stat(name, dir_fd=directory, follow_symlinks=False)
     except FileNotFoundError:
         return None
 
 
-def _remove_patch_staging(directory, name, descriptor):
+def _remove_patch_staging(directory: int, name: str, descriptor: int) -> None:
     observed = _stat_patch_staging(directory, name)
     if observed is not None:
         require(os.path.samestat(observed, os.fstat(descriptor)) and observed.st_nlink == 1,
@@ -580,7 +585,7 @@ class PoolWorkerContainment:
     def __init__(self, *, worker_id, worktree, spool, login_slot, executable, executable_sha256,
                  launcher, launcher_sha256, validator, validator_sha256, protected_roots,
                  write_path, expected_utf8, require_effect, peer_worktrees=(), model_catalog=None,
-                 patch_preimage_sha256=None):
+                 patch_preimage_sha256: str | None = None):
         require(type(worker_id) is str and _ID.fullmatch(worker_id) is not None,
                 'The original protected worker and effect check are required.')
         login_home = _require_original_worker(require_effect, worker_id, worktree, spool, login_slot)
@@ -619,7 +624,7 @@ class PoolWorkerContainment:
         self._receipt_identity = None
         self._configured = False
 
-    def _select_output(self, expected_utf8):
+    def _select_output(self, expected_utf8: str | None) -> bytes | None:
         if self._patch_preimage_sha256 is None:
             return _writer_bytes(self._output_path, expected_utf8)
         require(expected_utf8 is None
@@ -823,7 +828,7 @@ class PoolWorkerContainment:
                 self._close_preserving(error)
                 raise
 
-    def _prepare_patch(self, authorize, deadline):
+    def _prepare_patch(self, authorize: _PoolWriterAuthorization, deadline: float) -> _PreparedPatch:
         self._remaining(deadline)
         pending = authorize.pending
         arguments = pending.params['arguments']
@@ -842,7 +847,7 @@ class PoolWorkerContainment:
         return _PreparedPatch(content, preimage_sha256, request_sha256, sha256(diff.encode('utf-8')).hexdigest(),
                               _patch_mark(info), stat.S_IMODE(info.st_mode))
 
-    def _writer_command(self, patch, stage_name):
+    def _writer_command(self, patch: _PreparedPatch | None, stage_name: str | None) -> tuple[list[str], str]:
         command = [self.spec['validator'], '-I', '-S', '-c']
         if patch is None:
             command += [_WRITER, self._output_path, b64encode(self._output).decode('ascii')]
@@ -852,7 +857,7 @@ class PoolWorkerContainment:
         # Only the host supplies these checked bytes after the one-byte gate.
         return command, b64encode(patch.content).decode('ascii')
 
-    def _run_writer(self, deadline, patch=None):
+    def _run_writer(self, deadline, patch: _PreparedPatch | None = None):
         stage_name = None if patch is None else '.cwo-patch-' + secrets.token_hex(16)
         command, stdin = self._writer_command(patch, stage_name)
         self._writer = _PoolLifetime(self, 'tool', command)
@@ -865,13 +870,14 @@ class PoolWorkerContainment:
         self.record('writer-output', self._verify_writer_output(patch, deadline))
         return stdout.encode()
 
-    def _communicate_writer(self, process, stdin, deadline):
+    def _communicate_writer(self, process: n1._PipeChild, stdin: str, deadline: float) -> str:
         stdout, stderr = process.communicate(stdin, self._remaining(deadline))
         require(process.poll() == 0 and stdout == _WRITTEN and stderr == '',
                 'The fixed writer did not report successful completion.')
         return stdout
 
-    def _run_staged_patch(self, process, stdin, name, target_mark, deadline):
+    def _run_staged_patch(self, process: n1._PipeChild, stdin: str, name: str,
+                          target_mark: tuple[int, ...], deadline: float) -> str:
         # The authorized child waits for input while the parent acquires the
         # worktree guard. Each scan still captures the complete admitted tree.
         self.require_effect()
@@ -892,27 +898,23 @@ class PoolWorkerContainment:
                 finally:
                     os.close(descriptor)
 
-    def _communicate_staged_patch(self, process, stdin, deadline, directory, name, descriptor, capture):
-        primary = None
-        try:
+    def _communicate_staged_patch(self, process: n1._PipeChild, stdin: str, deadline: float,
+                                  directory: int, name: str, descriptor: int, capture: ExitStack) -> str:
+        def retire(_kind: type[BaseException] | None, primary: BaseException | None,
+                   _traceback: TracebackType | None) -> None:
+            self._close_preserving(primary, lambda: self._retire_patch_staging(directory, name, descriptor),
+                                   'Contained patch staging cleanup')
+
+        with ExitStack() as staging:
+            staging.push(retire)
             info = os.fstat(descriptor)
             stdout = self._communicate_writer(process, f'{info.st_dev} {info.st_ino}\n' + stdin, deadline)
             # Compare can resume during retirement once replacement removed the staging name.
             require(_stat_patch_staging(directory, name) is None, 'The checked patch writer left its staging entry.')
             capture.close()
             return stdout
-        except BaseException as error:
-            primary = error
-            raise
-        finally:
-            try:
-                self._retire_patch_staging(directory, name, descriptor)
-            except BaseException as error:
-                if primary is None:
-                    raise
-                primary.add_note('Contained patch staging cleanup: ' + type(error).__name__)
 
-    def _retire_patch_staging(self, directory, name, descriptor):
+    def _retire_patch_staging(self, directory: int, name: str, descriptor: int) -> None:
         try:
             self._settle(self._writer)
         finally:
@@ -921,7 +923,7 @@ class PoolWorkerContainment:
                 self._patch_staging_retired = True
         require(self._patch_staging_retired, 'The original patch writer retirement is unresolved.')
 
-    def _verify_writer_output(self, patch, deadline):
+    def _verify_writer_output(self, patch: _PreparedPatch | None, deadline: float) -> dict[str, str]:
         target = self.host.worker
         path = self._output_path
         observation = {'call_id': self._call.call_id, 'path': path}
@@ -972,11 +974,16 @@ class PoolWorkerContainment:
             self._managed_lease = None
             self.record('login-released', {'slot': self._slot})
 
-    def _close_preserving(self, primary):
+    def _close_preserving(self, primary: BaseException | None, cleanup: Callable[[], object] | None = None,
+                          label: str = 'Contained worker cleanup') -> None:
+        cleanup = self.close if cleanup is None else cleanup
+        if primary is None:
+            cleanup()
+            return
         try:
-            self.close()
+            cleanup()
         except BaseException as error:
-            primary.add_note('Contained worker cleanup: ' + type(error).__name__)
+            primary.add_note(label + ': ' + type(error).__name__)
 
     def close(self):
         """Settle every original lifetime before reporting or releasing login custody."""

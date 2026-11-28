@@ -88,7 +88,7 @@ def _proposal(args):
     return epic, selection, assignments
 
 
-def _assignment_output(proposal, task):
+def _assignment_output(proposal: dict[str, object], task: str) -> dict[str, str | None]:
     if "output_mode" in proposal:
         pool.require(proposal["output_mode"] == pool.PATCH_OUTPUT_MODE and "output_text" not in proposal,
                      "Unified-diff assignments require output_mode and omit output_text.")
@@ -177,7 +177,7 @@ def _bundled_catalog(host):
         return None
 
 
-def _bind_output(worktree, row):
+def _bind_output(worktree: Path, row: dict[str, str | None]) -> dict[str, str | None]:
     path = row["write_path"]
     if row.get("output_mode") == pool.PATCH_OUTPUT_MODE:
         before = read_pool_patch_file(worktree, path)
@@ -186,7 +186,7 @@ def _bind_output(worktree, row):
     return row
 
 
-def _worker_prompt(row, marker):
+def _worker_prompt(row: dict[str, str | None], marker: str) -> str:
     if row.get("output_mode") == pool.PATCH_OUTPUT_MODE:
         return (f"Approved task: {row['task']}\n"
                 f"Inspect {row['write_path']} in your read-only assigned checkout. "

@@ -11,13 +11,21 @@ connection inside the app.
 1. [Build an approved browser reviewer packet](external-contracting.md#dispatch-flow)
    within the assignment's sharing boundary. From the CWO directory, use the
    same host audit store to prepare and inspect the screened request. Set
-   `packet` to the original packet path. Create a private run directory that
-   the desktop thread can write to and keep that review's files there.
+   `packet` to the original packet path and `workload` to the original
+   sizing plan and node. Use the [manual rehearsal prompt](external-contracting.md#dispatch-flow)
+   with trailing whitespace removed. Set the planned model to `Pro`.
+   Include 50 UTF-8 bytes for the generated request ID line by reserving
+   at least `50 * tokens_per_utf8_byte_upper` in
+   `additional_input_tokens_upper`.
+   Create a private run directory that the desktop thread can
+   write to and keep that review's files there.
+   [Dispatch readiness](run-readiness.md#dispatch-readiness)
 
    ```bash
    umask 077
    run_dir=$(mktemp -d)
-   python3 scripts/cwo.py prepare-browser --packet "$packet" > "$run_dir/request.txt"
+   python3 scripts/cwo.py prepare-browser --packet "$packet" \
+     --workload "$workload" > "$run_dir/request.txt"
    ```
 
 2. Use `@Chrome` to open a fresh ChatGPT chat in the paired Chrome profile.
@@ -40,6 +48,9 @@ The evaluator reports the score and review status. The reply text stays in the
 private artifact. For a candidate-bound packet, supply `--candidate` and
 `--candidate-root` at evaluation. Complete any required peer review and
 adjudication before using the findings. Share URL and HTML intake is retired.
+Existing prepared requests can still be used to evaluate their replies. To
+prepare a new request for a dispatch recorded before sizing was required,
+build a packet with a fresh dispatch ID.
 
 If an assignment requires this reviewer and the route or required evidence is
 unavailable, record the missing prerequisite and obtain the operator's decision

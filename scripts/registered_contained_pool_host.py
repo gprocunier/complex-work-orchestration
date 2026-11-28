@@ -229,7 +229,7 @@ def _worktree_identity(child):
     return canonical_authority_sha256(capture_workspace_snapshot(child.worktree, allowed_paths=[child.write_path])["identity"])
 
 
-def require_patch_preimage(child):
+def require_patch_preimage(child: OrdinaryPoolChild) -> None:
     from registered_pool_containment import read_pool_patch_file
 
     current = read_pool_patch_file(child.worktree, child.write_path)

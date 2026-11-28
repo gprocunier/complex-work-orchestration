@@ -138,6 +138,126 @@ def setUpModule() -> None:
 
 
 class CorpusTests(unittest.TestCase):
+    def test_sprint_111_outbound_leak_counts(self) -> None:
+        secret = "password=synthetic-test-value"
+        key = "AKIA" + "SYNTHETICKEY0001"
+        probes = {
+            "pii:name": (
+                ("Contact {} about the handoff.", "Jane Doe"),
+                ('customer_name: "{}"', "Sofía Pérez-López"),
+                ("The report was signed by {}.", "Nikhil Rao"),
+                ("{} approved the runbook.", "Alice Morgan"),
+                ("'Full name': '{}'", "Casey J. O’Neil"),
+                ("Contact {} for the report.", "Casey Morgan"),
+            ),
+            "pii:street-address": (
+                ("Ship the package to {}.", "742 Evergreen Terrace"),
+                ("address: {}", "17B North Willow Lane"),
+                ("Send the letter to {}, Paris.", "12 rue des Lilas"),
+            ),
+            "pii:phone": (
+                ("Call {} for the synthetic contact.", "+44 7700 900123"),
+                ("Return calls on {}.", "+61255500123"),
+                ("Return calls on {}.", "+49 (30) 12345678"),
+                ("For international calls use {}.", "00 44 7700 900123"),
+                ("Call {}.", "(202)555-0143"),
+                ("Phone: {}", "2025550144"),
+            ),
+            "pii:payment-card": (
+                ("Plastic number {} in the synthetic report.", "4111 1111 1111 1111"),
+                ("The record uses {}.", "378282246310005"),
+                ("The record uses {}.", "5555-5555-5555-4444"),
+            ),
+            "hex": (
+                ("The note contains {} after import.", secret.encode().hex()),
+                ("The note contains {} after import.", "0x" + key.encode().hex().upper()),
+            ),
+            "base64": (
+                ("The note contains {} after import.", base64.b64encode(b"password=reef7").decode()),
+                ("The note contains {} after import.", base64.urlsafe_b64encode(b"pwd=x>").decode()),
+                ("The note contains {} after import.", base64.b64encode(key.encode()).decode().rstrip("=")),
+            ),
+        }
+        counts = {}
+        for category, examples in probes.items():
+            blocked = classified = 0
+            for template, value in examples:
+                probe = template.format(value)
+                for text in (probe, json.dumps({"note": probe})):
+                    screened = screen_outbound(text, surface="sprint 111 corpus")
+                    start, end = raw_occurrences(text, value)[0]
+                    blocked += not screened.allowed
+                    classified += any(
+                        finding.start <= start and end <= finding.end
+                        and (finding.rule == category or finding.view.endswith("+" + category))
+                        for finding in screened.findings
+                    )
+            counts[category] = {"blocked": blocked, "leaked": len(examples) * 2 - blocked, "classified": classified}
+        self.assertEqual(counts, {
+            "pii:name": {"blocked": 12, "leaked": 0, "classified": 12},
+            "pii:street-address": {"blocked": 6, "leaked": 0, "classified": 6},
+            "pii:phone": {"blocked": 12, "leaked": 0, "classified": 12},
+            "pii:payment-card": {"blocked": 6, "leaked": 0, "classified": 6},
+            "hex": {"blocked": 4, "leaked": 0, "classified": 4},
+            "base64": {"blocked": 6, "leaked": 0, "classified": 6},
+        })
+
+    def test_sprint_111_technical_controls_pass(self) -> None:
+        controls = (
+            "Use the Python Software Foundation repository. Alice and Bob exchange messages.",
+            '{"name":"Release Candidate","owner":"Release Engineering","contact_name":"[REDACTED]"}',
+            "Contact Release Engineering. Deploy Maria DB. The model name is Claude Sonnet.",
+            "Bind address: 192.0.2.1 and address: https://docs.example.invalid:443/",
+            "Version 2.3.4, epoch 1700000000000, checksum 4111111111111112",
+            "Unit price +44.77 and public issue #900123",
+            "artifact sha256 3f79bb7b435b05321651daefd374cdc681dc06faa65e374e38337b88ca046dea",
+            "fixed in commit 9fceb02d0ae598e95dc970b74767f19372d61af8",
+            "hex 68656c6c6f20776f726c64; base64 aGVsbG8gd29ybGQ=",
+            "hex 70617373776f72643d6578616d706c65; base64 cGFzc3dvcmQ9ZXhhbXBsZQ==",
+        )
+        for control in controls:
+            with self.subTest(control=control):
+                self.assertTrue(require_clean(control, surface="sprint 111 controls").allowed)
+
+    def test_standalone_secret_decode_reuses_reading_and_maps_each_occurrence(self) -> None:
+        secret = "password=synthetic-test-value"
+        token = base64.b64encode(secret.encode()).decode()
+        text = json.dumps({"note": f"café {token} and {token}"}, ensure_ascii=False)
+        with patch.object(outbound_screen, "_standalone_readings", wraps=outbound_screen._standalone_readings) as decode:
+            findings = screen_outbound(text, surface="standalone", content_type="application/json").findings
+        calls = [call for call in decode.call_args_list if call.args == (token,)]
+        self.assertEqual(len(calls), 1)
+        located = {(finding.start, finding.end) for finding in findings if finding.view.endswith("+base64")}
+        self.assertEqual(located, set(raw_occurrences(text, token)))
+        with self.assertRaises(OutboundRefused) as refused:
+            require_clean(text, surface="standalone", content_type="application/json")
+        self.assertNotIn(token, str(refused.exception))
+        self.assertNotIn(secret, str(refused.exception))
+
+    def test_standalone_decode_budget_refuses_before_decoding(self) -> None:
+        token = b"password=synthetic-test-value".hex()
+        with patch.multiple(outbound_screen._Screen, ENCODED_WORK_PER_CHARACTER=0, ENCODED_WORK_ALLOWANCE=0):
+            with patch.object(outbound_screen, "_standalone_readings") as decode:
+                screened = screen_outbound(token, surface="standalone budget")
+                decode.assert_not_called()
+        self.assertEqual({finding.rule for finding in screened.findings}, {"encoded-content"})
+
+    def test_database_urls_screen_userinfo_with_a_default_socket_or_empty_user(self) -> None:
+        value = "synthetic_pw"
+        for url in (
+            f"postgresql://fixture_user:{value}@/sample_database",
+            f"postgresql+psycopg://fixture_user:{value}@/sample_database",
+            f"redis://:{value}@redis.invalid:6379/0",
+        ):
+            with self.subTest(scheme=url.partition(":")[0]):
+                screened = screen_outbound(url, surface="database URL")
+                self.assertIn(("url-userinfo", value), {(finding.rule, url[finding.start:finding.end]) for finding in screened.findings})
+                with self.assertRaises(OutboundRefused) as refused:
+                    require_clean(url, surface="database URL")
+                self.assertNotIn(value, str(refused.exception))
+        for url in ("postgresql:///sample_database", "postgresql://local@/sample_database", "https://notes:label@/sample"):
+            self.assertTrue(require_clean(url, surface="database URL").allowed)
+
     def test_seed_and_review_corpus_sensitive_spans_and_controls(self) -> None:
         variants = (
             ('test_seed_corpus_sensitive_spans_are_found_and_controls_pass', 'seed-corpus.json'),
@@ -289,6 +409,8 @@ class ManualExportTests(unittest.TestCase):
             self.test_corpus_material_never_leaves_through_manual_export()
 
     def test_corpus_material_never_leaves_through_manual_export(self) -> None:
+        from tests.dispatch_workload_fixture import write_workload
+
         """Every sensitive seed case, plain and as JSON, either exports with none of its sensitive content
         or is refused by the screen for content of that case. Any other exit fails the test, and so does a
         refusal with a finding outside the case's own snippet."""
@@ -308,10 +430,12 @@ class ManualExportTests(unittest.TestCase):
                 with self.subTest(case=case["id"], json=bool(extra)), tempfile.TemporaryDirectory() as tmpdir:
                     path = Path(tmpdir) / "packet.json"
                     path.write_text(json.dumps(packet), encoding="utf-8")
+                    workload = write_workload(path.with_name("workload.json"), packet)
                     record: list[tuple[str, tuple]] = []
                     stdout = io.StringIO()
                     refusal = None
-                    with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", "--packet", str(path), *extra]), \
+                    with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", "--packet", str(path),
+                                                    "--workload", workload, *extra]), \
                             contextlib.redirect_stdout(stdout), with_provenance(packet), \
                             patch.object(generate_manual_dispatch_prompt, "require_clean", side_effect=recording_screen(record)):
                         try:
@@ -338,13 +462,15 @@ class ManualExportTests(unittest.TestCase):
 
     def test_export_prints_exactly_the_screened_bytes(self) -> None:
         from generate_manual_dispatch_prompt import render_packet_prompt
+        from tests.dispatch_workload_fixture import write_workload
 
         packet = packet_with("Review the retry plan for duplicate jobs.")
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "packet.json"
             path.write_text(json.dumps(packet), encoding="utf-8")
+            workload = write_workload(path.with_name("workload.json"), packet)
             with with_provenance(packet):
-                printed, raised = self.run_export(["--packet", str(path)])
+                printed, raised = self.run_export(["--packet", str(path), "--workload", workload])
         self.assertIsNone(raised)
         self.assertEqual(printed, render_packet_prompt(packet) + "\n")
 
@@ -1026,15 +1152,18 @@ class RoundFiveTests(_OutboundHelpers, unittest.TestCase):
     def test_clean_json_exports_pass_in_both_commands(self) -> None:
         import dispatch_work
         import generate_manual_dispatch_prompt
+        from tests.dispatch_workload_fixture import write_workload
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = self._clean_packet(tmpdir)
+            workload = write_workload(path.with_name("workload.json"), json.loads(path.read_text(encoding="utf-8")))
+            args = ["--packet", str(path), "--workload", workload, "--json"]
             stdout = io.StringIO()
-            with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", "--packet", str(path), "--json"]), \
+            with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", *args]), \
                     contextlib.redirect_stdout(stdout), with_provenance(json.loads(path.read_text(encoding="utf-8"))):
                 generate_manual_dispatch_prompt.main()
             self.assertIn("Secret or personal-data spill:\nScope compliance:", json.loads(stdout.getvalue())["prompt"])
-            argv = ["dispatch_work.py", "--packet", str(path), "--json"]
+            argv = ["dispatch_work.py", *args]
             stdout = io.StringIO()
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), \
                     with_provenance(json.loads(path.read_text(encoding="utf-8"))), \

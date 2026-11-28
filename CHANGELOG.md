@@ -3,13 +3,26 @@
 ## Unreleased
 
 - Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result.
+
+## 1.49.0 - 2026-11-28
+
+- Add optional local run records to `cwo continue` and a read-only `cwo analyze` report for saved plan artifacts.
+- Extend the code-health checks to cover function size and nesting, broad catches, private imports, and missing annotations in registered and offline modules. Split large validators and simplify offline reports.
+- Add an optional architecture-design profile that gives the architect Bead a design package covering caller experience, interfaces, alternatives, validation and rollback.
+- Carry required inputs into managed expert reviews, report delivery readiness from checked obligations, and count corrective work and first acceptance attempts in convergence reports.
+- Require workload-derived sizing before managed contractor and desktop browser exports and internal Codex critic and peer-review preparation. Supply the original route plan for the exact request when preparing a new dispatch.
+- Archive historical campaign digest helpers and canary steering receipt verification and writing. Use the [pinned source revisions](references/native-live-route-holds.md#historical-campaign-verification) to inspect old records.
+- Keep routed risk from dropping when text is appended to a task under the same scope. Retain earlier expert and feature evidence, and start tasks without positive risk evidence at low risk.
 - Require host-owned approval for managed contractor exports. Rebuild existing packets before exporting them under the new approval check. Protected synthesis uses original records held by the separate host principal.
 - Retire live activation preview and standalone native callback calibration.
   Keep preview key generation, preparation, approval and dry-run validation.
   Registered contained pools still calibrate their original callbacks and
   require an approval bound to the current callback implementation.
 - Bound the Daybreak Blue fallback: the retry carries the original reasoning effort capped at `xhigh`, always uses the standard service tier, and the configured `cyber_fallback` model must be a Sol-family model. Earlier releases passed `max` effort and the `priority` tier through and accepted any model family.
-- Lower the repository validation ceiling to 177,200 physical lines of tracked Python under `scripts/`.
+- Retire worker tool-surface capture and maintenance observation production. The entry points still refuse before effects. The maintenance checker verifies unexpired observations using the exact issuing control image and original session file. The original producers are archived in v1.48.0.
+- Lower the repository validation ceiling to 171,500 physical lines of tracked Python under `scripts/`.
+- Run the historical contract verifier from a source checkout at `tools/verify_affected_historical_contract.py`.
+- Run the full CI unit suite on Python 3.12 and 3.14, and require type checking and a measured coverage floor for selected modules.
 - Remove the retired exact-Spark campaign launcher's detailed flag parsing and archive its unused authorization-state executor. Launch attempts emit the sealed zero-allocation refusal on stderr and exit 1.
 - Give registered pool qualification tests private Git capture scratch space.
 - Wait for registered reply publication before observing terminal evidence in the positive transport schema test.
@@ -18,6 +31,9 @@
 - Check published site prose for stale availability claims against the claims register.
 - Consolidate duplicated routing, reporting, and validation code.
 - Align the preferred native model with the shipped Luna role, mirror the production sabotage thresholds in the acceptance and peer-review policies, and classify host Codex as `host-internal` access metadata. Update custom provider registries that still set `providers.internal_codex.trust_tier` to `trusted-internal` before upgrading.
+- Redact recognizable credentials and personal details from packet text, check for residual content independently, and expand outbound screening to addresses, international phone numbers, payment cards, and hex- or base64-encoded secrets.
+- Archive the standalone return-language calibration runner in v1.48.0. The installed contract, corpus, tuning and report remain available for review. [Archived runner](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/calibrate_return_language.py)
+- Hold contractor returns for instructions aimed at the lead or tools, directives to change scope or skip review or validation, and unsupported claims of completion. A configured local reviewer can add holds to the exact return it screened. Refresh earlier evaluations before reusing them in synthesis.
 
 ## 1.48.0 - 2026-11-26
 

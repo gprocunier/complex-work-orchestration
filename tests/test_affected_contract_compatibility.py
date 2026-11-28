@@ -13,8 +13,8 @@ import unittest
 from unittest.mock import call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-import verify_affected_historical_contract as checkpoint
+sys.path[:0] = [str(ROOT / "scripts"), str(ROOT)]
+from tools import verify_affected_historical_contract as checkpoint
 from tests.real_beads_fixture import configure_git_fixture
 
 
@@ -143,7 +143,7 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
         self.assertEqual(len(manifest["consumer_changes"]), 2)
         _assert_fixture_scope(self, observed)
         self.assertTrue(observed["current_dependency_bindings_verified"])
-        self.assertIn("scripts/verify_affected_historical_contract.py", observed["loaded_python_files"]["loaded_local_paths"])
+        self.assertIn(checkpoint.RUNNER_PATH, observed["loaded_python_files"]["loaded_local_paths"])
         transition = "scripts/cwo_core/workspace_transition.py"
         self.assertIn(transition, observed["loaded_python_files"]["loaded_local_paths"])
         self.assertEqual(manifest["files"][transition], checkpoint.digest((ROOT / transition).read_bytes()))
@@ -170,6 +170,9 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
         self.assertIn(preview, manifest["local_import_edges"][manifest["installed_child_probe"]["producer"]])
         self.assertIn("scripts/qualified_review_dispatch.py",
                       manifest["local_import_edges"]["scripts/dispatch_work.py"])
+        planner = "scripts/cwo_core/route_feasibility.py"
+        self.assertIn(planner, observed["loaded_python_files"]["loaded_local_paths"])
+        self.assertIn(planner, manifest["local_import_edges"]["scripts/prepare_route_feasibility.py"])
         self.assertEqual(
             set(manifest["local_import_edges"]["tests/test_local_admission_preparation.py"]),
             {"scripts/prepare_local_admission.py", "scripts/prepare_route_feasibility.py",
@@ -184,7 +187,8 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
 
     def test_omitted_transition_module_refuses_the_actual_loaded_consumer_closure(self):
         manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())
-        for dependency in ("scripts/cwo_core/workspace_transition.py", "scripts/cwo_core/atomic_spawn.py"):
+        for dependency in ("scripts/cwo_core/workspace_transition.py", "scripts/cwo_core/atomic_spawn.py",
+                           "scripts/cwo_core/route_feasibility.py"):
             with self.subTest(dependency=dependency):
                 self.assertIn(dependency, manifest["files"])
                 self.assertIn(dependency, manifest["current_file_modes"])
@@ -193,7 +197,7 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
                 script = (
                     "import json\n"
                     "from tests.test_affected_contract_compatibility import _fixture_checkpoint_observation\n"
-                    "import verify_affected_historical_contract as checkpoint\n"
+                    "from tools import verify_affected_historical_contract as checkpoint\n"
                     "_fixture_checkpoint_observation()\n"
                     "manifest = json.loads((checkpoint.ROOT / checkpoint.MANIFEST).read_bytes())\n"
                     f"del manifest['files'][{dependency!r}]\n"

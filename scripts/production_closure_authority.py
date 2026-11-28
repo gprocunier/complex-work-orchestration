@@ -50,6 +50,11 @@ class Authority:
     delivery_context: bytes
     consumption_event: str | None = None
 
+    @property
+    def evidence_disposition(self) -> str:
+        record = self.store.get(json.loads(self.decision)["evaluation_record"], record_type="evaluation")
+        return record["evaluation"]["recommended_disposition"]
+
     def require_observation(self, digest: str) -> None:
         context = json.loads(self.decision).get("source_context")
         if type(context) is not dict or context.get("observation_sha256") != digest:

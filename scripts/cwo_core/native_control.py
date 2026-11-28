@@ -424,11 +424,11 @@ class NativeControlTurn:
         """Advance by at most one adapter callback and never sleep."""
         if self._terminal:
             return self._progress()
-        if not self._started:
-            if not self._start(task_input):
-                return self._progress()
-        elif task_input is not None:
+        started = self._started
+        if started and task_input is not None:
             raise ValueError("task input is already bound to this control turn")
+        if not started and not self._start(task_input):
+            return self._progress()
         if self._waiting:
             return self._progress()
 
@@ -437,112 +437,114 @@ class NativeControlTurn:
         agent_id = self.contract["agent_id"]
 
         try:
-            if self._phase == "arm":
-                self._invoke("arm", state_file=state_file, control_turn_id=control_turn_id)
-                self._phase = "send-input"
-            elif self._phase == "send-input":
-                self._submission_id = _submission_id(
-                    self._invoke("send_input", agent_id=agent_id, message=self._task_input)
-                )
-                self._phase = "mark-dispatched"
-            elif self._phase == "mark-dispatched":
-                self._invoke(
-                    "mark_dispatched",
-                    state_file=state_file,
-                    control_turn_id=control_turn_id,
-                    submission_id=self._submission_id,
-                )
-                self._phase = "check"
-            elif self._phase == "check":
-                decision = _decision(
-                    self._invoke("check", state_file=state_file, control_turn_id=control_turn_id)
-                )
-                self._poll_count += 1
-                self._decisions.append(decision)
-                if decision in {"continue", "warn"}:
-                    self._phase = "waiting"
-                    self._waiting = True
-                elif decision == "complete":
-                    self._phase = "finalize-complete"
-                else:
-                    self._phase = "interrupt"
-            elif self._phase == "finalize-complete":
-                result = self._invoke(
-                    "finalize",
-                    label="finalize:worker-completed",
-                    state_file=state_file,
-                    control_turn_id=control_turn_id,
-                    control_action="worker-completed",
-                )
-                if _deferred_close_requested(result):
-                    self._phase = "waiting-close-complete"
-                    self._waiting = True
-                else:
-                    self._phase = "close-complete"
-            elif self._phase == "close-complete":
-                result = self._invoke("close", agent_id=agent_id)
-                if _deferred_close_requested(result):
-                    self._phase = "waiting-close-complete"
-                    self._waiting = True
-                else:
-                    return self._finish("completed")
-            elif self._phase == "interrupt":
-                decision = self._decisions[-1]
-                self._invoke(
-                    "interrupt",
-                    agent_id=agent_id,
-                    message=f"STOP: native supervisor decision {decision}",
-                )
-                self._phase = "finalize-interrupt"
-            elif self._phase == "finalize-interrupt":
-                result = self._invoke(
-                    "finalize",
-                    label="finalize:interrupt-confirmed",
-                    state_file=state_file,
-                    control_turn_id=control_turn_id,
-                    control_action="interrupt-confirmed",
-                )
-                if _deferred_close_requested(result):
-                    self._phase = "waiting-close-interrupt"
-                    self._waiting = True
-                else:
-                    self._phase = "close-interrupt"
-            elif self._phase == "close-interrupt":
-                result = self._invoke("close", agent_id=agent_id)
-                if _deferred_close_requested(result):
-                    self._phase = "waiting-close-interrupt"
-                    self._waiting = True
-                else:
-                    self._phase = "finalize-close"
-            elif self._phase == "finalize-close":
-                self._invoke(
-                    "finalize",
-                    label="finalize:close-confirmed",
-                    state_file=state_file,
-                    control_turn_id=control_turn_id,
-                    control_action="close-confirmed",
-                )
-                return self._finish("closed")
-            elif self._phase == "finalize-control-failed":
-                try:
-                    self._invoke(
-                        "finalize",
-                        label="finalize:control-failed",
-                        state_file=state_file,
-                        control_turn_id=control_turn_id,
-                        control_action="control-failed",
-                    )
-                except Exception as finalize_exc:
-                    self._errors.append(
-                        "control-failed-receipt-failed:"
-                        f"{type(finalize_exc).__name__}:{finalize_exc}"
-                    )
-                return self._finish("control-failed")
-            else:
-                raise RuntimeError(f"unknown cooperative phase: {self._phase}")
+            terminal_state = self._step_phase(state_file, control_turn_id, agent_id)
+            if terminal_state is not None:
+                return self._finish(terminal_state)
         except Exception as exc:  # The control boundary converts adapter failures into evidence.
             self._record_callback_failure(exc)
         return self._progress()
+
+    def _step_phase(self, state_file: str, control_turn_id: str, agent_id: str) -> str | None:
+        """Run the current phase and report any terminal state it reached."""
+        if self._phase == "arm":
+            self._invoke("arm", state_file=state_file, control_turn_id=control_turn_id)
+            self._phase = "send-input"
+        elif self._phase == "send-input":
+            self._submission_id = _submission_id(
+                self._invoke("send_input", agent_id=agent_id, message=self._task_input)
+            )
+            self._phase = "mark-dispatched"
+        elif self._phase == "mark-dispatched":
+            self._invoke(
+                "mark_dispatched",
+                state_file=state_file,
+                control_turn_id=control_turn_id,
+                submission_id=self._submission_id,
+            )
+            self._phase = "check"
+        elif self._phase == "check":
+            self._step_check(state_file, control_turn_id)
+        elif self._phase == "finalize-complete":
+            self._finalize_step(
+                state_file, control_turn_id, "worker-completed", close_phase="close-complete"
+            )
+        elif self._phase == "close-complete":
+            return self._step_close(agent_id, "close-complete")
+        elif self._phase == "interrupt":
+            decision = self._decisions[-1]
+            self._invoke(
+                "interrupt",
+                agent_id=agent_id,
+                message=f"STOP: native supervisor decision {decision}",
+            )
+            self._phase = "finalize-interrupt"
+        elif self._phase == "finalize-interrupt":
+            self._finalize_step(
+                state_file, control_turn_id, "interrupt-confirmed", close_phase="close-interrupt"
+            )
+        elif self._phase == "close-interrupt":
+            return self._step_close(agent_id, "close-interrupt")
+        elif self._phase == "finalize-close":
+            self._finalize_step(state_file, control_turn_id, "close-confirmed")
+            return "closed"
+        elif self._phase == "finalize-control-failed":
+            self._finalize_failure(state_file, control_turn_id)
+            return "control-failed"
+        else:
+            raise RuntimeError(f"unknown cooperative phase: {self._phase}")
+        return None
+
+    def _step_check(self, state_file: str, control_turn_id: str) -> None:
+        decision = _decision(
+            self._invoke("check", state_file=state_file, control_turn_id=control_turn_id)
+        )
+        self._poll_count += 1
+        self._decisions.append(decision)
+        if decision in {"continue", "warn"}:
+            self._phase = "waiting"
+            self._waiting = True
+        elif decision == "complete":
+            self._phase = "finalize-complete"
+        else:
+            self._phase = "interrupt"
+
+    def _finalize_step(
+        self, state_file: str, control_turn_id: str, action: str, *, close_phase: str | None = None
+    ) -> None:
+        result = self._invoke(
+            "finalize",
+            label=f"finalize:{action}",
+            state_file=state_file,
+            control_turn_id=control_turn_id,
+            control_action=action,
+        )
+        if close_phase is None:
+            return
+        if _deferred_close_requested(result):
+            self._phase = f"waiting-{close_phase}"
+            self._waiting = True
+        else:
+            self._phase = close_phase
+
+    def _step_close(self, agent_id: str, close_phase: str) -> str | None:
+        result = self._invoke("close", agent_id=agent_id)
+        if _deferred_close_requested(result):
+            self._phase = f"waiting-{close_phase}"
+            self._waiting = True
+        elif close_phase == "close-complete":
+            return "completed"
+        else:
+            self._phase = "finalize-close"
+        return None
+
+    def _finalize_failure(self, state_file: str, control_turn_id: str) -> None:
+        try:
+            self._finalize_step(state_file, control_turn_id, "control-failed")
+        except Exception as finalize_exc:
+            self._errors.append(
+                "control-failed-receipt-failed:"
+                f"{type(finalize_exc).__name__}:{finalize_exc}"
+            )
 
     def resume_after_wait(self) -> dict[str, Any]:
         """Clear a cooperative wait without invoking an adapter callback."""

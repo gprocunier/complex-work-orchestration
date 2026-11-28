@@ -211,7 +211,7 @@ def _execute(report: dict[str, Any], document: dict[str, Any], chain: dict[str, 
         keep_running = False
     try:
         guard("after " + criterion_id)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         _error(report, "checked command consistency recheck refused", exc)
         keep_running = False
     return keep_running
@@ -228,7 +228,7 @@ def _consume(report: dict[str, Any], document: dict[str, Any], guard: Callable[[
         _error(report, "receipt consumer stopped", exc)
     try:
         guard("after receipt consumer")
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         _error(report, "receipt consumer consistency recheck refused", exc)
 
 
@@ -255,7 +255,7 @@ def _run(report: dict[str, Any], document: dict[str, Any],
             for item in plan:
                 if not _execute(report, document, chain, item, guard):
                     break
-        except Exception as exc:
+        except (OSError, ValueError) as exc:
             _error(report, "production refused", exc)
         _consume(report, document, guard)
 
@@ -284,7 +284,7 @@ def produce(root: str, initial: Any, candidate: Any, bead: Any, commands: Any, *
     try:
         document = _input(root, initial, candidate, bead, commands, amendments)
         _run(report, document, _plan)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         _error(report, "production refused", exc)
     return _finish(report)
 
@@ -327,6 +327,6 @@ def produce_mixed(root: str, initial: Any, candidate: Any, bead: Any, commands: 
 
         _run(report, document, plan)
         report["validator_observations_complete"] = _validator_subset(report, document)
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         _error(report, "mixed reliability production refused", exc)
     return _finish_mixed(report)

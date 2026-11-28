@@ -44,7 +44,7 @@ class LocalHttpAdmissionTests(unittest.TestCase):
             effect.assert_not_called()
 
 
-def workload_record():
+def workload_record(*, configure=None):
     from tests.test_route_feasibility_preparation import bind, planner, record
 
     route = record(tiny=True)
@@ -54,6 +54,8 @@ def workload_record():
     node['execution'].update(executor='openshift_ai_vllm_secure_reviewer', provider='openshift_ai_vllm',
                              model='EXAMPLE-vllm', effort='default', options={'max_tokens': 32})
     node['estimate_source']['requested_model'] = 'EXAMPLE-vllm'
+    if configure is not None:
+        configure(route, node)
     node['unit_estimate'] = planner.work_sizing.evaluate_work_estimate(node['estimate_source'], policy=route['policy'])
     for name in ('source', 'unit'):
         key = 'estimate_source' if name == 'source' else 'unit_estimate'
@@ -61,7 +63,7 @@ def workload_record():
     node['rendered_request'] = planner.render_request(node)
     planned = planner.prepare(bind(route))
     if planned['status'] != 'within-declared-limits':
-        raise AssertionError('fixture must pass the real workload planner')
+        raise AssertionError(f'fixture must pass the real workload planner: {planned["reasons"]}')
     route['limits'] = planned['totals'].copy()
     return {'route_input': bind(route), 'node_id': node['id'], 'node_attempts': {}}
 

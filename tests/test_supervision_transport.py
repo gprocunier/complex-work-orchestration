@@ -11,18 +11,14 @@ emptied so a missed patch cannot find a real ``codex``.
 from __future__ import annotations
 
 import ast
-import hashlib
 import importlib
 import importlib.util
-import inspect
 import io
 import itertools
 import json
 import os
-import re
 from pathlib import Path
 import shutil
-import subprocess
 import sys
 import tempfile
 import time
@@ -37,11 +33,10 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
 import run_native_pool_live_canaries as runner  # noqa: E402
-from cwo_core import native_campaign_history as HISTORY  # noqa: E402
 from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from cwo_core.supervision import callback_timing as TIMING  # noqa: E402
 from cwo_core.supervision import live_thread as LIVE_THREAD  # noqa: E402
-from tests.real_beads_fixture import configure_git_fixture
+from tests.historical_campaign_launcher import REVIEWED_CAMPAIGN_SOURCE, run_archived_cases
 
 
 TRANSPORT_MODULES = {
@@ -127,11 +122,10 @@ class TransportImportPathTests(unittest.TestCase):
     def test_script_and_core_importers_bind_the_core_objects(self) -> None:
         app_server = transport("app_server")
         errors = transport("errors")
-        import check_codex_worker_surface
         import run_native_pool_activation_preview
         from cwo_core import maintenance_native_runtime
 
-        for module in (check_codex_worker_surface, run_native_pool_activation_preview, maintenance_native_runtime):
+        for module in (run_native_pool_activation_preview, maintenance_native_runtime):
             with self.subTest(module=module.__name__):
                 self.assertIs(module.AppServer, app_server.AppServer)
                 self.assertIs(module.AppServerError, errors.AppServerError)
@@ -265,194 +259,14 @@ class AdapterImplementationDigestTests(unittest.TestCase):
                 self.assertEqual(runner.adapter_implementation_sha256(), baseline)
 
 
-MOVED_SOURCE_PATHS = (
-    "scripts/codex_tool_surface.py",
-    "scripts/cwo_core/codex_tool_surface.py",
-    "scripts/cwo_core/supervision/__init__.py",
-    "scripts/cwo_core/supervision/transport/__init__.py",
-    "scripts/cwo_core/supervision/transport/app_server.py",
-    "scripts/cwo_core/supervision/transport/errors.py",
-    "scripts/cwo_core/supervision/transport/private_io.py",
-)
 
-
-def git(root: Path, *args: str) -> str:
-    environment = {**os.environ, "GIT_CONFIG_NOSYSTEM": "1", "GIT_CONFIG_GLOBAL": os.devnull}
-    completed = subprocess.run(
-        ["git", *args], cwd=root, check=True, capture_output=True, text=True, env=environment
-    )
-    return completed.stdout.strip()
-
-
-class ValidatorContractV7Tests(unittest.TestCase):
-    """Future frozen-contract digests bind the moved transport through V7.
-
-    V1 to V6 are unchanged; their digests over historical trees are pinned by
-    ``tests/test_w20_affected_contract_w13.py``.
-    """
-
-    def setUp(self) -> None:
-        self.contracts = importlib.import_module("cwo_core.native_live_campaign_contracts")
-
-    def frozen_lists(self) -> dict[str, tuple[str, ...]]:
-        return {
-            f"v{n}": getattr(self.contracts, f"VALIDATOR_CONTRACT_PATHS_V{n}") for n in range(1, 7)
-        }
-
-    def test_v7_is_v6_plus_the_moved_sources(self) -> None:
-        v6 = self.contracts.VALIDATOR_CONTRACT_PATHS_V6
-        v7 = self.contracts.VALIDATOR_CONTRACT_PATHS_V7
-        self.assertEqual(v7[: len(v6)], v6)
-        self.assertEqual(v7[len(v6):], MOVED_SOURCE_PATHS)
-        self.assertEqual(len(set(v7)), len(v7))
-        self.assertIn("scripts/run_native_pool_live_canaries.py", v7)
-        for version, paths in self.frozen_lists().items():
-            with self.subTest(frozen=version):
-                self.assertEqual(set(paths) & set(MOVED_SOURCE_PATHS), set())
-
-    def test_v7_binds_every_file_that_defines_moved_code(self) -> None:
-        v7 = set(self.contracts.VALIDATOR_CONTRACT_PATHS_V7)
-        core_tool_surface = importlib.import_module("cwo_core.codex_tool_surface")
-        defining_files = {
-            Path(inspect.getsourcefile(transport("app_server").AppServer)),
-            Path(inspect.getsourcefile(transport("errors").AppServerError)),
-            Path(inspect.getsourcefile(transport("private_io").load_private_bytes)),
-            Path(core_tool_surface.__file__),
-            ROOT / "scripts" / "codex_tool_surface.py",
-            ROOT / "scripts" / "run_native_pool_live_canaries.py",
-        }
-        supervision = ROOT / "scripts" / "cwo_core" / "supervision"
-        # V7 freezes the transport extraction, not every future sibling module.
-        defining_files.add(supervision / "__init__.py")
-        defining_files |= set((supervision / "transport").rglob("*.py"))
-        for path in sorted(defining_files):
-            relative = path.resolve().relative_to(ROOT).as_posix()
-            with self.subTest(path=relative):
-                self.assertIn(relative, v7)
-
-    def payload(self, digest, root: Path, tree: str) -> tuple[str, dict]:
-        """The digest and the canonical payload it was computed over."""
-
-        with mock.patch.object(
-            HISTORY, "canonical_sha256", wraps=HISTORY.canonical_sha256
-        ) as spy:
-            value = digest(root, tree)
-        self.assertEqual(spy.call_count, 1)
-        return value, spy.call_args.args[0]
-
-    def test_new_sibling_is_bound_by_tree_without_rewriting_historical_paths(self) -> None:
-        digest = self.contracts.validator_contract_sha256_v7
-        paths = self.contracts.VALIDATOR_CONTRACT_PATHS_V7
-        sibling = "scripts/cwo_core/supervision/turn_observations.py"
-        self.assertNotIn(sibling, paths)
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            git(root, "init", "-q")
-            configure_git_fixture(root)
-            for relative in paths:
-                target = root / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / relative, target)
-            git(root, "add", "--", *paths)
-            original_tree = git(root, "write-tree")
-            original_digest, original_payload = self.payload(digest, root, original_tree)
-            target = root / sibling
-            target.write_bytes((ROOT / sibling).read_bytes())
-            git(root, "add", "--", sibling)
-            added_tree = git(root, "write-tree")
-            added_digest, added_payload = self.payload(digest, root, added_tree)
-            self.assertNotEqual(added_tree, original_tree)
-            self.assertNotEqual(added_digest, original_digest)
-            self.assertEqual(added_payload["files"], original_payload["files"])
-            self.assertEqual(self.contracts.VALIDATOR_CONTRACT_PATHS_V7, paths)
-            target.write_bytes(target.read_bytes() + b"\n# changed sibling\n")
-            git(root, "add", "--", sibling)
-            changed_tree = git(root, "write-tree")
-            changed_digest, changed_payload = self.payload(digest, root, changed_tree)
-            self.assertNotEqual(changed_tree, added_tree)
-            self.assertNotEqual(changed_digest, added_digest)
-            self.assertEqual(changed_payload["files"], original_payload["files"])
-            # Reading an old checkpoint remains deterministic after later edits.
-            self.assertEqual(digest(root, original_tree), original_digest)
-
-    def test_changing_a_moved_source_changes_the_v7_digest(self) -> None:
-        # Every Vn payload carries the checkpoint tree id, so any change to the
-        # tree changes every digest. What V7 adds is each moved file's own blob
-        # sha256 in its file list, and a refusal when one is missing.
-        v6_digest = self.contracts.validator_contract_sha256_v6
-        v7_digest = self.contracts.validator_contract_sha256_v7
-        with tempfile.TemporaryDirectory() as temporary:
-            root = Path(temporary)
-            git(root, "init", "-q")
-            configure_git_fixture(root)
-            for relative in self.contracts.VALIDATOR_CONTRACT_PATHS_V7:
-                target = root / relative
-                target.parent.mkdir(parents=True, exist_ok=True)
-                shutil.copyfile(ROOT / relative, target)
-            git(root, "add", "--", *self.contracts.VALIDATOR_CONTRACT_PATHS_V7)
-            tree = git(root, "write-tree")
-            baseline_v7, payload_v7 = self.payload(v7_digest, root, tree)
-            baseline_v6, payload_v6 = self.payload(v6_digest, root, tree)
-            self.assertNotEqual(baseline_v7, baseline_v6)
-            self.assertEqual(payload_v7["contract"], "cwo-live-successor-validator:v7")
-            self.assertEqual(
-                [entry["path"] for entry in payload_v7["files"]],
-                list(self.contracts.VALIDATOR_CONTRACT_PATHS_V7),
-            )
-            self.assertEqual(
-                {k: v for k, v in payload_v7.items() if k not in {"contract", "files"}},
-                {k: v for k, v in payload_v6.items() if k not in {"contract", "files"}},
-            )
-            for relative in (*MOVED_SOURCE_PATHS, "scripts/run_native_pool_live_canaries.py"):
-                with self.subTest(path=relative):
-                    target = root / relative
-                    original = target.read_bytes()
-                    changed_bytes = original + b"\n# changed\n"
-                    target.write_bytes(changed_bytes)
-                    git(root, "add", "--", relative)
-                    changed = git(root, "write-tree")
-                    try:
-                        value_v7, changed_v7 = self.payload(v7_digest, root, changed)
-                        self.assertNotEqual(value_v7, baseline_v7)
-                        bound = {entry["path"]: entry["sha256"] for entry in changed_v7["files"]}
-                        self.assertEqual(bound[relative], hashlib.sha256(changed_bytes).hexdigest())
-                        _value_v6, changed_v6 = self.payload(v6_digest, root, changed)
-                        bound_v6 = {entry["path"]: entry["sha256"] for entry in changed_v6["files"]}
-                        if relative in MOVED_SOURCE_PATHS:
-                            # V6's file list cannot see the move; this is why V7 exists.
-                            self.assertNotIn(relative, bound_v6)
-                        else:
-                            self.assertEqual(bound_v6[relative], hashlib.sha256(changed_bytes).hexdigest())
-                    finally:
-                        target.write_bytes(original)
-                        git(root, "add", "--", relative)
-            self.assertEqual(git(root, "write-tree"), tree)
-            self.assertEqual(v7_digest(root, tree), baseline_v7)
-            for relative in MOVED_SOURCE_PATHS:
-                with self.subTest(missing=relative):
-                    git(root, "rm", "-q", "--cached", "--", relative)
-                    missing = git(root, "write-tree")
-                    try:
-                        with self.assertRaisesRegex(
-                            ValueError, "^validator-contract-path-invalid:" + re.escape(relative) + "$"
-                        ):
-                            v7_digest(root, missing)
-                        self.assertRegex(v6_digest(root, missing), r"^[0-9a-f]{64}$")
-                    finally:
-                        git(root, "add", "--", relative)
-            self.assertEqual(git(root, "write-tree"), tree)
-
-    def test_v7_reproduces_on_the_candidate_tree_and_refuses_pre_move_trees(self) -> None:
-        tree = git(ROOT, "rev-parse", "HEAD^{tree}")
-        digest = self.contracts.validator_contract_sha256_v7(ROOT, tree)
-        self.assertRegex(digest, r"^[0-9a-f]{64}$")
-        self.assertEqual(self.contracts.validator_contract_sha256_v7(ROOT, tree), digest)
-        from tests.historical_policy_fixtures import portable_repository
-        fixture = portable_repository()
-        with self.assertRaisesRegex(
-            ValueError, r"^validator-contract-path-invalid:scripts/cwo_core/codex_tool_surface\.py$"
-        ):
-            self.contracts.validator_contract_sha256_v7(fixture.root, fixture.trees["baseline"])
+class ArchivedValidatorContractV7Tests(unittest.TestCase):
+    def test_v7_digests_on_the_pinned_candidate_and_disposable_trees(self) -> None:
+        run_archived_cases(
+            self, REVIEWED_CAMPAIGN_SOURCE,
+            "tests.test_supervision_transport.ValidatorContractV7Tests",
+            with_git_head=True,
+        )
 
 
 class CoreContractCoversSubpackagesTests(unittest.TestCase):

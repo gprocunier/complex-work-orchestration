@@ -415,19 +415,21 @@ class PrivatePidFailureDiagnosticTests(unittest.TestCase):
         channel.recv.return_value = b'1'
         manager = unittest.mock.MagicMock()
         manager.__enter__.return_value = channel
+        selected_os = types.SimpleNamespace(
+            getpid=os.getpid, pidfd_open=Mock(return_value=37), close=Mock(),
+        )
         def denied_stage(*_args):
             raise primary
         with patch.object(selected.socket, 'socket', return_value=manager), \
                 patch.object(selected, '_private_pid_scope', return_value={'pid': 'private-pid'}), \
-                patch.object(selected.os, 'pidfd_open', return_value=37), \
-                patch.object(selected.os, 'close') as close, \
+                patch.object(selected, 'os', selected_os), \
                 patch.object(selected, '_arm_private_parent_death'), \
                 patch.object(selected, '_drop_reuse_inheritance') as drop, \
                 patch.object(selected, '_reuse_case', side_effect=denied_stage), \
                 patch.object(selected, '_pid_reuse_failure_context', context, create=True), \
                 patch.object(selected.signal, 'pidfd_send_signal') as signals:
             selected._pid_reuse_entry(('38', '/EXAMPLE/owned', '{}', ''))
-        close.assert_called_once_with(37)
+        selected_os.close.assert_called_once_with(37)
         drop.assert_called_once_with({})
         signals.assert_not_called()
         raw = channel.sendall.call_args.args[0]

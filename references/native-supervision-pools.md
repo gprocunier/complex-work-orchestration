@@ -311,31 +311,36 @@ PYTHONPATH=tests python3 -B -m unittest tests.test_run_native_pool_live_canaries
 
 These tests exercise the retired claim, workspace and launch bindings and the
 Generation 8 predecessor proof, including a complete finite graph and rejection
-of dirty, partial, replayed and tampered evidence. The current Generation 8
-digest witness still checks the frozen V1 digest and V2's additional schema
-requirements against the installed contract engine.
+of dirty, partial, replayed and tampered evidence.
 
-New steering writes use `cwo-steering-receipt:v2` and
-`schemas/native-steering-receipt-v2.schema.json`. The zero-tool critic prompt
-must request canonical JSON with six separate sections: `operator_facts`,
-`observed_evidence`, `model_interpretation`, `recommendation`,
-`strongest_counterargument`, and `agent_authored_constraints`. It must state
-that recommendations, confidence, interpretations, and agent-authored
-constraints are advisory only. An operator fact is accepted only when its exact
-provenance matches an opaque authority returned by the verified operator-fact
-directive path and that directive's signed action hash binds the exact fact
-statement; copying, reusing, or constructing a provenance-shaped dictionary is
-not sufficient. V2 steering carries repository-policy authority capped at one
-child. A critic recommendation can select only policy-bounded child
-continuation paths; critic identity strings, prose, and confidence never mint
-or widen authority. Every v2 outcome, including `go`, requires a hash-bound
-architect `go` before consumption; a stop additionally requires its exact
-resolution proof. A stop retry targets the receipt's exact Bead child.
-Historical v1 receipts remain readable only when their
-opinion hash is intact; they cannot produce stop metadata or be newly consumed.
-Progress decisions use the same separation in
-`native-progress-decision-v2.schema.json`; their worker-authored recommendation
-cannot populate `operator_facts` or broaden the policy-derived child scope.
+Run the offline witnesses for the frozen V1 digest, V2's additional schema
+requirements and the historical steering receipt reader and writer from a
+checkout at `bd458b84e9ab1ef7161fe43f555c11f6ebac8c41`.
+
+```sh
+PYTHONPATH=tests python3 -B -m unittest \
+  tests.test_native_live_campaign_generation8.Generation8FiniteDagContractTests \
+  tests.test_native_canary_contracts.NativeCanaryContractTests.test_neutral_steering_is_strict_write_with_compatible_v1_read
+```
+
+The archived v2 writer used `cwo-steering-receipt:v2` and
+`schemas/native-steering-receipt-v2.schema.json`. Its zero-tool critic prompt
+requested canonical JSON with separate `operator_facts`, `observed_evidence`,
+`model_interpretation`, `recommendation`, `strongest_counterargument`, and
+`agent_authored_constraints`. Recommendations, confidence, interpretations and
+agent-authored constraints were advisory. The verifier accepted each operator fact
+only when its provenance matched an opaque authority from the verified directive
+and the signed action hash bound the exact statement. V2 steering carried
+repository-policy authority capped at one child. Critic recommendations selected
+only policy-bounded continuation paths. Every v2 outcome required a hash-bound
+architect `go` before consumption. A stop also required its exact resolution
+proof and any stop retry targeted the receipt's exact Bead child. The archived
+v1 reader required an intact opinion hash and supported inspection only.
+[Archived steering sources and digest pins](native-live-route-holds.md#historical-campaign-verification).
+
+Current progress decisions keep worker-authored recommendations separate from
+`operator_facts` and within the policy-derived child scope in
+`native-progress-decision-v2.schema.json`.
 
 The historical live launcher accepted one v11/v8/v6/v6 contract tuple and
 refused mixed tuples before allocation. The accepted practical release used a

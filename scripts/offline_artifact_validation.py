@@ -571,7 +571,7 @@ def _observe(host, binding):
         report["host_checks"].append(_check(host, binding))
         report["offline_validation_complete"] = True
         return _encode(report), staged
-    except Exception as exc:
+    except (OSError, ValueError) as exc:
         message = _bounded_text(f"Offline validation refused ({_exception_text(exc)}).")
         report["errors"].insert(0, message)
         raise ValidationError(message, report) from exc
@@ -584,7 +584,7 @@ def validate_artifact(host, report, expected_target, policy):
         observation, _outputs = _observe(host, binding)
     except ValidationError:
         raise
-    except Exception as exc:
+    except (AttributeError, KeyError, OSError, TypeError, ValueError) as exc:
         raise ValidationError(f"Validation input refused ({_exception_text(exc)}).") from exc
     issued = object.__new__(ValidatedObservation)
     _TOKENS[issued] = (host, policy, binding, observation)
@@ -605,7 +605,7 @@ def consume_validated(host, token, report, expected_target, policy):
         return outputs
     except ValidationError:
         raise
-    except Exception as exc:
+    except (AttributeError, KeyError, OSError, TypeError, ValueError) as exc:
         raise ValidationError(f"Validation consumption refused ({_exception_text(exc)}).") from exc
 
 

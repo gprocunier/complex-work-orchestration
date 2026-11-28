@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "cwo:policy/return-structure-rules:v1",
+  "title": "CWO Return Structure Rules",
+  "description": "Lexical patterns and typed selectors for structural return tripwires.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "patterns", "selectors", "gate_controls", "release_aliases"],
+  "properties": {
+    "version": {"const": 1},
+    "patterns": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "addressee", "recipient_heading", "control_action", "gate_bypass", "gate_status",
+        "without_gate", "leading_condition", "if_no_gate", "gate_question", "progress",
+        "scope_lead", "scope_change", "scope_control", "assignment_relation", "later_work",
+        "validation_pass", "validation_fail", "result_label", "field_pass", "approval_field",
+        "release_claim", "actor_confirmed", "release_condition", "attribution", "future_or_hypothetical",
+        "zero_exit", "result", "repro", "not_run", "failure_exit",
+        "outcome_continuation", "failure", "no_failure", "clause", "quoted_example",
+        "use_example", "json_success", "action_prefix", "test_topic", "test_qualifier",
+        "release_topic", "ci_topic"
+      ],
+      "properties": {
+        "addressee": {"type": "string", "minLength": 1},
+        "recipient_heading": {"type": "string", "minLength": 1},
+        "control_action": {"type": "string", "minLength": 1},
+        "gate_bypass": {"type": "string", "minLength": 1},
+        "gate_status": {"type": "string", "minLength": 1},
+        "without_gate": {"type": "string", "minLength": 1},
+        "leading_condition": {"type": "string", "minLength": 1},
+        "if_no_gate": {"type": "string", "minLength": 1},
+        "gate_question": {"type": "string", "minLength": 1},
+        "progress": {"type": "string", "minLength": 1},
+        "scope_lead": {"type": "string", "minLength": 1},
+        "scope_change": {"type": "string", "minLength": 1},
+        "scope_control": {"type": "string", "minLength": 1},
+        "assignment_relation": {"type": "string", "minLength": 1},
+        "later_work": {"type": "string", "minLength": 1},
+        "validation_pass": {"type": "string", "minLength": 1},
+        "validation_fail": {"type": "string", "minLength": 1},
+        "result_label": {"type": "string", "minLength": 1},
+        "field_pass": {"type": "string", "minLength": 1},
+        "approval_field": {"type": "string", "minLength": 1},
+        "release_claim": {"type": "string", "minLength": 1},
+        "actor_confirmed": {"type": "string", "minLength": 1},
+        "release_condition": {"type": "string", "minLength": 1},
+        "attribution": {"type": "string", "minLength": 1},
+        "future_or_hypothetical": {"type": "string", "minLength": 1},
+        "zero_exit": {"type": "string", "minLength": 1},
+        "result": {"type": "string", "minLength": 1},
+        "repro": {"type": "string", "minLength": 1},
+        "not_run": {"type": "string", "minLength": 1},
+        "failure_exit": {"type": "string", "minLength": 1},
+        "outcome_continuation": {"type": "string", "minLength": 1},
+        "failure": {"type": "string", "minLength": 1},
+        "no_failure": {"type": "string", "minLength": 1},
+        "clause": {"type": "string", "minLength": 1},
+        "quoted_example": {"type": "string", "minLength": 1},
+        "use_example": {"type": "string", "minLength": 1},
+        "json_success": {"type": "string", "minLength": 1},
+        "action_prefix": {"type": "string", "minLength": 1},
+        "test_topic": {"type": "string", "minLength": 1},
+        "test_qualifier": {"type": "string", "minLength": 1},
+        "release_topic": {"type": "string", "minLength": 1},
+        "ci_topic": {"type": "string", "minLength": 1}
+      }
+    },
+    "selectors": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_sections", "result_sections", "support_sections", "reported_sections", "result_controls",
+        "quoted_fields", "recipient_fields", "action_fields", "scope_fields", "proof_fields",
+        "outcome_fields"
+      ],
+      "properties": {
+        "scope_sections": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "result_sections": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "support_sections": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "reported_sections": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "result_controls": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "quoted_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "recipient_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "action_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "scope_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "proof_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}},
+        "outcome_fields": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "minLength": 1}}
+      }
+    },
+    "gate_controls": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "review_required", "peer_review_required", "validation_required", "verification_required", "skip_review",
+        "skip_validation", "waive_review", "waive_validation"
+      ],
+      "properties": {
+        "review_required": {"type": "boolean"},
+        "peer_review_required": {"type": "boolean"},
+        "validation_required": {"type": "boolean"},
+        "verification_required": {"type": "boolean"},
+        "skip_review": {"type": "boolean"},
+        "skip_validation": {"type": "boolean"},
+        "waive_review": {"type": "boolean"},
+        "waive_validation": {"type": "boolean"}
+      }
+    },
+    "release_aliases": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "deploy", "rollout", "production", "ship", "publish",
+        "reviewer"
+      ],
+      "properties": {
+        "deploy": {"type": "string", "minLength": 1},
+        "rollout": {"type": "string", "minLength": 1},
+        "production": {"type": "string", "minLength": 1},
+        "ship": {"type": "string", "minLength": 1},
+        "publish": {"type": "string", "minLength": 1},
+        "reviewer": {"type": "string", "minLength": 1}
+      }
+    }
+  }
+}

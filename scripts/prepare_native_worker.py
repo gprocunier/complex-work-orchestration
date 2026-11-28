@@ -967,6 +967,125 @@ def _is_active_packet_model(model: Any) -> bool:
     return model in current.get("selection", {}).get("approved_portfolio", [])
 
 
+def _validate_packet_ids(payload: dict[str, Any], errors: list[str]) -> None:
+    if (error := _required_nonempty_str(payload.get("packet_id"), "packet_id")) is not None:
+        errors.append(error)
+    if (error := _required_nonempty_str(payload.get("bead_id"), "bead_id")) is not None:
+        errors.append(error)
+
+
+def _validate_packet_scope_actions(scope: dict[str, Any], errors: list[str]) -> None:
+    allowed_action_errors, allowed_actions = _required_string_list(
+        scope.get("allowed_actions"), "scope.allowed_actions"
+    )
+    errors.extend(allowed_action_errors)
+    if allowed_actions:
+        for action in allowed_actions:
+            if _required_nonempty_str(action, "scope.allowed_actions item") is not None:
+                errors.append(_required_nonempty_str(action, "scope.allowed_actions item") or "")
+    prohibited_action_errors, prohibited_actions = _required_string_list(
+        scope.get("prohibited_actions"), "scope.prohibited_actions", min_items=0
+    )
+    errors.extend(prohibited_action_errors)
+    if prohibited_actions:
+        for action in prohibited_actions:
+            if _required_nonempty_str(action, "scope.prohibited_actions item") is not None:
+                errors.append(_required_nonempty_str(action, "scope.prohibited_actions item") or "")
+
+
+def _validate_packet_acceptance_checks(payload: dict[str, Any], errors: list[str]) -> list[str]:
+    acceptance_errors, acceptance_checks = _required_string_list(
+        payload.get("acceptance_checks"), "acceptance_checks"
+    )
+    if acceptance_errors:
+        errors.extend(acceptance_errors)
+    elif not acceptance_checks:
+        errors.append("acceptance_checks must contain at least one check")
+    return acceptance_checks
+
+
+def _validate_packet_budget_entries(
+    budget: dict[str, Any], policy_budgets: dict[str, int] | None,
+    lane: Any, version: Any, errors: list[str],
+) -> None:
+    errors.extend(_reject_unknown_fields(budget, "budget", ALLOWED_BUDGET_FIELDS))
+    if policy_budgets is not None:
+        for key, value in policy_budgets.items():
+            if (error := _required_int(budget.get(key), f"budget.{key}")) is not None:
+                errors.append(error)
+            elif version == 1 and budget[key] != value:
+                errors.append(f"budget.{key} must equal policy profile for lane {lane!r}")
+            elif version == 2 and budget[key] > value:
+                errors.append(f"budget.{key} may only tighten policy profile for lane {lane!r}")
+    _validate_packet_budget_limits(budget, version, errors)
+
+
+def _validate_packet_budget_limits(budget: dict[str, Any], version: Any, errors: list[str]) -> None:
+    if version == 2 and isinstance(budget.get("tool_calls_hard"), int) and budget["tool_calls_hard"] < 5:
+        errors.append("budget.tool_calls_hard must be at least 5")
+    if isinstance(budget.get("tool_calls_soft"), int) and isinstance(budget.get("tool_calls_hard"), int) and budget["tool_calls_soft"] > budget["tool_calls_hard"]:
+        errors.append("budget.tool_calls_soft must not exceed budget.tool_calls_hard")
+    if isinstance(budget.get("runtime_seconds_soft"), int) and isinstance(budget.get("runtime_seconds_hard"), int) and budget["runtime_seconds_soft"] > budget["runtime_seconds_hard"]:
+        errors.append("budget.runtime_seconds_soft must not exceed budget.runtime_seconds_hard")
+
+
+def _validate_packet_budget_provenance(
+    payload: dict[str, Any], budget: Any, policy_budgets: dict[str, int] | None,
+    lane: Any, errors: list[str],
+) -> None:
+    provenance = payload.get("budget_provenance")
+    if not isinstance(provenance, dict):
+        errors.append("budget_provenance must be an object for packet version 2")
+    else:
+        errors.extend(_reject_unknown_fields(provenance, "budget_provenance", ALLOWED_BUDGET_PROVENANCE_FIELDS))
+        if provenance.get("profile") != lane:
+            errors.append("budget_provenance.profile must equal lane")
+        if provenance.get("policy_source") != NATIVE_WORKER_POLICY_PATH:
+            errors.append("budget_provenance.policy_source must be policy/native-worker-execution.yaml")
+        overridden = provenance.get("overridden_fields")
+        if not isinstance(overridden, list) or any(item not in ALLOWED_BUDGET_FIELDS for item in overridden):
+            errors.append("budget_provenance.overridden_fields is invalid")
+        elif policy_budgets is not None and isinstance(budget, dict):
+            expected_overridden = sorted(
+                key
+                for key, policy_value in policy_budgets.items()
+                if budget.get(key) != policy_value
+            )
+            if sorted(overridden) != expected_overridden:
+                errors.append("budget_provenance.overridden_fields must match effective budget differences")
+            if provenance.get("overrides_applied") != bool(expected_overridden):
+                errors.append("budget_provenance.overrides_applied must match effective budget differences")
+
+
+def _validate_packet_return_contract(payload: dict[str, Any], errors: list[str]) -> None:
+    return_contract = payload.get("return_contract")
+    if not isinstance(return_contract, dict):
+        errors.append("return_contract must be an object")
+    else:
+        errors.extend(_reject_unknown_fields(return_contract, "return_contract", ALLOWED_RETURN_CONTRACT_FIELDS))
+        allowed = return_contract.get("allowed_statuses")
+        if not isinstance(allowed, list):
+            errors.append("return_contract.allowed_statuses must be a list")
+        elif not allowed:
+            errors.append("return_contract.allowed_statuses must be non-empty")
+        else:
+            for status in allowed:
+                if not isinstance(status, str):
+                    errors.append("return_contract.allowed_statuses must only contain strings")
+                    break
+            for expected in _policy_return_statuses():
+                if expected not in allowed:
+                    errors.append(f"return_contract.allowed_statuses missing {expected!r}")
+                    break
+        required_errors, required = _required_string_list(
+            return_contract.get("required_fields"), "return_contract.required_fields"
+        )
+        if required_errors:
+            errors.extend(required_errors)
+        elif not required:
+            errors.append("return_contract.required_fields must be non-empty")
+
+
 def validate_native_worker_packet(
     payload: Any,
     *,
@@ -1024,10 +1143,7 @@ def validate_native_worker_packet(
     if dispatchable and payload.get("operative_dispatch_authorized") is not True:
         errors.append("packet release state is operative-dispatch-forbidden")
 
-    if (error := _required_nonempty_str(payload.get("packet_id"), "packet_id")) is not None:
-        errors.append(error)
-    if (error := _required_nonempty_str(payload.get("bead_id"), "bead_id")) is not None:
-        errors.append(error)
+    _validate_packet_ids(payload, errors)
 
     lane = payload.get("lane")
     if str(lane) not in _policy_lanes():
@@ -1126,30 +1242,9 @@ def validate_native_worker_packet(
                         errors.append("scope.allowed_paths contains path traversal components")
                     normalized_path = _normalize_allowed_path(item, workdir, set())
                     _ = normalized_path
-            allowed_action_errors, allowed_actions = _required_string_list(
-                scope.get("allowed_actions"), "scope.allowed_actions"
-            )
-            errors.extend(allowed_action_errors)
-            if allowed_actions:
-                for action in allowed_actions:
-                    if _required_nonempty_str(action, "scope.allowed_actions item") is not None:
-                        errors.append(_required_nonempty_str(action, "scope.allowed_actions item") or "")
-            prohibited_action_errors, prohibited_actions = _required_string_list(
-                scope.get("prohibited_actions"), "scope.prohibited_actions", min_items=0
-            )
-            errors.extend(prohibited_action_errors)
-            if prohibited_actions:
-                for action in prohibited_actions:
-                    if _required_nonempty_str(action, "scope.prohibited_actions item") is not None:
-                        errors.append(_required_nonempty_str(action, "scope.prohibited_actions item") or "")
+            _validate_packet_scope_actions(scope, errors)
 
-    acceptance_errors, acceptance_checks = _required_string_list(
-        payload.get("acceptance_checks"), "acceptance_checks"
-    )
-    if acceptance_errors:
-        errors.extend(acceptance_errors)
-    elif not acceptance_checks:
-        errors.append("acceptance_checks must contain at least one check")
+    acceptance_checks = _validate_packet_acceptance_checks(payload, errors)
 
     command_contract = payload.get("command_contract")
     if not isinstance(command_contract, dict):
@@ -1329,21 +1424,7 @@ def validate_native_worker_packet(
     if not isinstance(budget, dict):
         errors.append("budget must be an object")
     else:
-        errors.extend(_reject_unknown_fields(budget, "budget", ALLOWED_BUDGET_FIELDS))
-        if policy_budgets is not None:
-            for key, value in policy_budgets.items():
-                if (error := _required_int(budget.get(key), f"budget.{key}")) is not None:
-                    errors.append(error)
-                elif version == 1 and budget[key] != value:
-                    errors.append(f"budget.{key} must equal policy profile for lane {lane!r}")
-                elif version == 2 and budget[key] > value:
-                    errors.append(f"budget.{key} may only tighten policy profile for lane {lane!r}")
-        if version == 2 and isinstance(budget.get("tool_calls_hard"), int) and budget["tool_calls_hard"] < 5:
-            errors.append("budget.tool_calls_hard must be at least 5")
-        if isinstance(budget.get("tool_calls_soft"), int) and isinstance(budget.get("tool_calls_hard"), int) and budget["tool_calls_soft"] > budget["tool_calls_hard"]:
-            errors.append("budget.tool_calls_soft must not exceed budget.tool_calls_hard")
-        if isinstance(budget.get("runtime_seconds_soft"), int) and isinstance(budget.get("runtime_seconds_hard"), int) and budget["runtime_seconds_soft"] > budget["runtime_seconds_hard"]:
-            errors.append("budget.runtime_seconds_soft must not exceed budget.runtime_seconds_hard")
+        _validate_packet_budget_entries(budget, policy_budgets, lane, version, errors)
         if dispatchable and isinstance(payload.get("work_plan"), dict):
             work_plan = payload.get("work_plan")
             aggregate_allowance = work_plan.get("aggregate_allowance")
@@ -1374,28 +1455,7 @@ def validate_native_worker_packet(
                     errors.append("budget.runtime_seconds_hard exceeds work_plan aggregate allowance")
 
     if version in {2, 3}:
-        provenance = payload.get("budget_provenance")
-        if not isinstance(provenance, dict):
-            errors.append("budget_provenance must be an object for packet version 2")
-        else:
-            errors.extend(_reject_unknown_fields(provenance, "budget_provenance", ALLOWED_BUDGET_PROVENANCE_FIELDS))
-            if provenance.get("profile") != lane:
-                errors.append("budget_provenance.profile must equal lane")
-            if provenance.get("policy_source") != NATIVE_WORKER_POLICY_PATH:
-                errors.append("budget_provenance.policy_source must be policy/native-worker-execution.yaml")
-            overridden = provenance.get("overridden_fields")
-            if not isinstance(overridden, list) or any(item not in ALLOWED_BUDGET_FIELDS for item in overridden):
-                errors.append("budget_provenance.overridden_fields is invalid")
-            elif policy_budgets is not None and isinstance(budget, dict):
-                expected_overridden = sorted(
-                    key
-                    for key, policy_value in policy_budgets.items()
-                    if budget.get(key) != policy_value
-                )
-                if sorted(overridden) != expected_overridden:
-                    errors.append("budget_provenance.overridden_fields must match effective budget differences")
-                if provenance.get("overrides_applied") != bool(expected_overridden):
-                    errors.append("budget_provenance.overrides_applied must match effective budget differences")
+        _validate_packet_budget_provenance(payload, budget, policy_budgets, lane, errors)
         supervision = payload.get("supervision")
         if not isinstance(supervision, dict):
             errors.append("supervision must be an object for packet version 2")
@@ -1505,32 +1565,7 @@ def validate_native_worker_packet(
                 errors.append("escalation_triggers.compaction.any_compaction must be hard-stop/realignment")
             if compaction.get("status") != str(align.get("status", "needs-architect-realignment")):
                 errors.append("escalation_triggers.compaction.status must be needs-architect-realignment")
-    return_contract = payload.get("return_contract")
-    if not isinstance(return_contract, dict):
-        errors.append("return_contract must be an object")
-    else:
-        errors.extend(_reject_unknown_fields(return_contract, "return_contract", ALLOWED_RETURN_CONTRACT_FIELDS))
-        allowed = return_contract.get("allowed_statuses")
-        if not isinstance(allowed, list):
-            errors.append("return_contract.allowed_statuses must be a list")
-        elif not allowed:
-            errors.append("return_contract.allowed_statuses must be non-empty")
-        else:
-            for status in allowed:
-                if not isinstance(status, str):
-                    errors.append("return_contract.allowed_statuses must only contain strings")
-                    break
-            for expected in _policy_return_statuses():
-                if expected not in allowed:
-                    errors.append(f"return_contract.allowed_statuses missing {expected!r}")
-                    break
-        required_errors, required = _required_string_list(
-            return_contract.get("required_fields"), "return_contract.required_fields"
-        )
-        if required_errors:
-            errors.extend(required_errors)
-        elif not required:
-            errors.append("return_contract.required_fields must be non-empty")
+    _validate_packet_return_contract(payload, errors)
 
     if version == 3:
         if payload.get("experimental") is not True:

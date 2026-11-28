@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from .return_common import add_signal, malpractice_signal_weights, strip_fenced_blocks
+from .return_common import add_weighted_signal, extend_signals, malpractice_signal_weights, strip_fenced_blocks
 from .return_sections import SectionReader
 from .types import EvidenceQuality, ResearchEvidenceQuality, ReturnSignal
 
@@ -184,11 +184,9 @@ def score_research_evidence(
 
     items: list[dict[str, Any]] = list(research["research_evidence_items"])
     if not items:
-        add_signal(
-            signals,
-            category="missing_research_evidence",
-            reason="research return has no structured research evidence items",
-            weight=weights["missing_research_evidence"],
+        add_weighted_signal(
+            signals, weights, "missing_research_evidence",
+            "research return has no structured research evidence items",
         )
 
     for index, item in enumerate(items, start=1):
@@ -204,104 +202,75 @@ def score_research_evidence(
         relevance = research_score_value(item.get("relevance_score"))
 
         if not claim:
-            add_signal(
-                signals,
-                category="missing_research_claim",
-                reason=f"{label} is missing a claim",
-                weight=weights["missing_research_claim"],
-            )
+            add_weighted_signal(signals, weights, "missing_research_claim", f"{label} is missing a claim")
         if not source_locator:
-            add_signal(
-                signals,
-                category="missing_research_source_locator",
-                reason=f"{label} is missing a reusable source locator",
-                weight=weights["missing_research_source_locator"],
+            add_weighted_signal(
+                signals, weights, "missing_research_source_locator",
+                f"{label} is missing a reusable source locator",
             )
         if not citation_span and not quoted_excerpt:
-            add_signal(
-                signals,
-                category="missing_research_grounding",
-                reason=f"{label} is missing citation span or quoted excerpt",
-                weight=weights["missing_research_grounding"],
+            add_weighted_signal(
+                signals, weights, "missing_research_grounding",
+                f"{label} is missing citation span or quoted excerpt",
             )
         if source_type not in RESEARCH_SOURCE_TYPES:
-            add_signal(
-                signals,
-                category="weak_research_source_type",
-                reason=f"{label} has unknown source type {source_type or 'empty'}",
-                weight=weights["weak_research_source_type"],
+            add_weighted_signal(
+                signals, weights, "weak_research_source_type",
+                f"{label} has unknown source type {source_type or 'empty'}",
             )
         if support_type not in RESEARCH_SUPPORT_TYPES:
-            add_signal(
-                signals,
-                category="weak_research_support_type",
-                reason=f"{label} has missing or unsupported support type",
-                weight=weights["weak_research_support_type"],
+            add_weighted_signal(
+                signals, weights, "weak_research_support_type",
+                f"{label} has missing or unsupported support type",
             )
         if access_status not in RESEARCH_ACCESS_STATUSES:
-            add_signal(
-                signals,
-                category="weak_research_access_status",
-                reason=f"{label} has unknown access status {access_status or 'empty'}",
-                weight=weights["weak_research_access_status"],
+            add_weighted_signal(
+                signals, weights, "weak_research_access_status",
+                f"{label} has unknown access status {access_status or 'empty'}",
             )
         if reliability is None or reliability < 60:
-            add_signal(
-                signals,
-                category="weak_research_reliability",
-                reason=f"{label} has missing or low source reliability score",
-                weight=weights["weak_research_reliability"],
+            add_weighted_signal(
+                signals, weights, "weak_research_reliability",
+                f"{label} has missing or low source reliability score",
             )
         if relevance is None or relevance < 60:
-            add_signal(
-                signals,
-                category="weak_research_relevance",
-                reason=f"{label} has missing or low relevance score",
-                weight=weights["weak_research_relevance"],
+            add_weighted_signal(
+                signals, weights, "weak_research_relevance",
+                f"{label} has missing or low relevance score",
             )
         if (
             support_type in {"supports", "refutes"}
             and access_status in {"abstract-only", "paywalled", "restricted", "inaccessible"}
             and (not quoted_excerpt or re.search(r"\babstract[- ]only|abstract\b", quoted_excerpt, re.I))
         ):
-            add_signal(
-                signals,
-                category="inaccessible_research_support",
-                reason=f"{label} treats limited-access evidence as full support",
-                weight=weights["inaccessible_research_support"],
+            add_weighted_signal(
+                signals, weights, "inaccessible_research_support",
+                f"{label} treats limited-access evidence as full support",
             )
 
     if research["research_unresolved_contradiction_count"]:
-        add_signal(
-            signals,
-            category="unresolved_research_contradiction",
-            reason="research contradictions are unresolved or missing a handled status",
-            weight=weights["unresolved_research_contradiction"],
+        add_weighted_signal(
+            signals, weights, "unresolved_research_contradiction",
+            "research contradictions are unresolved or missing a handled status",
         )
 
     reflection = dict(research["research_reflection"])
     if not reflection:
-        add_signal(
-            signals,
-            category="missing_research_reflection",
-            reason="research return is missing coverage/factual-support reflection",
-            weight=weights["missing_research_reflection"],
+        add_weighted_signal(
+            signals, weights, "missing_research_reflection",
+            "research return is missing coverage/factual-support reflection",
         )
     else:
         if research["research_replan_recommended"]:
-            add_signal(
-                signals,
-                category="research_replan_recommended",
-                reason="research reflection recommends replanning or follow-up queries",
-                weight=weights["research_replan_recommended"],
+            add_weighted_signal(
+                signals, weights, "research_replan_recommended",
+                "research reflection recommends replanning or follow-up queries",
             )
         gaps = reflection.get("gaps") or reflection.get("followup_queries") or reflection.get("follow_up_queries")
         if gaps and not research["research_replan_recommended"]:
-            add_signal(
-                signals,
-                category="research_reflection_gaps",
-                reason="research reflection names gaps without a replan recommendation",
-                weight=weights["research_reflection_gaps"],
+            add_weighted_signal(
+                signals, weights, "research_reflection_gaps",
+                "research reflection names gaps without a replan recommendation",
             )
 
     score = max(0, 100 - min(100, sum(int(signal["weight"]) for signal in signals)))
@@ -354,26 +323,17 @@ def score_evidence_quality(
     evidence_words = evidence.split()
 
     if not evidence and not has_research_evidence:
-        add_signal(
-            signals,
-            category="missing_evidence",
-            reason="evidence is missing or too thin",
-            weight=weights["missing_evidence"],
-        )
+        add_weighted_signal(signals, weights, "missing_evidence", "evidence is missing or too thin")
     elif not has_research_evidence and (len(evidence_words) < 8 or not items):
-        add_signal(
-            signals,
-            category="thin_evidence",
-            reason="evidence has too little detail for independent reuse",
-            weight=weights["thin_evidence"],
+        add_weighted_signal(
+            signals, weights, "thin_evidence",
+            "evidence has too little detail for independent reuse",
         )
 
     if items and claim_items and not supported_items and not has_research_evidence:
-        add_signal(
-            signals,
-            category="claim_only_evidence",
-            reason="evidence contains only unsupported claim-style items",
-            weight=weights["claim_only_evidence"],
+        add_weighted_signal(
+            signals, weights, "claim_only_evidence",
+            "evidence contains only unsupported claim-style items",
         )
 
     generic_patterns = [
@@ -391,11 +351,9 @@ def score_evidence_quality(
         and any(re.search(pattern, str(item.get("text", "")), re.I) for pattern in generic_patterns)
     ]
     if generic_hits:
-        add_signal(
-            signals,
-            category="vague_evidence",
-            reason="evidence relies on generic or non-actionable wording",
-            weight=weights["vague_evidence"],
+        add_weighted_signal(
+            signals, weights, "vague_evidence",
+            "evidence relies on generic or non-actionable wording",
         )
 
     if provenance and not has_research_evidence:
@@ -407,20 +365,12 @@ def score_evidence_quality(
             )
         )
         if not provenance_supported:
-            add_signal(
-                signals,
-                category="weak_evidence_provenance",
-                reason="evidence provenance does not identify a reusable source",
-                weight=weights["weak_evidence_provenance"],
+            add_weighted_signal(
+                signals, weights, "weak_evidence_provenance",
+                "evidence provenance does not identify a reusable source",
             )
 
-    for signal in research_quality["research_evidence_signals"]:
-        add_signal(
-            signals,
-            category=str(signal["category"]),
-            reason=str(signal["reason"]),
-            weight=int(signal["weight"]),
-        )
+    extend_signals(signals, research_quality["research_evidence_signals"])
 
     legacy_score = max(0, 100 - min(100, sum(int(signal["weight"]) for signal in signals)))
     score = min(legacy_score, int(research_quality["research_evidence_score"])) if has_research_evidence else legacy_score

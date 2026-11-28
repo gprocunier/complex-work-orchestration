@@ -21,10 +21,13 @@ from cwo_core.epic_convergence import CLOSURE_DISPOSITIONS, evaluate_closure_pre
 from cwo_core.errors import CWOError
 from cwo_core.model_identities import LUNA_MODEL, SPARK_MODEL, resolve_model, role_for_model
 from cwo_core.operative_routing import TASK_SELECTED_VERSION
+from cwo_core.policy import load_policy
+from cwo_core.review_inputs import review_description
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import (
     classify_work,
     expert_covers,
+    expert_result_from_profile,
     expert_review_labels,
     expert_review_lane,
     expert_review_metadata,
@@ -83,37 +86,21 @@ SPARK_DISPATCH_METADATA_FIELDS = (
 
 
 def body(purpose: str, expected: str) -> str:
-    return f"""Purpose:
-{purpose}
-
-Scope:
-Bounded to this Bead and parent epic.
-
-Inputs:
-- Parent epic
-- Route result
-- Current repository state
-
-Allowed changes:
-Only changes required by this lane.
-
-Do not touch:
-Secrets, production systems, release tags, destructive commands, or unrelated files.
-
-Expected output:
-{expected}
-
-Validation required:
-Report commands, evidence, and residual risk.
-
-Escalation triggers:
-Architecture change, scope change, security risk, missing context, destructive action, or conflicting evidence.
-
-Handoff format:
-Beads comment with findings, validation, and next action.
-Before meaningful closure, add a final closure-memory comment with disposition,
-who was involved, what changed, why closed, how validated, when closed, where
-executed, key decisions, evidence, residual risk, and follow-up."""
+    return "\n\n".join((
+        f"Purpose:\n{purpose}",
+        "Scope:\nBounded to this Bead and parent epic.",
+        "Inputs:\n- Parent epic\n- Route result\n- Current repository state",
+        "Allowed changes:\nOnly changes required by this lane.",
+        "Do not touch:\nSecrets, production systems, release tags, destructive commands, or unrelated files.",
+        f"Expected output:\n{expected}",
+        "Validation required:\nReport commands, evidence, and residual risk.",
+        "Escalation triggers:\nArchitecture change, scope change, security risk, missing context, "
+        "destructive action, or conflicting evidence.",
+        "Handoff format:\nBeads comment with findings, validation, and next action.\n"
+        "Before meaningful closure, add a final closure-memory comment with disposition,\n"
+        "who was involved, what changed, why closed, how validated, when closed, where\n"
+        "executed, key decisions, evidence, residual risk, and follow-up.",
+    ))
 
 
 def unique_strings(items: list[object]) -> list[str]:
@@ -585,7 +572,8 @@ def expert_fields(
             ]
         ),
         "acceptance": "Review is complete when these checks pass:\n"
-        + bullet_list(list(acceptance_checks), "Findings are scoped, evidenced, and actionable."),
+        + bullet_list(list(acceptance_checks), "Findings are scoped, evidenced, and actionable.")
+        + "\nReturn an incomplete review when required inputs are missing.",
         "design": (
             f"Apply the {display_name} lens during {stage}. "
             f"Honor job-description label {job_label}, share boundary {route.get('share_boundary')}, "
@@ -601,33 +589,7 @@ def architecture_critic_experts(route: dict[str, Any]) -> list[dict[str, Any]]:
         return []
     base = next(
         (expert for expert in route.get("ranked_experts", []) if expert.get("name") == "architecture"),
-        {
-            "display_name": "Architecture Distinguished Engineer",
-            "discipline": "architecture",
-            "persona_file": "experts/architecture.md",
-            "job_description_label": "contract-jd-architecture-reasoning",
-            "task_class": "architecture-review",
-            "review_stage": "pre-implementation",
-            "output_contract": [
-                "target boundaries",
-                "tradeoffs",
-                "rejected alternatives",
-                "migration risk",
-                "rollback path",
-                "follow-up beads",
-            ],
-            "acceptance_checks": [
-                "boundary impact is explicit",
-                "migration path is reversible",
-                "compatibility risk is named",
-            ],
-            "escalation_rules": [
-                "system-wide redesign",
-                "public contract change",
-                "persistent state migration",
-                "release blocker",
-            ],
-        },
+        expert_result_from_profile("architecture", load_policy("expert-registry")["experts"]["architecture"]),
     )
     experts: list[dict[str, Any]] = []
     for contract in contracts:
@@ -697,7 +659,32 @@ def selected_source_experts(route: dict[str, Any], scaffold_size: str) -> list[d
     return selected
 
 
-def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full") -> list[dict[str, Any]]:
+def _with_architecture_design(item: dict[str, Any], enabled: bool) -> dict[str, Any]:
+    if not enabled:
+        return item
+    profile = {
+        "profile": "architecture-design",
+        "persona_file": "experts/architecture-design.md",
+        "template": "templates/architecture-design-package.md",
+        "reference": "references/architecture-design.md",
+    }
+    item["metadata"]["architecture_design"] = profile
+    completion = "Record the accepted architecture design package and its version on this Bead before closing it."
+    item["description"] = body(
+        f"Trace the existing system and caller workflow using {profile['persona_file']}.",
+        f"{completion} Use {profile['template']} and follow the decision and reframe guidance in {profile['reference']}.",
+    )
+    item["acceptance"] += (
+        f" {completion} The package identifies verified current behavior, the proposed workflow and boundaries, "
+        "the selection, validation, rollout and rollback, and how to record material deviations."
+    )
+    return item
+
+
+def planned_graph(
+    title: str, route: dict[str, Any], scaffold_size: str = "full", *,
+    review_context: str = "", architecture_design: bool = False,
+) -> list[dict[str, Any]]:
     if scaffold_size not in {"full", "tight"}:
         raise ValueError("scaffold_size must be 'full' or 'tight'")
     route = {**route, "scaffold_size": scaffold_size}
@@ -790,6 +777,10 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
 
         item = task(lane, expert["display_name"], expert_review_labels(expert, route), depends_on, metadata=metadata)
         item.update(expert_fields(expert, route))
+        item["description"], input_status = review_description(
+            expert, item["acceptance"], review_context, metadata,
+        )
+        item["metadata"].update(input_status)
         expert_items.append(item)
 
     peer_review_required = bool(route.get("peer_review_required"))
@@ -819,7 +810,7 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
             "design": "Policy-routed epic that coordinates architect, PM, workerbee, review, validation, and handoff lanes through Beads.",
             "notes": route_notes(route),
         },
-        task("architect", "Architect frame", ["architect", "framing"]),
+        _with_architecture_design(task("architect", "Architect frame", ["architect", "framing"]), architecture_design),
         task("pm", "PM coordinate", ["pm", "coordination"]),
         task(
             "implementation", "Implement", _lane_labels(route, "implementation", ["workerbee", "implementation"]),
@@ -906,6 +897,10 @@ def planned_graph(title: str, route: dict[str, Any], scaffold_size: str = "full"
 
     graph.extend(expert_items)
     return graph
+
+
+def planned_description(item: dict[str, Any], key: str) -> str:
+    return item.get("description") or body(f"Complete the {key} lane.", f"Evidence and result for {key}.")
 
 
 def item_key(item: dict[str, Any], index: int) -> str:
@@ -1112,6 +1107,7 @@ def beads_graph_plan(plan: list[dict[str, Any]]) -> dict[str, list[dict[str, Any
             "priority": item_priority(item, index),
             "labels": list(item.get("labels", [])),
             "metadata": node_metadata,
+            **{key: item[key] for key in item.keys() & {"description"}},
         }
         if index > 0:
             node["parent_key"] = "epic"
@@ -1134,6 +1130,11 @@ def markdown_inline_list(items: list[object]) -> str:
 def markdown_block(value: object) -> str:
     text = str(value or "").strip()
     return text if text else "None."
+
+
+def markdown_review_description(item: dict[str, Any]) -> list[str]:
+    description = item.get("description")
+    return ["#### Description", "", markdown_block(description), ""] if description else []
 
 
 def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
@@ -1172,6 +1173,7 @@ def markdown_workgraph_plan(title: str, plan: list[dict[str, Any]]) -> str:
                 f"- {FIELD_DEPENDS_ON_LANES}: {markdown_inline_list(list(item.get('depends_on_lanes', [])))}",
                 f"- {FIELD_SKILLS}: {markdown_inline_list(list(item.get('skills', [])))}",
                 "",
+                *markdown_review_description(item),
                 "#### Acceptance",
                 "",
                 markdown_block(item.get("acceptance")),
@@ -1249,6 +1251,10 @@ def main() -> None:
     parser.add_argument("--title", required=True)
     parser.add_argument("--description", default="")
     parser.add_argument("--file")
+    parser.add_argument(
+        "--architecture-design", action="store_true",
+        help="Require a design package in the existing architect Bead before implementation.",
+    )
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument(
         "--allow-disclosure-escalation",
@@ -1334,7 +1340,10 @@ def main() -> None:
         "closure_pressure": closure_pressure,
     }
     try:
-        plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size)
+        plan = planned_graph(
+            args.title, route, scaffold_size=args.scaffold_size,
+            review_context=context, architecture_design=args.architecture_design,
+        )
         relationships = validate_workgraph_plan(plan, for_creation=True)
     except ValueError as exc:
         raise SystemExit(str(exc))
@@ -1377,7 +1386,7 @@ def main() -> None:
                 priority=item_priority(item, index),
                 labels=item["labels"],
                 skills=item["skills"],
-                description=body(f"Complete the {key} lane.", f"Evidence and result for {key}."),
+                description=planned_description(item, key),
                 acceptance=str(item["acceptance"]),
                 design=str(item["design"]),
                 notes=str(item["notes"]),

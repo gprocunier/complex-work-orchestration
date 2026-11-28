@@ -540,6 +540,22 @@ class WorkflowTests(unittest.TestCase):
                                      disclosure_consent=self.production_disclosure())
         self.assert_unstarted(workflow)
 
+    def test_production_refuses_omitted_workload_sizing_before_claims(self):
+        workflow = self.workflow
+        workflow.adopt_execution(adoption_id='EXAMPLE_PRODUCTION', disclosure_consent=self.production_disclosure())
+        route = workflow.config.route
+        del route['nodes'][0]['estimate_source']
+        route['bound_input_sha256'] = W.R.admission.planner.input_sha256(route)
+
+        with self.assertRaisesRegex(ValueError, 'Original request or whole route changed'):
+            workflow.run()
+
+        self.assert_unstarted()
+        self.assertFalse(self.case.ledger.root.exists())
+
+    # The refusal invalidates its evidence controller, so use private evidence.
+    test_production_refuses_omitted_workload_sizing_before_claims.production_case = True
+
     @production_case
     def test_production_uses_configured_worker_login_and_separate_publication(self):
         workflow, home, state = self.configure_worker_login(from_installation=True)

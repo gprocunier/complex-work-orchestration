@@ -51,6 +51,32 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertIn({"from_key": "wrap-up-report", "to_key": "validation", "type": "blocks"}, edges)
         self.assertNotIn({"from_key": "docs", "to_key": "validation", "type": "blocks"}, edges)
 
+    def test_architecture_design_opt_in_enriches_existing_beads_graph(self) -> None:
+        command = [sys.executable, str(ROOT / "scripts" / "scaffold_workgraph.py"), "--title",
+                   "Add a configurable output format", "--dry-run", "--format", "beads-graph"]
+        baseline, opted_in = [
+            json.loads(subprocess.run([*command, *flag], cwd=ROOT, check=True, capture_output=True, text=True).stdout)
+            for flag in ([], ["--architecture-design"])
+        ]
+        self.assertEqual(baseline["edges"], opted_in["edges"])
+        self.assertEqual([node["key"] for node in baseline["nodes"]], [node["key"] for node in opted_in["nodes"]])
+        self.assertEqual(baseline["nodes"][0]["metadata"]["cwo_metadata_orchestration_route"],
+                         opted_in["nodes"][0]["metadata"]["cwo_metadata_orchestration_route"])
+        self.assertIn({"from_key": "implementation", "to_key": "architect", "type": "blocks"}, opted_in["edges"])
+        default_architect, architect = [
+            next(node for node in graph["nodes"] if node["key"] == "architect")
+            for graph in (baseline, opted_in)
+        ]
+        self.assertNotIn("cwo_metadata_architecture_design", default_architect["metadata"])
+        profile = json.loads(architect["metadata"]["cwo_metadata_architecture_design"])
+        self.assertEqual(profile["persona_file"], "experts/architecture-design.md")
+        self.assertEqual(profile["template"], "templates/architecture-design-package.md")
+        self.assertIn("accepted architecture design package", architect["metadata"]["cwo_acceptance"])
+        self.assertIn(profile["template"], architect["description"])
+        self.assertIn("accepted architecture design package", architect["description"])
+        for target in (profile["persona_file"], profile["template"], profile["reference"]):
+            self.assertTrue((ROOT / target).is_file(), target)
+
     def test_beads_graph_plan_preserves_cwo_fields_in_metadata(self) -> None:
         route = classify_work("Document Beads graph import behavior.")
         cwo_graph = planned_graph("Metadata Example", route)
@@ -63,6 +89,41 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertTrue(cwo["cwo_acceptance"])
         self.assertTrue(cwo["cwo_design"])
         self.assertTrue(cwo["cwo_notes"])
+
+    def test_editor_and_visual_review_inputs_reach_native_graph(self) -> None:
+        route = classify_work("Publish public documentation and visual review for GitHub Pages.",
+                              file_paths=["docs/index.html"])
+        editor = next(expert for expert in route["ranked_experts"] if expert["name"] == "editor")
+        visual = next(expert for expert in route["ranked_experts"] if expert["name"] == "web_design")
+        self.assertIn("target audience", editor["required_inputs"])
+        self.assertIn("screen states", visual["required_inputs"])
+        inputs = {
+            "target audience": "First-time queue operators",
+            "documentation map": "README.md#queue defines the four documented states",
+            "page flow": "390px viewport shows status before details",
+            "Diataxis intent": "An operator runs the workflow as a tutorial",
+            "changed behavior": "The queue card shows incomplete case status",
+            "publication constraints": "The queue uses a documented public example",
+            "prerequisites and setup paths": "Start the sample server with make demo",
+            "public terminology map": "A case is a single queue entry",
+            "audience": "First-time queue operators",
+            "reader journey": "README.md#queue explains each card before setup",
+            "content hierarchy": "Open cases precede resolved cases",
+            "accessibility constraints": "Each status has a text label",
+            "responsive targets": "390px viewport",
+            "screen states": "Missing timestamp, partial record, and a 9000-item queue",
+        }
+        context = "\n".join(f"Review input [{name}]: {value}" for name, value in inputs.items())
+        graph = beads_graph_plan(planned_graph("Queue docs", route, review_context=context))
+        for expert, keys in ((editor, ["target audience", "documentation map", "page flow"]),
+                             (visual, ["audience", "reader journey", "responsive targets", "screen states"])):
+            node = next(node for node in graph["nodes"] if node["key"] == f"expert-review-{expert['name'].replace('_', '-')}")
+            self.assertEqual(node["metadata"]["cwo_metadata_persona_file"], expert["persona_file"])
+            self.assertEqual(json.loads(node["metadata"]["cwo_metadata_required_inputs"]), expert["required_inputs"])
+            self.assertEqual(node["metadata"]["cwo_metadata_review_input_status"], "ready")
+            self.assertIn("Review is complete", node["metadata"]["cwo_acceptance"])
+            for key in keys:
+                self.assertIn(inputs[key], node["description"])
 
     def test_beads_graph_plan_preserves_explicit_nonblocking_relationships(self) -> None:
         plan = [

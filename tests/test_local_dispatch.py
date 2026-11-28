@@ -459,6 +459,52 @@ class LocalDispatchTests(unittest.TestCase):
     def _glm53_args(self) -> Namespace:
         return _local_dispatch_args(local_base_url="http://127.0.0.1:8000/v1", allow_offline_access_profile=False)
 
+    def test_managed_review_requires_inputs_in_the_approved_local_task(self) -> None:
+        import dispatch_work
+
+        profile = load_policy("expert-registry")["experts"]["documentation"]
+        assignment = {"id": "bd-review", "metadata": {
+            "cwo_metadata_expert": "documentation",
+            "cwo_metadata_job_description_label": profile["job_description_label"],
+            "private_notes": "unshared details",
+        }}
+        task = "Review TLS timeouts, HTTP proxies, ingress, egress, network paths, DNS and certificates."
+        args = ["--local-ok", "--prefer-local", "--local-profile", "openshift-ai-vllm",
+                "--requested-role", "networking", "--bead", "bd-review", "--json"]
+        with patch.object(dispatch_work, "discover_review_issue", return_value=assignment):
+            blocked = run_dispatch_cli([task, *args])
+            self.assertNotEqual(blocked.returncode, 0)
+            self.assertIn("target audience", blocked.stderr)
+            evidence = [
+                "Review input [target audience]: Operators installing the demo for the first time",
+                "Review input [changed behavior]: The setup page now includes the queue status guide",
+                "Review input [install path]: Start the sample server with make demo",
+                "Review input [known failure modes]: A missing owner keeps the card in the open queue",
+                "Review input [examples]: The setup uses a queue fixture with three entries",
+                "Review input [reader-facing terminology]: A case is a single queue entry",
+            ]
+            approved = "\n".join([task, f"Expert profile: {profile['persona_file']}", *evidence])
+            with patch.object(dispatch_work, "record_prepared_dispatch", wraps=dispatch_work.record_prepared_dispatch) as record:
+                ready = run_dispatch_cli([approved, *args])
+        self.assertEqual(ready.returncode, 0, ready.stderr)
+        report = json.loads(ready.stdout)
+        self.assertEqual(report["route"]["ranked_experts"][0]["job_description_label"], "contract-jd-domain-networking")
+        envelope = report["local_envelope"]
+        label = profile["job_description_label"]
+        self.assertEqual(envelope["job_description_label"], label)
+        self.assertIn(f"Job label: {label}", envelope["messages"][1]["content"])
+        self.assertEqual(record.call_args.kwargs["evaluation_metadata"]["job_description_label"], label)
+        self.assertIn("experts/documentation.md", ready.stdout)
+        self.assertNotIn("unshared details", ready.stdout)
+        assignment["labels"] = ["contract-jd-editorial-reasoning"]
+        with patch.object(dispatch_work, "discover_review_issue", return_value=assignment):
+            conflict = run_dispatch_cli([approved, *args])
+        self.assertNotEqual(conflict.returncode, 0)
+        self.assertIn("review identity does not match the assigned job", conflict.stderr)
+        with patch.object(dispatch_work, "discover_review_issue", return_value={"id": "bd-review", "labels": ["docs"]}):
+            ordinary = run_dispatch_cli([task, *args])
+        self.assertEqual(ordinary.returncode, 0, ordinary.stderr)
+
     def test_bounded_local_response_frame_rows(self) -> None:
         rows = (
             ResponseFrameCase("test_bounded_local_response_accepts_absent_getheader_headers", b"ok", None, True, 8, b"ok"),

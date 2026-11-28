@@ -17,6 +17,7 @@ import cwo
 from cwo_core import host_records
 from cwo_core.policy import load_policy
 from generate_manual_dispatch_prompt import render_packet_prompt
+from tests.dispatch_workload_fixture import write_workload
 from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant
 from tests.test_browser_provenance import production_packet
 from tests.test_outbound_screen import packet_with
@@ -54,7 +55,8 @@ class DesktopBrowserReviewTests(unittest.TestCase):
         return stdout.getvalue()
 
     def prepare(self):
-        request = self.invoke("prepare-browser", "--packet", str(self.packet_path))
+        self.workload_path = write_workload(self.packet_path.with_name("workload.json"), self.packet, browser=True)
+        request = self.reprepare()
         prefix = render_packet_prompt(self.packet).rstrip() + "\n\nCWO request id: "
         self.assertTrue(request.startswith(prefix))
         request_id = request.removeprefix(prefix)
@@ -63,6 +65,9 @@ class DesktopBrowserReviewTests(unittest.TestCase):
         self.assertEqual(dispatch["request_sha256"], hashlib.sha256(request.encode()).hexdigest())
         return request, request_id
 
+    def reprepare(self):
+        return self.invoke("prepare-browser", "--packet", str(self.packet_path), "--workload", self.workload_path)
+
     def evaluate(self, request_id, *, model="GPT-5.4 Pro", extra=()):
         return self.invoke("evaluate", "--contractor-packet", str(self.packet_path),
                            "--browser-reply", str(self.reply_path), "--request-id", request_id,
@@ -70,7 +75,7 @@ class DesktopBrowserReviewTests(unittest.TestCase):
 
     def test_desktop_round_trip_records_private_reply_and_sender_label(self):
         request, request_id = self.prepare()
-        self.assertEqual(self.invoke("prepare-browser", "--packet", str(self.packet_path)), request)
+        self.assertEqual(self.reprepare(), request)
         self.assertNotIn(request_id.encode(), self.reply)
         stdout = self.evaluate(request_id)
         dispatch = self.store.require_dispatch(self.packet["dispatch_id"])
@@ -112,6 +117,23 @@ class DesktopBrowserReviewTests(unittest.TestCase):
             self.evaluate(request_id)
         self.assertFalse(self.store.find("return-received"))
         self.assertFalse(self.store.find("evaluation"))
+
+    def test_legacy_unsized_preparation_allows_intake_but_requires_new_dispatch_to_export(self):
+        request_id = "c0" * 16
+        self.store.write_dispatch(
+            dispatch_id=self.packet["dispatch_id"], dispatch_role="executor", provider=self.packet["provider_family"],
+            model_family=None, model_id=None, reasoning_effort=None, session_id=None,
+            packet_sha256=self.packet["packet_sha256"], bead_id=self.packet["bead_id"],
+            executor=self.packet["executor"], provider_key=self.packet["provider_key"],
+            evaluation_metadata={"browser_handoff": host_records.DESKTOP_BROWSER_HANDOFF,
+                                 "request_id": request_id, "dispatch_mode": "browser_automation",
+                                 "peer_review_required": True},
+        )
+        self.workload_path = write_workload(self.packet_path.with_name("workload.json"), self.packet, browser=True)
+        with self.assertRaisesRegex(SystemExit, "fresh dispatch ID"):
+            self.reprepare()
+        result = json.loads(self.evaluate(request_id))
+        self.assertEqual(result["return_sha256"], hashlib.sha256(self.reply).hexdigest())
 
     def test_completed_request_refuses_replacement_reply_or_model_label(self):
         _, request_id = self.prepare()
@@ -184,7 +206,7 @@ class DesktopBrowserReviewTests(unittest.TestCase):
             self.link_packet(self.packet)
             request, request_id = self.prepare()
         saved = self.packet_path.read_bytes()
-        self.assertEqual(self.invoke("prepare-browser", "--packet", str(self.packet_path)), request)
+        self.assertEqual(self.reprepare(), request)
         evaluation = json.loads(self.evaluate(request_id))
         self.assertEqual(evaluation["return_sha256"], hashlib.sha256(self.reply).hexdigest())
         self.assertEqual(self.packet_path.read_bytes(), saved)

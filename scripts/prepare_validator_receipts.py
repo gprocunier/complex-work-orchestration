@@ -296,8 +296,8 @@ def _receipt_source(result: dict[str, Any], normalized: dict[str, Any]) -> None:
     _need(_canonical(actual) == _canonical(expected), "receipt source hashes or linter differ from exact source bytes")
 
 
-def _consume(wrapper: dict[str, Any], contract: dict[str, Any], root: str,
-             baseline_digest: str, candidate_digest: str) -> dict[str, Any]:
+def _receipt_identity(wrapper: dict[str, Any], contract: dict[str, Any], root: str,
+                      baseline_digest: str, candidate_digest: str) -> tuple[dict[str, Any], dict[str, Any], str]:
     _need(wrapper["baseline_digest"] == baseline_digest, "evidence baseline differs from the independently resolved baseline")
     _need(wrapper["candidate_digest"] == candidate_digest, "evidence candidate differs from the supplied candidate")
     normalized = _normalized(wrapper["spec"], root)
@@ -311,6 +311,12 @@ def _consume(wrapper: dict[str, Any], contract: dict[str, Any], root: str,
     _need(type(result["version"]) is int, "receipt version must be an integer")
     _need(_canonical({key: result[key] for key in expected}) == _canonical(expected),
           "receipt type, version, command, specification or mode differs")
+    return result, normalized, digest
+
+
+def _consume(wrapper: dict[str, Any], contract: dict[str, Any], root: str,
+             baseline_digest: str, candidate_digest: str) -> dict[str, Any]:
+    result, normalized, digest = _receipt_identity(wrapper, contract, root, baseline_digest, candidate_digest)
     _receipt_success(result)
     _receipt_source(result, normalized)
     stdout_digest = _sha(result["diagnostics"]["stdout"].encode("utf-8"))

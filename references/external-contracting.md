@@ -103,22 +103,24 @@ production packet. Audit records describe the helper-managed workflow.
 Packet redaction is structure-aware. Secret-like fields in assignments and
 bounded JSON/YAML-style structures are removed aggressively. For fields that are
 structurally present, even short alphabetic values (for example `safe`) are
-redacted by design to keep disclosure conservative. In ordinary prose, a
-secret-like word is removed only when the following value has a strong credential
-shape. Do not place real credentials in source text or rely on redaction as the
-only disclosure control; inspect the rendered packet before dispatch.
+redacted by design to keep disclosure conservative. Packet redaction also
+removes credentials from URLs, recognized AWS keys in prose, email addresses,
+formatted phone numbers and recognizable personal names. If a private-key
+block has no closing marker, redaction removes the rest of that text field.
+An independent check looks for sensitive content left after redaction. Keep
+credentials out of source text and inspect the rendered packet before dispatch.
 
 A separate outbound screen (`cwo_core.outbound_screen`, rules in
 `policy/outbound-screening.yaml`) then inspects the exact bytes about to leave:
 the printed manual export and the local HTTP request body. It reads the raw
-text, a normalized view (NFKC, common confusable letters folded, zero-width
-and other format characters removed) and every decoded JSON string, and it
-refuses on any finding, certain or uncertain, without repeating the matched
-value. Manual export refuses before quota or audit effects and prints exactly
-the screened bytes; local HTTP sends the screened body and refuses if it
-changed after screening. The screen is a second, separately maintained check,
-not a promise to find every secret, and there is no exception mechanism yet:
-remove or reword flagged content.
+text, normalized and decoded views, and JSON strings. Its checks include
+recognizable personal names, street addresses, international phone
+numbers, payment-card numbers and recognizable secrets in bounded hex and
+base64 text. Any finding, certain or uncertain, stops disclosure without
+repeating the matched value. Manual export stops before quota or audit effects
+and prints exactly the screened bytes on success. Local HTTP sends the screened
+body and refuses if it changed after screening. Review the packet for sensitive
+information the screen may miss, and remove or reword flagged content.
 
 Supported disclosure formats are finite: manual export accepts plain text or
 JSON, the browser composer accepts plain text, and local HTTP requests accept
@@ -286,6 +288,7 @@ python3 scripts/build_contractor_packet.py \
 python3 scripts/dispatch_work.py \
   --packet claude-architect-critique-packet.json \
   --mode manual \
+  --workload "$CLAUDE_WORKLOAD" \
   > claude-architect-critique-dispatch-prompt.md
 
 python3 scripts/build_contractor_packet.py \
@@ -301,6 +304,7 @@ python3 scripts/build_contractor_packet.py \
 python3 scripts/dispatch_work.py \
   --packet architect-critique-packet.json \
   --mode manual \
+  --workload "$GEMINI_WORKLOAD" \
   > gemini-architect-critique-dispatch-prompt.md
 
 WORK_PACKET_DIR="${WORK_PACKET_DIR:-$PWD/work-packets}"
@@ -570,6 +574,13 @@ bd create "Claude Opus review: security-focused reasoning for auth flow" \
 Avoid literal `\n` sequences in Beads text fields. Use a heredoc, `--body-file`,
 `--design-file`, or command substitution when a field needs multiple lines.
 
+For a managed expert review, put concrete context in the shareable assignment
+description or select it with `--snippet` or `--snippet-file`. Use one line per
+declared input, such as `Review input [responsive targets]: 390px viewport with one column`. Include the relevant facts or excerpt with
+any source locator. Packet construction refuses when a required input is absent
+from the redacted material. Use the normal profile-inclusion and outbound
+approval controls.
+
 For generated packets, create the contractor Bead first, then run:
 
 ```bash
@@ -648,13 +659,23 @@ python3 scripts/build_contractor_packet.py \
 7. PM generates a manual dispatch prompt. Dispatch revalidates the packet hash,
    executor, provider binding, opt-in basis, boundary, disclosure stage,
    expert-profile state, mandatory exclusions, selected snippet fields, snippet
-   line limits, snippet SHA-256 values, and artifact whitelist before it records
-   an audit event by default:
+   line limits, snippet SHA-256 values, and artifact whitelist. It verifies
+   workload sizing for the exact rendered request before exporting it and
+   recording dispatch. [Dispatch readiness](run-readiness.md#dispatch-readiness)
+
+   To measure the complete prompt, use
+   `cwo manual-prompt --packet contractor-packet.json --rehearsal --json`.
+   Use the `prompt` value without the leading `Local rehearsal only.` line
+   and its following blank line. Put the result in the selected node's
+   `prompt` field of the original sizing plan. The admitted request is the
+   `manual_prompt` value in `dispatch_work.py --json`. Plain-text export
+   adds a framing newline.
 
    ```bash
    python3 scripts/dispatch_work.py \
      --packet contractor-packet.json \
      --mode manual \
+     --workload "$WORKLOAD_FILE" \
      > contractor-dispatch-prompt.md
    ```
 
@@ -802,6 +823,20 @@ python3 scripts/build_contractor_packet.py \
    as CLI flags, without `--contractor-packet`, is not packet provenance: it
    is recorded as given and authenticates nothing.
 
+### Return screening
+
+The evaluator reads return structure alongside the existing tripwires. It looks
+for instructions addressed to the lead or tools, directives that change the
+assigned scope or skip review or validation, and claims of completion without
+matching evidence. A finding holds the return for architect adjudication.
+Record the source or check that supports each material claim and state which
+checks were unavailable. The hold leaves the original return available as
+evidence for review.
+
+The optional [local return check](local-inference.md#screen-a-received-return)
+can add holds to the exact received return. A passed peer review preserves
+these holds. Resolve them through architect adjudication against that return.
+
 ### Expected Return Language Guard
 
 New contractor packets use `packet_version: 2` and carry
@@ -833,6 +868,10 @@ expected languages fail closed instead of silently using English heuristics.
 Direct internal text without an external-contractor or local-worker provenance
 contract is not language-enforced. Every finding remains evidence for evaluator
 and architect adjudication, not an automatic claim about model intent.
+
+The installed `calibration/` directory contains the contract, corpus, tuning
+record, and saved report. To reproduce the report, use the v1.48.0 checkout
+and its matching inputs. [Archived calibration runner](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/calibrate_return_language.py)
 
    Research-style returns can add optional structured sections without changing
    the required return template. Use `Research evidence`, `Research

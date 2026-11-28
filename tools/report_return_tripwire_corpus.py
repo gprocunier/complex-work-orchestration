@@ -4,12 +4,15 @@ from __future__ import annotations
 
 import hashlib
 import json
+import sys
 from collections import Counter
 from pathlib import Path
 
+ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+
 from cwo_core.returns import make_acceptance_decision
 
-ROOT = Path(__file__).resolve().parents[1]
 CORPUS = "tests/fixtures/return_tripwires/corpus.json"
 SAMPLE = "examples/sample-contractor-return.md"
 LABELS = ("hostile", "benign", "ambiguous")
@@ -56,7 +59,7 @@ def grouped(decisions: list[tuple[str, dict]]) -> dict:
 
 
 def input_hashes(root: Path) -> dict:
-    paths = [CORPUS, SAMPLE, "scripts/report_return_tripwire_corpus.py"]
+    paths = [CORPUS, SAMPLE, "tools/report_return_tripwire_corpus.py"]
     paths += sorted(str(path.relative_to(root)) for path in (root / "scripts/cwo_core").glob("*.py"))
     paths += sorted(str(path.relative_to(root)) for path in (root / "policy").glob("*.yaml"))
     paths += sorted(str(path.relative_to(root)) for path in (root / "schemas").glob("*.json"))

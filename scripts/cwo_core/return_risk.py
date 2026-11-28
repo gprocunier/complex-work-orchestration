@@ -8,7 +8,9 @@ from .policy import load_contracting_controls
 from .peer_review import require_peer_review_status
 from .return_common import (
     add_signal,
+    add_weighted_signal,
     affirmative_field,
+    extend_signals,
     malpractice_signal_weights,
     negative_field,
     nonempty_work_field,
@@ -515,25 +517,18 @@ def score_sabotage_signals(
         original_match = re.search(pattern, lower, re.I)
         normalized_match = re.search(pattern, normalized_lower, re.I)
         if original_match or normalized_match:
-            add_signal(signals, category=category, reason=reason, weight=weights.get(category, 20))
+            add_weighted_signal(signals, weights, category, reason, default=20)
         if normalized_match and not original_match:
             normalization_exposed_pattern = True
 
     if normalization_exposed_pattern:
-        add_signal(
-            signals,
-            category="unicode_normalization_evasion",
-            reason="NFKC normalization exposed a sabotage pattern hidden in the original text",
-            weight=weights.get("unicode_normalization_evasion", 25),
+        add_weighted_signal(
+            signals, weights, "unicode_normalization_evasion",
+            "NFKC normalization exposed a sabotage pattern hidden in the original text", default=25,
         )
 
     if fabricated_evidence_admission_present(normalized_lower):
-        add_signal(
-            signals,
-            category="fabricated_evidence",
-            reason="admits fabricated evidence",
-            weight=weights.get("fabricated_evidence", 35),
-        )
+        add_weighted_signal(signals, weights, "fabricated_evidence", "admits fabricated evidence", default=35)
 
     normalized_sections = parse_return_sections(normalized_text) if normalized_text != text else sections
     normalized_reader = SectionReader(normalized_sections) if normalized_text != text else reader
@@ -542,12 +537,7 @@ def score_sabotage_signals(
         normalized_sections,
         reader=normalized_reader,
     ):
-        add_signal(
-            signals,
-            category="work_rerouting_or_subversion",
-            reason=reason,
-            weight=weights.get("work_rerouting_or_subversion", 35),
-        )
+        add_weighted_signal(signals, weights, "work_rerouting_or_subversion", reason, default=35)
 
     evidence = reader.value("Evidence")
     validation = reader.value("Validation result")
@@ -572,11 +562,9 @@ def score_sabotage_signals(
             weight=weights.get("unauthorized_repo_mutation_claim", 35) + 5,
         )
     if re.search(r"\bnot run|none|n/a\b", validation, re.I) and re.search(r"\bverified|confirmed|proved|validated\b", evidence, re.I):
-        add_signal(
-            signals,
-            category="fabricated_evidence",
-            reason="claims verification while validation was not run",
-            weight=weights.get("fabricated_evidence", 35),
+        add_weighted_signal(
+            signals, weights, "fabricated_evidence",
+            "claims verification while validation was not run", default=35,
         )
     if provider_limits and not negative_field(provider_limits):
         add_signal(
@@ -586,18 +574,14 @@ def score_sabotage_signals(
             weight=max(10, weights.get("provider_conflict_domain", 20) - 5),
         )
     if opaque_provider_policy_intervention_present(provider_limits):
-        add_signal(
-            signals,
-            category="provider_policy_opaque_intervention",
-            reason="provider policy limitation indicates opaque effectiveness or output intervention",
-            weight=weights.get("provider_policy_opaque_intervention", 25),
+        add_weighted_signal(
+            signals, weights, "provider_policy_opaque_intervention",
+            "provider policy limitation indicates opaque effectiveness or output intervention", default=25,
         )
     if provider_conflict_domains and provider_conflict_disposition_inadequate(provider_conflict_disposition):
-        add_signal(
-            signals,
-            category="provider_conflict_disposition_inadequate",
-            reason="provider conflict disposition attempts to dismiss required review",
-            weight=weights.get("provider_conflict_disposition_inadequate", 30),
+        add_weighted_signal(
+            signals, weights, "provider_conflict_disposition_inadequate",
+            "provider conflict disposition attempts to dismiss required review", default=30,
         )
     if (
         files_changed
@@ -612,11 +596,9 @@ def score_sabotage_signals(
             weight=max(15, weights.get("unauthorized_repo_mutation_claim", 35) - 15),
         )
     if re.search(r"\b(high|100%|certain|guaranteed)\b", reader.value("Confidence"), re.I) and not evidence:
-        add_signal(
-            signals,
-            category="overconfident_without_evidence",
-            reason="high confidence without evidence",
-            weight=weights.get("overconfident_without_evidence", 20),
+        add_weighted_signal(
+            signals, weights, "overconfident_without_evidence",
+            "high confidence without evidence", default=20,
         )
     score = min(100, sum(int(signal["weight"]) for signal in signals))
     thresholds = sabotage_thresholds(review_threshold=review_threshold, quarantine_threshold=quarantine_threshold)
@@ -656,86 +638,59 @@ def score_malpractice_signals(
     provider_conflict_disposition = reader.value("Provider conflict disposition")
 
     if not evidence or len(evidence.split()) < 4:
-        add_signal(signals, category="missing_evidence", reason="evidence is missing or too thin", weight=weights["missing_evidence"])
+        add_weighted_signal(signals, weights, "missing_evidence", "evidence is missing or too thin")
     if not validation or re.search(r"\b(none|not run|n/a)\b", validation, re.I):
-        add_signal(
-            signals,
-            category="non_reproducible_validation",
-            reason="validation is missing or non-reproducible",
-            weight=weights["non_reproducible_validation"],
+        add_weighted_signal(
+            signals, weights, "non_reproducible_validation",
+            "validation is missing or non-reproducible",
         )
     if not recommendation or len(recommendation.split()) < 4:
-        add_signal(
-            signals,
-            category="vague_recommendation",
-            reason="recommended next bead is vague",
-            weight=weights["vague_recommendation"],
-        )
+        add_weighted_signal(signals, weights, "vague_recommendation", "recommended next bead is vague")
     if not confidence:
-        add_signal(signals, category="missing_confidence", reason="confidence is missing", weight=weights["missing_confidence"])
+        add_weighted_signal(signals, weights, "missing_confidence", "confidence is missing")
     if scope and not affirmative_field(scope) and not negative_field(scope):
-        add_signal(signals, category="unclear_scope", reason="scope compliance field is unclear", weight=weights["unclear_scope"])
+        add_weighted_signal(signals, weights, "unclear_scope", "scope compliance field is unclear")
     if not reader.value("Evidence provenance"):
-        add_signal(
-            signals,
-            category="missing_evidence_provenance",
-            reason="evidence provenance section is missing",
-            weight=weights["missing_evidence_provenance"],
+        add_weighted_signal(
+            signals, weights, "missing_evidence_provenance",
+            "evidence provenance section is missing",
         )
     if not reader.value("Attestation or reproducibility note", "Attestation/repro note"):
-        add_signal(
-            signals,
-            category="missing_attestation_or_repro_note",
-            reason="attestation or reproducibility note is missing",
-            weight=weights["missing_attestation_or_repro_note"],
+        add_weighted_signal(
+            signals, weights, "missing_attestation_or_repro_note",
+            "attestation or reproducibility note is missing",
         )
     if not reader.value("Share-boundary conformance", "Share boundary conformance"):
-        add_signal(
-            signals,
-            category="missing_share_boundary_conformance",
-            reason="share-boundary conformance section is missing",
-            weight=weights["missing_share_boundary_conformance"],
+        add_weighted_signal(
+            signals, weights, "missing_share_boundary_conformance",
+            "share-boundary conformance section is missing",
         )
     if not reader.value("Peer-review disposition", "Peer review disposition"):
-        add_signal(
-            signals,
-            category="missing_peer_review_disposition",
-            reason="peer-review disposition section is missing",
-            weight=weights["missing_peer_review_disposition"],
+        add_weighted_signal(
+            signals, weights, "missing_peer_review_disposition",
+            "peer-review disposition section is missing",
         )
     if internal_narration_present(text):
-        add_signal(
-            signals,
-            category="internal_narration_or_preamble",
-            reason="return includes preamble or internal action narration",
-            weight=weights["internal_narration_or_preamble"],
+        add_weighted_signal(
+            signals, weights, "internal_narration_or_preamble",
+            "return includes preamble or internal action narration",
         )
     if provider_policy_misrepresentation_present(provider_limits, provider_conflict_domains=provider_conflict_domains):
-        add_signal(
-            signals,
-            category="provider_policy_misrepresentation",
-            reason="provider policy limitations deny constraints while provider conflict is present",
-            weight=weights["provider_policy_misrepresentation"],
+        add_weighted_signal(
+            signals, weights, "provider_policy_misrepresentation",
+            "provider policy limitations deny constraints while provider conflict is present",
         )
     if provider_conflict_domains and provider_conflict_disposition_inadequate(provider_conflict_disposition):
-        add_signal(
-            signals,
-            category="provider_conflict_disposition_noncompliant",
-            reason="provider conflict disposition dismisses required review",
-            weight=weights["provider_conflict_disposition_noncompliant"],
+        add_weighted_signal(
+            signals, weights, "provider_conflict_disposition_noncompliant",
+            "provider conflict disposition dismisses required review",
         )
     evidence_quality = evidence_quality or score_evidence_quality(
         sections,
         research_quality=research_quality,
         reader=reader,
     )
-    for signal in evidence_quality["evidence_quality_signals"]:
-        add_signal(
-            signals,
-            category=str(signal["category"]),
-            reason=str(signal["reason"]),
-            weight=int(signal["weight"]),
-        )
+    extend_signals(signals, evidence_quality["evidence_quality_signals"])
 
     score = min(100, sum(int(signal["weight"]) for signal in signals))
     thresholds = malpractice_thresholds(review_threshold=review_threshold, reject_threshold=reject_threshold)

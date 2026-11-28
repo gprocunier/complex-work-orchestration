@@ -1,133 +1,26 @@
-"""Synthetic provider fixtures + genuine reader CLI; NEVER live qualification."""
+"""Current maintenance reader and opaque checks with a providerless record."""
 from __future__ import annotations
 from copy import deepcopy, copy
 import datetime as dt
 import json
 import os
 from pathlib import Path
+import subprocess
 import sys
 import unittest
 from unittest import mock
-import uuid
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 from tests import test_maintenance_authority as authority_fixture
+from tests.historical_campaign_launcher import HELD_QUALIFICATION_PRODUCERS, run_archived_cases
+from tests.maintenance_qualification_fixture import THREAD_ID, TURN_ID, write_fixture_observation
 from cwo_core import maintenance_qualification as q
-from cwo_core.maintenance_runtime_support import MaintenanceSessionLedger
-from cwo_core.native_canary_contracts import canonical_sha256 as domain_hash
-from cwo_core.native_turn_dispatch import TurnDispatchReservation, evolve_turn_dispatch_record
 from codex_tool_surface import canonical_sha256 as surface_hash, PROOF_VERSION
-from tests.test_codex_tool_surface import synthetic_empty_endpoint_inventory
-
-
-class SyntheticServer:
-    """Only tests replace the real AppServer with this owner-observation fixture."""
-
-    def __init__(self, *, requested_model, reasoning_effort, tool_surface_proof, operation_metadata):
-        self.requested_model, self.reasoning_effort = requested_model, reasoning_effort
-        self.codex_home = Path(tool_surface_proof["codex_home"])
-        self.launched_executable = tool_surface_proof["codex_binary"]
-        self.operation_metadata = operation_metadata
-        self.proof = tool_surface_proof
-        self.process = mock.Mock(pid=os.getpid() + 999999)
-        self.connection_epoch_sha256 = "e" * 64
-        self.started_threads = {}
-        self._effective_thread_start_evidence = {}
-        self.tid, self.turn_id = str(uuid.uuid4()), str(uuid.uuid4())
-        self.closure_failed = False
-
-    def model_discovery(self):
-        return {"id": self.requested_model, "model": self.requested_model,
-                "display_name": "synthetic-only", "latency_ms": 0.01}
-
-    def require_zero_mcp_endpoints(self, tid):
-        assert tid == self.tid and tid in self.started_threads
-        return synthetic_empty_endpoint_inventory(tid, self.process.pid, self.connection_epoch_sha256)
-
-    def start_thread(self, workspace, *, mutable, thread_phase, permitted_tools, allowlist_parameter):
-        assert permitted_tools == self.proof["requested_tools"] and allowlist_parameter == "config"
-        assert mutable is False and thread_phase == "precommit-fit"
-        self.workspace = str(workspace)
-        self.path = self.codex_home / "sessions" / ("synthetic-" + self.tid + ".jsonl")
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        thread = {"id": self.tid, "model": self.requested_model, "cwd": self.workspace,
-                  "path": str(self.path), "turns": []}
-        response = {"model": self.requested_model, "cwd": self.workspace,
-            "approvalPolicy": "never", "runtimeWorkspaceRoots": [self.workspace],
-            "sandbox": {"type": "readOnly", "networkAccess": False}, "thread": thread}
-        request = {"model": self.requested_model, "allowProviderModelFallback": False,
-            "cwd": self.workspace, "runtimeWorkspaceRoots": [self.workspace], "approvalPolicy": "never",
-            "sandbox": "read-only", "ephemeral": False, "config": self.proof["lockdown_config"],
-            "dynamicTools": [], "developerInstructions": "trusted CWO no-tools precommit fit estimate"}
-        self._effective_thread_start_evidence[self.tid] = {"request": request, "response": deepcopy(response)}
-        self.thread = deepcopy(thread)
-        self.started_threads[self.tid] = None
-        return response, 0.01
-
-    def start_turn(self, tid, prompt):
-        assert tid == self.tid
-        answer = json.dumps({"decision": "accept", "tool_calls_p50": 1, "tool_calls_p90": 2,
-                             "runtime_seconds_p50": 1, "runtime_seconds_p90": 2})
-        self.thread["turns"] = [{"id": self.turn_id, "status": "completed", "error": None,
-            "items": [{"type": "userMessage", "content": [{"type": "text", "text": prompt}]},
-                      {"type": "agentMessage", "phase": "final_answer", "text": answer}]}]
-        self.started_threads[tid] = self.turn_id
-        turn_intent_id = str(uuid.uuid4())
-        wire = {"id": 1, "method": "turn/start", "params": {"threadId": tid,
-            "input": [{"type": "text", "text": prompt, "text_elements": []}],
-            "model": self.requested_model, "effort": "low", "clientUserMessageId": turn_intent_id,
-            "responsesapiClientMetadata": self.operation_metadata}}
-        reservation = TurnDispatchReservation(thread_id=tid, turn_intent_id=turn_intent_id,
-            request_id=1, connection_epoch_sha256=self.connection_epoch_sha256,
-            notification_cursor=0, preexisting_turn_ids=(), ledger_id=None, ledger_head_entry_sha256=None,
-            turn_intent_entry_sha256=None, wire_request_sha256=domain_hash(wire, domain="app-server-single-wire-request"))
-        self.dispatch = evolve_turn_dispatch_record(reservation.prepared_record(), status="acknowledged",
-            exact_response_turn_id=self.turn_id, discovered_turn_ids=[self.turn_id],
-            wire_write_attempt_count=1, ledger_resolution="turn-bound")
-        rows = [
-            {"type": "session_meta", "payload": {"id": tid, "session_id": tid, "cwd": self.workspace}},
-            {"type": "event_msg", "payload": {"type": "task_started", "turn_id": self.turn_id}},
-            {"type": "turn_context", "payload": {"turn_id": self.turn_id, "cwd": self.workspace,
-                "model": self.requested_model, "effort": "low", "approval_policy": "never",
-                "sandbox_policy": {"type": "read-only"}}},
-            {"type": "response_item", "payload": {"type": "message", "role": "user",
-                "content": [{"type": "input_text", "text": prompt}]}},
-            {"type": "response_item", "payload": {"type": "message", "role": "assistant", "phase": "final_answer",
-                "content": [{"type": "output_text", "text": answer}]}},
-            {"type": "event_msg", "payload": {"type": "task_complete", "turn_id": self.turn_id,
-                "last_agent_message": answer}},
-        ]
-        self.path.write_text("".join(json.dumps(row) + "\n" for row in rows))
-        return {"id": self.turn_id}, 0.01
-
-    def turn_dispatch_record(self, tid):
-        assert tid == self.tid
-        return deepcopy(self.dispatch)
-
-    def read_thread(self, tid, **_kwargs):
-        assert tid == self.tid
-        return deepcopy(self.thread), 0.01
-
-    def contain(self):
-        archived = self.codex_home / "archived_sessions" / self.path.name
-        archived.parent.mkdir(exist_ok=True)
-        self.path.rename(archived)
-        self.path = archived
-        self.thread["path"] = str(archived)
-        return {"allocated_count": 1, "identified_thread_count": 1, "interrupted_count": 0,
-            "archived_count": 1, "already_contained_count": 0, "unresolved_allocation_intent_count": 0,
-            "unresolved_turn_intent_count": 0, "ambiguous_count": 0, "all_contained": True,
-            "ledger_consistent": True, "ledger_error_sha256": []}
-
-    def close(self):
-        return {"all_contained": not self.closure_failed, "resources_closed": not self.closure_failed,
-                "errors": ["synthetic-close-failure"] if self.closure_failed else [], "pid": self.process.pid}
 
 
 class QualificationTests(unittest.TestCase):
     def setUp(self):
-        self.enterContext(mock.patch.object(q.live_availability, 'N1_LIVE_AVAILABLE', True))
         self.fixture = authority_fixture.MaintenanceAuthorityTests("test_review_positive_no_write_authority")
         self.fixture.setUp()
         self.addCleanup(self.fixture.doCleanups)
@@ -138,8 +31,6 @@ class QualificationTests(unittest.TestCase):
         self.cap = f.verifier.verify_operation(self.plan, self.operation, directive)
         self.cap.claim()
         self.verifier = f.verifier
-        self.ledger = MaintenanceSessionLedger(f.controller / "sessions.jsonl", mission_id=f.mission["mission_id"])
-        self.ledger.initialize()
         self.output = f.controller / "observed"
         self.home = f.root / "synthetic-codex-home"
         self.home.mkdir()
@@ -155,19 +46,12 @@ class QualificationTests(unittest.TestCase):
             "observed_tools": ["exec_command", "write_stdin"], "tool_profile": "read-only-v1",
             "capture_binding": binding}
         self.proof["proof_sha256"] = surface_hash(self.proof)
-        self.server = None
 
-    def observe(self, server_type=SyntheticServer):
-        def create(**kwargs):
-            self.server = server_type(**kwargs)
-            return self.server
-        with mock.patch("cwo_core.supervision.transport.app_server.AppServer", side_effect=create), \
-             mock.patch("cwo_core.supervision.containment.contain_started_threads", side_effect=lambda server, **kw: server.contain()), \
-             mock.patch("codex_tool_surface.require_surface_proof", side_effect=lambda value, **kw: deepcopy(value)):
-            return q.observe_qualification(operation=self.cap, verifier=self.verifier, plan=self.plan,
-                workspace=self.fixture.workspace, output=self.output, session_ledger=self.ledger,
-                tool_surface_proof=self.proof, control_image_sha256=q.capture_control_image()["image_sha256"],
-                fit_prompt="Synthetic fixture only: estimate one later bounded readonly command.", timeout_seconds=30)
+    def observe(self, *, metadata_rows=()):
+        observed, self.session_source = write_fixture_observation(
+            output=self.output, proof=self.proof, operation=self.cap, verifier=self.verifier,
+            plan=self.plan, metadata_rows=metadata_rows)
+        return observed
 
     def check(self, observation):
         return q.check_qualification(observation, operation=self.cap, verifier=self.verifier)
@@ -194,11 +78,10 @@ class QualificationTests(unittest.TestCase):
             record["model"] = "forged-model"
             record["pins"].clear()
             self.assertEqual(observation.record["model"], "test-model")
-        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider"):
-            self.assertEqual(self.ledger.count(), 1)
+        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_fixture"):
             self.assertFalse(observation.record["qualified"])
         checked = self.check(observation)
-        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider"):
+        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_fixture"):
             receipt = json.loads((self.output / "checker-receipt.json").read_text())
             spec = json.loads((self.output / "checker-intent.json").read_text())["spec"]
             self.assertEqual(spec["argv"][3], str(ROOT / "scripts/check_maintenance_qualification.py"))
@@ -206,27 +89,25 @@ class QualificationTests(unittest.TestCase):
             self.assertIs(receipt["execution_started"], True)
             self.assertIs(json.loads(receipt["diagnostics"]["stdout"])["authority"], False)
         qualification = self.adjudicate(observation, checked)
-        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_synthetic_provider"):
+        with self.subTest(original_id="test_real_reader_cli_and_opaque_adjudication_positive_fixture"):
             self.assertIs(q.require_maintenance_qualification(qualification, operation=self.cap, verifier=self.verifier), qualification)
             self.assertEqual(qualification.record["origin_expires_at"], observation.record["origin_expires_at"])
             self.assertEqual(qualification.record["execution_sha256"], q.canonical_sha256(receipt))
-        with self.subTest(original_id="test_checker_adjudicator_and_observation_replays_are_denied"):
+        with self.subTest(original_id="test_checker_and_adjudicator_replays_are_denied"):
             with self.assertRaisesRegex(q.QualificationError, "already-consumed"):
                 self.adjudicate(observation, checked)
             with self.assertRaisesRegex(q.QualificationError, "already-consumed"):
                 self.check(observation)
-            self.output = self.fixture.controller / "second-output"
-            constructed = []
 
-            class ConstructionSpy(SyntheticServer):
-                def __init__(self, **kwargs):
-                    constructed.append(kwargs)
-                    super().__init__(**kwargs)
-
-            with self.assertRaisesRegex(q.QualificationError, "operation-already-observed"):
-                self.observe(server_type=ConstructionSpy)
-            self.assertEqual(constructed, [])
-            self.assertEqual(self.ledger.count(), 1)
+    def test_retired_observer_refuses_a_real_claimed_operation(self):
+        with mock.patch.object(q.live_availability, "N1_LIVE_AVAILABLE", True), \
+             mock.patch.object(q, "private_write") as write, \
+             self.assertRaisesRegex(q.live_availability.NativeLiveUnavailable, "^native-n1-live-unavailable$"):
+            q.observe_qualification(operation=self.cap, verifier=self.verifier, plan=self.plan,
+                workspace=self.fixture.workspace, output=self.output, session_ledger=None,
+                tool_surface_proof=self.proof, control_image_sha256="0" * 64, fit_prompt="fixture")
+        self.assertFalse(self.output.exists())
+        write.assert_not_called()
 
     def test_old_true_command_receipt_and_free_json_api_are_rejected(self):
         observation = self.observe()
@@ -273,7 +154,7 @@ class QualificationTests(unittest.TestCase):
 
     def test_source_inode_replacement_and_byte_drift_denied(self):
         observation = self.observe()
-        source = self.server.path
+        source = self.session_source
         saved = source.read_bytes()
         source.unlink()
         source.write_bytes(saved)
@@ -283,7 +164,7 @@ class QualificationTests(unittest.TestCase):
     def test_original_byte_mutation_after_cli_before_adjudication_denied(self):
         observation = self.observe()
         checked = self.check(observation)
-        with self.server.path.open("ab") as stream:
+        with self.session_source.open("ab") as stream:
             stream.write(b"{}\n")
         with self.assertRaisesRegex(q.QualificationError, "original-source-drift"):
             self.adjudicate(observation, checked)
@@ -301,6 +182,26 @@ class QualificationTests(unittest.TestCase):
         with mock.patch.object(q, "_code_pins", side_effect=[pins, {**pins, "other": "d" * 64}]), \
              self.assertRaisesRegex(q.QualificationError, "checker-source-drift"):
             self.check(observation)
+
+    def test_current_checker_refuses_a_resealed_different_control_image(self):
+        self.observe()
+        image = json.loads((self.output / "control-image.json").read_bytes())
+        image["files"]["README.md"]["sha256"] = "0" * 64
+        del image["image_sha256"]
+        image["image_sha256"] = q.canonical_sha256(image)
+        self.reseal_file("control-image.json", lambda value: value.update(image))
+        self.reseal_file("intent.json", lambda value: value.update(control_image_sha256=image["image_sha256"]))
+        report_path = self.output / "observation.json"
+        report = json.loads(report_path.read_bytes())
+        report["control_image_sha256"] = image["image_sha256"]
+        report_path.write_text(json.dumps(report))
+        checker = ROOT / "scripts/check_maintenance_qualification.py"
+        result = subprocess.run([sys.executable, "-I", "-B", str(checker), "--root", str(self.output),
+            "--observation-sha256", q.digest(report_path.read_bytes()), "--nonce", "a" * 32],
+            capture_output=True, text=True, timeout=10, check=False)
+        self.assertEqual(result.returncode, 2, result.stdout + result.stderr)
+        self.assertEqual(result.stdout, "")
+        self.assertIn("maintenance-control-image-drift", result.stderr)
 
     def test_reentrant_checked_executor_invalidates_outer_result(self):
         observation = self.observe()
@@ -355,59 +256,19 @@ class QualificationTests(unittest.TestCase):
         with self.assertRaisesRegex(q.QualificationError, "tools-forbidden"):
             q.inspect_observation(root=self.output, observation_sha256=hashed)
 
-    def test_owned_early_read_rpc_failure_then_real_terminal_qualifies(self):
-        from cwo_core.supervision.transport.errors import AppServerRpcError
-        class Early(SyntheticServer):
-            reads = 0
-            def read_thread(self, tid, **kwargs):
-                self.reads += 1
-                if self.reads == 1:
-                    raise AppServerRpcError(method="thread/read", code=-32603, request_id=42, latency_ms=.1)
-                return super().read_thread(tid, **kwargs)
-        observation = self.observe(Early)
-        checked = self.check(observation)
-        qualified = self.adjudicate(observation, checked)
-        self.assertEqual(qualified.record["model"], "test-model")
-        self.assertEqual(self.ledger.count(), 1)
-        self.assertTrue((self.output/"thread-read-startup-0.json").is_file())
-
-    def test_other_rpc_errors_do_not_enter_startup_retry(self):
-        from cwo_core.supervision.transport.errors import AppServerRpcError
-        class Denied(SyntheticServer):
-            reads = 0
-            def read_thread(self, tid, **kwargs):
-                self.reads += 1
-                raise AppServerRpcError(method="thread/read", code=-32600, request_id=42, latency_ms=.1)
-        with self.assertRaisesRegex(q.QualificationError, "capture-or-cleanup-failed"):
-            self.observe(Denied)
-        self.assertEqual(self.ledger.count(), 1)
-        self.assertFalse((self.output/"thread-read-startup-0.json").exists())
-        self.assertIs(json.loads((self.output/"observation.json").read_text())["qualified"], False)
-
-    def test_startup_retry_exhaustion_remains_nonqualified(self):
-        from cwo_core.supervision.transport.errors import AppServerRpcError
-        class Missing(SyntheticServer):
-            def read_thread(self, tid, **kwargs):
-                raise AppServerRpcError(method="thread/read", code=-32603, request_id=42, latency_ms=.1)
-        with self.assertRaisesRegex(q.QualificationError, "capture-or-cleanup-failed"):
-            self.observe(Missing)
-        self.assertEqual(self.ledger.count(), 1)
-        self.assertIs(json.loads((self.output/"observation.json").read_text())["qualified"], False)
-
     def test_current_metadata_rows_through_actual_checked_reader(self):
-        class CurrentMetadata(SyntheticServer):
-            def start_turn(self, tid, prompt):
-                result=super().start_turn(tid,prompt)
-                rows=[json.loads(line) for line in self.path.read_text().splitlines()]
-                world={"type":"world_state","payload":{"full":True,"state":{"model":self.requested_model,"environments":{"environments":{"local":{"cwd":self.workspace}}},"host_skills":{"body":"non-operative fixture text"}}}}
-                counters={"input_tokens":100,"cached_input_tokens":20,"cache_write_input_tokens":0,"output_tokens":10,"reasoning_output_tokens":0,"total_tokens":110}
-                usage={"type":"token_usage_record","payload":{"thread_id":tid,"session_id":tid,"turn_id":self.turn_id,"root_turn_id":self.turn_id,"response_id":"response-fixture","usage":counters,"turn_token_usage":deepcopy(counters),"thread_token_usage":deepcopy(counters)}}
-                rows.insert(2,world);rows.insert(-1,usage)
-                self.path.write_text(''.join(json.dumps(row)+'\n' for row in rows))
-                return result
-        observed=self.observe(CurrentMetadata);checked=self.check(observed)
-        self.assertEqual(self.adjudicate(observed,checked).record['model'],'test-model')
-        self.assertEqual(self.ledger.count(),1)
+        model = self.proof["requested_model"]
+        workspace = str(self.fixture.workspace)
+        world = {"type": "world_state", "payload": {"full": True, "state": {
+            "model": model, "environments": {"environments": {"local": {"cwd": workspace}}},
+            "host_skills": {"body": "non-operative fixture text"}}}}
+        counters = {"input_tokens": 100, "cached_input_tokens": 20, "cache_write_input_tokens": 0,
+                    "output_tokens": 10, "reasoning_output_tokens": 5, "total_tokens": 110}
+        usage = {"type": "token_usage_record", "payload": {"thread_id": THREAD_ID, "session_id": THREAD_ID,
+            "turn_id": TURN_ID, "root_turn_id": TURN_ID, "response_id": "response-fixture", "usage": counters,
+            "turn_token_usage": counters, "thread_token_usage": counters}}
+        observation = self.observe(metadata_rows=[world, usage])
+        self.assertEqual(self.adjudicate(observation, self.check(observation)).record["model"], model)
 
     def test_boolean_numeric_checked_output_is_not_equal(self):
         observed=self.observe();original=q.checked_command.execute_checked_command
@@ -417,33 +278,6 @@ class QualificationTests(unittest.TestCase):
             return receipt
         with mock.patch.object(q.checked_command,'execute_checked_command',side_effect=altered),self.assertRaisesRegex(q.QualificationError,'checked-cli-output-mismatch'):
             self.check(observed)
-
-    def test_failed_turn_and_cleanup_are_preserved_separately_never_issued(self):
-        class FailedServer(SyntheticServer):
-            def read_thread(self, tid, **kw):
-                self.closure_failed = True
-                raise RuntimeError("synthetic-observation-failed")
-        with self.assertRaisesRegex(q.QualificationError, "capture-or-cleanup-failed"):
-            self.observe(FailedServer)
-        report = json.loads((self.output / "observation.json").read_text())
-        self.assertEqual(report["primary_error"]["type"], "RuntimeError")
-        self.assertNotEqual(report["cleanup_errors"], [])
-        self.assertIs(report["qualified"], False)
-        self.assertEqual(self.ledger.count(), 1)
-
-    def test_ambiguous_start_counts_before_rpc_and_never_qualifies(self):
-        ledger = self.ledger
-        class FailedStart(SyntheticServer):
-            def start_thread(self, *args, **kwargs):
-                assert ledger.count() == 1
-                raise RuntimeError("synthetic-lost-start-ack")
-            def contain(self):
-                return {"all_contained": False}
-        with self.assertRaisesRegex(q.QualificationError, "capture-or-cleanup-failed"):
-            self.observe(FailedStart)
-        self.assertEqual(self.ledger.count(), 1)
-        report = json.loads((self.output / "observation.json").read_text())
-        self.assertEqual(report["primary_error"]["message"], "synthetic-lost-start-ack")
 
     def test_pid_scope_and_copied_qualification_are_denied(self):
         observation = self.observe()
@@ -480,19 +314,6 @@ class QualificationTests(unittest.TestCase):
                 with self.assertRaisesRegex(q.QualificationError, reason):
                     q.inspect_observation(root=self.output, observation_sha256=hashed)
 
-    def test_constructor_cleanup_failure_is_preserved_not_inferred_from_missing_server(self):
-        class ConstructorFailure(SyntheticServer):
-            def __init__(self, **kwargs):
-                exc = RuntimeError("synthetic-constructor-failed")
-                exc.app_server_cleanup = {"all_contained": False, "resources_closed": False, "errors": ["unreaped"]}
-                raise exc
-        with self.assertRaisesRegex(q.QualificationError, "capture-or-cleanup-failed"):
-            self.observe(ConstructorFailure)
-        report = json.loads((self.output / "observation.json").read_text())
-        self.assertIs(report["primary_error"]["observed_cleanup"]["all_contained"], False)
-        self.assertFalse((self.output / "process-closure.json").exists())
-        self.assertEqual(self.ledger.count(), 0)
-
     def test_cli_nonzero_exit_and_stdout_wrong_nonce_are_rejected(self):
         for failure in ("exit", "nonce"):
             with self.subTest(failure=failure):
@@ -525,10 +346,6 @@ class QualificationTests(unittest.TestCase):
                 q.require_maintenance_qualification(value, operation=self.cap, verifier=self.verifier)
 
 
-if __name__ == "__main__":
-    unittest.main()
-
-
 class QualificationCapabilityDerivativeTests(unittest.TestCase):
     setUp = QualificationTests.setUp
     observe = QualificationTests.observe
@@ -545,8 +362,8 @@ class QualificationCapabilityDerivativeTests(unittest.TestCase):
             effective_allowlist=self.proof["observed_tools"])
         evidence = q.qualification_capability_evidence(qualification, operation=self.cap,
             verifier=self.verifier, tool_surface_id=surface["surface_sha256"])
-        self.assertEqual(evidence["canary_session_id"], self.server.tid)
-        self.assertEqual(evidence["attested_model"], self.server.requested_model)
+        self.assertEqual(evidence["canary_session_id"], THREAD_ID)
+        self.assertEqual(evidence["attested_model"], self.proof["requested_model"])
         self.assertEqual(evidence["tool_calls"], 0)
         self.assertEqual(evidence["context_compactions"], 0)
         times = json.loads((self.output / "observation-times.json").read_text())
@@ -554,7 +371,7 @@ class QualificationCapabilityDerivativeTests(unittest.TestCase):
         self.assertIs(evidence["closure_receipt"], True)
         evidence["canary_session_id"] = "not-the-original"
         self.assertEqual(q.qualification_capability_evidence(qualification, operation=self.cap,
-            verifier=self.verifier, tool_surface_id=surface["surface_sha256"])["canary_session_id"], self.server.tid)
+            verifier=self.verifier, tool_surface_id=surface["surface_sha256"])["canary_session_id"], THREAD_ID)
         with self.assertRaisesRegex(q.QualificationError, "capability-tool-surface-mismatch"):
             q.qualification_capability_evidence(qualification, operation=self.cap,
                 verifier=self.verifier, tool_surface_id="a" * 64)
@@ -578,6 +395,21 @@ class QualificationCapabilityDerivativeTests(unittest.TestCase):
                 digest = self.reseal_file(name, edit)
                 with self.assertRaises(q.QualificationError):
                     q.inspect_observation(root=self.output, observation_sha256=digest)
+
+
+class ArchivedMaintenanceObservationTests(unittest.TestCase):
+    def test_pinned_observation_producer_and_issuing_image_reader(self):
+        tests = (
+            "test_observed_checked_qualification_and_consumed_replay_contracts",
+            "test_owned_early_read_rpc_failure_then_real_terminal_qualifies",
+            "test_other_rpc_errors_do_not_enter_startup_retry",
+            "test_startup_retry_exhaustion_remains_nonqualified",
+            "test_failed_turn_and_cleanup_are_preserved_separately_never_issued",
+            "test_ambiguous_start_counts_before_rpc_and_never_qualifies",
+            "test_constructor_cleanup_failure_is_preserved_not_inferred_from_missing_server",
+        )
+        run_archived_cases(self, HELD_QUALIFICATION_PRODUCERS,
+            *("tests.test_maintenance_qualification.QualificationTests." + test for test in tests), all_paths=True)
 
 
 class TypedHostMetadataTests(unittest.TestCase):
@@ -631,3 +463,7 @@ class TypedHostMetadataTests(unittest.TestCase):
     def test_nested_json_type_preservation(self):
         for bad in (0,0.0,None,[],{}):self.assertFalse(q._same_json({'config':{'fallback':False}},{'config':{'fallback':bad}}))
         self.assertTrue(q._same_json({'x':[False,1,1.0,None]},{'x':[False,1,1.0,None]}))
+
+
+if __name__ == "__main__":
+    unittest.main()

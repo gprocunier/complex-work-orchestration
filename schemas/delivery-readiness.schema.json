@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Delivery Readiness",
+  "type": "object",
+  "required": ["state", "checks", "observation_sha256"],
+  "additionalProperties": false,
+  "properties": {
+    "state": {"enum": ["unknown", "blocked", "ready"]},
+    "observation_sha256": {"type": ["string", "null"], "pattern": "^sha256:[0-9a-f]{64}$"},
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["criterion_id", "status", "reason"],
+        "additionalProperties": false,
+        "properties": {
+          "criterion_id": {"type": "string", "minLength": 1},
+          "status": {"enum": ["passed", "failed", "unrun", "not-applicable"]},
+          "reason": {"type": "string", "minLength": 1}
+        }
+      }
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"state": {"const": "unknown"}}},
+      "then": {"properties": {"checks": {"maxItems": 0}, "observation_sha256": {"type": "null"}}},
+      "else": {"properties": {"checks": {"minItems": 1}, "observation_sha256": {"type": "string"}}}
+    },
+    {
+      "if": {"properties": {"state": {"const": "ready"}}},
+      "then": {"properties": {"checks": {"items": {"properties": {"status": {"enum": ["passed", "not-applicable"]}}}}}}
+    }
+  ]
+}

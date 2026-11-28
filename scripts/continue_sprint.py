@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import re
+import shlex
 from pathlib import Path
 from typing import Any
 
@@ -14,6 +16,7 @@ from cwo_core.beads_ready_set import (
     build_ready_set_evidence,
     markdown_fallback_evidence,
 )
+from cwo_core.util import artifact_hash, atomic_write_text, metadata_json
 from summarize_resume_state import coerce_items, parse_markdown_workgraph
 
 RESULT_TYPE = "complex-work-orchestration-sprint-continuation"
@@ -81,12 +84,7 @@ def dependency_entry_ids(value: Any) -> list[str]:
 
 
 def dependency_list(value: Any) -> list[str]:
-    dependencies: list[str] = []
-    for entry in as_list(value):
-        for dependency in dependency_entry_ids(entry):
-            if dependency not in dependencies:
-                dependencies.append(dependency)
-    return dependencies
+    return list(dict.fromkeys(dependency for entry in as_list(value) for dependency in dependency_entry_ids(entry)))
 
 
 def field(item: dict[str, Any], *names: str) -> Any:
@@ -134,19 +132,8 @@ def issue_priority(item: dict[str, Any]) -> int:
 
 
 def issue_dependencies(item: dict[str, Any]) -> list[str]:
-    dependencies: list[str] = []
-    for name in [
-        "dependencies",
-        "depends_on",
-        "depends_on_ids",
-        "blocked_by",
-        "blockers",
-        "depends_on_lanes",
-    ]:
-        for value in dependency_list(field(item, name) or []):
-            if value not in dependencies:
-                dependencies.append(value)
-    return dependencies
+    names = ("dependencies", "depends_on", "depends_on_ids", "blocked_by", "blockers", "depends_on_lanes")
+    return list(dict.fromkeys(value for name in names for value in dependency_list(field(item, name) or [])))
 
 
 def is_closed(item: dict[str, Any]) -> bool:
@@ -165,11 +152,6 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
         "dependencies": issue_dependencies(item),
         "raw": item,
     }
-
-
-def belongs_to_epic(item: dict[str, Any], epic_id: str) -> bool:
-    candidates = string_list(field(item, "parent", "parent_id", "epic", "epic_id") or [])
-    return epic_id in candidates
 
 
 def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
@@ -315,15 +297,8 @@ def rank_ready_issues(ready: list[dict[str, Any]], items: list[dict[str, Any]]) 
 
 
 def issue_summary(item: dict[str, Any], *, reasons: list[str] | None = None) -> dict[str, Any]:
-    result = {
-        "id": item["id"],
-        "title": item["title"],
-        "type": item["type"],
-        "status": item["status"],
-        "labels": item["labels"],
-        "priority": item["priority"],
-        "dependencies": item["dependencies"],
-    }
+    fields = ("id", "title", "type", "status", "labels", "priority", "dependencies")
+    result = {key: item[key] for key in fields}
     if reasons is not None:
         result["blockers"] = reasons
     return result
@@ -355,56 +330,28 @@ def definition_checks(
     items: list[dict[str, Any]],
     blocked: list[dict[str, Any]],
 ) -> tuple[list[dict[str, str]], list[dict[str, str]]]:
+    has_dependencies = any(item["dependencies"] for item in items)
     ready = [
-        {
-            "criterion": "Epic/objective is named",
-            "status": "met" if epic_id else "missing",
-            "evidence": epic_id or "no epic supplied",
-        },
-        {
-            "criterion": "Sprint goal is specific",
-            "status": "met" if sprint_goal else "missing",
-            "evidence": sprint_goal or "no sprint goal inferred",
-        },
-        {
-            "criterion": "Issue graph is small enough to execute",
-            "status": "met" if 1 <= len(items) <= 12 else "review",
-            "evidence": f"{len(items)} work items loaded",
-        },
-        {
-            "criterion": "Dependencies and blockers are explicit",
-            "status": "met" if any(item["dependencies"] for item in items) or not blocked else "review",
-            "evidence": f"{len(blocked)} blocked work items reported",
-        },
-        {
-            "criterion": "Validation and evidence expectations are known",
-            "status": "met",
-            "evidence": "continuation brief lists validation and closeout evidence",
-        },
+        ("Epic/objective is named", "met" if epic_id else "missing", epic_id or "no epic supplied"),
+        ("Sprint goal is specific", "met" if sprint_goal else "missing", sprint_goal or "no sprint goal inferred"),
+        ("Issue graph is small enough to execute", "met" if 1 <= len(items) <= 12 else "review",
+         f"{len(items)} work items loaded"),
+        ("Dependencies and blockers are explicit", "met" if has_dependencies or not blocked else "review",
+         f"{len(blocked)} blocked work items reported"),
+        ("Validation and evidence expectations are known", "met", "continuation brief lists validation and closeout evidence"),
     ]
     done = [
-        {
-            "criterion": "Relevant issues are closed or carried forward",
-            "status": "pending",
-            "evidence": "close with closure-memory comments or file follow-up issues",
-        },
-        {
-            "criterion": "Evidence and results are captured",
-            "status": "pending",
-            "evidence": "record commands, outputs, artifacts, and residual risk",
-        },
-        {
-            "criterion": "Project artifacts and handoff are updated",
-            "status": "pending",
-            "evidence": "update docs/templates/tests and commit or handoff as requested",
-        },
+        ("Relevant issues are closed or carried forward", "close with closure-memory comments or file follow-up issues"),
+        ("Evidence and results are captured", "record commands, outputs, artifacts, and residual risk"),
+        ("Project artifacts and handoff are updated", "update docs/templates/tests and commit or handoff as requested"),
     ]
-    return ready, done
+    return (
+        [{"criterion": name, "status": status, "evidence": evidence} for name, status, evidence in ready],
+        [{"criterion": name, "status": "pending", "evidence": evidence} for name, evidence in done],
+    )
 
 
 def continuation_commands(epic_id: str, sprint_id: str | None, source: str, path: str | None) -> list[str]:
-    import shlex
-
     epic = shlex.quote(epic_id)
     command = f"python3 scripts/cwo.py continue --epic {epic}"
     if sprint_id:
@@ -712,6 +659,8 @@ def print_handoff_details(packet: dict[str, Any]) -> None:
     ):
         key = field.lower().replace("/", " ").replace(" ", "_")
         print(f"- {field}: {packet[key]}")
+    if "run_id" in packet:
+        print(f"- Run ID: {packet['run_id']}")
 
 
 def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None:
@@ -778,6 +727,73 @@ def print_text(result: dict[str, Any], *, include_blocked: bool = False) -> None
             print(f"- {item}")
 
 
+def coach_decisions(coach: Any) -> list[str]:
+    if not isinstance(coach, dict):
+        raise ValueError("coach result must be a JSON object")
+    required = coach.get("requires_user_selection_before_plan")
+    decisions = coach.get("selection_before_plan_question_ids")
+    if coach.get("coach_result_type") != "complex-work-orchestration-prompt-coach" or type(required) is not bool:
+        raise ValueError("expected a CWO coach JSON result with a selection gate")
+    if not required:
+        return []
+    if not isinstance(decisions, list) or not decisions or not all(
+        isinstance(item, str) and re.fullmatch(r"[a-z0-9_-]+", item) for item in decisions
+    ):
+        raise ValueError("coach selection gate needs decision IDs")
+    return decisions
+
+
+def record_run(args: argparse.Namespace, result: dict[str, Any], decisions: list[str]) -> None:
+    workspace = Path.cwd()
+    workgraph = args.markdown_workgraph.resolve() if args.markdown_workgraph else None
+    scope = [str(workspace), args.epic, args.sprint, str(workgraph) if workgraph else None]
+    run_id = artifact_hash(metadata_json({"scope": scope}))
+    path = workspace / ".orchestration-audit" / "active-runs" / f"{run_id}.json"
+    if path.parent.resolve() != path.parent:
+        raise ValueError("the active run directory must be local to the current workspace")
+    command = ["python3", str(Path(__file__).with_name("cwo.py").resolve()), "continue", "--record-run"]
+    options = vars(args)
+    for name in ("epic", "sprint", "markdown_workgraph", "coach", "requested_workers", "format"):
+        if (value := options[name]) is not None:
+            command.append(f"--{name.replace('_', '-')}={value}")
+    if args.include_blocked:
+        command.append("--include-blocked")
+    next_issue = result["recommended_next_issue"]
+    blocked = handoff_blockers(result["blocked_issues"])
+    gate = "ready" if next_issue else "blocked" if result["blocked_issues"] else "no-work"
+    step = next_issue or (blocked[0] if blocked else None)
+    state = {
+        "version": 1,
+        "run_id": run_id,
+        "current_step": "coach" if decisions else (step["id"] if step else None),
+        "current_gate": "operator-selection" if decisions else gate,
+        "operator_decision_frontier": decisions,
+        "resume_command": f"cd {shlex.quote(str(workspace))} && {shlex.join(command)}",
+    }
+    atomic_write_text(path, json.dumps(state, indent=2, sort_keys=True) + "\n")
+    result.update(run_state=state, run_state_path=str(path))
+    result["resume_commands"][0] = state["resume_command"]
+    packet = result["operator_handoff_packet"] = operator_handoff_packet(result)
+    packet["run_id"] = run_id
+    if decisions:
+        reason = "The coach is waiting for operator selections."
+        packet.update(
+            next_action=None,
+            waiting_on="Operator selection: " + ", ".join(decisions),
+            next_executable_bead="none - operator selection required",
+            why_it_is_next=reason,
+            execution_prompt="Resolve the current coach selections and rerun continuation with the updated coach result.",
+        )
+        result.update(recommended_next_issue=None, why_next=reason)
+        result["status_summary"].update(
+            outcome=reason,
+            what_stands_in_the_way=packet["waiting_on"],
+            next_step="Resolve the coach selections (coach-selection) and update the coach result.",
+            what_it_enables="An updated coach result lets the team reassess the plan.",
+            reader_action="Please resolve: " + ", ".join(decisions),
+        )
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Recommend the next executable issue for a planned CWO sprint.")
     parser.add_argument("--epic", required=True, help="Native Beads epic id or Markdown fallback epic key.")
@@ -789,6 +805,8 @@ def main() -> None:
     )
     parser.add_argument("--format", choices=["text", "json"], default="text")
     parser.add_argument("--include-blocked", action="store_true", help="Show all blocked issues in text output.")
+    parser.add_argument("--record-run", action="store_true", help="Save the current continuation in the ignored run directory.")
+    parser.add_argument("--coach", type=Path, help="Current coach JSON result for the recorded operator decision frontier.")
     parser.add_argument(
         "--requested-workers",
         type=int,
@@ -799,6 +817,12 @@ def main() -> None:
         ),
     )
     args = parser.parse_args()
+    if args.coach and not args.record_run:
+        parser.error("--coach requires --record-run")
+    try:
+        decisions = coach_decisions(json.loads(args.coach.read_text(encoding="utf-8"))) if args.coach else []
+    except (OSError, ValueError) as exc:
+        parser.error(str(exc))
 
     if args.markdown_workgraph:
         raw_items = load_markdown_items(args.markdown_workgraph, args.epic)
@@ -814,10 +838,18 @@ def main() -> None:
         markdown_workgraph_path=str(args.markdown_workgraph) if args.markdown_workgraph else None,
         requested_workers=args.requested_workers,
     )
+    if args.record_run:
+        try:
+            record_run(args, result, decisions)
+        except (OSError, ValueError) as exc:
+            parser.error(str(exc))
     if args.format == "json":
         print(json.dumps(result, indent=2, sort_keys=True))
     else:
         print_text(result, include_blocked=args.include_blocked)
+        if args.record_run:
+            print(f"\nRun gate: {result['run_state']['current_gate']}")
+            print(f"Run state: {result['run_state_path']}")
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import sys
+from unittest.mock import patch
 import unittest
 from pathlib import Path
 
@@ -32,6 +33,30 @@ class SpawnExpertReviewsTests(unittest.TestCase):
         self.assert_native_fields(fields)
         self.assertIn(expert["job_description_label"], fields["skills"])
         self.assertIn("Review is complete", fields["acceptance"])
+
+    def test_spawn_and_direct_scaffold_write_the_same_review_body(self) -> None:
+        import scaffold_workgraph
+        import spawn_expert_reviews
+
+        title = "Prepare public documentation and GitHub Pages."
+        task = title + "\nReview input [target audience]: First-time queue operators"
+        editor = "contract-jd-editorial-reasoning"
+        bodies = []
+        for cli, argv in (
+            (spawn_expert_reviews, [task, "--top-n", "8"]),
+            (scaffold_workgraph, ["--title", title, "--description", task]),
+        ):
+            with patch.object(sys, "argv", [cli.__file__, *argv]), \
+                    patch.object(cli, "create_bead", return_value={"id": "bd-test", "title": "review"}) as create, \
+                    patch.object(scaffold_workgraph, "try_dep"), patch("builtins.print"):
+                cli.main()
+            fields = next(call.kwargs for call in create.call_args_list if editor in call.kwargs["labels"])
+            self.assertEqual(fields["metadata"]["persona_file"], "experts/editor.md")
+            self.assertEqual(fields["metadata"]["review_input_status"], "blocked")
+            self.assertIn("First-time queue operators", fields["description"])
+            self.assertIn("docs and pages flow together", fields["acceptance"])
+            bodies.append(fields["description"])
+        self.assertEqual(bodies[0], bodies[1])
 
     def test_provider_conflict_adds_peer_and_sabotage_control_reviews(self) -> None:
         route = classify_work(

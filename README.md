@@ -22,9 +22,12 @@ responses and tool requests as untrusted.
   dependencies and accepted decisions, so a fresh session can continue after
   compaction or a restart. It is a saved record, not perfect recall.
 - **Prepares focused review requests and checks the returns.** CWO builds and
-  validates request packets for approved cloud or local reviewers. For local
-  models, CWO can send the screened request to a configured vLLM endpoint after
-  workload admission and evaluate the captured reply. [Local model dispatch](references/local-inference.md#dispatch)
+  validates request packets for approved cloud or local reviewers. Managed
+  expert reviews carry the registry's required inputs and check sizing against
+  the prepared export. For local models, CWO can send the screened request to a
+  configured vLLM endpoint after workload admission and evaluate the reply.
+  [Dispatch readiness](references/run-readiness.md#dispatch-readiness)
+  · [Local model dispatch](references/local-inference.md#dispatch)
   · [Desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
 - **Connects registered single-worker dispatch to hand review.** The installed
   launcher uses Codex's foreground approval for an exact registered assignment.
@@ -36,6 +39,8 @@ responses and tool requests as untrusted.
   `pending-acceptance` delivery. A reviewer working by hand can accept and close
   it in one command using the exact candidate digest they reviewed. Closure
   requires the current requirement baseline and no open blockers or children.
+  The evaluator can accept a failure report as evidence. Delivery readiness
+  depends on checked obligations from the current baseline.
   [Accept a delivery by hand](references/run-readiness.md#accepting-a-delivery-by-hand)
   or see the [verified closure library](references/run-readiness.md#verified-closure-library)
   for embedding hosts.
@@ -98,11 +103,21 @@ disabled or removed. See the [architect prompt reference](references/cwo-system-
 CWO does not include model access; your account supplies it and its quota. Local
 task records do not mean prompts stay offline. Your configured model provider
 receives selected context. Additional outside review is off by default.
+Inspect the [redacted and screened packet](references/external-contracting.md#trust-model-and-enforcement-boundary)
+before sharing it with an outside reviewer.
 
 ### Upgrading from 0.2.0-dev
 
 See the [upgrade note](references/upgrading-from-0.2.md) for review routes,
 custom reviewer profiles and where to find saved audit records and packets.
+
+### Checking a source change
+
+Hosted CI runs the full unit suite on Python 3.12 and 3.14. It also checks
+types and enforces a measured coverage floor for selected modules. The
+code-health check prevents maintainability regressions against a reviewed
+baseline.
+See [CI validation](references/ci-validation.md) for the check scope and local commands.
 
 ## Example: one project across two fresh sessions
 
@@ -191,6 +206,8 @@ shows a retry plan revised after two illustrative reviews. Use the
 [offline synthesis report](references/zero-trust-consensus.md#invocation-boundary)
 to combine your own evaluated critic returns and compare explicit claims. The
 lead still adjudicates each return and resolves material disagreement.
+[Return screening](references/external-contracting.md#return-screening) flags
+instructions and unsupported claims that need adjudication before use.
 
 ## Keep project memory beyond the conversation
 
@@ -212,9 +229,17 @@ is retained; a stopped attempt is not silently restarted. Missing or stale
 records need investigation. The diagram illustrates the workflow, not a new
 compaction trial.
 
+Use `cwo continue --record-run` to save the current gate and resume hint for an
+epic. Use `cwo analyze` to check saved plan artifacts for disagreements before
+implementation or handoff. [Commands and examples](references/run-readiness.md#saved-continuation-and-plan-analysis)
+
 [What to save and how to recover](https://gprocunier.github.io/complex-work-orchestration/beads-memory.html#compaction).
 Local records are not remote backup; shared recovery needs separately configured
 and verified synchronization.
+
+Convergence reports count corrective passes separately from productive calls
+and accepted artifacts. First-pass rates use recorded first acceptance
+attempts. [Convergence replay](references/run-readiness.md#projection-rules)
 
 ## Match coordination to the task
 
@@ -231,6 +256,11 @@ records, specialist calls and repeated checks consume time and model quota.
   sanitization, risk-required experts and named architecture critics stay.
 - **Full graph:** the same command without `--scaffold-size`, for broad, risky,
   multi-lane, reviewed or release-sensitive work.
+
+Add `--architecture-design` when the architect should record a design package
+before implementation. The package starts with the current system and caller
+experience, then records alternatives and rollout decisions.
+[Architecture design](references/architecture-design.md)
 
 Both graph sizes put implementation and docs before validation and the other
 final checks, and the wrap-up report and handoff after the last of them. No
@@ -255,6 +285,8 @@ are instructions. The lead session uses the host's tool permissions and sandbox.
   and approval policy. Codex `--yolo` disables those checks for the lead.
   Registered single-worker execution uses the verified provider-only app-server
   namespace and separate networkless command and validator namespaces.
+  Direct shell commands and browser actions outside the CWO helpers are
+  governed by the host's own permissions.
 - **Protected approvals and review evidence use a separate host principal.**
   Managed contractor exports check the host's approval for the assignment and
   destination. Protected synthesis uses the operator's selected panel and
@@ -267,15 +299,23 @@ are instructions. The lead session uses the host's tool permissions and sandbox.
 - **Local calls require opt-in and a configured endpoint.**
   `dispatch_work.py --execute-local` requires original host workload admission
   and records the result as advisory evidence for review and adjudication.
+- **Adding task text can only keep or raise routed risk** when the other
+  inputs stay fixed. The router keeps risk evidence from earlier text
+  prefixes, including text passed as a single string. Routine edits with no
+  risk evidence can still route low.
+  [Routing risk details](references/prompt-coach.md#routing-risk)
 - **Disabled in this version:** raw native launch,
-  ordinary productive pool plans passed to the standalone launcher, live campaigns, new
-  worker-surface qualification, and
+  ordinary productive pool plans passed to the standalone launcher, live campaigns, and
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`
   are refused).
 - **The activation preview is offline.** It supports key generation,
   preparation, approval and dry-run validation. The live preview and
   standalone native callback calibration are retired.
   [Native supervision pools](references/native-supervision-pools.md#temporary-audited-tool-boundary)
+- **Worker tool-surface capture and maintenance observation are retired.** The
+  maintenance checker verifies unexpired observations using the exact issuing
+  control image and original session file.
+  [Archived producers and observation verification](references/native-live-route-holds.md#archived-tool-surface-and-maintenance-observation-producers)
 - **Verified successful closure is a library route for embedding hosts.** It
   requires the original dispatch, exact baseline and candidate, current policy,
   setup database identity and single-use host acceptance from an adjudicator

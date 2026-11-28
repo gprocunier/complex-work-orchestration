@@ -93,7 +93,7 @@ def _project(state):
         'synthesis_use': ('primary' if accepting else 'reject'),
         'reason': {'kind': 'adjudicated-excerpt', 'evidence_payload': evaluation['evidence_payload']}}
     if vetoes:
-        entry.update(disposition=binding._evaluation_disposition(original),
+        entry.update(disposition=binding.evaluation_disposition(original),
             recommended_synthesis_use=original['recommended_synthesis_use'],
             synthesis_use=original['recommended_synthesis_use'])
     synthesis = evaluate_synthesis_inputs([entry],

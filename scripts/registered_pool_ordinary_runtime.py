@@ -10,6 +10,7 @@ import json
 import os
 from pathlib import Path
 import re
+from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from cwo_core import native_live_availability as availability
@@ -68,6 +69,9 @@ from registered_pool_qualification_capability import (
     begin_ordinary_connected_callback_calibration,
     callback_implementation_sha256,
 )
+
+if TYPE_CHECKING:
+    from registered_contained_pool_host import OrdinaryPoolChild
 
 _STARTUP_BOUNDS = {
     "pre_allocation_ms": 4_000,
@@ -136,7 +140,7 @@ def build_registered_contained_pool_packet(child_id, child, work_estimate):
     return {**packet, "packet_sha256": effective_child_packet_sha256(packet)}
 
 
-def _screen_worker_start(worktree, *, patch_mode=False):
+def _screen_worker_start(worktree, *, patch_mode: bool = False):
     try:
         params = thread_start_selectors(worktree, patch_mode=patch_mode)
         _prepare_native_frame({"id": 1, "method": "thread/start", "params": params}, "thread/start")
@@ -366,7 +370,7 @@ def _fresh_baselines(approved):
     return snapshots
 
 
-def _require_original_output(child):
+def _require_original_output(child: OrdinaryPoolChild) -> None:
     if child.patch_preimage_sha256 is None:
         _require(not os.path.lexists(child.worktree / child.write_path), "ordinary-writer-target-already-present")
         return
@@ -409,7 +413,7 @@ def _read_output(child):
         os.close(directory)
 
 
-def _original_patch_observation(child, worker):
+def _original_patch_observation(child: OrdinaryPoolChild, worker: object) -> dict[str, str]:
     host = worker.get("host") if type(worker) is dict else None
     _require(type(host) is dict and (host.get("worker_id"), host.get("worktree"), host.get("spool"))
              == (child.worker_id, str(child.worktree), str(child.productive_spool)), "ordinary-patch-worker-custody-lost")
@@ -427,7 +431,7 @@ def _original_patch_observation(child, worker):
     return receipt
 
 
-def _read_productive_output(child, workers):
+def _read_productive_output(child: OrdinaryPoolChild, workers: object) -> bool:
     if child.patch_preimage_sha256 is None:
         return _read_output(child)
     _require(type(workers) is dict, "ordinary-patch-worker-custody-lost")

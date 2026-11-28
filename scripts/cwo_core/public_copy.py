@@ -139,9 +139,9 @@ def find_public_copy_issues(
     if not check_editorial_patterns:
         return issues
     for kind, pattern in PUBLIC_COPY_FORBIDDEN_PATTERNS:
-        match = pattern.search(fragment)
-        if match:
-            issues.append(PublicCopyIssue(kind, match.group(0), section, line))
+        editorial_match = pattern.search(fragment)
+        if editorial_match:
+            issues.append(PublicCopyIssue(kind, editorial_match.group(0), section, line))
     vague = VAGUE_MARKETING_PATTERN.search(fragment)
     if vague and not VAGUE_EXAMPLE_CONTEXT.search(fragment):
         issues.append(PublicCopyIssue("vague AI-style wording", vague.group(0), section, line))

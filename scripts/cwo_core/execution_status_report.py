@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit import iter_audit_events
-from .epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
+from .epic_convergence import CALL_CATEGORIES, DELIVERY_CLASSIFICATIONS, GRAPH_COUNTER_FIELDS
 from .model_identities import OPERATIVE_ROLES, SPARK_MODEL, model_family_role
 from .execution_enhancement_metrics import checked_command_details, checked_command_summary, native_progress_details, native_progress_summary
 
@@ -214,6 +214,7 @@ def build_execution_status_report(
         "readiness_records": len(readiness_records),
         "convergence_summaries": len(convergence_inputs),
     }
+    main_thread_summary = _main_thread_summary(records)
     report: dict[str, Any] = {
         "result_type": REPORT_TYPE,
         "version": REPORT_VERSION,
@@ -222,13 +223,13 @@ def build_execution_status_report(
         "source_counts": source_counts,
         "source_files": source_files or {},
         "warnings": _report_warnings(source_counts),
-        "executive_summary": _executive_summary(records),
+        "executive_summary": _executive_summary(records, main_thread_summary),
         "workerbee_delegation_accountability": _workerbee_accountability(records),
         "expert_profile_utilization": _expert_profile_rows(records),
         "expert_profile_utilization_details": _expert_profile_rows(records, detail=True),
         "agent_model_utilization": _agent_model_rows(records),
         "agent_model_utilization_details": _agent_model_rows(records, detail=True),
-        "main_thread_architect_productivity": _main_thread_summary(records),
+        "main_thread_architect_productivity": main_thread_summary,
         "workerbee_delegation_summary": _workerbee_delegation_summary(records),
         "workerbee_delegation_details": _workerbee_delegation_detail_rows(records),
         "native_disposition_summary": _native_disposition_summary(records),
@@ -348,6 +349,7 @@ def _epic_convergence_summary(
         "nonaccepted": _coerce_pair(summary.get("nonaccepted"), ("segments", "calls")),
         "preventable": _coerce_pair(summary.get("preventable"), ("segments", "calls")),
         "protected_stops": _coerce_pair(summary.get("protected_stops"), ("count", "calls", "preserved")),
+        "delivery_accounting": _delivery_accounting_summary(summary.get("delivery_accounting")),
         "historical_null_counts": _coerce_nullable_counts(summary.get("historical_null_counts")),
         "targets": summary.get("targets") if isinstance(summary.get("targets"), dict) else _unavailable_targets(),
     }
@@ -363,8 +365,30 @@ def _unavailable_epic_convergence_summary() -> dict[str, Any]:
         "nonaccepted": {"segments": None, "calls": None},
         "preventable": {"segments": None, "calls": None},
         "protected_stops": {"count": None, "calls": None, "preserved": None},
+        "delivery_accounting": None,
         "historical_null_counts": {},
         "targets": _unavailable_targets(),
+    }
+
+
+def _delivery_accounting_summary(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    counts = _coerce_nullable_counts(value, allowed_fields=("corrective_passes",))
+    observations = _report_dict(value.get("first_pass"))
+    first_pass = _coerce_nullable_counts(observations, allowed_fields=(
+        "known_deliveries", "observed_attempts", "first_attempt_acceptances", "missing_attempts", "conflicting_attempts",
+    ))
+    known = first_pass.get("known_deliveries")
+    accepted = first_pass.get("first_attempt_acceptances")
+    rate = _coerce_non_negative_numeric(observations.get("rate_percent"), default=-1)
+    coverage = (first_pass.get("observed_attempts"), first_pass.get("missing_attempts"), first_pass.get("conflicting_attempts"))
+    if not (known and coverage == (known, 0, 0) and accepted is not None and accepted <= known and 0 <= rate <= 100):
+        rate = None
+    return {
+        "record_counts": _coerce_nullable_counts(value.get("record_counts"), allowed_fields=DELIVERY_CLASSIFICATIONS),
+        "corrective_passes": counts.get("corrective_passes"),
+        "first_pass": dict(first_pass, rate_percent=rate),
     }
 
 
@@ -622,18 +646,7 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
     provider = _clean(record.get("provider_key") or record.get("provider"))
     lane = _clean(record.get("lane") or record.get("role") or record.get("dispatch_mode") or provenance_class)
     telemetry_kind = _telemetry_kind(record, source_kind)
-    metrics = {
-        "agent_model_calls": _calls_from_record(record),
-        "retries": _numeric(record, ("retry_count", "retries", "attempt_retries")),
-        "input_tokens": _tokens(record, ("input_tokens", "prompt_tokens"), "input"),
-        "output_tokens": _tokens(record, ("output_tokens", "completion_tokens"), "output"),
-        "total_tokens": _total_tokens(record),
-        "active_seconds": _numeric(record, ("active_seconds", "model_active_seconds", "compute_seconds")),
-        "elapsed_seconds": _numeric(record, ("elapsed_seconds", "duration_seconds", "wall_time_seconds", "wall_clock_seconds")),
-    }
-    for field, value in list(metrics.items()):
-        if value is None and not _telemetry_metric_expected(record, source_kind, telemetry_kind, field):
-            metrics[field] = NOT_APPLICABLE
+    metrics = _record_metrics(record, source_kind, telemetry_kind)
     workerbee_planned = _workerbee_from_record(record, "planned")
     workerbee_actual = _workerbee_from_record(record, "actual")
     view = {
@@ -708,27 +721,7 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
         "sol_breakfix_scope": _clean(record.get("sol_breakfix_scope")),
         "sol_breakfix_expiry": _clean(record.get("sol_breakfix_expiry")),
         "sol_breakfix_automatic_selection_forbidden": _optional_bool(record.get("automatic_selection_forbidden")),
-        "native_supervision_state_id": _clean(record.get("native_supervision_state_id")),
-        "native_supervision_status": _clean(record.get("native_supervision_status")),
-        "native_supervision_decision": _clean(record.get("native_supervision_decision")),
-        "native_supervision_reasons": _strings(record.get("native_supervision_reasons")),
-        "validation_lineage_attempt": _numeric(record, ("validation_lineage_attempt",)),
-        "control_action": _clean(record.get("control_action")),
-        "control_receipts": _strings(record.get("control_receipts")),
-        "planned_tool_calls_hard": _numeric(record, ("planned_tool_calls_hard",)),
-        "interrupt_tool_calls_threshold": _numeric(record, ("interrupt_tool_calls_threshold",)),
-        "observed_tool_calls": _numeric(record, ("observed_tool_calls",)),
-        "planned_runtime_seconds_hard": _numeric(record, ("planned_runtime_seconds_hard",)),
-        "interrupt_runtime_seconds_threshold": _numeric(record, ("interrupt_runtime_seconds_threshold",)),
-        "observed_runtime_seconds": _numeric(record, ("observed_runtime_seconds",)),
-        "observed_context_compactions": _numeric(record, ("observed_context_compactions",)),
-        "observed_full_suite_runs": _numeric(record, ("observed_full_suite_runs",)),
-        "monitor_armed_before_dispatch": _optional_bool(record.get("monitor_armed_before_dispatch")),
-        "arm_to_dispatch_ms": _numeric(record, ("arm_to_dispatch_ms",)),
-        "dispatch_to_first_poll_ms": _numeric(record, ("dispatch_to_first_poll_ms",)),
-        "max_poll_gap_ms": _numeric(record, ("max_poll_gap_ms",)),
-        "late_poll_count": _numeric(record, ("late_poll_count",)),
-        "control_turn_id": _clean(record.get("control_turn_id")),
+        **_supervision_record_view(record),
     }
     enhancement_fields = (
         "native_progress_outcome",
@@ -781,6 +774,45 @@ def _record_view(record: dict[str, Any], source_kind: str) -> dict[str, Any]:
             view[field] = record[field]
 
     return view
+
+
+def _record_metrics(
+    record: dict[str, Any], source_kind: str, telemetry_kind: str,
+) -> dict[str, int | float | str | None]:
+    metrics: dict[str, int | float | str | None] = {
+        "agent_model_calls": _calls_from_record(record),
+        "retries": _numeric(record, ("retry_count", "retries", "attempt_retries")),
+        "input_tokens": _tokens(record, ("input_tokens", "prompt_tokens"), "input"),
+        "output_tokens": _tokens(record, ("output_tokens", "completion_tokens"), "output"),
+        "total_tokens": _total_tokens(record),
+        "active_seconds": _numeric(record, ("active_seconds", "model_active_seconds", "compute_seconds")),
+        "elapsed_seconds": _numeric(record, ("elapsed_seconds", "duration_seconds", "wall_time_seconds", "wall_clock_seconds")),
+    }
+    for field, value in metrics.items():
+        if value is None and not _telemetry_metric_expected(record, source_kind, telemetry_kind, field):
+            metrics[field] = NOT_APPLICABLE
+    return metrics
+
+
+def _supervision_record_view(record: dict[str, Any]) -> dict[str, Any]:
+    identity_fields = ("native_supervision_state_id", "native_supervision_status", "native_supervision_decision")
+    budget_fields = (
+        "planned_tool_calls_hard", "interrupt_tool_calls_threshold", "observed_tool_calls",
+        "planned_runtime_seconds_hard", "interrupt_runtime_seconds_threshold", "observed_runtime_seconds",
+        "observed_context_compactions", "observed_full_suite_runs",
+    )
+    poll_fields = ("arm_to_dispatch_ms", "dispatch_to_first_poll_ms", "max_poll_gap_ms", "late_poll_count")
+    return {
+        **{field: _clean(record.get(field)) for field in identity_fields},
+        "native_supervision_reasons": _strings(record.get("native_supervision_reasons")),
+        "validation_lineage_attempt": _numeric(record, ("validation_lineage_attempt",)),
+        "control_action": _clean(record.get("control_action")),
+        "control_receipts": _strings(record.get("control_receipts")),
+        **{field: _numeric(record, (field,)) for field in budget_fields},
+        "monitor_armed_before_dispatch": _optional_bool(record.get("monitor_armed_before_dispatch")),
+        **{field: _numeric(record, (field,)) for field in poll_fields},
+        "control_turn_id": _clean(record.get("control_turn_id")),
+    }
 
 
 def _workerbee_accountability(records: list[dict[str, Any]]) -> dict[str, Any]:
@@ -990,25 +1022,13 @@ def _readiness_records(plan: dict[str, Any]) -> list[dict[str, Any]]:
                 "job_description_label": _clean(item.get("job_description_label")),
                 "expert_profile": _clean(item.get("expert_profile") or item.get("owner")),
                 "agent_model": _clean(item.get("owner")) or UNAVAILABLE,
-                "agent_model_calls": NOT_APPLICABLE,
-                "retries": NOT_APPLICABLE,
-                "input_tokens": NOT_APPLICABLE,
-                "output_tokens": NOT_APPLICABLE,
-                "total_tokens": NOT_APPLICABLE,
-                "active_seconds": NOT_APPLICABLE,
-                "elapsed_seconds": NOT_APPLICABLE,
-                "accepted_findings": None,
-                "rejected_findings": None,
-                "followup_beads": None,
-                "evidence_quality_score": None,
-                "research_evidence_score": None,
-                "sabotage_score": None,
-                "malpractice_score": None,
-                "quarantine_recommended": None,
-                "sabotage_review_recommended": None,
-                "malpractice_review_recommended": None,
-                "peer_review_required": None,
-                "human_adjudication_required": None,
+                **dict.fromkeys(TELEMETRY_GAP_KEYS, NOT_APPLICABLE),
+                **dict.fromkeys((
+                    "accepted_findings", "rejected_findings", "followup_beads",
+                    "evidence_quality_score", "research_evidence_score", "sabotage_score", "malpractice_score",
+                    "quarantine_recommended", "sabotage_review_recommended", "malpractice_review_recommended",
+                    "peer_review_required", "human_adjudication_required",
+                )),
                 "recommended_disposition": None,
                 "recommended_synthesis_use": None,
             }
@@ -1021,18 +1041,20 @@ def _readiness_records(plan: dict[str, Any]) -> list[dict[str, Any]]:
     return records
 
 
-def _executive_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+def _executive_summary(
+    records: list[dict[str, Any]], main_thread_summary: dict[str, Any],
+) -> dict[str, Any]:
     group = _new_group()
     for record in records:
         _add_record(group, record)
     summary = _finalize_group(group)
-    main = _new_group()
     second = _new_group()
     for record in records:
-        _add_record(second if _is_second_opinion(record) else main, record)
+        if _is_second_opinion(record):
+            _add_record(second, record)
     summary.update(
         {
-            "main_thread_calls": _finalize_group(main)["agent_model_calls"],
+            "main_thread_calls": main_thread_summary["agent_model_calls"],
             "second_opinion_calls": _finalize_group(second)["agent_model_calls"],
             "missing_telemetry_cells": UNAVAILABLE,
         }
@@ -1206,8 +1228,6 @@ def _native_disposition_detail_rows(records: list[dict[str, Any]]) -> list[dict[
         session = _clean(record.get("session_disposition"))
         artifact = _clean(record.get("artifact_disposition"))
         validation = record.get("artifact_validation")
-        if not _is_native_disposition_record(record):
-            continue
         validation_text = UNAVAILABLE
         if isinstance(validation, dict):
             validation_text = "/".join(
@@ -1248,8 +1268,6 @@ def _native_disposition_summary(records: list[dict[str, Any]]) -> dict[str, Any]
         session = _clean(record.get("session_disposition"))
         artifact = _clean(record.get("artifact_disposition"))
         validation = record.get("artifact_validation")
-        if not _is_native_disposition_record(record):
-            continue
         considered += 1
         session_counts[session if session in session_counts else "unknown"] += 1
         artifact_counts[artifact if artifact in artifact_counts else "unknown"] += 1
@@ -1279,7 +1297,8 @@ def _native_disposition_records(records: list[dict[str, Any]]) -> list[dict[str,
             supervised[state_id] = record
         else:
             ordinary.append(record)
-    return [*ordinary, *[supervised[key] for key in sorted(supervised)]]
+    latest = ordinary + [supervised[key] for key in sorted(supervised)]
+    return [record for record in latest if _is_native_disposition_record(record)]
 
 
 def _native_supervision_states(records: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -1573,38 +1592,27 @@ def _count_summary(counts: dict[str, int]) -> str:
 
 
 def _telemetry_gaps(records: list[dict[str, Any]], source_counts: dict[str, int]) -> dict[str, Any]:
-    fields: dict[str, dict[str, Any]] = {}
-    for field in TELEMETRY_GAP_KEYS:
-        fields[field] = {
-            "available_records": 0,
-            "missing_records": 0,
-            "not_applicable_records": 0,
-            "missing_source_kinds": [],
-            "missing_reasons": {},
-            "by_source_kind": {},
-        }
-
+    counts = dict.fromkeys(("available_records", "missing_records", "not_applicable_records"), 0)
+    fields: dict[str, dict[str, Any]] = {
+        field: {**counts, "missing_source_kinds": [], "missing_reasons": {}, "by_source_kind": {}}
+        for field in TELEMETRY_GAP_KEYS
+    }
     for record in records:
         source_kind = _present(record.get("source_kind"))
-        for field in TELEMETRY_GAP_KEYS:
-            field_summary = fields[field]
-            by_source = field_summary["by_source_kind"].setdefault(
-                source_kind,
-                {"available_records": 0, "missing_records": 0, "not_applicable_records": 0},
-            )
+        for field, field_summary in fields.items():
+            by_source = field_summary["by_source_kind"].setdefault(source_kind, counts.copy())
             value = record.get(field)
             if value == NOT_APPLICABLE:
-                field_summary["not_applicable_records"] += 1
-                by_source["not_applicable_records"] += 1
+                availability = "not_applicable_records"
             elif _has_numeric_metric(value):
-                field_summary["available_records"] += 1
-                by_source["available_records"] += 1
+                availability = "available_records"
             else:
-                field_summary["missing_records"] += 1
-                by_source["missing_records"] += 1
+                availability = "missing_records"
                 for reason in _telemetry_missing_reasons(record):
                     missing_reasons = field_summary["missing_reasons"]
                     missing_reasons[reason] = missing_reasons.get(reason, 0) + 1
+            field_summary[availability] += 1
+            by_source[availability] += 1
 
     for field_summary in fields.values():
         field_summary["missing_source_kinds"] = sorted(
@@ -1629,32 +1637,22 @@ def _telemetry_missing_reasons(record: dict[str, Any]) -> list[str]:
 
 
 def _quality_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
-    totals = {
-        "low_evidence_quality": 0,
-        "sabotage_concerns": 0,
-        "malpractice_concerns": 0,
-        "quarantine_recommended": 0,
-        "peer_review_required": 0,
-        "implementation_blocked": 0,
-        "human_adjudication_required": 0,
+    signal_counts = {
+        "low_evidence_quality": "low-evidence-quality",
+        "sabotage_concerns": "sabotage-concern",
+        "malpractice_concerns": "malpractice-concern",
+        "quarantine_recommended": "quarantine-recommended",
+        "peer_review_required": "peer-review-required",
+        "implementation_blocked": "process-hold",
+        "human_adjudication_required": "architect-adjudication-required",
     }
+    totals = dict.fromkeys(signal_counts, 0)
     events: list[dict[str, Any]] = []
     for record in records:
         signals = _record_quality_signals(record)
-        if "low-evidence-quality" in signals:
-            totals["low_evidence_quality"] += 1
-        if "sabotage-concern" in signals:
-            totals["sabotage_concerns"] += 1
-        if "malpractice-concern" in signals:
-            totals["malpractice_concerns"] += 1
-        if "quarantine-recommended" in signals:
-            totals["quarantine_recommended"] += 1
-        if record.get("peer_review_required") is True:
-            totals["peer_review_required"] += 1
-        if record.get("implementation_blocked") is True:
-            totals["implementation_blocked"] += 1
-        if record.get("human_adjudication_required") is True:
-            totals["human_adjudication_required"] += 1
+        for key, signal in signal_counts.items():
+            if signal in signals:
+                totals[key] += 1
         if signals:
             events.append(
                 {
@@ -1897,15 +1895,9 @@ def _tokens(record: dict[str, Any], scalar_keys: tuple[str, ...], usage_key: str
 
 
 def _total_tokens(record: dict[str, Any]) -> int | float | None:
-    total = _numeric(record, ("total_tokens", "tokens_total"))
+    total = _tokens(record, ("total_tokens", "tokens_total"), "total")
     if total is not None:
         return total
-    for container_key in ["usage", "token_usage", "tokens"]:
-        container = record.get(container_key)
-        if isinstance(container, dict):
-            nested = _numeric(container, ("total", "total_tokens"))
-            if nested is not None:
-                return nested
     input_tokens = _tokens(record, ("input_tokens", "prompt_tokens"), "input")
     output_tokens = _tokens(record, ("output_tokens", "completion_tokens"), "output")
     if input_tokens is None or output_tokens is None:
@@ -2070,7 +2062,11 @@ def _convergence_lines(summary: Any, width: int) -> list[str]:
         "calls_target_met": results.get("calls_target_met"),
         "control_plane_target_met": results.get("control_plane_reduction_target_met"),
     }
-    return _key_value_box("Epic Convergence", values, width)
+    lines = _key_value_box("Epic Convergence", values, width)
+    accounting = _delivery_accounting_lines(summary)
+    if accounting:
+        lines.extend(_text_box("Delivery Accounting", accounting, width))
+    return lines
 
 
 def _report_dict(value: Any) -> dict[str, Any]:
@@ -2161,9 +2157,32 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
     return _text_box("Dashboard", [
-        status_line, resource_line, category_line, convergence_line, gap_line, quality_line, evidence_line,
+        status_line, resource_line, category_line, convergence_line, *_delivery_accounting_lines(convergence),
+        gap_line, quality_line, evidence_line,
         workerbee_line, supervision_line, disposition_line, autonomy_line, command_line, next_line,
     ], width)
+
+
+def _delivery_accounting_lines(summary: dict[str, Any]) -> list[str]:
+    accounting = _report_dict(summary.get("delivery_accounting"))
+    if not accounting:
+        return []
+    first_pass = _report_dict(accounting.get("first_pass"))
+    rate = first_pass.get("rate_percent")
+    rate_display = f"{rate:.1f}%" if isinstance(rate, (int, float)) else UNAVAILABLE
+    return [
+        _dashboard_metrics(
+            _report_dict(accounting.get("record_counts")),
+            ("initial", "initial-delivery"), ("correction", "correction"), ("mixed", "mixed"), ("unknown", "unknown"),
+            prefix="Delivery records  ",
+        ),
+        f"Delivery  corrective passes {_cell(accounting.get('corrective_passes'))}  first-pass {rate_display}",
+        _dashboard_metrics(
+            first_pass, ("accepted", "first_attempt_acceptances"),
+            ("missing", "missing_attempts"), ("conflicting", "conflicting_attempts"),
+            prefix=f"First attempts  observed {_cell(first_pass.get('observed_attempts'))}/{_cell(first_pass.get('known_deliveries'))}  ",
+        ),
+    ]
 
 
 def _convergence_dashboard_line(summary: dict[str, Any]) -> str:

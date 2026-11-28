@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from copy import deepcopy
 from dataclasses import asdict, dataclass
 from datetime import datetime, timezone
@@ -590,10 +591,10 @@ class _PoolWorker:
         return self.parent.limits
 
     @property
-    def patch_mode(self):
+    def patch_mode(self) -> bool:
         return self._patch_preimage_sha256 is not None
 
-    def _writer_selection(self):
+    def _writer_selection(self) -> tuple[str | None, str | None]:
         expected, preimage = self.task["expected_utf8"], self._patch_preimage_sha256
         if self.patch_mode:
             _require(expected is None and type(preimage) is str and re.fullmatch(r"[0-9a-f]{64}", preimage) is not None,
@@ -1374,7 +1375,7 @@ class _PoolParent:
         guards = {key: worker.containment._workspace_capture_guard for key, worker in self.workers.items()
                   if worker.patch_mode}
 
-        def compare_workspaces(*, contract, phase):
+        def compare_workspaces(*, contract: Mapping[str, Any], phase: str) -> dict[str, Any]:
             return monitor.compare(contract=contract, phase=phase, child_capture_guards=guards)
 
         return {**self.files, "lease_registry": self.leases, "claim_adapter": self.claim_adapter,

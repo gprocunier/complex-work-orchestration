@@ -101,7 +101,10 @@ unrestricted process under the controller account can access the login home.
 
 Managed contractor export checks the host's current opt-in for the checkout,
 assignment, destination and disclosure boundary, and screens the exact export.
-Redaction and screening check for known patterns and depend on operator review.
+Packet redaction and its separate residual check look for credentials and
+recognizable personal details. Outbound screening also examines bounded hex
+and base64 text for sensitive content. These checks can miss sensitive
+information, so operators still need to inspect what will be shared.
 Direct CLI or network calls use the invoking environment's permissions.
 An exported prompt records preparation.
 Observed peer-review evidence is still required when policy calls for it.
@@ -129,6 +132,10 @@ only for a registered stronger model and offers weaker separation. Missing or
 ambiguous host provenance refuses. Review leaves quarantine, tripwires and
 unrelated holds in place.
 [Peer review source contract](peer-review-record.md).
+
+Return screening uses the structure of the review to flag directives and
+unsupported claims. The architect can inspect the exact evidence behind each
+hold. [Return screening](external-contracting.md#return-screening)
 
 Everyday delegation delivers the exact candidate for hand acceptance from a
 separate foreground session. The hand acceptance helper checks the live

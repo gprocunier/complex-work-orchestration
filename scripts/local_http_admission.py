@@ -11,13 +11,13 @@ from pathlib import Path
 from threading import Thread, Timer
 
 import prepare_local_admission as planning
-from cwo_core import local_invocation as http
+from cwo_core import local_invocation as http, return_advisory
 from cwo_core.host_records import HostRecordError
 from cwo_core.invocation_ledger import LOCK_FILE, request_sha256
 from cwo_core.packets import redact_text
 
-RECORD_KEY = 'local_workload_admission'
-INTENT_EVENT_TYPE = 'local_http_workload_invocation_intent'
+RECORD_KEY = return_advisory.ADMISSION_KEY
+INTENT_EVENT_TYPE = return_advisory.INTENT_EVENT
 WORKLOAD_FIELDS = {'route_input', 'node_id', 'node_attempts'}
 
 
@@ -62,8 +62,14 @@ class LocalWorkload:
         _require(len(matches) == 1, 'workload must select one declared route node')
         return route, matches[0]
 
-    def task(self):
-        _, node = self.route_node()
+    def task(self, node=None, *, advisory=None):
+        if node is None:
+            _, node = self.route_node()
+        if advisory is not None:
+            text = self.screening_text(node)
+            _require(return_advisory.source_digest(text) == advisory['target']['return_sha256'],
+                     'original workload text differs from the received return')
+            return return_advisory.render_task(text)
         _require(type(node.get('prompt')) is str, 'workload prompt must be text')
         sections = [node['prompt']]
         for label in ('wrappers', 'attachments', 'sources'):
@@ -71,6 +77,13 @@ class LocalWorkload:
             _require(type(entries) is list, 'workload request components must be lists')
             sections.extend(_render_entry(label, entry) for entry in entries)
         return redact_text('\n\n'.join(sections), require_policy_patterns=True)
+
+    @staticmethod
+    def screening_text(node):
+        _require(all(node.get(label) == [] for label in ('wrappers', 'attachments', 'sources')),
+                 'return screening permits only the original return text')
+        _require(type(node.get('prompt')) is str, 'return screening requires a UTF-8 return')
+        return node['prompt']
 
 
 def _render_entry(label, entry):
@@ -85,7 +98,8 @@ def _check_execution(workload, envelope, post, prepared):
     options = envelope['request_options']
     _require(envelope['bead_id'] == route['parent_id'] and envelope['epic_id'] == route['aggregate_id'],
              'original workload parent or aggregate differs from dispatch')
-    _require(envelope['messages'][-1]['content'].partition('\n\nTask:\n')[2] == workload.task(),
+    rendered = envelope['messages'][-1]['content'].partition('\n\nTask:\n')[2]
+    _require(rendered == workload.task(node, advisory=envelope.get(return_advisory.BINDING_KEY)),
              'rendered dispatch differs from the original redacted workload request')
     _require((execution['executor'], execution['provider'], execution['model'], execution['options']) ==
              (envelope['executor_key'], envelope['provider_key'], envelope['model'], options),

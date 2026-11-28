@@ -1,11 +1,11 @@
-"""Internal completion bridges for a fresh, read-only Codex exec process.
+"""Prepare and capture fresh, read-only Codex review processes.
 
 The embedding host owns launch and custody of the original stdin, stdout and
-Codex home. Use only with the process it launched, after that process exits.
+Codex home. Capture only the process it launched and only after it exits.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field, replace
 import hashlib
 import json
 import os
@@ -13,6 +13,8 @@ from pathlib import Path
 import re
 import stat
 
+from . import return_advisory
+from .dispatch_workload import WorkloadRefused, validate_export_workload
 from .errors import CWOPolicyError
 from .host_acceptance import _host_inputs
 from .host_return_intake import MAX_RETURN_BYTES, record_received_return
@@ -24,6 +26,7 @@ from .native_session_boundary import (
     trusted_terminal_event,
     trusted_turn_context,
 )
+from .outbound_screen import require_clean
 from .peer_review import pending_evaluation_sha256, validate_peer_review_request
 from .peer_review_identity import identity_token, review_identity, separation_level
 from .policy import configured_gemini_critic, load_policy
@@ -36,6 +39,7 @@ MAX_CODEX_CAPTURE_BYTES = 16 * 1024 * 1024
 _EXECUTOR = "codex_architecture_critic"
 _PROVIDER = "internal_codex"
 _MODE = "main_thread_review"
+_PEER_PREPARATION = "codex_peer_review_prepared"
 _UUID = re.compile(r"[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}")
 _EVENTS = {"task_started", "task_complete", "item_completed", "thread_settings_applied", "user_message",
            "agent_message", "agent_reasoning", "agent_reasoning_raw_content", "token_count"}
@@ -51,6 +55,17 @@ class CodexCriticCompletion:
 
 
 @dataclass(frozen=True)
+class CodexCriticRequest:
+    request: bytes
+    launch_identity: tuple[str, str, str]
+    workload_binding: dict
+
+    @property
+    def command_effort_arguments(self) -> tuple[str, str]:
+        return effort_arguments(self.launch_identity[1])
+
+
+@dataclass(frozen=True)
 class CodexPeerReviewRequest:
     dispatch_id: str
     target_dispatch_id: str
@@ -61,6 +76,11 @@ class CodexPeerReviewRequest:
     request: bytes
     launch_identity: tuple[str, str, str] | None = None
     effort_reason: str | None = None
+    _workload_bytes: bytes | None = field(default=None, compare=False, repr=False)
+
+    @property
+    def workload_binding(self) -> dict | None:
+        return json.loads(self._workload_bytes) if self._workload_bytes is not None else None
 
     @property
     def command_effort_arguments(self) -> tuple[str, str]:
@@ -353,11 +373,39 @@ def _finish(store, dispatch_id: str, record_id: str, observation: _Observation) 
 
 
 def _critic_launch_identity(dispatch: dict) -> tuple[str, str, str]:
-    selected = dispatch["evaluation_metadata"].get("codex_reasoning", {})
-    model = dispatch.get("model_id")
+    metadata = dispatch["evaluation_metadata"]
+    selected = metadata.get("codex_reasoning", {})
+    model = dispatch.get("model_id") or metadata.get("dispatch_workload", {}).get("execution", {}).get("model")
     if model is not None:
         _need(model_family_role(model) == "sol", "recorded Codex critic model must be in the Sol family")
     return _launch_identity(selected.get("reasoning_effort", dispatch.get("reasoning_effort") or "xhigh"), model)
+
+
+def _review_workload(workload, request: str, identity: tuple[str, str, str], *, bead_id, prompt=None) -> dict:
+    try:
+        binding = validate_export_workload(workload, request_text=request if prompt is None else prompt,
+            wire_text=request, executor=_EXECUTOR, provider=_PROVIDER, model=identity[0], effort=identity[1],
+            bead_id=bead_id)
+    except WorkloadRefused as exc:
+        raise CWOPolicyError(str(exc)) from exc
+    execution = binding["execution"]
+    _need(not (execution["tool_surface"] or execution["options"]), "workload declares unsupported tools or options")
+    require_clean(request, surface="Codex review request")
+    return binding
+
+
+def prepare_codex_critic_request(store, dispatch_id: str, *, request: bytes, bead_id: str | None,
+                                 workload=None, evaluation_metadata: dict | None = None) -> CodexCriticRequest:
+    """Validate exact input and sizing before handing a read-only critic request to the embedding host."""
+    metadata = {**(evaluation_metadata or {}), "dispatch_mode": _MODE}
+    metadata.pop("dispatch_workload", None)
+    identity = _critic_launch_identity({"evaluation_metadata": metadata})
+    binding = _review_workload(workload, _utf8(request, MAX_CODEX_CAPTURE_BYTES), identity, bead_id=bead_id)
+    store.write_dispatch(dispatch_id=dispatch_id, dispatch_role="executor", provider="openai",
+        model_family=None, model_id=None, reasoning_effort=None, session_id=None, request_sha256=_sha(request),
+        bead_id=bead_id or workload["route_input"]["parent_id"], executor=_EXECUTOR, provider_key=_PROVIDER,
+        evaluation_metadata={**metadata, "dispatch_workload": binding})
+    return CodexCriticRequest(request, identity, binding)
 
 
 def record_codex_critic_completion(store, dispatch_id: str, *, request: bytes, stdout: bytes,
@@ -383,9 +431,7 @@ def record_codex_critic_completion(store, dispatch_id: str, *, request: bytes, s
     return _finish(store, dispatch_id, record_id, observation)
 
 
-def prepare_codex_peer_review_request(store, dispatch_id: str, *, target_dispatch_id: str,
-                                      target_return: bytes) -> CodexPeerReviewRequest:
-    """Build the single original peer request from the verified Gemini return and pending evaluation."""
+def _peer_review_request(store, dispatch_id: str, target_dispatch_id: str, target_return: bytes) -> CodexPeerReviewRequest:
     dispatch_id = identity_token(dispatch_id)
     dispatch = store.require_dispatch(target_dispatch_id)
     profile = configured_gemini_critic()
@@ -399,12 +445,13 @@ def prepare_codex_peer_review_request(store, dispatch_id: str, *, target_dispatc
     receipt = store.require_return(target_dispatch_id, return_digest)
     _need(receipt.get("return_sha256") == return_digest and receipt.get("capture_provenance") == "host-capture-v1",
           "review target requires the exact original host-captured return")
+    advisory = return_advisory.advisory_hold_reasons(store, dispatch, receipt)
     pending = make_acceptance_decision(text, peer_review_status="pending",
-        **_host_inputs(dispatch, dispatch.get("bead_id"), target_dispatch_id))
+        **_host_inputs(dispatch, dispatch.get("bead_id"), target_dispatch_id, advisory=advisory))
     evaluation_digest = pending_evaluation_sha256(pending)
     selected = dispatch["evaluation_metadata"].get("codex_review_reasoning")
-    launch_identity = _launch_identity(selected["reasoning_effort"]) if selected else None
-    model, effort, _ = launch_identity or _launch_identity()
+    launch_identity = _launch_identity(selected["reasoning_effort"]) if selected else _launch_identity()
+    model, effort, _ = launch_identity
     reviewer = dict(provider="openai", model_family="gpt", model_id=model, reasoning_effort=effort, dispatch_id=dispatch_id)
     passed = dict(record_type="cwo-peer-review", version=2, decision="passed", reviewer_identity=reviewer,
                   return_sha256=return_digest, evaluation_sha256=evaluation_digest)
@@ -421,6 +468,40 @@ def prepare_codex_peer_review_request(store, dispatch_id: str, *, target_dispatc
                                   launch_identity, selected["reasoning_effort_reason"] if selected else None)
 
 
+def prepare_codex_peer_review_request(store, dispatch_id: str, *, target_dispatch_id: str,
+                                      target_return: bytes, workload=None) -> CodexPeerReviewRequest:
+    """Size the original read-only peer request and its exact evaluator wrapper before host handoff."""
+    request = _peer_review_request(store, dispatch_id, target_dispatch_id, target_return)
+    target = store.get(request.target_dispatch_record_sha256)
+    binding = _review_workload(workload, request.request.decode("utf-8"), request.launch_identity,
+        bead_id=target.get("bead_id"), prompt=json.dumps(target_return.decode("utf-8"), ensure_ascii=False))
+    encoded = json.dumps(binding, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
+    prepared = replace(request, _workload_bytes=encoded)
+    event = _peer_workload_event(prepared)
+    prior = _peer_workload_receipts(store, prepared.dispatch_id)
+    if prior:
+        _require_peer_workload_receipt(event, prior)
+    else:
+        store.record_audit_event(event)
+    return prepared
+
+
+def _peer_workload_event(request: CodexPeerReviewRequest) -> dict:
+    _need(type(request._workload_bytes) is bytes, "managed peer workload binding is missing")
+    return dict(event_type=_PEER_PREPARATION, dispatch_id=request.dispatch_id,
+                outbound_export_sha256=_sha(request.request), outbound_prepared_sha256=_sha(request._workload_bytes))
+
+
+def _peer_workload_receipts(store, dispatch_id: str) -> list[dict]:
+    return [event for event in store.audit_events()
+            if event.get("event_type") == _PEER_PREPARATION and event.get("dispatch_id") == dispatch_id]
+
+
+def _require_peer_workload_receipt(event: dict, prior: list[dict]) -> None:
+    _need(bool(prior) and all(all(saved.get(key) == value for key, value in event.items()) for saved in prior),
+          "managed peer workload binding differs from its original preparation")
+
+
 def _peer_response(final: bytes, identity: dict, request: CodexPeerReviewRequest) -> None:
     try:
         record = strict_json_loads(final.decode("utf-8"))
@@ -431,8 +512,12 @@ def _peer_response(final: bytes, identity: dict, request: CodexPeerReviewRequest
           "peer return differs from the exact review target")
 
 
-def _peer_dispatch_metadata(request: CodexPeerReviewRequest, observation: _Observation) -> dict:
+def _peer_dispatch_metadata(store, request: CodexPeerReviewRequest, observation: _Observation) -> dict:
     metadata = dict(dispatch_mode=_MODE, capture_observation_sha256=observation.sha256)
+    prior = _peer_workload_receipts(store, request.dispatch_id)
+    if prior or request._workload_bytes is not None:
+        _require_peer_workload_receipt(_peer_workload_event(request), prior)
+        metadata["dispatch_workload"] = request.workload_binding
     if request.effort_reason is not None:
         metadata["codex_reasoning"] = {"reasoning_effort": observation.effort,
                                        "reasoning_effort_reason": request.effort_reason}
@@ -443,10 +528,9 @@ def record_codex_peer_review_completion(store, request: CodexPeerReviewRequest, 
                                         stdout: bytes, codex_home: Path, exit_code: int) -> CodexCriticCompletion:
     """Record a distinct original reviewer session against the exact verified target."""
     _need(type(request) is CodexPeerReviewRequest, "original host peer request is required")
-    actual = prepare_codex_peer_review_request(store, request.dispatch_id,
-        target_dispatch_id=request.target_dispatch_id, target_return=target_return)
-    _need(actual == request, "original peer request or pending evaluation changed")
+    actual = _peer_review_request(store, request.dispatch_id, request.target_dispatch_id, target_return)
     identity = request.launch_identity or _launch_identity()
+    _need(actual == replace(request, launch_identity=identity), "original peer request or pending evaluation changed")
     observation = _observe(request.request, stdout, codex_home, exit_code, identity)
     _distinct_session(store, request.dispatch_id, observation.session_id)
     target = store.require_dispatch(request.target_dispatch_id)
@@ -455,7 +539,7 @@ def record_codex_peer_review_completion(store, request: CodexPeerReviewRequest, 
     target_identity = review_identity({key: target[key] for key in reviewer})
     separation_level(target_identity, reviewer, target["session_id"], observation.session_id)
     _peer_response(observation.final, reviewer, request)
-    metadata = _peer_dispatch_metadata(request, observation)
+    metadata = _peer_dispatch_metadata(store, request, observation)
     expected = dict(dispatch_id=request.dispatch_id, dispatch_role="peer-review", **observation.identity,
         request_sha256=_sha(request.request), review_target=request.target, executor=_EXECUTOR, provider_key=_PROVIDER,
         evaluation_metadata=metadata)

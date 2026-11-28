@@ -24,12 +24,12 @@ Beads tracking is mandatory for non-trivial work. In ordinary Codex sessions, ha
 
 ## Operating Defaults
 
-Registered single-worker production needs signed admission, provider disclosure consent and separate authentication.
+Registered N1 needs signed admission, provider disclosure consent and separate authentication.
 Contained pools run two or three approved workers. Patches target one approved existing file.
-Raw native launch, generic pools and surface qualification stay held. Campaigns, live activation and
-standalone calibration are retired. Preview stays offline. Verify host capability and model.
-Leads use host permissions. Controllers contain workers and hold protected approvals and review evidence.
-[Threat model](references/security-threat-model.md#trust-on-the-supervisor-host)
+Raw native and generic pools stay held. Preview stays offline. Verify host capability and model.
+Campaigns, live activation, standalone calibration, tool-surface capture and maintenance observation are retired.
+[Routes](references/native-live-route-holds.md) · Leads use host permissions. Controllers contain workers and hold
+protected approvals and review evidence. [Threat model](references/security-threat-model.md#trust-on-the-supervisor-host)
 
 - The opt-in architect profile loads `prompts/cwo-architect.md` in a fresh session. See `references/cwo-system-prompt.md`.
 - Default to `no-outside-sharing`; ask only when an outside lane adds material value.
@@ -50,7 +50,7 @@ Leads use host permissions. Controllers contain workers and hold protected appro
 python3 scripts/coach_prompt.py "<task text>"
 ```
 
-3. If routing matters, classify the work:
+3. [Classify work](references/prompt-coach.md#routing-risk). Appends cannot lower risk.
 
 ```bash
 python3 scripts/route_work.py "<task text>"
@@ -80,8 +80,8 @@ reduced. Do not claim local Beads state is synced without a Dolt remote.
 
 ## Scaffold Choices
 
-Use one manual Bead for narrow work; no smaller scaffold tier exists. Use a tight
-chain (architecture, implementation and docs, validation, wrap-up) without optional fan-out:
+Use one manual Bead for narrow work because no smaller scaffold tier exists. A tight chain keeps architecture,
+implementation, docs, validation and wrap-up.
 
 ```bash
 python3 scripts/scaffold_workgraph.py \
@@ -90,7 +90,7 @@ python3 scripts/scaffold_workgraph.py \
   --scaffold-size tight
 ```
 
-Use the full graph for broad, risky, multi-lane, reviewed, synthesized, or release-sensitive work:
+Use the full graph for broad, risky, multi-lane, reviewed, synthesized, or release-sensitive work. Add `--architecture-design` for the [design package](references/architecture-design.md).
 
 ```bash
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"
@@ -149,7 +149,7 @@ three units or six reads warn; four or eleven require replanning.
 
 ## Reference Map
 
-- Human operating guide: `README.md`
+- [Guide](README.md) and [CI ratchets](references/ci-validation.md)
 - Prompt coach: `references/prompt-coach.md`
 - External contracting and trust boundary: `references/external-contracting.md`
 - Contractor briefing: `references/contractor-brief.md`
@@ -169,29 +169,29 @@ three units or six reads warn; four or eleven require replanning.
 
 ## Contractor And Local Worker Gates
 
-Outside contractor packets require explicit opt-in, one primary
-`contract-jd-*` label, guard labels, share boundary, provider metadata, packet
-validation, audit, return normalization, evaluation, and architect adjudication:
+Outside packets need opt-in, a primary `contract-jd-*` label, guard labels, a share boundary,
+provider metadata, redaction, screening, validation, [sizing](references/run-readiness.md#dispatch-readiness),
+audit, return normalization, evaluation and architect adjudication.
 
 ```bash
 python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --opt-in-record="$APPROVAL_REF" --format json --output contractor-packet.json
-python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual
+python3 scripts/dispatch_work.py --packet contractor-packet.json --mode manual --workload "$WORKLOAD_FILE"
 python3 scripts/normalize_contractor_return.py --bead <id> --dispatch-id <id> --packet-sha256 <sha> --file contractor-return.md --output contractor-return-bundle.json
 python3 scripts/evaluate_return.py --bead <id> --file contractor-return.md
 ```
 
 Required plan reviews remain blocking until the approved route, model and any
 required settings, return evidence, evaluation and adjudication are established
-or the operator explicitly changes that requirement. For ChatGPT Pro, follow the
-[ChatGPT desktop app workflow](references/chatgpt-pro-browser.md). Local inference
-requires `--local-ok`. Use `--prefer-local` only for an intended low-risk local review lane.
+or the operator explicitly changes that requirement. Use the
+[ChatGPT Pro desktop workflow](references/chatgpt-pro-browser.md). Local inference
+requires `--local-ok`. Use `--prefer-local` only for low-risk local reviews.
 
 Use the configured Luna model first for focused native work. Each assignment fixes its exact model.
 Stop on missing or mismatched attestation. Do not substitute another model.
 Spark records remain available for historical inspection.
 
 Use `scripts/workspace_mutation_guard.py` around external CLIs with checkout access.
-Quarantine returns for sabotage scores of 50 or higher, high malpractice, provider conflict, or boundary taint pending peer review and architect adjudication.
+Quarantine returns for sabotage scores of 50 or higher, high malpractice, provider conflict, or boundary taint pending peer review and [architect adjudication](references/external-contracting.md#return-screening).
 
 ## Run Readiness And Closeout
 
@@ -210,11 +210,11 @@ python3 scripts/render_execution_status_report.py <inputs>
 ```
 
 Before closing meaningful Beads, add a compact closure-memory comment. Record delivered work as `pending-acceptance`. A configured registered host posts the exact delivery and leaves the Bead open for a separate reviewer. [Independent hand acceptance](references/run-readiness.md#accepting-a-delivery-by-hand).
-Verified completion through `qualified_closure.py` requires single-use host acceptance bound to the original dispatch, exact requirement baseline and candidate, exact original observations seen by the accepted final review, current policy and setup database identity, an adjudicator distinct from the executor, every required clearance and no open blockers or children. It records consumption intent in the host audit before the first Beads write. Failure or reopening never permits reuse. The narrative command below records a summary. [Closure requirements](references/run-readiness.md#verified-closure-library).
+Verified completion through `qualified_closure.py` requires single-use host acceptance bound to the original dispatch, exact requirement baseline and candidate, exact original observations seen by the accepted final review, current policy and setup database identity, an adjudicator distinct from the executor, every required clearance and no open blockers or children. It records consumption intent in the host audit before the first Beads write. Failure or reopening never permits reuse. Evidence disposition and delivery readiness are separate. [Closure requirements](references/run-readiness.md#verified-closure-library).
 
 ```bash
 python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acceptance --why "<short reason>" --who "<actors>" --what "<result>" --how "<validation>" --when "<date or commit>" --where "<repo/env>" --decision "<decision>" --evidence "<evidence>" --residual-risk "<risk>" --follow-up "<next>" --meaningful
 ```
 
 Validate drafts with `python3 scripts/validate_operator_handoff.py --require-scoped-continuation <handoff.md>`.
-Supply matching state when both scoped fields are `None`. [Scoped continuation](references/run-readiness.md#human-template).
+Supply matching state when both scoped fields are `None`. [Continue and analyze](references/run-readiness.md#saved-continuation-and-plan-analysis).
