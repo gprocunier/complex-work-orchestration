@@ -1,31 +1,10 @@
 #!/usr/bin/env python3
-"""Change-focused code-health ratchets: F/E9 diagnostics, core-to-CLI imports, complexity growth.
+"""Ratchet diagnostics, module boundaries and definition structure against reviewed allowances.
 
-Each gate compares the current tree with a reviewed baseline
-(``policy/code-health-baseline.json``) through stable identities, never line
-numbers:
-
-- F and E9 diagnostics from the pinned test-only ``ruff``: file, enclosing
-  function or class, rule and the name the diagnostic is about;
-- imports from ``scripts/cwo_core`` modules of CLI modules in ``scripts/``:
-  the module pair;
-- function complexity (decision points plus one) in ``scripts/``: file and
-  qualified name.
-
-Moving lines or comments therefore changes nothing. A reviewed move or rename
-(``policy/code-health-moves.json``) carries a function's baseline to its new
-identity; anything else that appears is new, so debt cannot move silently.
-Each reviewed batch of moves carries its own identifier; ``refresh`` records
-it as consumed, so a batch applies once and an altered consumed batch is
-refused.
-
-``check`` fails on a new diagnostic, a new import edge, a function whose
-complexity grew past its baseline, or a new function over the advisory
-threshold. It reports entries that shrank or disappeared. ``refresh`` rewrites
-the baseline: it lowers and removes entries freely, and raises or adds one only
-with ``--admit REASON``, which is recorded against the entry. ``init`` fills an
-empty baseline from the current tree once, recording why. The CWO runtime does
-not import this module; ruff is a pinned test-only tool.
+``check`` reports new, increased and reduced debt by stable identity.
+``refresh`` lowers allowances and requires ``--admit REASON`` to raise them.
+``init`` records existing debt once. Reviewed definition moves carry scoped
+allowances across names and files, and each batch can be consumed only once.
 """
 
 from __future__ import annotations
@@ -53,8 +32,15 @@ LINT_PATHS = ("scripts", "tests")
 COMPLEXITY_PATHS = ("scripts",)
 CORE = Path("scripts/cwo_core")
 RUFF_RULES = "F,E9"
+ANNOTATION_RULES = "ANN001,ANN201,ANN202"
+ANNOTATION_PREFIXES = {"scripts": ("registered_", "offline_"),
+                       "scripts/cwo_core": ("native_pool_qualification",)}
+SIZE_LIMITS = {"definition_length": 100, "suite_nesting": 5}
+COUNT_LABELS = {"f_e9": "F/E9 diagnostic", "annotations": "annotation diagnostic",
+                "broad_catches": "broad catch", "private_imports": "private import"}
+SCOPED_TABLES = ("complexity", *SIZE_LIMITS, "f_e9", "annotations", "broad_catches")
 # --ignore-noqa: an inline suppression must not admit debt without a recorded reason.
-RUFF_COMMAND = ["ruff", "check", "--no-cache", "--isolated", "--ignore-noqa", "--select", RUFF_RULES,
+RUFF_COMMAND = ["ruff", "check", "--no-cache", "--isolated", "--ignore-noqa", "--select", f"{RUFF_RULES},{ANNOTATION_RULES}",
                 "--output-format", "json", "--exit-zero"]
 
 Diagnostics = Callable[[Path, tuple[str, ...], list[str] | None], list[dict]]
@@ -63,7 +49,11 @@ Diagnostics = Callable[[Path, tuple[str, ...], list[str] | None], list[dict]]
 # Identities ---------------------------------------------------------------
 
 
-def _definitions(tree: ast.AST) -> list[tuple[int, int, str, ast.AST]]:
+Definitions = list[tuple[int, int, str, ast.AST]]
+Scopes = list[tuple[int, int, str]]
+
+
+def _definitions(tree: ast.AST, source: str | None = None) -> Definitions:
     """``(first line, last line, identity, node)`` for every function and class.
 
     A repeated qualified name gets ``#2``, ``#3`` in definition order, and
@@ -71,8 +61,9 @@ def _definitions(tree: ast.AST) -> list[tuple[int, int, str, ast.AST]]:
     definitions of ``f`` never share an identity. A definition's span starts
     at its first decorator.
     """
-    found: list[tuple[int, int, str, ast.AST]] = []
+    found: Definitions = []
     seen: Counter[str] = Counter()
+    lines = source.split("\n") if source is not None else None
 
     def visit(node: ast.AST, prefix: str) -> None:
         for child in ast.iter_child_nodes(node):
@@ -80,7 +71,11 @@ def _definitions(tree: ast.AST) -> list[tuple[int, int, str, ast.AST]]:
                 base = f"{prefix}{child.name}"
                 seen[base] += 1
                 name = base + (f"#{seen[base]}" if seen[base] > 1 else "")
-                start = min([child.lineno, *(decorator.lineno for decorator in child.decorator_list)])
+                start = child.decorator_list[0].lineno if child.decorator_list else child.lineno
+                # A parenthesized decorator expression can start after its @ line.
+                if lines is not None and child.decorator_list:
+                    while start > 1 and not lines[start - 1].lstrip().startswith("@"):
+                        start -= 1
                 found.append((start, child.end_lineno or child.lineno, name, child))
                 visit(child, name + ".")
             else:
@@ -90,11 +85,11 @@ def _definitions(tree: ast.AST) -> list[tuple[int, int, str, ast.AST]]:
     return found
 
 
-def _scopes(tree: ast.AST) -> list[tuple[int, int, str]]:
-    return [(start, end, name) for start, end, name, _ in _definitions(tree)]
+def _scopes(definitions: Definitions) -> Scopes:
+    return [(start, end, name) for start, end, name, _ in definitions]
 
 
-def _scope_at(scopes: list[tuple[int, int, str]], line: int) -> str:
+def _scope_at(scopes: Scopes, line: int) -> str:
     inside = [scope for scope in scopes if scope[0] <= line <= scope[1]]
     return max(inside, key=lambda scope: scope[0])[2] if inside else "<module>"
 
@@ -192,23 +187,12 @@ def _python_files_in_tree(root: Path, paths: tuple[str, ...]) -> list[str]:
 
 
 def ruff_diagnostics(root: Path, paths: tuple[str, ...], inventory: list[str] | None = None) -> list[dict]:
-    """F and E9 diagnostics from the pinned ruff, as its JSON records.
-
-    A filesystem walk of the configured lint directories ensures every source is linted, regardless of git state,
-    gitignore or directory exclusions. Scrubbing RUFF_* variables prevents output redirection. Empty output is
-    refused: ruff prints `[]` itself when there are no diagnostics, so empty stdout means the report was redirected
-    or lost. An empty inventory (a lint directory with no sources) is refused.
-
-    If inventory is provided, it is used directly; otherwise, a fail-closed inventory is built from paths.
-    """
+    """Run Ruff over every inventoried source and require a JSON report."""
     if inventory is None:
         inventory = _python_files_in_tree(root, paths)
     if not inventory:
         raise SystemExit(f"no Python sources found under {', '.join(paths)}; the ratchet cannot verify the tree")
-    # Scrub RUFF_* environment variables to prevent output redirection or other configuration interference.
     env = {key: value for key, value in os.environ.items() if not key.startswith("RUFF_")}
-    # Pass explicit file paths with --no-respect-gitignore: every inventoried file is linted, and --force-exclude
-    # is not set, so gitignore and directory exclusions cannot hide tracked debt.
     result = subprocess.run(
         [*RUFF_COMMAND, "--no-respect-gitignore", *inventory],
         cwd=root, capture_output=True, text=True, check=False, env=env,
@@ -234,23 +218,24 @@ def ruff_version() -> str:
     return match.group(1)
 
 
-def diagnostic_identities(root: Path, records: Iterable[dict]) -> Counter[str]:
+def diagnostic_identities(root: Path, records: Iterable[dict],
+                          definitions: dict[str, Scopes] | None = None) -> Counter[str]:
     counts: Counter[str] = Counter()
-    trees: dict[str, list[tuple[int, int, str]]] = {}
+    scopes = {} if definitions is None else definitions
     for record in records:
         path = Path(record["filename"])
         relative = (path.relative_to(root) if path.is_absolute() else path).as_posix()
-        if relative not in trees:
+        if relative not in scopes:
             try:
-                file_path = root / relative
-                if not file_path.exists():
-                    trees[relative] = []
-                else:
-                    trees[relative] = _scopes(ast.parse(file_path.read_text(encoding="utf-8")))
-            except (SyntaxError, ValueError):
-                trees[relative] = []
-        scope = _scope_at(trees[relative], int(record["location"]["row"]))
-        counts[f"{relative}::{scope}::{record['code']}::{_subject(record['message'])}"] += 1
+                source = (root / relative).read_text(encoding="utf-8")
+                scopes[relative] = _scopes(_definitions(ast.parse(source), source))
+            except (FileNotFoundError, SyntaxError, ValueError):
+                scopes[relative] = []
+        scope = _scope_at(scopes[relative], int(record["location"]["row"]))
+        rule = record["code"]
+        # For return findings the quoted function name is already represented by scope.
+        subject = "<return>" if rule in ("ANN201", "ANN202") else _subject(record["message"])
+        counts[f"{relative}::{scope}::{rule}::{subject}"] += 1
     return counts
 
 
@@ -265,120 +250,136 @@ def _plain_import_cli(node: ast.Import, cli: set[str]) -> set[str]:
     return found
 
 
-def _from_import_cli(node: ast.ImportFrom, package: list[str], cli: set[str]) -> set[str]:
-    """CLI modules a ``from`` import names, for a module in ``package`` (for example ["cwo_core", "sub"])."""
-    parts = node.module.split(".") if node.module else []
-    if node.level == 0 and parts[:1] == ["scripts"]:
-        base: list[str] | None = []
-        parts = parts[1:]
-    elif node.level == 0:
-        return {parts[0]} if parts and parts[0] in cli else set()
-    else:
-        base = package[: len(package) - (node.level - 1)] if node.level - 1 <= len(package) else None
-    if base != []:
-        return set()  # inside cwo_core (or beyond scripts/): not a CLI module
-    if parts:
-        return {parts[0]} if parts[0] in cli else set()
-    return {alias.name for alias in node.names if alias.name in cli}
+def _module_path(relative: str) -> tuple[tuple[str, ...], tuple[str, ...]]:
+    parts = tuple(relative.removeprefix("scripts/").rsplit(".", 1)[0].split("/"))
+    package = parts[:-1]
+    return (package if parts[-1] == "__init__" else parts), package
 
 
-def _cli_modules(inventory: list[str]) -> set[str]:
-    """Top-level CLI module and package names under ``scripts/`` from the inventory: every ``*.py`` at the top level
-    and every directory holding Python code (a package such as ``scripts/tool/__init__.py``, or a namespace package),
-    except ``cwo_core``.
-
-    The inventory must be a fail-closed list from ``_python_files_in_tree``; this function performs no additional
-    discovery and refuses if asked to discover files itself."""
-    modules = set()
-    packages = set()
+def _module_index(inventory: list[str]) -> set[tuple[str, ...]]:
+    modules = {()}
     for relative in inventory:
-        if not relative.startswith("scripts/"):
+        if relative.startswith("scripts/"):
+            parts, _ = _module_path(relative)
+            modules.update(parts[:index] for index in range(1, len(parts) + 1))
+    return modules
+
+
+def _from_module(node: ast.ImportFrom, package: tuple[str, ...]) -> tuple[str, ...] | None:
+    parts = tuple(node.module.split(".")) if node.module else ()
+    if not node.level:
+        return parts[1:] if parts[:1] == ("scripts",) else parts
+    parents = node.level - 1
+    return package[:len(package) - parents] + parts if parents <= len(package) else None
+
+
+def _from_import_cli(node: ast.ImportFrom, module: tuple[str, ...], cli: set[str]) -> set[str]:
+    targets = module[:1] if module else (alias.name for alias in node.names)
+    return {target for target in targets if target in cli}
+
+
+def _private_symbols(node: ast.ImportFrom) -> list[str]:
+    return [alias.name for alias in node.names if alias.name.startswith("_") and not alias.name.startswith("__")]
+
+
+def _module_imports(relative: str, tree: ast.Module, modules: set[tuple[str, ...]],
+                    cli: set[str]) -> tuple[set[str], set[str]]:
+    consumer, package = _module_path(relative)
+    core = relative.startswith("scripts/cwo_core/") and relative.endswith(".py")
+    name = ".".join(consumer)
+    edges, private = set(), set()
+    for node in ast.walk(tree):
+        if core and isinstance(node, ast.Import):
+            edges.update(f"{name} -> {target}" for target in _plain_import_cli(node, cli))
+        if not isinstance(node, ast.ImportFrom):
             continue
-        # Skip cwo_core.
-        if relative.startswith("scripts/cwo_core/"):
+        module = _from_module(node, package)
+        if module is None:
             continue
-        parts = relative.split("/")
-        # Top-level modules: scripts/name.py or scripts/name.pyi
-        if len(parts) == 2 and parts[1].endswith((".py", ".pyi")):
-            modules.add(parts[1].rsplit(".", 1)[0])
-        # Packages: scripts/pkg/... where pkg is not cwo_core
-        elif len(parts) > 2 and parts[1] != "cwo_core":
-            packages.add(parts[1])
-    return modules | packages
+        if core:
+            edges.update(f"{name} -> {target}" for target in _from_import_cli(node, module, cli))
+        if module in modules and module != consumer:
+            exporter = ".".join(module) or "scripts"
+            private.update(f"{name} -> {exporter}::{symbol}" for symbol in _private_symbols(node))
+    return edges, private
 
 
 def import_edges(root: Path, inventory: list[str] | None = None) -> set[str]:
-    """``<core module> -> <cli>`` for every module under ``scripts/cwo_core`` in the inventory importing a CLI module.
-
-    When ``inventory`` is None, a fail-closed inventory is computed; otherwise the provided inventory is used.
-    In production (via ``current_state``), the inventory is computed once and shared; tests may omit it for convenience."""
+    """Core-to-CLI edges in the scripts inventory."""
     if inventory is None:
         inventory = _python_files_in_tree(root, LINT_PATHS)
-    cli = _cli_modules(inventory)
+    modules = _module_index(inventory)
+    cli = _cli_modules(modules)
     edges: set[str] = set()
-    for relative in sorted(inventory):
-        # Only process files under scripts/cwo_core.
-        if not relative.startswith("scripts/cwo_core/"):
-            continue
-        # Only process .py files (skip .pyi stubs).
-        if not relative.endswith(".py"):
-            continue
-        # Convert scripts/cwo_core/sub/module.py to relative parts from scripts/.
-        relative_from_scripts = relative[len("scripts/"):].rsplit(".", 1)[0]
-        parts = tuple(relative_from_scripts.split("/"))
-        package = list(parts[:-1])
-        name = ".".join(parts[:-1] if parts[-1] == "__init__" else parts)
-        path = root / relative
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"))):
-            if isinstance(node, ast.Import):
-                found = _plain_import_cli(node, cli)
-            elif isinstance(node, ast.ImportFrom):
-                found = _from_import_cli(node, package, cli)
-            else:
-                continue
-            edges.update(f"{name} -> {module}" for module in found)
+    for relative in inventory:
+        if relative.startswith("scripts/cwo_core/") and relative.endswith(".py"):
+            tree = ast.parse((root / relative).read_text(encoding="utf-8"))
+            edges.update(_module_imports(relative, tree, modules, cli)[0])
     return edges
 
 
+def _cli_modules(modules: set[tuple[str, ...]]) -> set[str]:
+    return {parts[0] for parts in modules if len(parts) == 1} - {"cwo_core"}
+
+
 _BRANCHES = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.IfExp, ast.ExceptHandler, ast.match_case)
+_SUITES = (ast.If, ast.For, ast.AsyncFor, ast.While, ast.With, ast.AsyncWith, ast.Try, ast.TryStar, ast.Match)
 
 
-def _complexity(function: ast.AST) -> int:
-    score = 1
-    stack = list(ast.iter_child_nodes(function))
+def _broad_families(exception: ast.expr | None) -> set[str]:
+    if exception is None:
+        return {"bare"}
+    if isinstance(exception, ast.Tuple):
+        return set().union(*(_broad_families(item) for item in exception.elts))
+    if isinstance(exception, ast.Name) and exception.id in ("Exception", "BaseException"):
+        return {exception.id}
+    if (isinstance(exception, ast.Attribute) and exception.attr in ("Exception", "BaseException")
+            and isinstance(exception.value, ast.Name) and exception.value.id == "builtins"):
+        return {exception.attr}
+    return set()
+
+
+def _body_metrics(definition: ast.AST) -> tuple[int, int, Counter[str]]:
+    complexity, nesting = 1, 0
+    catches: Counter[str] = Counter()
+    stack = [(node, 0) for node in ast.iter_child_nodes(definition)]
     while stack:
-        node = stack.pop()
+        node, depth = stack.pop()
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-            continue  # measured on its own
+            continue
         if isinstance(node, _BRANCHES):
-            score += 1
+            complexity += 1
         elif isinstance(node, ast.BoolOp):
-            score += len(node.values) - 1
+            complexity += len(node.values) - 1
         elif isinstance(node, ast.comprehension):
-            score += 1 + len(node.ifs)
-        stack.extend(ast.iter_child_nodes(node))
-    return score
+            complexity += 1 + len(node.ifs)
+        if isinstance(node, ast.ExceptHandler):
+            catches.update(_broad_families(node.type))
+        if isinstance(node, _SUITES):
+            depth += 1
+            nesting = max(nesting, depth)
+        elif_arm = None
+        # A true elif shares the if header's indentation in the AST.
+        if isinstance(node, ast.If) and node.orelse:
+            child = node.orelse[0]
+            if isinstance(child, ast.If) and child.col_offset == node.col_offset:
+                elif_arm = child
+        stack.extend((child, depth - (child is elif_arm)) for child in ast.iter_child_nodes(node))
+    return complexity, nesting, catches
 
 
 def function_complexity(root: Path, inventory: list[str] | None = None, paths: tuple[str, ...] = COMPLEXITY_PATHS) -> dict[str, int]:
-    """Complexity of every function in ``inventory`` that is under ``paths``, keyed by the same identities diagnostics use.
-
-    When ``inventory`` is None, a fail-closed inventory is computed; otherwise the provided inventory is used.
-    In production (via ``current_state``), the inventory is computed once and shared; tests may omit it for convenience."""
+    """Complexity of executable functions under the configured paths."""
     if inventory is None:
         inventory = _python_files_in_tree(root, paths)
     scores: dict[str, int] = {}
     for relative in inventory:
-        # Only process files under the configured complexity paths.
-        if not any(relative.startswith(base + "/") for base in paths):
-            continue
-        # Only process .py files for complexity (skip .pyi stubs).
-        if not relative.endswith(".py"):
+        if not relative.endswith(".py") or not any(relative.startswith(base + "/") for base in paths):
             continue
         path = root / relative
         for _, _, name, node in _definitions(ast.parse(path.read_text(encoding="utf-8"))):
             if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
-                scores[f"{relative}::{name}"] = _complexity(node)
+                scores[f"{relative}::{name}"] = _body_metrics(node)[0]
     return scores
 
 
@@ -511,8 +512,8 @@ def _baseline_problems(baseline: object, *, require_header: bool = False) -> lis
     problems.extend(_baseline_history_problems(baseline))
     if not _nonnegative_integer(baseline.get("complexity_threshold")):
         problems.append("complexity_threshold must be a nonnegative integer (not bool)")
-    for name in ("f_e9", "complexity"):
-        table = baseline.get(name)
+    for name in (*COUNT_LABELS, "complexity", *SIZE_LIMITS):
+        table = baseline.get(name) if name in ("f_e9", "complexity") else baseline.get(name, {})
         if not isinstance(table, dict):
             problems.append(f"{name} must be an object mapping string identities to nonnegative integers")
             continue
@@ -566,9 +567,9 @@ def _move_problems(label: str, move: dict, known: set[str], seen: tuple[set[str]
 def validate_moves(moves: list[dict], baseline: dict, state: dict) -> list[str]:
     """Problems with reviewed moves; any problem makes check and refresh refuse."""
     problems = _object_list_problems(moves, "moves")
-    if problems:
+    if problems or not moves:
         return problems
-    known = set(baseline["complexity"]) | {_scope_of(identity) for identity in baseline["f_e9"]}
+    known = {_scope_of(identity) for table in SCOPED_TABLES for identity in baseline.get(table, {})}
     seen: tuple[set[str], set[str]] = (set(), set())
     # A target whose own entries move elsewhere is free; the merge check below covers what remains.
     vacated = {move.get("from") for move in moves if isinstance(move.get("from"), str)}
@@ -580,10 +581,11 @@ def validate_moves(moves: list[dict], baseline: dict, state: dict) -> list[str]:
 def _merge_problems(moves: list[dict], baseline: dict) -> list[str]:
     """Baseline entries, descendants included, that the moves would map onto one another."""
     problems = []
-    mapped = Counter(_moved(identity, moves) for identity in baseline["complexity"])
-    problems.extend(f"moves would merge complexity entries into {identity}" for identity, count in sorted(mapped.items()) if count > 1)
-    diagnostics = Counter(_moved(identity, moves) for identity in baseline["f_e9"])
-    problems.extend(f"moves would merge diagnostics into {identity}" for identity, count in sorted(diagnostics.items()) if count > 1)
+    for table in SCOPED_TABLES:
+        label = "diagnostics" if table == "f_e9" else f"{table.replace('_', ' ')} entries"
+        mapped = Counter(_moved(identity, moves) for identity in baseline.get(table, {}))
+        problems.extend(f"moves would merge {label} into {identity}"
+                        for identity, count in sorted(mapped.items()) if count > 1)
     return problems
 
 
@@ -607,7 +609,7 @@ def _moved(identity: str, moves: list[dict]) -> str:
 
 def _unapplied_moves(moves: list[dict], baseline: dict) -> list[str]:
     """Moves that carry no baseline entry, because more specific moves take all of them."""
-    applied = {id(_chosen(identity, moves)) for identity in [*baseline["complexity"], *baseline["f_e9"]]}
+    applied = {id(_chosen(identity, moves)) for table in SCOPED_TABLES for identity in baseline.get(table, {})}
     return [f"move {index + 1} carries no baseline entry (more specific moves take them all): {move['from']}"
             for index, move in enumerate(moves) if id(move) not in applied]
 
@@ -632,17 +634,12 @@ def _fingerprint(node: ast.AST, module: str) -> str:
 
 
 def definition_inventory(root: Path, inventory: list[str] | None = None, paths: tuple[str, ...] = LINT_PATHS) -> tuple[set[str], dict[str, list[str]]]:
-    """Every function and class identity in ``inventory`` that is under ``paths``, and for each repeated qualified
-    name the fingerprints of its definitions, in definition order (see ``_fingerprint``).
-
-    When ``inventory`` is None, a fail-closed inventory is computed; otherwise the provided inventory is used.
-    In production (via ``current_state``), the inventory is computed once and shared; tests may omit it for convenience."""
+    """Definition identities and ordered fingerprints for repeated names."""
     if inventory is None:
         inventory = _python_files_in_tree(root, paths)
     identities: set[str] = set()
     repeated: dict[str, list[str]] = {}
     for relative in sorted(inventory):
-        # Only process files under the configured lint paths.
         if not any(relative.startswith(base + "/") for base in paths):
             continue
         path = root / relative
@@ -652,12 +649,20 @@ def definition_inventory(root: Path, inventory: list[str] | None = None, paths: 
             continue
         definitions = _definitions(tree)
         identities.update(f"{relative}::{name}" for _, _, name, _ in definitions)
-        module = hashlib.sha256(_canonical(tree).encode("utf-8")).hexdigest()
-        grouped: dict[str, list[str]] = {}
-        for _, _, name, node in definitions:
-            grouped.setdefault(_unnumbered(name), []).append(_fingerprint(node, module))
-        repeated.update({f"{relative}::{name}": prints for name, prints in grouped.items() if len(prints) > 1})
+        repeated.update(_repeated_fingerprints(relative, tree, definitions))
     return identities, repeated
+
+
+def _repeated_fingerprints(relative: str, tree: ast.Module, definitions: Definitions) -> dict[str, list[str]]:
+    grouped: dict[str, list[ast.AST]] = {}
+    for _, _, name, node in definitions:
+        grouped.setdefault(_unnumbered(name), []).append(node)
+    repeated = {name: nodes for name, nodes in grouped.items() if len(nodes) > 1}
+    if not repeated:
+        return {}
+    module = hashlib.sha256(_canonical(tree).encode("utf-8")).hexdigest()
+    return {f"{relative}::{name}": [_fingerprint(node, module) for node in nodes]
+            for name, nodes in repeated.items()}
 
 
 def _unnumbered(identity: str) -> str:
@@ -667,30 +672,71 @@ def _unnumbered(identity: str) -> str:
 
 
 def current_state(root: Path, diagnostics: Diagnostics) -> dict:
-    """Compute the current state of the tree: diagnostics, imports, complexity, and definitions.
-
-    The inventory is computed once with the fail-closed walker, and every measurement uses exactly that list.
-    No measurement performs its own discovery. The diagnostics function receives the validated inventory."""
+    """Measure one inventory, sharing each parsed file across the ratchets."""
     inventory = _python_files_in_tree(root, LINT_PATHS)
-    return {
-        "f_e9": dict(diagnostic_identities(root, diagnostics(root, LINT_PATHS, inventory))),
-        "imports": sorted(import_edges(root, inventory)),
-        "complexity": function_complexity(root, inventory),
-        **dict(zip(("definitions", "repeated"), definition_inventory(root, inventory))),
-    }
+    records = diagnostics(root, LINT_PATHS, inventory)
+    modules = _module_index(inventory)
+    cli = _cli_modules(modules)
+    state: dict = {key: {} for key in (*SCOPED_TABLES, "private_imports", "repeated")}
+    state["definitions"] = set()
+    edges: set[str] = set()
+    scopes: dict[str, Scopes] = {}
+    for relative in inventory:
+        script = relative.startswith("scripts/")
+        executable = script and relative.endswith(".py")
+        try:
+            source = (root / relative).read_text(encoding="utf-8")
+            tree = ast.parse(source)
+        except (SyntaxError, ValueError):
+            if executable:
+                raise
+            scopes[relative] = []
+            continue
+        definitions = _definitions(tree, source)
+        scopes[relative] = _scopes(definitions)
+        state["definitions"].update(f"{relative}::{name}" for _, _, name, _ in definitions)
+        state["repeated"].update(_repeated_fingerprints(relative, tree, definitions))
+        if script:
+            core_edges, private = _module_imports(relative, tree, modules, cli)
+            edges.update(core_edges)
+            state["private_imports"].update(dict.fromkeys(private, 1))
+        if executable:
+            _record_structure(state, relative, tree, definitions)
+    state["imports"] = sorted(edges)
+    annotation_codes = set(ANNOTATION_RULES.split(","))
+    for identity, count in diagnostic_identities(root, records, scopes).items():
+        relative, _, rule, _ = identity.split("::", 3)
+        if rule not in annotation_codes:
+            state["f_e9"][identity] = count
+        elif _in_annotation_scope(relative):
+            state["annotations"][identity] = count
+    return state
 
 
-def _compare_diagnostics(baseline: dict, moves: list[dict], state: dict, report: Report) -> None:
-    known: Counter[str] = Counter()
-    for identity, count in baseline["f_e9"].items():
-        known[_moved(identity, moves)] += count
-    for identity, count in sorted(state["f_e9"].items()):
-        if count > known.get(identity, 0):
-            report.failures.append(f"new F/E9 diagnostic: {identity} ({_integer_text(count)} now, {_integer_text(known.get(identity, 0))} in baseline)")
+def _in_annotation_scope(relative: str) -> bool:
+    directory, _, filename = relative.rpartition("/")
+    return filename.endswith(".py") and filename.startswith(ANNOTATION_PREFIXES.get(directory, ()))
+
+
+def _record_structure(state: dict, relative: str, tree: ast.Module, definitions: Definitions) -> None:
+    for start, end, name, node in [(0, 0, "<module>", tree), *definitions]:
+        identity = f"{relative}::{name}"
+        complexity, nesting, catches = _body_metrics(node)
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            state["complexity"][identity] = complexity
+            state["definition_length"][identity] = end - start + 1
+            state["suite_nesting"][identity] = nesting
+        state["broad_catches"].update({f"{identity}::{family}": count for family, count in catches.items()})
+
+
+def _compare_counts(label: str, known: dict, current: dict, report: Report) -> None:
+    for identity in sorted(known.keys() | current.keys()):
+        count, allowance = current.get(identity, 0), known.get(identity, 0)
+        if count > allowance:
+            report.failures.append(f"new {label}: {identity} ({_integer_text(count)} now, {_integer_text(allowance)} in baseline)")
             report.new_debt.append(identity)
-    for identity, count in sorted(known.items()):
-        if state["f_e9"].get(identity, 0) < count:
-            report.notes.append(f"F/E9 diagnostic reduced: {identity} ({_integer_text(state['f_e9'].get(identity, 0))} now, {_integer_text(count)} in baseline)")
+        elif count < allowance:
+            report.notes.append(f"{label} reduced: {identity} ({_integer_text(count)} now, {_integer_text(allowance)} in baseline)")
 
 
 def _compare_imports(baseline: dict, state: dict, report: Report) -> None:
@@ -701,21 +747,21 @@ def _compare_imports(baseline: dict, state: dict, report: Report) -> None:
         report.notes.append(f"core-to-CLI import removed: {edge}")
 
 
-def _compare_complexity(baseline: dict, moves: list[dict], state: dict, report: Report) -> None:
-    threshold = baseline["complexity_threshold"]
-    known = {_moved(identity, moves): value for identity, value in baseline["complexity"].items()}
-    for identity, value in sorted(state["complexity"].items()):
+def _compare_sizes(table: str, threshold: int, known: dict, current: dict, report: Report) -> None:
+    label = table.replace("_", " ")
+    subject = "function" if table == "complexity" else "definition"
+    for identity, value in sorted(current.items()):
         if identity not in known:
             if value > threshold:
-                report.failures.append(f"new function over the complexity threshold {_integer_text(threshold)}: {identity} ({_integer_text(value)})")
+                report.failures.append(f"new {subject} over the {label} threshold {_integer_text(threshold)}: {identity} ({_integer_text(value)})")
                 report.new_debt.append(identity)
         elif value > known[identity]:
-            report.failures.append(f"complexity grew: {identity} ({_integer_text(value)}, baseline {_integer_text(known[identity])})")
+            report.failures.append(f"{label} grew: {identity} ({_integer_text(value)}, baseline {_integer_text(known[identity])})")
             report.new_debt.append(identity)
         elif value < known[identity]:
-            report.notes.append(f"complexity reduced: {identity} ({_integer_text(value)}, baseline {_integer_text(known[identity])})")
-    for identity in sorted(set(known) - set(state["complexity"])):
-        report.notes.append(f"baseline function gone: {identity}")
+            report.notes.append(f"{label} reduced: {identity} ({_integer_text(value)}, baseline {_integer_text(known[identity])})")
+    for identity in sorted(known.keys() - current.keys()):
+        report.notes.append(f"baseline {subject} gone: {identity}")
 
 
 def _under(identity: str, name: str) -> bool:
@@ -723,17 +769,10 @@ def _under(identity: str, name: str) -> bool:
     return plain == name or plain.startswith(name + ".")
 
 
-def _debt_under(name: str, complexity: dict[str, int], diagnostics: dict[str, int]) -> tuple[dict, dict]:
-    """The complexity entries and diagnostics of ``name``'s definitions and their descendants."""
-    return ({identity: value for identity, value in complexity.items() if _under(identity, name)},
-            {identity: count for identity, count in diagnostics.items() if _under(_scope_of(identity), name)})
-
-
-def _moved_debt(baseline: dict, moves: list[dict]) -> tuple[dict[str, int], dict[str, int]]:
-    diagnostics: Counter[str] = Counter()
-    for identity, count in baseline["f_e9"].items():
-        diagnostics[_moved(identity, moves)] += count
-    return {_moved(identity, moves): value for identity, value in baseline["complexity"].items()}, dict(diagnostics)
+def _debt_under(name: str, *tables: dict[str, int]) -> tuple[dict, ...]:
+    """Entries for repeated definitions and their descendants."""
+    return tuple({identity: value for identity, value in table.items() if _under(_scope_of(identity), name)}
+                 for table in tables)
 
 
 def _repeated_change(old_prints: object, new_prints: list[str] | None, old_debt: tuple, new_debt: tuple) -> str | None:
@@ -746,20 +785,20 @@ def _repeated_change(old_prints: object, new_prints: list[str] | None, old_debt:
     return None
 
 
-def _compare_repeated(baseline: dict, moves: list[dict], state: dict, report: Report) -> None:
+def _compare_repeated(baseline: dict, moves: list[dict], state: dict, report: Report,
+                      known: dict, limits: dict[str, int]) -> None:
     """Same-named definitions are told apart only by their order, so for a repeated name that carries debt, any
     change to its definitions' number, code (line-independent fingerprints), order or debt needs review."""
     before = {_moved(name, moves): prints for name, prints in baseline.get("repeated", {}).items()}
     after = state["repeated"]
-    threshold = baseline["complexity_threshold"]
-    complexity, diagnostics = _moved_debt(baseline, moves)
     for name in sorted(set(before) | set(after)):
-        old = _debt_under(name, complexity, diagnostics)
-        if not (old[0] or old[1]):
+        old = _debt_under(name, *(known[table] for table in SCOPED_TABLES))
+        if not any(old):
             continue
-        current, current_diagnostics = _debt_under(name, state["complexity"], state["f_e9"])
-        new = ({identity: value for identity, value in current.items() if value > threshold or identity in old[0]},
-               current_diagnostics)
+        current = _debt_under(name, *(state.get(table, {}) for table in SCOPED_TABLES))
+        new = tuple({identity: value for identity, value in values.items()
+                     if value > limits.get(table, 0) or identity in previous}
+                    for table, values, previous in zip(SCOPED_TABLES, current, old))
         change = _repeated_change(before.get(name), after.get(name), old, new)
         if change:
             report.failures.append(f"repeated definitions changed: {name} ({change}); review and refresh --admit")
@@ -778,11 +817,23 @@ def compare(baseline: dict, moves: list[dict], state: dict) -> Report:
         report.failures.extend(f"invalid move: {problem}" for problem in problems)
         report.new_debt.extend(problems)
         return report
-    _compare_diagnostics(baseline, moves, state, report)
+    known = {table: {_moved(identity, moves): value for identity, value in baseline.get(table, {}).items()}
+             for table in SCOPED_TABLES}
+    for table, label in COUNT_LABELS.items():
+        _compare_counts(label, known.get(table, baseline.get(table, {})), state.get(table, {}), report)
     _compare_imports(baseline, state, report)
-    _compare_complexity(baseline, moves, state, report)
-    _compare_repeated(baseline, moves, state, report)
+    limits = {"complexity": baseline["complexity_threshold"], **SIZE_LIMITS}
+    for table, threshold in limits.items():
+        _compare_sizes(table, threshold, known[table], state.get(table, {}), report)
+    _compare_repeated(baseline, moves, state, report, known, limits)
     return report
+
+
+def _recorded_tables(baseline: dict, state: dict) -> dict[str, dict[str, int]]:
+    limits = {"complexity": baseline["complexity_threshold"], **SIZE_LIMITS}
+    return {table: {identity: value for identity, value in sorted(state.get(table, {}).items())
+                    if table not in limits or value > limits[table]}
+            for table in (*COUNT_LABELS, *limits)}
 
 
 def refresh(baseline: dict, moves: list[dict], state: dict, admit: str | None,
@@ -800,7 +851,6 @@ def refresh(baseline: dict, moves: list[dict], state: dict, admit: str | None,
         raise SystemExit("fix the moves file before refreshing:\n" + "\n".join(report.failures))
     if report.failures and not admit:
         raise SystemExit("refresh would admit new debt; review it and pass --admit REASON:\n" + "\n".join(report.failures))
-    threshold = baseline["complexity_threshold"]
     admitted = dict(baseline.get("admitted", {}))
     if admit:
         for identity in report.new_debt:
@@ -810,13 +860,8 @@ def refresh(baseline: dict, moves: list[dict], state: dict, admit: str | None,
         consumed[batch] = moves_digest(moves)
     updated = {
         **baseline,
-        "f_e9": dict(sorted(state["f_e9"].items())),
+        **_recorded_tables(baseline, state),
         "imports": sorted(state["imports"]),
-        "complexity": {
-            identity: value
-            for identity, value in sorted(state["complexity"].items())
-            if value > threshold
-        },
         "admitted": admitted,
         "repeated": dict(sorted(state["repeated"].items())),
         "moved": [*baseline.get("moved", []), *moves],
@@ -907,7 +952,10 @@ def _check(baseline: dict, moves: list[dict], state: dict) -> int:
     if report.failures:
         return 1
     print(f"Code-health ratchets passed: {_integer_text(sum(state['f_e9'].values()))} recorded F/E9 diagnostics, "
-          f"{len(state['imports'])} recorded core-to-CLI imports, threshold {_integer_text(baseline['complexity_threshold'])}.")
+          f"{len(state['imports'])} core-to-CLI imports, {len(state['private_imports'])} private imports, "
+          f"{sum(state['broad_catches'].values())} broad catches, and {sum(state['annotations'].values())} annotation findings. "
+          f"Thresholds: complexity {_integer_text(baseline['complexity_threshold'])}, "
+          f"definition length {SIZE_LIMITS['definition_length']}, suite nesting {SIZE_LIMITS['suite_nesting']}.")
     return 0
 
 
@@ -916,7 +964,8 @@ def _load(root: Path, command: str, reason: str | None) -> tuple[dict, dict]:
     if not baseline:
         raise SystemExit(f"missing baseline {BASELINE}")
     _require_baseline(baseline, require_header=True)
-    if command == "init" and (baseline.get("created") or baseline["f_e9"] or baseline["imports"] or baseline["complexity"]):
+    debt_tables = (*COUNT_LABELS, "imports", "complexity", *SIZE_LIMITS)
+    if command == "init" and (baseline.get("created") or any(baseline.get(table) for table in debt_tables)):
         raise SystemExit("init records existing debt only once, into an empty baseline; use refresh")
     if command == "init" and not (reason or "").strip():
         raise SystemExit("init needs --reason")

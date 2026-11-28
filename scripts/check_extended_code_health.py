@@ -21,7 +21,7 @@ from types import CodeType
 import check_code_health as initial
 
 ROOT = Path(__file__).resolve().parents[1]
-RULES = "ANN001,ANN201,ANN202"
+RULES = initial.ANNOTATION_RULES
 RUFF = "0.17.1"
 SUBJECT = "tests/fixtures/extended_code_health/EXAMPLE_subject.py"
 DRIVER = "tests/fixtures/extended_code_health/EXAMPLE_test.py"
@@ -57,15 +57,7 @@ def annotation_diagnostics(root: Path, inventory: list[str]) -> dict[str, int]:
         raise SystemExit("Ruff report is not an array")
     if any(record.get("code") not in RULES.split(",") for record in records):
         raise SystemExit("unexpected Ruff diagnostic")
-    identities = initial.diagnostic_identities(root, records)
-    # Ruff's return rules quote the def name, already represented by enclosing scope.
-    # A reviewed rename must not turn that redundant display name into new debt.
-    normalized = {}
-    for identity, count in identities.items():
-        file, scope, rule, subject = identity.split("::", 3)
-        subject = "<return>" if rule in ("ANN201", "ANN202") else subject
-        normalized[f"{file}::{scope}::{rule}::{subject}"] = count
-    return normalized
+    return dict(initial.diagnostic_identities(root, records))
 
 
 def body_fingerprint(node: ast.FunctionDef | ast.AsyncFunctionDef) -> str:
