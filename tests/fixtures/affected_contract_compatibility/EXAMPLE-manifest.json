@@ -268,7 +268,6 @@
     "scripts/setup_delegation.py": 420,
     "scripts/setup_workspace_database.py": 420,
     "scripts/validate_run_readiness_plan.py": 493,
-    "scripts/verify_affected_historical_contract.py": 420,
     "tests/fixtures/affected_contract_compatibility/EXAMPLE-admission-v1.json": 420,
     "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt": 420,
     "tests/fixtures/outbound_screening/seed-corpus.json": 420,
@@ -329,7 +328,8 @@
     "tests/test_run_readiness_plan.py": 420,
     "tests/test_selected_native_containment.py": 420,
     "tests/test_w20_affected_contract_w13.py": 420,
-    "tests/test_workflow_adjudication.py": 420
+    "tests/test_workflow_adjudication.py": 420,
+    "tools/verify_affected_historical_contract.py": 420
   },
   "files": {
     "policy/acceptance-policy.yaml": "f9cefee9593a84da832381c54bd10f624e594b6865b2ecd5ffa2f2c82426aa19",
@@ -583,7 +583,6 @@
     "scripts/setup_delegation.py": "aea47f108ecb565c3cc61edd64612d1b8ef0149502a35189ba7c7abc130b47eb",
     "scripts/setup_workspace_database.py": "f5af6548951d5ee165c040ef83ddd175c048ca30207c21c7a7a084bee82f10dd",
     "scripts/validate_run_readiness_plan.py": "78e87c271d0c8638e6665aa17141697b913ab584f22ac4aecfc0a6d2f83c9eaf",
-    "scripts/verify_affected_historical_contract.py": "11dec285123e3902f0f3156388acc8cd9ef2d33193b9454f8ce32a7ba6cb5c19",
     "tests/fixtures/affected_contract_compatibility/EXAMPLE-admission-v1.json": "ec2603cd9279b3e3504eacc3f53887e854c97f496164e35a61a5ca0b8a383796",
     "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt": "264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566",
     "tests/fixtures/outbound_screening/seed-corpus.json": "7411ec379fc63e8d84a138f547d46d35fef8b8fde46af1c7c7910c944410f822",
@@ -595,7 +594,7 @@
     "tests/historical_policy_fixtures.py": "8419f9bb4bbca4f030630eaee21d6f40e5605bf014de2e8f63ab9653e6005040",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
-    "tests/test_affected_contract_compatibility.py": "14e2c7a5fe06a2054c288b69b88c79e9e988b6afdb5bd54c0ea05d97421ddb0c",
+    "tests/test_affected_contract_compatibility.py": "5941df78e1028497562aef620ba08b9e3d9fd306142b59cc56e25950213a368a",
     "tests/test_beads_ready_set.py": "f0d40bac7c5596fbef8e9d2739b0823eb3df1abd1b10fe8a5bca183d2983a8cc",
     "tests/test_codex_tool_surface.py": "5527d43f3b5658669a99ee02e6403b0ed57f1cc6f8491f6a3f373eb5bfd1d9b8",
     "tests/test_finite_fixture_progress_acknowledgment.py": "966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",
@@ -643,8 +642,9 @@
     "tests/test_run_native_pool_live_canaries.py": "40e744c33c03272c71954cb8daa57f2439c8afc46295b2fe3198b238b4ed3f4f",
     "tests/test_run_readiness_plan.py": "e6e91c1894e4ce096eba5e5e92501ea05a9f60804c0425552ae4f5a7f9ffb8b7",
     "tests/test_selected_native_containment.py": "c4b80f460eb3dd71cf6a9c504121cdd119a359b3526f0fb17a9f8d386d76663d",
-    "tests/test_w20_affected_contract_w13.py": "768feef114600afd2652a79ecd2a16e4396ffbb742eb49f689fe180f1c1b5e74",
-    "tests/test_workflow_adjudication.py": "d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5"
+    "tests/test_w20_affected_contract_w13.py": "a4e6d945cbd880e88071fedf8cbd897e4ce1a00c90ddbc5ab738a8442dbd0f3d",
+    "tests/test_workflow_adjudication.py": "d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5",
+    "tools/verify_affected_historical_contract.py": "b12e79397ff6fce78b7e071aa28c005dc00128c62b810e613c85b23953997de3"
   },
   "historical_files": {
     "238ddfb22c52f5e753bc5b24ba1e24b30df7b347": {
@@ -2067,23 +2067,6 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/requirement_baseline.py"
     ],
-    "scripts/verify_affected_historical_contract.py": [
-      "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/model_identities.py",
-      "scripts/cwo_core/policy_schema.py",
-      "scripts/cwo_core/workspace_capture.py",
-      "scripts/registered_app_server_transport.py",
-      "scripts/registered_finite_input.py",
-      "scripts/registered_finite_tool_calls.py",
-      "scripts/registered_n1_factory.py",
-      "scripts/registered_n1_workflow.py",
-      "scripts/registered_native_pool_client.py",
-      "scripts/registered_native_pool_host.py",
-      "scripts/registered_native_pool_retry.py",
-      "scripts/run_admitted_native_pool_transaction.py",
-      "tests/test_local_admission_preparation.py",
-      "tests/test_w20_affected_contract_w13.py"
-    ],
     "tests/historical_campaign_launcher.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/workspace_capture.py"
@@ -2103,9 +2086,9 @@
     "tests/test_affected_contract_compatibility.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/workspace_capture.py",
-      "scripts/verify_affected_historical_contract.py",
+      "tests/historical_policy_fixtures.py",
       "tests/real_beads_fixture.py",
-      "tests/historical_policy_fixtures.py"
+      "tools/verify_affected_historical_contract.py"
     ],
     "tests/test_beads_ready_set.py": [
       "scripts/cwo_core/__init__.py",
@@ -2471,11 +2454,11 @@
       "scripts/cwo_core/supervision/transport/app_server.py",
       "scripts/cwo_core/supervision/turn_observations.py",
       "scripts/run_native_pool_live_canaries.py",
-      "scripts/verify_affected_historical_contract.py",
       "tests/historical_campaign_launcher.py",
       "tests/historical_policy_fixtures.py",
       "tests/test_codex_tool_surface.py",
-      "tests/test_native_pool_contracts.py"
+      "tests/test_native_pool_contracts.py",
+      "tools/verify_affected_historical_contract.py"
     ],
     "tests/test_w20_affected_contract_w13.py::INSTALLED_PROBE": [
       "scripts/check_codex_worker_surface.py",
@@ -2496,6 +2479,23 @@
       "tests/test_policy_current_effects.py",
       "tests/test_qualified_review_dispatch.py",
       "tests/test_run_readiness_plan.py"
+    ],
+    "tools/verify_affected_historical_contract.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/model_identities.py",
+      "scripts/cwo_core/policy_schema.py",
+      "scripts/cwo_core/workspace_capture.py",
+      "scripts/registered_app_server_transport.py",
+      "scripts/registered_finite_input.py",
+      "scripts/registered_finite_tool_calls.py",
+      "scripts/registered_n1_factory.py",
+      "scripts/registered_n1_workflow.py",
+      "scripts/registered_native_pool_client.py",
+      "scripts/registered_native_pool_host.py",
+      "scripts/registered_native_pool_retry.py",
+      "scripts/run_admitted_native_pool_transaction.py",
+      "tests/test_local_admission_preparation.py",
+      "tests/test_w20_affected_contract_w13.py"
     ]
   },
   "portable_contract_evidence": {
@@ -2558,6 +2558,7 @@
     "policy/peer-review-policy.yaml",
     "policy/provider-registry.yaml",
     "policy/qualification-target.yaml",
+    "policy/return-structure-rules.yaml",
     "policy/return-tripwires.yaml",
     "policy/risk-features.yaml",
     "policy/routing-policy.yaml",
@@ -2583,6 +2584,7 @@
     "schemas/provider-registry-v2.schema.json",
     "schemas/provider-registry.schema.json",
     "schemas/qualification-target.schema.json",
+    "schemas/return-structure-rules.schema.json",
     "schemas/return-tripwires.schema.json",
     "schemas/risk-features.schema.json",
     "schemas/routing-policy.schema.json",

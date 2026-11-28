@@ -13,8 +13,8 @@ import unittest
 from unittest.mock import call, patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
-import verify_affected_historical_contract as checkpoint
+sys.path[:0] = [str(ROOT / "scripts"), str(ROOT)]
+from tools import verify_affected_historical_contract as checkpoint
 from tests.real_beads_fixture import configure_git_fixture
 
 
@@ -143,7 +143,7 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
         self.assertEqual(len(manifest["consumer_changes"]), 2)
         _assert_fixture_scope(self, observed)
         self.assertTrue(observed["current_dependency_bindings_verified"])
-        self.assertIn("scripts/verify_affected_historical_contract.py", observed["loaded_python_files"]["loaded_local_paths"])
+        self.assertIn(checkpoint.RUNNER_PATH, observed["loaded_python_files"]["loaded_local_paths"])
         transition = "scripts/cwo_core/workspace_transition.py"
         self.assertIn(transition, observed["loaded_python_files"]["loaded_local_paths"])
         self.assertEqual(manifest["files"][transition], checkpoint.digest((ROOT / transition).read_bytes()))
@@ -193,7 +193,7 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
                 script = (
                     "import json\n"
                     "from tests.test_affected_contract_compatibility import _fixture_checkpoint_observation\n"
-                    "import verify_affected_historical_contract as checkpoint\n"
+                    "from tools import verify_affected_historical_contract as checkpoint\n"
                     "_fixture_checkpoint_observation()\n"
                     "manifest = json.loads((checkpoint.ROOT / checkpoint.MANIFEST).read_bytes())\n"
                     f"del manifest['files'][{dependency!r}]\n"

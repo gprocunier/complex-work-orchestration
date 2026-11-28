@@ -48,7 +48,7 @@ from cwo_core.public_copy import (
 from validate_run_readiness_plan import validate_plan as validate_run_readiness_plan
 
 # Keep the maintained Python under scripts/ from growing back after consolidation.
-PYTHON_LINE_CEILING = 177_200
+PYTHON_LINE_CEILING = 171_500
 
 EMITTED_PACKET_ARTIFACT_TYPES = {
     "assignment_summary",
@@ -1339,7 +1339,7 @@ def validate_repository() -> list[str]:
         if field not in profile_properties:
             errors.append(f"model-profile.schema.json profile is missing property {field!r}")
     _require_schema_file_properties(errors, {"execution-environment.schema.json": ["profiles"]})
-    activation_schema_requirements = {
+    _require_schema_file_properties(errors, {
         "native-tool-activation-result-v2.schema.json": [
             "tool_trace_sha256",
             "bead_closure_sha256",
@@ -1361,45 +1361,14 @@ def validate_repository() -> list[str]:
             "all_closed",
             "bead_closure_sha256",
         ],
-    }
-    for schema_name, required_properties in (
-        activation_schema_requirements.items()
-    ):
-        activation_schema = load_json(
-            REPO_ROOT / "schemas" / schema_name
-        )
-        require_schema_properties(
-            errors,
-            schema_name=schema_name,
-            schema=activation_schema,
-            properties=required_properties,
-        )
-        missing_required = sorted(
-            set(required_properties)
-            - set(activation_schema.get("required", []))
-        )
-        if missing_required:
-            errors.append(
-                f"schema {schema_name} does not require properties: "
-                + ", ".join(missing_required)
-            )
-    activation_result_v1 = load_json(
-        REPO_ROOT / "schemas" / "native-tool-activation-result.schema.json"
+    }, check_required=True)
+    activation_result_schemas = (
+        (1, load_json(REPO_ROOT / "schemas" / "native-tool-activation-result.schema.json")),
+        (2, load_json(REPO_ROOT / "schemas" / "native-tool-activation-result-v2.schema.json")),
     )
-    activation_result_v2 = load_json(
-        REPO_ROOT
-        / "schemas"
-        / "native-tool-activation-result-v2.schema.json"
-    )
-    if (
-        activation_result_v1.get("properties", {})
-        .get("version", {})
-        .get("const")
-        != 1
-        or activation_result_v2.get("properties", {})
-        .get("version", {})
-        .get("const")
-        != 2
+    if any(
+        schema.get("properties", {}).get("version", {}).get("const") != version
+        for version, schema in activation_result_schemas
     ):
         errors.append(
             "native tool activation result schemas must preserve "
@@ -2387,13 +2356,16 @@ def require_schema_properties(
         errors.append(f"schema {schema_name} is missing properties: {', '.join(missing)}")
 
 
-def _require_schema_file_properties(errors: list[str], requirements: dict[str, list[str]]) -> None:
+def _require_schema_file_properties(
+    errors: list[str], requirements: dict[str, list[str]], *, check_required: bool = False
+) -> None:
     for schema_name, properties in requirements.items():
-        require_schema_properties(
-            errors, schema_name=schema_name,
-            schema=load_json(REPO_ROOT / "schemas" / schema_name),
-            properties=properties,
-        )
+        schema = load_json(REPO_ROOT / "schemas" / schema_name)
+        require_schema_properties(errors, schema_name=schema_name, schema=schema, properties=properties)
+        if check_required:
+            missing_required = sorted(set(properties) - set(schema.get("required", [])))
+            if missing_required:
+                errors.append(f"schema {schema_name} does not require properties: {', '.join(missing_required)}")
 
 
 def _require_runtime_schema_fields(

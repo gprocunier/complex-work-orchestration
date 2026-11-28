@@ -117,12 +117,12 @@ class ValidateRepositoryTests(unittest.TestCase):
             (root / "scripts/first.py").write_bytes(b"# comment\r\n\r# vertical\vtab \xff")
             (root / "scripts/empty.py").touch()
             lines = root / "scripts/nested/more lines.py"
-            lines.write_bytes(b"\n" * 177_196)
+            lines.write_bytes(b"\n" * 171_496)
             (root / "scripts/link.py").symlink_to("../tests/outside.py")
-            (root / "scripts/not_python.txt").write_bytes(b"\n" * 177_201)
-            (root / "tests/outside.py").write_bytes(b"\n" * 177_201)
+            (root / "scripts/not_python.txt").write_bytes(b"\n" * 171_501)
+            (root / "tests/outside.py").write_bytes(b"\n" * 171_501)
             subprocess.run(["git", "add", "scripts", "tests"], cwd=root, check=True, capture_output=True)
-            (root / "scripts/untracked.py").write_bytes(b"\n" * 177_201)
+            (root / "scripts/untracked.py").write_bytes(b"\n" * 171_501)
 
             errors: list[str] = []
             validate_repository_module.validate_python_line_ceiling(errors, root)
@@ -132,7 +132,7 @@ class ValidateRepositoryTests(unittest.TestCase):
                 stream.write(b"\n")
             validate_repository_module.validate_python_line_ceiling(errors, root)
             self.assertEqual(errors, [
-                "Python line ceiling exceeded under scripts/: 177,201 physical lines (limit 177,200).",
+                "Python line ceiling exceeded under scripts/: 171,501 physical lines (limit 171,500).",
             ])
 
     def test_python_line_ceiling_counts_gitless_source_snapshot(self) -> None:
@@ -143,7 +143,7 @@ class ValidateRepositoryTests(unittest.TestCase):
             scripts = root / "scripts/nested"
             scripts.mkdir(parents=True)
             lines = scripts / "source.py"
-            lines.write_bytes(b"\n" * 177_200)
+            lines.write_bytes(b"\n" * 171_500)
 
             errors: list[str] = []
             validate_repository_module.validate_python_line_ceiling(errors, root)
@@ -153,7 +153,7 @@ class ValidateRepositoryTests(unittest.TestCase):
                 stream.write(b"\n")
             validate_repository_module.validate_python_line_ceiling(errors, root)
             self.assertEqual(errors, [
-                "Python line ceiling exceeded under scripts/: 177,201 physical lines (limit 177,200).",
+                "Python line ceiling exceeded under scripts/: 171,501 physical lines (limit 171,500).",
             ])
 
     def test_repository_rejects_versions_outside_major_one(self) -> None:

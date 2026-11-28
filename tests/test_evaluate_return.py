@@ -438,7 +438,7 @@ class EvaluateReturnTests(unittest.TestCase):
     def test_delivery_report_preserves_evidence_scoring_and_requires_observations(self) -> None:
         sample = self.sample_return()
         cases = (
-            ("Validation passed based on the packet.", 100, False),
+            ("The tests passed based on packet validation evidence.", 100, False),
             ("failed", 100, False),
             ("not run", 85, False),
             ("passed", 100, True),

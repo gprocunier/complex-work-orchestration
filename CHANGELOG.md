@@ -12,7 +12,8 @@
   require an approval bound to the current callback implementation.
 - Bound the Daybreak Blue fallback: the retry carries the original reasoning effort capped at `xhigh`, always uses the standard service tier, and the configured `cyber_fallback` model must be a Sol-family model. Earlier releases passed `max` effort and the `priority` tier through and accepted any model family.
 - Retire worker tool-surface capture and maintenance observation production. The entry points still refuse before effects. The maintenance checker verifies unexpired observations using the exact issuing control image and original session file. The original producers are archived in v1.48.0.
-- Lower the repository validation ceiling to 177,200 physical lines of tracked Python under `scripts/`.
+- Lower the repository validation ceiling to 171,500 physical lines of tracked Python under `scripts/`.
+- Run the historical contract verifier from a source checkout at `tools/verify_affected_historical_contract.py`.
 - Run the full CI unit suite on Python 3.12 and 3.14, and require type checking and a measured coverage floor for selected modules.
 - Remove the retired exact-Spark campaign launcher's detailed flag parsing and archive its unused authorization-state executor. Launch attempts emit the sealed zero-allocation refusal on stderr and exit 1.
 - Give registered pool qualification tests private Git capture scratch space.
