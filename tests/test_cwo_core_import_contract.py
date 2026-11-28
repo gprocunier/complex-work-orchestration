@@ -135,7 +135,6 @@ ALLOWED_IMPORTS = {
     "manual_gemini_critic": {"errors", "host_records", "host_return_intake", "peer_review_identity", "policy", "policy_schema"},
     "return_tripwires": {"policy", "return_language"},
     "risk_features": {"errors", "policy"},
-    "return_language_calibration": {"return_language", "returns"},
     "returns": {"peer_review", "policy", "return_boundary", "return_common", "return_evidence", "return_language", "return_risk", "return_sections", "return_tripwires", "types", "util"},
     "workspace": {"path_contract", "paths", "util", "workspace_capture", "workspace_transition"},
     "workspace_capture": {"git_store", "path_contract"},
