@@ -549,35 +549,9 @@ def _exclusion(code: str, detail: str) -> dict[str, str]:
     return {"code": code, "detail": detail}
 
 
-def evaluate_ready_candidate(
-    item: Mapping[str, Any],
-    *,
-    rank: int,
-    policy_document: Mapping[str, Any] | None = None,
-    share_policy_document: Mapping[str, Any] | None = None,
-    operator_approval_verifier: OperatorApprovalVerifier | None = None,
-    current_authority: Any = None,
-) -> tuple[ReadyCandidate | None, list[dict[str, str]]]:
-    """Validate one exact-show-enriched ready issue for pool candidacy."""
-
-    policy = policy_document or load_policy("native-worker-execution")
-    share_policy = share_policy_document or load_policy("share-boundaries")
-    authorized_models = _authorized_models(policy)
-    required_topology = _required_topology(policy)
-    share_boundaries = _share_boundaries(share_policy)
-    issue_id = _issue_id(item)
-    labels = set(_issue_labels(item))
-    reasons: list[dict[str, str]] = []
-    if (
-        operator_approval_verifier is not None
-        and type(operator_approval_verifier) is not OperatorApprovalVerifier
-    ):
-        reasons.append(
-            _exclusion(
-                "operator-approval-verifier-invalid",
-                "ready-set admission requires the exact trusted verifier type",
-            )
-        )
+def _validate_issue_leaf_metadata(
+    item: Mapping[str, Any], labels: set[str], reasons: list[dict[str, str]],
+) -> None:
     issue_type = str(_field(item, "type", _field(item, "issue_type", "issue"))).strip().lower()
     if issue_type in CONTAINER_TYPES or (
         labels & CONTAINER_LABELS and issue_type not in {"task", "bug", "chore"}
@@ -585,21 +559,17 @@ def evaluate_ready_candidate(
         reasons.append(_exclusion("grouping-container", "issue is not an executable leaf"))
     if _field(item, "_cwo_executable_leaf", True) is False:
         reasons.append(_exclusion("non-leaf", "issue has descendant work items"))
-    for label in sorted(labels & RESTRICTED_LABELS):
-        reasons.append(_exclusion("restricted-label", f"label {label} forbids normal pool pickup"))
+
+
+def _validate_issue_assignment(item: Mapping[str, Any], reasons: list[dict[str, str]]) -> None:
     assignee = _field(item, "assignee")
     if isinstance(assignee, str) and assignee.strip():
         reasons.append(_exclusion("already-claimed", f"issue is assigned to {assignee.strip()}"))
 
-    admission = _admission_metadata(item)
-    if admission is None:
-        reasons.append(
-            _exclusion(
-                "missing-admission-metadata",
-                "cwo_ready_set_admission metadata is required for pool candidacy",
-            )
-        )
-        return None, reasons
+
+def _validate_admission_metadata_fields(
+    admission: Mapping[str, Any], reasons: list[dict[str, str]],
+) -> None:
     if admission.get("version") != ADMISSION_METADATA_VERSION:
         reasons.append(
             _exclusion(
@@ -631,6 +601,114 @@ def evaluate_ready_candidate(
                 + ", ".join(unknown_admission_fields),
             )
         )
+
+
+def _declared_paths_and_tools(
+    admission: Mapping[str, Any], reasons: list[dict[str, str]],
+) -> tuple[list[str], list[str], list[str], list[str]]:
+    read_paths, read_errors = _relative_paths(
+        admission.get("declared_read_paths"),
+        field="declared_read_paths",
+    )
+    write_paths, write_errors = _relative_paths(
+        admission.get("declared_write_paths"),
+        field="declared_write_paths",
+    )
+    targets, target_errors = _relative_paths(
+        admission.get("integration_target_paths"),
+        field="integration_target_paths",
+    )
+    tools, tool_errors = _string_list(
+        admission.get("required_tools"), field="required_tools"
+    )
+    reasons.extend(
+        _exclusion("invalid-admission-metadata", error)
+        for error in [
+            *read_errors,
+            *write_errors,
+            *target_errors,
+            *tool_errors,
+        ]
+    )
+    return read_paths, write_paths, targets, tools
+
+
+def _admission_budgets(
+    admission: Mapping[str, Any], reasons: list[dict[str, str]],
+) -> tuple[dict[str, int], dict[str, int]]:
+    hard_budget, hard_budget_errors = _budget(admission.get("hard_budget"), field="hard_budget")
+    aggregate_budget, aggregate_budget_errors = _budget(
+        admission.get("aggregate_hard_budget"),
+        field="aggregate_hard_budget",
+    )
+    reasons.extend(
+        _exclusion("invalid-budget-evidence", error)
+        for error in [*hard_budget_errors, *aggregate_budget_errors]
+    )
+    return hard_budget, aggregate_budget
+
+
+def _admission_scalar_fields(
+    admission: Mapping[str, Any], reasons: list[dict[str, str]],
+) -> dict[str, str | None]:
+    scalar_fields = {
+        "topology": _nonempty_string(admission.get("topology")),
+        "isolation_class": _nonempty_string(admission.get("isolation_class")),
+        "architecture_authority": _nonempty_string(admission.get("architecture_authority")),
+        "execution_authority": _nonempty_string(admission.get("execution_authority")),
+        "share_boundary": _nonempty_string(admission.get("share_boundary")),
+        "tool_surface_id": _nonempty_string(admission.get("tool_surface_id")),
+    }
+    for name, value in scalar_fields.items():
+        if value is None:
+            reasons.append(_exclusion("missing-ownership-metadata", f"{name} must be a non-empty string"))
+    return scalar_fields
+
+
+def evaluate_ready_candidate(
+    item: Mapping[str, Any],
+    *,
+    rank: int,
+    policy_document: Mapping[str, Any] | None = None,
+    share_policy_document: Mapping[str, Any] | None = None,
+    operator_approval_verifier: OperatorApprovalVerifier | None = None,
+    current_authority: Any = None,
+) -> tuple[ReadyCandidate | None, list[dict[str, str]]]:
+    """Validate one exact-show-enriched ready issue for pool candidacy."""
+
+    policy = policy_document or load_policy("native-worker-execution")
+    share_policy = share_policy_document or load_policy("share-boundaries")
+    authorized_models = _authorized_models(policy)
+    required_topology = _required_topology(policy)
+    share_boundaries = _share_boundaries(share_policy)
+    issue_id = _issue_id(item)
+    labels = set(_issue_labels(item))
+    reasons: list[dict[str, str]] = []
+    if (
+        operator_approval_verifier is not None
+        and type(operator_approval_verifier) is not OperatorApprovalVerifier
+    ):
+        reasons.append(
+            _exclusion(
+                "operator-approval-verifier-invalid",
+                "ready-set admission requires the exact trusted verifier type",
+            )
+        )
+    _validate_issue_leaf_metadata(item, labels, reasons)
+    for label in sorted(labels & RESTRICTED_LABELS):
+        reasons.append(_exclusion("restricted-label", f"label {label} forbids normal pool pickup"))
+    _validate_issue_assignment(item, reasons)
+
+    admission = _admission_metadata(item)
+    if admission is None:
+        reasons.append(
+            _exclusion(
+                "missing-admission-metadata",
+                "cwo_ready_set_admission metadata is required for pool candidacy",
+            )
+        )
+        return None, reasons
+    _validate_admission_metadata_fields(admission, reasons)
 
     work_plan = _json_mapping(admission.get("work_plan"))
     commitment = _json_mapping(admission.get("worker_commitment"))
@@ -667,52 +745,11 @@ def evaluate_ready_candidate(
         if commitment.get("decision") != "accept":
             reasons.append(_exclusion("worker-commitment-not-accepted", "worker commitment decision must be accept"))
 
-    read_paths, read_errors = _relative_paths(
-        admission.get("declared_read_paths"),
-        field="declared_read_paths",
-    )
-    write_paths, write_errors = _relative_paths(
-        admission.get("declared_write_paths"),
-        field="declared_write_paths",
-    )
-    targets, target_errors = _relative_paths(
-        admission.get("integration_target_paths"),
-        field="integration_target_paths",
-    )
-    tools, tool_errors = _string_list(
-        admission.get("required_tools"), field="required_tools"
-    )
-    reasons.extend(
-        _exclusion("invalid-admission-metadata", error)
-        for error in [
-            *read_errors,
-            *write_errors,
-            *target_errors,
-            *tool_errors,
-        ]
-    )
+    read_paths, write_paths, targets, tools = _declared_paths_and_tools(admission, reasons)
 
-    hard_budget, hard_budget_errors = _budget(admission.get("hard_budget"), field="hard_budget")
-    aggregate_budget, aggregate_budget_errors = _budget(
-        admission.get("aggregate_hard_budget"),
-        field="aggregate_hard_budget",
-    )
-    reasons.extend(
-        _exclusion("invalid-budget-evidence", error)
-        for error in [*hard_budget_errors, *aggregate_budget_errors]
-    )
+    hard_budget, aggregate_budget = _admission_budgets(admission, reasons)
 
-    scalar_fields = {
-        "topology": _nonempty_string(admission.get("topology")),
-        "isolation_class": _nonempty_string(admission.get("isolation_class")),
-        "architecture_authority": _nonempty_string(admission.get("architecture_authority")),
-        "execution_authority": _nonempty_string(admission.get("execution_authority")),
-        "share_boundary": _nonempty_string(admission.get("share_boundary")),
-        "tool_surface_id": _nonempty_string(admission.get("tool_surface_id")),
-    }
-    for name, value in scalar_fields.items():
-        if value is None:
-            reasons.append(_exclusion("missing-ownership-metadata", f"{name} must be a non-empty string"))
+    scalar_fields = _admission_scalar_fields(admission, reasons)
     if not labels & AUTHORITY_CHANGE_LABELS:
         if scalar_fields["architecture_authority"] not in {None, "architect"}:
             reasons.append(
