@@ -417,14 +417,18 @@ class ValidateRepositoryTests(unittest.TestCase):
         commands = "".join(f"      - run: {command}\n" for command in CI_REQUIRED_COMMANDS
                            if command not in (unit_command, codex_command))
         return ("on:\n  pull_request:\npermissions:\n  contents: read\nconcurrency:\n  cancel-in-progress: true\n"
-                "jobs:\n  test:\n    name: unit-tests (${{ matrix.shard }}/4)\n"
+                "jobs:\n  test:\n    name: unit-tests (Python ${{ matrix.python-version }}, ${{ matrix.shard }}/4)\n"
                 "    runs-on: ubuntu-latest\n    timeout-minutes: 90\n"
-                "    strategy:\n      fail-fast: false\n      matrix:\n        shard: [0, 1, 2, 3]\n"
+                "    strategy:\n      fail-fast: false\n      matrix:\n"
+                "        python-version: ['3.12', '3.14']\n        shard: [0, 1, 2, 3]\n"
                 "    env:\n      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}\n"
                 "      CWO_TEST_SHARD_COUNT: 4\n    steps:\n"
                 "      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6\n"
-                "        with:\n          persist-credentials: false\n" + commands +
+                "        with:\n          persist-credentials: false\n"
+                "      - uses: actions/setup-python@ece7cb06caefa5fff74198d8649806c4678c61a1 # v6\n"
+                "        with:\n          python-version: ${{ matrix.python-version }}\n" + commands +
                 "      - name: Unit tests\n        run: " + unit_command + "\n"
+                "  quality:\n    runs-on: ubuntu-latest\n    timeout-minutes: 20\n"
                 "  codex-protocol-contract:\n    runs-on: ubuntu-latest\n    timeout-minutes: 8\n"
                 "    strategy:\n      fail-fast: false\n      matrix:\n"
                 "        codex-version: ['0.163.0', '0.171.0']\n"
@@ -432,11 +436,13 @@ class ValidateRepositoryTests(unittest.TestCase):
                 '      - run: npm install --global --ignore-scripts "@openai/codex@$CODEX_VERSION"\n'
                 "      - name: Check schema\n        run: " + codex_command + "\n"
                 "  test-result:\n    name: test\n    runs-on: ubuntu-latest\n"
-                "    timeout-minutes: 5\n    needs: [test, codex-protocol-contract]\n    if: ${{ always() }}\n"
+                "    timeout-minutes: 5\n    needs: [test, quality, codex-protocol-contract]\n    if: ${{ always() }}\n"
                 "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n"
+                "      QUALITY_RESULT: ${{ needs.quality.result }}\n"
                 "      CODEX_PROTOCOL_RESULT: ${{ needs.codex-protocol-contract.result }}\n    steps:\n"
-                "      - name: Require all unit test shards and Codex protocol contracts\n"
-                '        run: test "$UNIT_TEST_RESULT" = success && test "$CODEX_PROTOCOL_RESULT" = success\n'
+                "      - name: Require all unit test shards, quality checks and Codex protocol contracts\n"
+                '        run: test "$UNIT_TEST_RESULT" = success && test "$QUALITY_RESULT" = success'
+                ' && test "$CODEX_PROTOCOL_RESULT" = success\n'
                 "  codeql:\n    timeout-minutes: 15\n  shellcheck:\n    timeout-minutes: 10\n")
 
     @staticmethod
@@ -457,6 +463,8 @@ class ValidateRepositoryTests(unittest.TestCase):
         fixture = self._ci_fixture()
         self.assertEqual(self._ci_errors(fixture), [])
         changes = (
+            ("python-version: ['3.12', '3.14']", "python-version: ['3.12']"),
+            ("python-version: ${{ matrix.python-version }}", "python-version: '3.12'"),
             ("shard: [0, 1, 2, 3]", "shard: [0, 1, 2]"),
             ("shard: [0, 1, 2, 3]", "shard: [0, 1, 2, 2]"),
             ("fail-fast: false", "fail-fast: true"),
@@ -477,14 +485,14 @@ class ValidateRepositoryTests(unittest.TestCase):
 
     def test_ci_sharding_contract_requires_exact_checked_in_matrix(self) -> None:
         fixture = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
-        matrix = "      matrix:\n        shard: [0, 1, 2, 3]\n"
+        matrix = "      matrix:\n        python-version: ['3.12', '3.14']\n        shard: [0, 1, 2, 3]\n"
         self.assertEqual(fixture.count(matrix), 1)
         with self.subTest(matrix="unchanged"):
             self.assertEqual(self._ci_errors(fixture), [])
         additions = {
             "exclude": "        exclude:\n          - shard: 3\n",
             "include": "        include:\n          - shard: 4\n",
-            "extra axis": "        python-version: ['3.12', '3.13']\n",
+            "extra axis": "        platform: [linux, windows]\n",
         }
         for label, addition in additions.items():
             with self.subTest(matrix=label):
@@ -495,13 +503,15 @@ class ValidateRepositoryTests(unittest.TestCase):
         fixture = self._ci_fixture()
         changes = (
             ("    name: test\n", "    name: summary\n"),
-            ("    needs: [test, codex-protocol-contract]\n", "    needs: [test]\n"),
+            ("    needs: [test, quality, codex-protocol-contract]\n", "    needs: [test, codex-protocol-contract]\n"),
             ("    if: ${{ always() }}\n", ""),
             ("${{ needs.test.result }}", "success"),
+            ("${{ needs.quality.result }}", "success"),
             ("${{ needs.codex-protocol-contract.result }}", "success"),
+            (' && test "$QUALITY_RESULT" = success', ""),
             (' && test "$CODEX_PROTOCOL_RESULT" = success', ""),
-            ("      - name: Require all unit test shards and Codex protocol contracts\n",
-             "      - name: Require all unit test shards and Codex protocol contracts\n        if: false\n"),
+            ("      - name: Require all unit test shards, quality checks and Codex protocol contracts\n",
+             "      - name: Require all unit test shards, quality checks and Codex protocol contracts\n        if: false\n"),
             ("    timeout-minutes: 5\n", "    timeout-minutes: 5\n    continue-on-error: true\n"),
         )
         for old, new in changes:
@@ -514,13 +524,30 @@ class ValidateRepositoryTests(unittest.TestCase):
         aggregate = content.split("  test-result:\n", 1)[1].split("\n  debian-filesystem:", 1)[0]
         command = next(line.removeprefix("        run: ") for line in aggregate.splitlines()
                        if line.startswith("        run: "))
-        for name in ("UNIT_TEST_RESULT", "CODEX_PROTOCOL_RESULT"):
+        for name in ("UNIT_TEST_RESULT", "QUALITY_RESULT", "CODEX_PROTOCOL_RESULT"):
             for result in ("success", "failure", "cancelled", "skipped", "", "unknown"):
                 with self.subTest(name=name, result=result):
-                    env = dict(os.environ, UNIT_TEST_RESULT="success", CODEX_PROTOCOL_RESULT="success")
+                    env = dict(os.environ, UNIT_TEST_RESULT="success", QUALITY_RESULT="success", CODEX_PROTOCOL_RESULT="success")
                     env[name] = result
                     process = subprocess.run(["/bin/sh", "-c", command], env=env, check=False)
                     self.assertEqual(process.returncode, int(result != "success"))
+
+    def test_checked_in_quality_job_requires_both_ratchets(self) -> None:
+        workflow = (ROOT / ".github/workflows/ci.yml").read_text(encoding="utf-8")
+        job = validate_repository_module._ci_job_block(workflow, "quality")
+        self.assertNotRegex(job, r"(?m)^    (?:if|continue-on-error):")
+        self.assertEqual(
+            validate_repository_module._ci_step(job, "name: Type check annotated modules"),
+            ["        run: python -m mypy --config-file tools/ci/mypy.ini\n"],
+        )
+        self.assertEqual(
+            validate_repository_module._ci_step(job, "name: Measure focused branch coverage and enforce the floor"),
+            ["        run: |\n"
+             "          python -m coverage run --rcfile=tools/ci/coverage.ini -m unittest tests.test_public_copy "
+             "tests.test_process_identity tests.test_process_lifetime_numeric_inputs "
+             "tests.test_workspace_inert_inspection.PathContractTests\n"
+             "          python -m coverage report --rcfile=tools/ci/coverage.ini\n"],
+        )
 
     def test_pr_codex_contract_requires_both_release_witnesses_and_a_mandatory_check(self) -> None:
         fixture = self._ci_fixture()

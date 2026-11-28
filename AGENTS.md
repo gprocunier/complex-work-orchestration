@@ -43,7 +43,7 @@ Before handoff, run:
 python -m compileall -j 8 -x '(^|/)(\.git|\.beads|\.orchestration-audit|__pycache__|\.ruff_cache)(/|$)' .
 python scripts/validate_repository.py
 python scripts/check_code_health.py
-python scripts/run_parallel_unittest.py --workers 8 --verbose
+python scripts/run_parallel_unittest.py --workers 4 --verbose
 ./scripts/install.sh --skills-dir /tmp/cwo-skill-test/skills --yes --dry-run
 ```
 
@@ -56,10 +56,11 @@ new `batch` identifier for each review (a consumed identifier is never reused);
 lower the baseline with `refresh`, and admit new debt only with `refresh --admit REASON`.
 Same-named definitions that carry debt (conditional definitions, for example)
 have no stable identity, so any code change in their file asks for an admission.
-Broad type checking, duplicate-code rules, interpreter coverage and measured
-coverage are deferred. Trace unused values recorded in the F baseline for
-`native_capability.py` before any deletion.
+Hosted CI also runs unit tests on Python 3.12 and 3.14 and checks selected
+modules for type and coverage regressions. See
+[CI validation](references/ci-validation.md) for scope and local commands.
+Trace unused values recorded in the F baseline for `native_capability.py`
+before any deletion.
 
-The fixed fanout of eight is temporary. Keep Beads, journals, reducers,
-promotion, model dispatch, and other stateful operations serial. Topology-aware
-and duration-balanced batching remain future work.
+Keep Beads, journals, reducers, promotion, model dispatch, and other stateful
+operations serial.

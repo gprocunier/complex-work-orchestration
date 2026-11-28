@@ -2255,36 +2255,45 @@ def _ci_exact_job_section(block: str, name: str, expected: str) -> bool:
     return sections == [expected]
 
 
+def _ci_step(job: str, label: str) -> list[str]:
+    return re.findall(r"^      - " + label + r"\n(.*?)(?=^      - |\Z)", job,
+                      flags=re.MULTILINE | re.DOTALL)
+
+
 def _validate_ci_unit_shards(errors: list[str], ci: str) -> None:
     job = _ci_job_block(ci, "test")
     strategy = ("    strategy:\n      fail-fast: false\n"
-                "      matrix:\n        shard: [0, 1, 2, 3]\n")
+                "      matrix:\n        python-version: ['3.12', '3.14']\n"
+                "        shard: [0, 1, 2, 3]\n")
     required = (
-        "    name: unit-tests (${{ matrix.shard }}/4)",
+        "    name: unit-tests (Python ${{ matrix.python-version }}, ${{ matrix.shard }}/4)",
         "    env:\n      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}\n      CWO_TEST_SHARD_COUNT: 4",
     )
-    units = re.findall(r"^      - name: Unit tests\n(.*?)(?=^      - |\Z)", job,
-                       flags=re.MULTILINE | re.DOTALL)
-    literal_command = len(units) == 1 and units[0].strip("\n") == "        run: " + CI_UNIT_TEST_COMMAND
+    units = _ci_step(job, "name: Unit tests")
+    setup = _ci_step(job, r"uses: actions/setup-python@[^\n]+")
     checkout_count = len(re.findall(r"^      - uses: actions/checkout@", job, re.MULTILINE))
     if (not _ci_required_lines(job, required) or not _ci_exact_job_section(job, "strategy", strategy)
-            or not literal_command or checkout_count != 1
+            or setup != ["        with:\n          python-version: ${{ matrix.python-version }}\n"]
+            or [step.strip("\n") for step in units] != ["        run: " + CI_UNIT_TEST_COMMAND]
+            or checkout_count != 1
             or re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE)):
-        errors.append("CI unit shards must cover 0..3/4 with literal full-suite defaults and unconditional steps")
+        errors.append("CI unit shards must cover 0..3/4 on Python 3.12 and 3.14 with unconditional steps")
 
 
 def _validate_ci_test_aggregate(errors: list[str], ci: str) -> None:
     job = _ci_job_block(ci, "test-result")
     required = (
-        "    name: test", "    needs: [test, codex-protocol-contract]", "    if: ${{ always() }}",
+        "    name: test", "    needs: [test, quality, codex-protocol-contract]", "    if: ${{ always() }}",
         "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n"
+        "      QUALITY_RESULT: ${{ needs.quality.result }}\n"
         "      CODEX_PROTOCOL_RESULT: ${{ needs.codex-protocol-contract.result }}",
     )
-    steps = ('    steps:\n      - name: Require all unit test shards and Codex protocol contracts\n'
-             '        run: test "$UNIT_TEST_RESULT" = success && test "$CODEX_PROTOCOL_RESULT" = success')
+    steps = ('    steps:\n      - name: Require all unit test shards, quality checks and Codex protocol contracts\n'
+             '        run: test "$UNIT_TEST_RESULT" = success && test "$QUALITY_RESULT" = success'
+             ' && test "$CODEX_PROTOCOL_RESULT" = success')
     if (not _ci_required_lines(job, required) or not job.rstrip().endswith(steps)
             or re.search(r"^    continue-on-error:", job, re.MULTILINE)):
-        errors.append("CI test aggregate must always require success from every unit shard and Codex protocol contract")
+        errors.append("CI test aggregate must always require success from unit shards, quality and Codex contracts")
 
 
 def _ci_top_level_section(workflow: str, name: str) -> list[str]:
