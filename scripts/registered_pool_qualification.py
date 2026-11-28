@@ -281,6 +281,10 @@ class _WorkerWire(RegisteredAppServer):
 
     def _checked_write_frame(self, binding, frame, deadline, method):
         try:
+            if method == "turn/start" and self.factory.patch_mode:
+                from registered_contained_pool_host import require_patch_preimage
+
+                require_patch_preimage(self.factory.parent._ordinary.children[self.factory.child_id], deadline=deadline)
             return _checked_native_frame(binding, frame, deadline, method)
         except Exception as failure:
             self._fail_transport(failure, source="effect-write")

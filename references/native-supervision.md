@@ -11,6 +11,9 @@ Single-worker execution is the default. A trusted controller can admit a fixed
 group of two or three workers through the [registered contained pool](native-supervision-pools.md).
 The controller requires exact approval and fresh callback calibration on the
 same host.
+For a one-file patch assignment, the controller sends the bounded, screened
+source from the approved starting file in the worker turn and refuses file
+drift. [Patch assignment and disclosure](native-supervision-pools.md#start-an-approved-cohort).
 
 For a new assignment, estimate the whole task before selecting a worker. Luna
 is the first choice for focused native work. Sol handles escalation when the

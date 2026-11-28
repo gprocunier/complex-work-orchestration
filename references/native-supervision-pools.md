@@ -126,10 +126,12 @@ relative path such as `src/check.py`. The path can be at most 240 characters.
 Each component can be at most 128 characters and starts with an ASCII letter
 or digit, followed by ASCII letters, digits, dots, underscores or hyphens.
 Supply the task and baseline as usual. Omit `output_text` in this mode.
-The host binds the starting file's digest into the approval. Each patch can
-use up to 8 KiB. The starting file and the resulting file can each use up to
-64 KiB. For a fixed-text assignment, give the exact `output_text` and a fresh
-`output_path`.
+The host binds the starting file's digest into the approval and includes its
+screened source in the worker turn. The cohort approval covers disclosure of
+that source to the model provider. The host sends the full starting file up to
+8 KiB and refuses larger files. Each patch can use up to 8 KiB and the
+resulting file can use up to 64 KiB. For a fixed-text assignment, give the exact
+`output_text` and a fresh `output_path`.
 
 The approval tool returns a private pool request path. Run
 `cwo delegate-pool --pool-request <request-path>` from the same project checkout.
@@ -187,10 +189,12 @@ provider-only connectivity. The named read-only tool profile denies network
 access and access to the login path. Later turns keep the same profile. Only
 the isolated registered writer may change the assigned output file.
 
-For a unified diff, the host checks the exact file name, hunk context and
-signed starting digest. The isolated writer rechecks the starting file and
-replaces it atomically while preserving its mode. Settlement uses the host's
-original callback and output digests and a reread of the resulting file.
+For a unified diff, the worker reads the source supplied in the turn. The host
+refuses a changed starting file or source that fails outbound screening. It
+checks the exact file name, hunk context and signed starting digest. The
+isolated writer rechecks the starting file and replaces it atomically while
+preserving its mode. Settlement uses the host's original callback and output
+digests and a reread of the resulting file.
 
 Before opening the writer gate, the host verifies the original thread start,
 acknowledged turn and owned rollout for each pending callback. It charges the

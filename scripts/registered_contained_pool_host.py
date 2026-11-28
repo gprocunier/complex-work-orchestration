@@ -234,11 +234,14 @@ def _worktree_identity(child):
     return canonical_authority_sha256(capture_workspace_snapshot(child.worktree, allowed_paths=[child.write_path])["identity"])
 
 
-def require_patch_preimage(child: OrdinaryPoolChild) -> None:
-    from registered_pool_containment import read_pool_patch_file
+def require_patch_preimage(child: OrdinaryPoolChild, *, deadline: float | None = None) -> None:
+    from registered_pool_containment import MAX_POOL_PATCH_SOURCE_BYTES, read_pool_patch_file, render_pool_patch_prompt
 
-    current = read_pool_patch_file(child.worktree, child.write_path)
-    require(sha256(current).hexdigest() == child.patch_preimage_sha256, "The signed worker patch preimage changed.")
+    current = read_pool_patch_file(child.worktree, child.write_path, maximum_bytes=MAX_POOL_PATCH_SOURCE_BYTES, deadline=deadline)
+    digest = sha256(current).hexdigest()
+    require(digest == child.patch_preimage_sha256, "The signed worker patch preimage changed.")
+    require(child.prompt == render_pool_patch_prompt(child.task, child.write_path, child.completion_marker, current, digest),
+            "The signed worker patch prompt differs from the checked source.")
 
 
 def _cohort(approved):

@@ -220,7 +220,7 @@ def _pool_prompt(pending):
     for child in scope["children"]:
         rows.extend((f"Bead {json.dumps(child['bead_id'])}", f"Task {json.dumps(child['task'])}"))
         if preimage := child.get("patch_preimage_sha256"):
-            rows.extend((f"Edit existing file {json.dumps(child['write_path'])} with one unified diff.",
+            rows.extend((f"Edit {json.dumps(child['write_path'])} with one unified diff and send its bounded, screened source to OpenAI.",
                          f"Signed preimage SHA-256 {preimage}"))
         else:
             rows.extend((f"Fresh file {json.dumps(child['write_path'])}",

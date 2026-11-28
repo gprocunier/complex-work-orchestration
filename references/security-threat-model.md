@@ -60,7 +60,10 @@ The registered single-worker and contained pool app servers run
 with read-only checkout mounts. The single-worker route exposes the approved
 finite command and empty polls. In the pool, the original isolated writer may
 change only its assigned file. For a bounded unified diff, it rechecks the signed
-starting digest before replacing the existing file. Codex's read-only tool
+starting digest before replacing the existing file. The controller reads only the
+assigned file for patch context, checks it against the signed digest and applies
+outbound screening before sending its bounded text to the approved provider.
+The worker receives the file as task data. Codex's read-only tool
 profile adds another layer in the pool: stock tool names can still appear in the
 reported catalog. The catalog records what was declared. The containment claim
 rests on the host mounts, network isolation, checked profile and authorized writer effects.
