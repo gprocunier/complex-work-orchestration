@@ -221,6 +221,15 @@ quarantined entries stay visible as dispositions. External contractors must not
 receive comment-bearing briefs; use `scripts/build_contractor_packet.py` for
 outside models.
 
+For a managed expert review, supply specific evidence in the scaffold or spawn
+task text or its existing `--file`. Use one line per declared input, for example
+`Review input [target audience]: First-time queue operators`. Use the exact
+input name from the selected expert, and include the applicable source,
+viewport, and representative states in the relevant values. The planned
+review records any missing inputs and the expert profile reference. A subagent
+brief includes the declared evidence and profile reference after checking the
+assignment for missing inputs.
+
 ## Data Sensitivity Declaration
 
 Route and coach helpers infer `data_sensitivity` with an advisory text

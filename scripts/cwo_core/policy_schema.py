@@ -76,6 +76,7 @@ POLICY_SCHEMAS = {'acceptance-policy.yaml': 'acceptance-policy.schema.json',
  'outbound-screening.yaml': 'outbound-screening.schema.json',
  'peer-review-policy.yaml': 'peer-review-policy.schema.json',
  'provider-registry.yaml': _PROVIDER_REGISTRY_V1_SCHEMA,
+ 'return-structure-rules.yaml': 'return-structure-rules.schema.json',
  'return-tripwires.yaml': 'return-tripwires.schema.json',
  'risk-features.yaml': 'risk-features.schema.json',
  'routing-policy.yaml': 'routing-policy.schema.json',
@@ -163,6 +164,7 @@ POLICY_VALIDATION_BOUNDARIES = {
         "both versions check the host Codex access class; "
         "reliability metadata grants no data access, output trust or execution authority",
     ),
+    "return-structure-rules.yaml": ("schema", "schemas/return-structure-rules.schema.json"),
     "return-tripwires.yaml": ("schema", "schemas/return-tripwires.schema.json"),
     "risk-features.yaml": (
         "schema",

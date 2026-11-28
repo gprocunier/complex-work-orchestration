@@ -267,6 +267,12 @@ python3 scripts/route_work.py \
 `scripts/dispatch_work.py` prepares a `local_envelope` by default. It does not
 call the endpoint unless `--execute-local` is set.
 
+For a managed review, pass the assigned `--bead` and put the approved review
+material in the task text or `--file`. Retain the assignment's
+`Expert profile: experts/<profile>.md` line and one
+`Review input [input name]: concrete evidence` line for each declared input.
+An incomplete assignment is refused before preparing or sending the request.
+
 ```bash
 export CWO_OPENSHIFT_AI_VLLM_BASE_URL="https://vllm.example.internal"
 export CWO_OPENSHIFT_AI_VLLM_MODEL="vllm-local"

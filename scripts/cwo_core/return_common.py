@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable, Mapping
 from typing import Any
 
 from .errors import CWOPolicyError
@@ -52,6 +53,23 @@ def add_signal(signals: list[dict[str, Any]], *, category: str, reason: str, wei
     if any(signal.get("category") == category and signal.get("reason") == reason for signal in signals):
         return
     signals.append({"category": category, "reason": reason, "weight": int(weight)})
+
+
+def add_weighted_signal(
+    signals: list[dict[str, Any]],
+    weights: Mapping[str, int],
+    category: str,
+    reason: str,
+    *,
+    default: int | None = None,
+) -> None:
+    weight = weights[category] if default is None else weights.get(category, default)
+    add_signal(signals, category=category, reason=reason, weight=weight)
+
+
+def extend_signals(signals: list[dict[str, Any]], incoming: Iterable[Mapping[str, Any]]) -> None:
+    for signal in incoming:
+        add_signal(signals, category=str(signal["category"]), reason=str(signal["reason"]), weight=int(signal["weight"]))
 
 
 def strip_fenced_blocks(text: str) -> str:

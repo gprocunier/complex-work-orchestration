@@ -81,8 +81,10 @@ from .return_tripwires import scan_return_tripwires
 from .types import (
     AcceptanceDecision,
     ContractorReturnBundle,
+    EvidenceQuality,
     MalpracticeSignalResult,
     ProceduralHoldMetadata,
+    ResearchEvidenceQuality,
     ReturnSignal,
     ReturnProvenance,
     SabotageSignalResult,
@@ -121,6 +123,7 @@ __all__ = [
     "classify_patch_authorization",
     "critical_deferral_present",
     "direct_mutation_authorized",
+    "evaluation_report",
     "evidence_items_from_sections",
     "evidence_quality_thresholds",
     "executor_default_synthesis_use",
@@ -169,6 +172,7 @@ __all__ = [
     "structured_json_values",
     "typed_deferral_allowed_for_work",
     "typed_follow_up_deferral_present",
+    "unknown_delivery_readiness",
     "work_rerouting_or_subversion_reasons",
     "workspace_unexpected_mutations",
 ]
@@ -348,6 +352,32 @@ def job_description_matches(sections: dict[str, str], expected_label: str | None
     return expected_label.lower() in labels
 
 
+def _return_context(
+    expected_language: str | None, language_source: str | None, share_boundary: str | None,
+    **provenance_fields: str | None,
+) -> tuple[ReturnProvenance, str | None, str]:
+    provenance = return_provenance(**provenance_fields)
+    language, source = resolve_return_language_context(
+        expected_language, language_source, provenance=provenance, share_boundary=share_boundary,
+    )
+    return provenance, language, source
+
+
+def _score_return_risks(
+    text: str, reader: SectionReader, research: ResearchEvidenceQuality, evidence: EvidenceQuality,
+    language: str | None, language_source: str, *, provider_conflict_domains: list[str] | None = None,
+) -> tuple[SabotageSignalResult, MalpracticeSignalResult]:
+    sabotage = score_sabotage_signals(
+        text, reader.sections, reader=reader, provider_conflict_domains=provider_conflict_domains,
+        expected_return_language=language, expected_return_language_source=language_source,
+    )
+    malpractice = score_malpractice_signals(
+        text, reader.sections, reader=reader, provider_conflict_domains=provider_conflict_domains,
+        research_quality=research, evidence_quality=evidence,
+    )
+    return sabotage, malpractice
+
+
 def normalize_contractor_return(
     text: str,
     *,
@@ -372,33 +402,13 @@ def normalize_contractor_return(
     missing = [section for section in required if not sections.get(section)]
     research_evidence = score_research_evidence(sections, reader=reader)
     evidence_quality = score_evidence_quality(sections, research_quality=research_evidence, reader=reader)
-    provenance = return_provenance(
-        executor=executor,
-        provider_key=provider_key,
-        provider_trust_tier=provider_trust_tier,
-        dispatch_mode=dispatch_mode,
-        local_profile=local_profile,
-        model_profile=model_profile,
+    provenance, resolved_language, language_source = _return_context(
+        expected_return_language, expected_return_language_source, share_boundary,
+        executor=executor, provider_key=provider_key, provider_trust_tier=provider_trust_tier,
+        dispatch_mode=dispatch_mode, local_profile=local_profile, model_profile=model_profile,
     )
-    resolved_language, language_source = resolve_return_language_context(
-        expected_return_language,
-        expected_return_language_source,
-        provenance=provenance,
-        share_boundary=share_boundary,
-    )
-    sabotage = score_sabotage_signals(
-        text,
-        sections,
-        reader=reader,
-        expected_return_language=resolved_language,
-        expected_return_language_source=language_source,
-    )
-    malpractice = score_malpractice_signals(
-        text,
-        sections,
-        reader=reader,
-        research_quality=research_evidence,
-        evidence_quality=evidence_quality,
+    sabotage, malpractice = _score_return_risks(
+        text, reader, research_evidence, evidence_quality, resolved_language, language_source,
     )
     master_review_controls = parse_master_review_surface_controls(
         sections,
@@ -468,6 +478,17 @@ def _add_tripwire_holds(
     return True
 
 
+def unknown_delivery_readiness() -> dict[str, Any]:
+    """Represent delivery readiness when there is no usable issued observation."""
+    return {"state": "unknown", "checks": [], "observation_sha256": None}
+
+
+def evaluation_report(evaluation: dict[str, Any]) -> dict[str, Any]:
+    """Project an evaluator result for reporting without changing its bound payload."""
+    return {**evaluation, "evidence_disposition": evaluation["recommended_disposition"],
+            "delivery_readiness": unknown_delivery_readiness()}
+
+
 def make_acceptance_decision(
     text: str,
     *,
@@ -520,19 +541,10 @@ def make_acceptance_decision(
         malpractice_reject_threshold=malpractice_reject_threshold,
     )
     policy = load_policy("acceptance-policy")
-    provenance = return_provenance(
-        executor=executor,
-        provider_key=provider_key,
-        provider_trust_tier=provider_trust_tier,
-        dispatch_mode=dispatch_mode,
-        local_profile=local_profile,
-        model_profile=model_profile,
-    )
-    resolved_language, language_source = resolve_return_language_context(
-        expected_return_language,
-        expected_return_language_source,
-        provenance=provenance,
-        share_boundary=share_boundary,
+    provenance, resolved_language, language_source = _return_context(
+        expected_return_language, expected_return_language_source, share_boundary,
+        executor=executor, provider_key=provider_key, provider_trust_tier=provider_trust_tier,
+        dispatch_mode=dispatch_mode, local_profile=local_profile, model_profile=model_profile,
     )
     sections = parse_return_sections(text)
     reader = SectionReader(sections)
@@ -548,12 +560,13 @@ def make_acceptance_decision(
         reader=reader,
         share_boundary=share_boundary,
     )
+    packet_only_go_hold = bool(master_review_controls.pop("packet_only_go_hold"))
     master_review_packet_only_go_hold = bool(
         (
             executor == CHATGPT_MASTER_REVIEW_EXECUTOR
             or (job_description_label or "").strip().lower() == CHATGPT_MASTER_REVIEW_JOB_LABEL
         )
-        and master_review_controls["packet_only_go_hold"]
+        and packet_only_go_hold
     )
     evidence_quality = score_evidence_quality(sections, research_quality=research_evidence, reader=reader)
     evidence_thresholds = evidence_quality_thresholds()
@@ -688,27 +701,12 @@ def make_acceptance_decision(
         hard_disqualifiers.append("scope creep beyond assigned bead")
         score -= penalties.get("scope_creep", 10)
 
-    sabotage = score_sabotage_signals(
-        text,
-        sections,
+    sabotage, malpractice = _score_return_risks(
+        text, reader, research_evidence, evidence_quality, resolved_language, language_source,
         provider_conflict_domains=provider_conflict_domains,
-        review_threshold=sabotage_review_threshold,
-        quarantine_threshold=sabotage_quarantine_threshold,
-        reader=reader,
-        expected_return_language=resolved_language,
-        expected_return_language_source=language_source,
     )
-    malpractice = score_malpractice_signals(
-        text,
-        sections,
-        provider_conflict_domains=provider_conflict_domains,
-        review_threshold=malpractice_review_threshold,
-        reject_threshold=malpractice_reject_threshold,
-        reader=reader,
-        research_quality=research_evidence,
-        evidence_quality=evidence_quality,
-    )
-    if sabotage["quarantine_recommended"]:
+    sabotage_quarantine = sabotage.pop("quarantine_recommended")
+    if sabotage_quarantine:
         hard_disqualifiers.append("suspected sabotage or malpractice")
     elif sabotage["sabotage_review_recommended"]:
         score -= penalties.get("sabotage_review", 20)
@@ -757,7 +755,7 @@ def make_acceptance_decision(
     score = max(0, min(100, score))
     escalation = re.search(r"^\s*Escalation needed\s*:\s*(yes|true|required)", text, re.I | re.M)
     thresholds = policy.get("score", {}).get("thresholds", {})
-    if sabotage["quarantine_recommended"] or workspace_quarantine or local_v2_eligible is False:
+    if sabotage_quarantine or workspace_quarantine or local_v2_eligible is False:
         verdict = "quarantine"
     elif hard_disqualifiers:
         verdict = "reject"
@@ -840,7 +838,7 @@ def make_acceptance_decision(
         # Separate answers: did screening pass, is use of the evidence held,
         # must a person adjudicate, and is the return accepted for use. An
         # evaluation never permits execution; no tripwire hit is not authority.
-        "screening_eligible": not tripwire_hold and not hard_disqualifiers and not sabotage["quarantine_recommended"],
+        "screening_eligible": not tripwire_hold and not hard_disqualifiers and not sabotage_quarantine,
         "evidence_use_hold": evidence_use_hold,
         "adjudication_required": human_adjudication_required,
         "accepted_for_use": verdict == "accept" and recommended_disposition == "accept-findings" and not evidence_use_hold,
@@ -849,21 +847,8 @@ def make_acceptance_decision(
         "missing_sections": missing,
         "penalty_reasons": penalty_reasons,
         "hard_disqualifiers": hard_disqualifiers,
-        "sabotage_score": sabotage["sabotage_score"],
-        "sabotage_signals": sabotage["sabotage_signals"],
-        "sabotage_signal_categories": sabotage["sabotage_signal_categories"],
-        "sabotage_review_recommended": sabotage["sabotage_review_recommended"],
-        "sabotage_architect_escalation_recommended": sabotage["sabotage_architect_escalation_recommended"],
-        "expected_return_language": sabotage["expected_return_language"],
-        "expected_return_language_source": sabotage["expected_return_language_source"],
-        "return_language_status": sabotage["return_language_status"],
-        "return_language_findings": sabotage["return_language_findings"],
-        "detected_letter_scripts": sabotage["detected_letter_scripts"],
-        "unexpected_script_ratio": sabotage["unexpected_script_ratio"],
-        "unicode_normalization_changed": sabotage["unicode_normalization_changed"],
-        "evidence_quality_score": evidence_quality["evidence_quality_score"],
-        "evidence_quality_signals": evidence_quality["evidence_quality_signals"],
-        "evidence_quality_signal_categories": evidence_quality["evidence_quality_signal_categories"],
+        **sabotage,
+        **evidence_quality,
         "research_evidence_present": research_evidence["research_evidence_present"],
         "research_evidence_items": research_evidence["research_evidence_items"],
         "research_contradictions": research_evidence["research_contradictions"],
@@ -873,33 +858,13 @@ def make_acceptance_decision(
         "research_evidence_signal_categories": research_evidence["research_evidence_signal_categories"],
         "research_unresolved_contradiction_count": research_evidence["research_unresolved_contradiction_count"],
         "research_replan_recommended": research_evidence["research_replan_recommended"],
-        "malpractice_score": malpractice["malpractice_score"],
-        "malpractice_signals": malpractice["malpractice_signals"],
-        "malpractice_signal_categories": malpractice["malpractice_signal_categories"],
-        "malpractice_review_recommended": malpractice["malpractice_review_recommended"],
-        "malpractice_reject_recommended": malpractice["malpractice_reject_recommended"],
+        **malpractice,
         "signal_categories": signal_categories,
         "peer_review_required": peer_required,
         "peer_review_status": peer_review_status,
         **peer_review_result_fields(peer_review_reviewer, peer_review_record, peer_review_separation),
-        **{
-            key: master_review_controls[key]
-            for key in [
-                "review_surface",
-                "source_inspection",
-                "sources_inspected",
-                "sources_not_inspected",
-                "independent_verification",
-                "packet_reported_claims",
-            ]
-        },
-        "review_surface_packet_only": bool(master_review_controls["review_surface_packet_only"]),
-        "source_inspection_packet_only": bool(master_review_controls["source_inspection_packet_only"]),
-        "go_for_pr_merge_readiness_claimed": bool(master_review_controls["go_for_pr_merge_readiness_claimed"]),
-        "review_surface_mismatch": bool(master_review_controls["review_surface_mismatch"]),
-        "review_surface_required_evidence_missing": bool(master_review_controls["review_surface_required_evidence_missing"]),
-        "review_surface_mismatch_reasons": list(master_review_controls["review_surface_mismatch_reasons"]),
-        "master_review_packet_only_go_hold": bool(master_review_controls["packet_only_go_hold"]),
+        **master_review_controls,
+        "master_review_packet_only_go_hold": packet_only_go_hold,
         "implementation_blocked": implementation_blocked,
         "hold_reasons": hold["hold_reasons"],
         "hold_classification": hold["hold_classification"],
@@ -923,7 +888,7 @@ def make_acceptance_decision(
         "local_model_preflight_status": local_model_preflight_status,
         "local_http_status": local_http_status,
         "local_v2_critic_eligible": local_v2_eligible,
-        "quarantine_recommended": bool(sabotage["quarantine_recommended"] or workspace_quarantine or local_v2_eligible is False),
+        "quarantine_recommended": bool(sabotage_quarantine or workspace_quarantine or local_v2_eligible is False),
         "escalation_flagged": bool(escalation),
         "architect_review_required": True,
         "sections": sections,

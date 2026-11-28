@@ -15,6 +15,7 @@ import prepare_combined_review_binding as combined
 import produce_validator_evidence as producer
 from cwo_core import candidate_identity as ci
 from cwo_core import requirement_baseline as rb
+from cwo_core.returns import unknown_delivery_readiness
 
 AUTHORITY_FIELDS = tuple(dict.fromkeys((
     *combined.FALSE_FIELDS, "production_available", "accepted_for_use",
@@ -176,6 +177,11 @@ class Observation:
     @property
     def combined(self) -> dict[str, Any]:
         return _read(_observed(self).combined)
+
+    @property
+    def delivery_readiness(self) -> dict[str, Any]:
+        """Report checks from this original observation, including incomplete runs."""
+        return _delivery_readiness(self)
 
     @property
     def report(self) -> dict[str, Any]:
@@ -382,6 +388,47 @@ def _production_complete(data: _Observed, produced: dict[str, Any]) -> bool:
     return produced[field] is True
 
 
+def _failed_validator(criterion: dict, wrapper: dict, snapshot: dict) -> bool:
+    validator = combined.validators
+    context = snapshot["input_context"]
+    try:
+        result, normalized, _ = validator._receipt_identity(
+            wrapper, validator._contract(criterion), context["root"],
+            snapshot["resolved_baseline"]["digest"], ci.candidate_digest(context["candidate"]))
+        validator._receipt_source(result, normalized)
+    except validator.PreparationError:
+        return False
+    return (result["preflight_status"] == "passed" and result["execution_started"] is True
+            and result["hash_match"] is True and result["execution_status"] in ("passed", "failed", "quarantined"))
+
+
+def _check_status(criterion: dict, observed: dict, wrapper: dict | None, snapshot: dict) -> str:
+    state = observed["state"]
+    if state == "INCONSISTENT" and wrapper is not None and _failed_validator(criterion, wrapper, snapshot):
+        return "failed"
+    return {"PASSED": "passed", "OBSERVED_CONSISTENT": "passed", "FAILED": "failed",
+            "NOT_APPLICABLE": "not-applicable"}.get(state, "unrun")
+
+
+def _delivery_readiness(observation: Observation) -> dict[str, Any]:
+    data = _observed(observation)
+    produced, observed = _read(data.production), _read(data.combined)
+    snapshot = observed["snapshot"]
+    if snapshot is None or any(not check["valid"] for check in produced["candidate_checks"]):
+        return unknown_delivery_readiness()
+    try:
+        digest = _issued_observation_digest(observation)
+    except combined.PreparationError:
+        return unknown_delivery_readiness()
+    receipts = {wrapper["criterion_id"]: wrapper for wrapper in produced["validator_evidence"]}
+    checks = [{"criterion_id": criterion["id"], "reason": entry["reason"],
+               "status": _check_status(criterion, entry, receipts.get(criterion["id"]), snapshot)}
+              for criterion, entry in zip(snapshot["criterion_inventory"], snapshot["criteria"])]
+    complete = (_production_complete(data, produced) and not produced["errors"]
+                and observed["combined_observations_complete"] and not observed["errors"])
+    return {"state": "ready" if complete else "blocked", "checks": checks, "observation_sha256": digest}
+
+
 def _complete(data: _Observed) -> None:
     produced, observed = _read(data.production), _read(data.combined)
     _need(_production_complete(data, produced) and not produced["errors"],
@@ -414,14 +461,18 @@ def _native_review_basis(native: _Native | None) -> dict[str, Any] | None:
             "outputs": [{"path": path, "sha256": _digest(raw)} for path, raw in native.outputs]}
 
 
+def _issued_observation_digest(observation: Observation) -> str:
+    return _digest(_freeze({"observations": observation.report,
+                            "native_validation": _native_review_basis(_observed(observation).native)}))
+
+
 def observation_digest(observation: Observation) -> str:
     """Identify the exact issued complete combined observations, including full receipts."""
     data = _observed(observation)
     _current(data)
     context = _read(data.context)
     _candidate(context, context["bead"])
-    return _digest(_freeze({"observations": observation.report,
-                            "native_validation": _native_review_basis(data.native)}))
+    return _issued_observation_digest(observation)
 
 
 def final_review_basis(observation: Observation) -> bytes:

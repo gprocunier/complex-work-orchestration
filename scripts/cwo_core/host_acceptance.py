@@ -35,7 +35,7 @@ def _copy(value: Any) -> Any:
 
 def _policy_sha256() -> str:
     names = ("acceptance-policy", "contracting-controls", "provider-registry", "executor-registry",
-             "return-tripwires", "synthesis-policy", "share-boundaries", "peer-review-policy")
+             "return-tripwires", "return-structure-rules", "synthesis-policy", "share-boundaries", "peer-review-policy")
     return pending_evaluation_sha256({name: _current_policy(name) for name in names})
 
 

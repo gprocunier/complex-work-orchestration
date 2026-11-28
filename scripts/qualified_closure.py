@@ -248,7 +248,13 @@ def _report() -> dict[str, Any]:
             "comment_attempted": False, "close_attempted": False,
             "persistence_known": True,
             "last_call_state": "REFUSED", "current_applicability": "REFUSED",
-            "failure_type": None, "summary": None}
+            "failure_type": None, "summary": None,
+            "delivery_readiness": original.unknown_delivery_readiness()}
+
+
+def _block_readiness(readiness: dict[str, Any]) -> None:
+    if readiness["state"] == "ready":
+        readiness["state"] = "blocked"
 
 
 @contextlib.contextmanager
@@ -335,7 +341,8 @@ def production_custody(directory: str, *, database: str, actor: str,
         fcntl.flock(root_fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         bridge = _ProductionBeadsBridge(db, actor)
         report = _report()
-        report.update(record_type="cwo-production-closure", scope="registered-task-only", completed=False)
+        report.update(record_type="cwo-production-closure", scope="registered-task-only", completed=False,
+                      evidence_disposition=authority.evidence_disposition)
         state = _State(custody, descriptor, _identity(os.fstat(descriptor)), raw,
                        root_fd, _identity(os.fstat(root_fd)), _sources(), bridge, stack,
                        registration_id="closure-registration-" + uuid.uuid4().hex, report=report)
@@ -392,6 +399,7 @@ def _operation(host: Host) -> Iterator[_State]:
             yield state
         except BaseException as error:
             state.failure = error
+            _block_readiness(state.report["delivery_readiness"])
             state.report.update(last_call_state="REFUSED", current_applicability="REFUSED",
                                 failure_type=type(error).__name__)
             if not state.report["closed"]:
@@ -611,6 +619,9 @@ def observe(host: Host, *, native: dict[str, Any] | None = None, observation: An
             _hold_native(state, selected)
             result = original.observe_native_mixed(**arguments, **selected)
             _native_join(state, result, selected)
+        readiness = result.delivery_readiness
+        _block_readiness(readiness)
+        state.report["delivery_readiness"] = readiness
         original._current(original._observed(result))
         _guard(state)
         _task(state, value["bead"])
@@ -627,18 +638,19 @@ def bind(host: Host) -> None:
             original._current(original._observed(state.observation))
             _authority_call(state.authority.require_observation, original.observation_digest(state.observation))
             state.bound = state.authority
-            _guard(state)
-            _task(state, value["bead"])
-            return
-        state.review = (_read_at(state.descriptor, "review.json"), _read_at(state.descriptor, "expectation.json"))
-        envelope = original._read(state.review[1])
-        kind = "cwo-EXAMPLE-qualified-review-source"
-        original.combined._shape(envelope, kind, ("context", "expected"))
-        _need(envelope["context"] == host.review_context,
-              "final review source must bind this fresh registration, database and task")
-        state.bound = original.bind_review(state.observation, state.review[0], envelope["expected"])
+        else:
+            state.review = (_read_at(state.descriptor, "review.json"), _read_at(state.descriptor, "expectation.json"))
+            envelope = original._read(state.review[1])
+            kind = "cwo-EXAMPLE-qualified-review-source"
+            original.combined._shape(envelope, kind, ("context", "expected"))
+            _need(envelope["context"] == host.review_context,
+                  "final review source must bind this fresh registration, database and task")
+            state.bound = original.bind_review(state.observation, state.review[0], envelope["expected"])
         _guard(state)
         _task(state, value["bead"])
+        readiness = state.report["delivery_readiness"]
+        if readiness["state"] == "blocked":
+            readiness["state"] = "ready"
 
 
 def _validate(state: _State, expected: dict[str, Any]) -> dict[str, Any]:

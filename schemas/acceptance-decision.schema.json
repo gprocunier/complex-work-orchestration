@@ -32,6 +32,8 @@
     "evidence_use_hold": {"type": "boolean"},
     "adjudication_required": {"type": "boolean"},
     "accepted_for_use": {"type": "boolean"},
+    "evidence_disposition": {"$ref": "#/properties/recommended_disposition"},
+    "delivery_readiness": {"$ref": "delivery-readiness.schema.json"},
     "execution_permitted": {"const": false},
     "tripwire_hits": {
       "type": "array",

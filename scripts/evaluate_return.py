@@ -8,7 +8,7 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core import return_advisory
-from cwo_core.returns import make_acceptance_decision
+from cwo_core.returns import evaluation_report, make_acceptance_decision
 from cwo_core.returns import mark_advisory_return as _mark_advisory
 from cwo_core.adjudication import dispatch_provenance
 from cwo_core.audit import record_audit_event
@@ -62,7 +62,7 @@ def print_human(result: dict[str, object]) -> None:
     hold_reasons = result.get("hold_reasons") or []
     print("Hold reasons: " + (", ".join(str(item) for item in hold_reasons) if hold_reasons else "none"))
     print(f"Human adjudication required: {result.get('human_adjudication_required', False)}")
-    print(f"Recommended disposition: {result.get('recommended_disposition', 'unknown')}")
+    _print_classifications(evaluation_report(result))
     print(f"Recommended synthesis use: {result.get('recommended_synthesis_use', 'unknown')}")
     print(f"Accepted for use: {result.get('accepted_for_use', False)}")
     print(f"Evidence-use hold: {result.get('evidence_use_hold', False)}")
@@ -77,59 +77,38 @@ def print_human(result: dict[str, object]) -> None:
         print(f"Workspace mutation detected: {workspace_mutation.get('mutation_detected', False)}")
         print(f"Unexpected workspace mutation: {workspace_mutation.get('unexpected_mutation_detected', False)}")
 
-    missing = result.get("missing_sections") or []
-    print("\nMissing sections:")
-    if missing:
-        for section in missing:  # type: ignore[assignment]
-            print(f"- {section}")
+    for title, key in (("Missing sections", "missing_sections"), ("Penalty reasons", "penalty_reasons"),
+                       ("Hard disqualifiers", "hard_disqualifiers")):
+        _print_bullets(title, result.get(key))
+    for title, key in (("Sabotage signals", "sabotage_signals"), ("Evidence quality signals", "evidence_quality_signals"),
+                       ("Malpractice signals", "malpractice_signals")):
+        _print_bullets(title, result.get(key), _format_signal)
+
+
+def _print_bullets(title: str, items: Any, render=None) -> None:
+    print(f"\n{title}:")
+    if items:
+        for item in items:
+            print(f"- {render(item) if render else item}")
     else:
         print("- none")
 
-    penalties = result.get("penalty_reasons") or []
-    print("\nPenalty reasons:")
-    if penalties:
-        for reason in penalties:  # type: ignore[assignment]
-            print(f"- {reason}")
-    else:
-        print("- none")
 
-    hard = result.get("hard_disqualifiers") or []
-    print("\nHard disqualifiers:")
-    if hard:
-        for reason in hard:  # type: ignore[assignment]
-            print(f"- {reason}")
-    else:
-        print("- none")
-
-    sabotage = result.get("sabotage_signals") or []
-    print("\nSabotage signals:")
-    if sabotage:
-        for signal in sabotage:  # type: ignore[assignment]
-            print(f"- {signal.get('category')}: {signal.get('reason')} ({signal.get('weight')})")
-    else:
-        print("- none")
-
-    evidence_quality = result.get("evidence_quality_signals") or []
-    print("\nEvidence quality signals:")
-    if evidence_quality:
-        for signal in evidence_quality:  # type: ignore[assignment]
-            print(f"- {signal.get('category')}: {signal.get('reason')} ({signal.get('weight')})")
-    else:
-        print("- none")
-
-    malpractice = result.get("malpractice_signals") or []
-    print("\nMalpractice signals:")
-    if malpractice:
-        for signal in malpractice:  # type: ignore[assignment]
-            print(f"- {signal.get('category')}: {signal.get('reason')} ({signal.get('weight')})")
-    else:
-        print("- none")
+def _format_signal(signal: dict) -> str:
+    return f"{signal.get('category')}: {signal.get('reason')} ({signal.get('weight')})"
 
 
 def _as_str(value: Any) -> str | None:
     if isinstance(value, str):
         value = value.strip()
         return value or None
+    return None
+
+
+def _first_text(*values: Any) -> str | None:
+    for value in values:
+        if text := _as_str(value):
+            return text
     return None
 
 
@@ -347,80 +326,38 @@ def _load_local_dispatch_metadata(path: Path) -> dict[str, Any]:
     else:
         finish_reasons = [str(raw_finish_reasons)]
 
+    provider_sources = (selected_executor, route, local_envelope, artifact)
+    usable_content = local_response.get("usable_final_content")
+    status_code = local_response.get("status_code")
     return {
         "dispatch_id": _as_str(artifact.get("dispatch_id")),
         "bead_id": _as_str(artifact.get("bead_id")),
         "bead": _as_str(artifact.get("bead_id")),
         "share_boundary": _as_str(route.get("share_boundary")),
-        "executor": (
-            _as_str(selected_executor.get("key"))
-            or _as_str(selected_executor.get("executor_key"))
-            or _as_str(route.get("recommended_executor"))
-            or _as_str(route.get("executor"))
-            or _as_str(artifact.get("executor"))
-            or _as_str(artifact.get("executor_key"))
-        ),
-        "provider_key": (
-            _as_str(selected_executor.get("provider_key"))
-            or _as_str(route.get("provider_key"))
-            or _as_str(local_envelope.get("provider_key"))
-            or _as_str(artifact.get("provider_key"))
-        ),
-        "provider_trust_tier": (
-            _as_str(selected_executor.get("provider_trust_tier"))
-            or _as_str(route.get("provider_trust_tier"))
-            or _as_str(local_envelope.get("provider_trust_tier"))
-            or _as_str(artifact.get("provider_trust_tier"))
-        ),
-        "dispatch_mode": (
-            _as_str(route.get("dispatch_mode"))
-            or _as_str(artifact.get("dispatch_mode"))
-            or _as_str(selected_executor.get("dispatch_mode"))
-            or _as_str(local_envelope.get("dispatch_mode"))
-        ),
-        "job_description": (
-            primary_expert_label
-            or _as_str(selected_executor.get("job_description_label"))
-            or _as_str(route.get("job_description_label"))
-            or _as_str(route.get("job_description"))
-        ),
-        "local_profile": (
-            _as_str(selected_executor.get("local_profile"))
-            or _as_str(local_envelope.get("local_profile"))
-        ),
-        "model_profile": (
-            _as_str(selected_executor.get("model_profile"))
-            or _as_str(local_envelope.get("model_profile"))
-        ),
+        "executor": _first_text(selected_executor.get("key"), selected_executor.get("executor_key"),
+                                route.get("recommended_executor"), route.get("executor"),
+                                artifact.get("executor"), artifact.get("executor_key")),
+        "provider_key": _first_text(*(source.get("provider_key") for source in provider_sources)),
+        "provider_trust_tier": _first_text(*(source.get("provider_trust_tier") for source in provider_sources)),
+        "dispatch_mode": _first_text(*(source.get("dispatch_mode") for source in
+                                       (route, artifact, selected_executor, local_envelope))),
+        "job_description": _first_text(primary_expert_label, selected_executor.get("job_description_label"),
+                                       route.get("job_description_label"), route.get("job_description")),
+        "local_profile": _first_text(selected_executor.get("local_profile"), local_envelope.get("local_profile")),
+        "model_profile": _first_text(selected_executor.get("model_profile"), local_envelope.get("model_profile")),
         "expected_return_language": expected_return_language,
         "expected_return_language_source": expected_return_language_source,
-        "local_response_truncated": (
-            bool(local_response.get("response_truncated"))
-            if isinstance(local_response.get("response_truncated"), bool)
-            else False
-        ),
+        "local_response_truncated": local_response.get("response_truncated") is True,
         "local_finish_reasons": finish_reasons,
-        "local_reasoning_malformed": (
-            bool(local_response.get("reasoning_malformed"))
-            if isinstance(local_response.get("reasoning_malformed"), bool)
-            else False
-        ),
+        "local_reasoning_malformed": local_response.get("reasoning_malformed") is True,
         "local_completion_status": _as_str(local_response.get("completion_status")),
-        "local_usable_final_content": (
-            bool(local_response.get("usable_final_content"))
-            if isinstance(local_response.get("usable_final_content"), bool)
-            else None
-        ),
+        "local_usable_final_content": usable_content if isinstance(usable_content, bool) else None,
         "local_expected_response_contract": _as_str(local_envelope.get("response_contract")),
         "local_response_contract": _as_str(local_response.get("response_contract")),
         "local_response_contract_status": _as_str(local_response.get("response_contract_status")),
         "local_response_model_status": _as_str(local_response.get("response_model_status")),
         "local_model_preflight_status": _as_str(_as_dict(local_response.get("model_preflight")).get("status")),
-        "local_http_status": (
-            local_response.get("status_code")
-            if type(local_response.get("status_code")) is int
-            else None
-        ),
+        "local_http_status": status_code if type(status_code) is int else None,
         "local_v2_frame_valid": _local_v2_frame_valid(local_response),
         "local_v2_identity_consistent": v2_identity_consistent,
         "_local_normalized_return": local_response.get("normalized_return"),
@@ -535,23 +472,33 @@ def _record_host_evaluation(text: str, result: dict[str, Any], *, tracked: bool 
         raise SystemExit(str(failure)) from failure
 
 
+def _print_classifications(report: dict[str, Any]) -> None:
+    print(f"Evidence disposition: {report['evidence_disposition']}")
+    print(f"Delivery readiness: {report['delivery_readiness']['state']}")
+
+
 def _print_evaluation(args: argparse.Namespace, result: dict, record: str | None, return_bytes: bytes) -> None:
     if _is_private_browser_return(args):
+        output = result if args.json else evaluation_report(result)
         fields = ("dispatch_id", "bead_id", "verdict", "score", "peer_review_required", "peer_review_status",
                   "architect_review_required", "implementation_blocked", "execution_permitted")
-        summary = {key: result[key] for key in fields}
+        if not args.json:
+            fields += ("evidence_disposition", "delivery_readiness")
+        summary = {key: output[key] for key in fields}
         summary["return_sha256"] = hashlib.sha256(return_bytes).hexdigest()
         summary["evaluation_record_sha256"] = record
-        if args.json:
+        if args.json or args.report_json:
             print(json.dumps(summary, indent=2, sort_keys=True))
         else:
             print(f"Verdict: {summary['verdict']}")
             print(f"Score: {summary['score']}")
+            _print_classifications(summary)
             print(f"Peer review required: {summary['peer_review_required']}")
             print(f"Architect review required: {summary['architect_review_required']}")
             print(f"Host evaluation record: {record}")
-    elif args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.json or args.report_json:
+        output = evaluation_report(result) if args.report_json else result
+        print(json.dumps(output, indent=2, sort_keys=True))
     else:
         print_human(result)
 
@@ -671,7 +618,9 @@ def main() -> None:
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--audit-file", help="Audit JSONL path; defaults to ../.cwo-host-state/<package-name>/audit.jsonl (verified segments included).")
-    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", help="Print the existing evaluator JSON payload.")
+    output.add_argument("--report-json", action="store_true", help="Print JSON with evidence disposition and delivery readiness.")
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
     attempted = [

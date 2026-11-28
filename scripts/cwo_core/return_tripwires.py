@@ -38,7 +38,7 @@ from typing import Any, Iterator
 
 from .policy import load_policy
 from .return_language import normalize_security_text
-from .return_structure import STRUCTURAL_DESCRIPTIONS, scan_return_structure
+from .return_structure import STRUCTURAL_DESCRIPTIONS, StructuralScanner
 
 
 @dataclass(frozen=True)
@@ -84,6 +84,7 @@ class _Language:
     context_corrections: re.Pattern[str]
     commands: frozenset[str]
     structural_descriptions: dict[str, str]
+    structural: StructuralScanner
 
 
 def _verb_forms(verb: str) -> set[str]:
@@ -95,7 +96,7 @@ def _verb_forms(verb: str) -> set[str]:
     return forms
 
 
-def _language(data: dict[str, Any]) -> _Language:
+def _language(data: dict[str, Any], structural: dict[str, Any]) -> _Language:
     verbs = [str(verb) for verb in data["action_verbs"]]
     forms = set().union(*(_verb_forms(verb) for verb in verbs), (str(form) for form in data.get("extra_action_verb_forms", [])))
     alternatives = "|".join(re.escape(form) for form in sorted(forms, key=len, reverse=True))
@@ -107,12 +108,13 @@ def _language(data: dict[str, Any]) -> _Language:
         context_corrections=re.compile(str(data["context_corrections"])),
         commands=frozenset(str(word) for word in data.get("command_words", [])),
         structural_descriptions={**STRUCTURAL_DESCRIPTIONS, **data.get("structural_findings", {})},
+        structural=StructuralScanner(structural),
     )
 
 
 @lru_cache(maxsize=1)
 def _compiled_policy(serialized: str) -> tuple[dict[str, str], tuple[_Rule, ...], _Language]:
-    data = json.loads(serialized)
+    data, structural = json.loads(serialized)
     confusables = {str(key): str(value) for key, value in data.get("confusables", {}).items()}
 
     def pattern(item: dict[str, Any], key: str) -> re.Pattern[str]:
@@ -132,7 +134,7 @@ def _compiled_policy(serialized: str) -> tuple[dict[str, str], tuple[_Rule, ...]
         )
         for item in data["rules"]
     )
-    return confusables, rules, _language(data)
+    return confusables, rules, _language(data, structural)
 
 
 def _policy() -> tuple[dict[str, str], tuple[_Rule, ...], _Language]:
@@ -142,8 +144,8 @@ def _policy() -> tuple[dict[str, str], tuple[_Rule, ...], _Language]:
     also refreshes scanner behavior, and malformed replacements cannot reuse a
     previously successful compilation.
     """
-    data = load_policy("return-tripwires")
-    return _compiled_policy(json.dumps(data, sort_keys=True))
+    documents = (load_policy("return-tripwires"), load_policy("return-structure-rules"))
+    return _compiled_policy(json.dumps(documents, sort_keys=True))
 
 
 # Existing callers explicitly reset or inspect the derived cache.
@@ -351,7 +353,7 @@ def _structural_hits(text: str, offsets: list[int], language: _Language) -> list
         start=offsets[hit.start],
         end=offsets[hit.end - 1] + 1,
         clause_sha256=hashlib.sha256(" ".join(text[hit.start:hit.end].split()).encode("utf-8")).hexdigest(),
-    ) for hit in scan_return_structure(text)]
+    ) for hit in language.structural.scan_return_structure(text)]
 
 
 def scan_return_tripwires(text: str) -> list[TripwireHit]:

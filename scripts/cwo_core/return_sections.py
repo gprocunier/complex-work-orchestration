@@ -113,27 +113,14 @@ def canonical_return_section(label: str) -> str | None:
 
 
 def parse_return_header(line: str) -> tuple[str, str] | None:
-    match = re.match(r"^\s{0,3}#{1,6}\s+(.+?)(?:\s*:\s*(.*))?\s*$", line)
-    if match:
-        label = match.group(1).strip()
-        value = (match.group(2) or "").strip()
-        canonical = canonical_return_section(label)
-        if canonical:
-            return canonical, value
-
-    match = re.match(r"^\s*(?:[-*]\s+)?(?:\*\*|__)([^*_]+?)(?::)?(?:\*\*|__)\s*:?\s*(.*)$", line)
-    if match:
-        label = match.group(1).strip()
-        value = match.group(2).strip()
-        canonical = canonical_return_section(label)
-        if canonical:
-            return canonical, value
-
-    match = re.match(r"^\s*([A-Za-z][A-Za-z /-]+)\s*:\s*(.*)$", line)
-    if match:
-        canonical = canonical_return_section(match.group(1))
-        if canonical:
-            return canonical, match.group(2).strip()
+    for pattern in (
+        r"^\s{0,3}#{1,6}\s+(.+?)(?:\s*:\s*(.*))?\s*$",
+        r"^\s*(?:[-*]\s+)?(?:\*\*|__)([^*_]+?)(?::)?(?:\*\*|__)\s*:?\s*(.*)$",
+        r"^\s*([A-Za-z][A-Za-z /-]+)\s*:\s*(.*)$",
+    ):
+        match = re.match(pattern, line)
+        if match and (canonical := canonical_return_section(match[1])):
+            return canonical, (match[2] or "").strip()
     return None
 
 
@@ -143,16 +130,10 @@ def parse_return_sections(text: str) -> dict[str, str]:
     buffer: list[str] = []
     in_fence = False
     for line in text.splitlines():
-        if re.match(r"^\s*(```|~~~)", line):
-            if current:
-                buffer.append(line)
+        fence = re.match(r"^\s*(```|~~~)", line)
+        if fence:
             in_fence = not in_fence
-            continue
-        if in_fence:
-            if current:
-                buffer.append(line)
-            continue
-        parsed = parse_return_header(line)
+        parsed = None if fence or in_fence else parse_return_header(line)
         if parsed:
             if current:
                 sections[current] = "\n".join(buffer).strip()

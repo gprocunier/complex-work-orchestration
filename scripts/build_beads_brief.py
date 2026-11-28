@@ -9,6 +9,7 @@ from typing import Any
 from cwo_core.beads import show_bead_args, show_bead_json
 from cwo_core.paths import assert_safe_output_path
 from cwo_core.packets import fenced_block, redact_value
+from cwo_core.review_inputs import managed_review_profile, require_review_inputs
 from cwo_core.routing import COMMENT_BEARING_BEADS_CONTEXT_DEPTHS, normalize_beads_context_depth
 from cwo_core.util import atomic_write_text
 
@@ -91,6 +92,22 @@ def issue_summary(bead: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def assignment_for_audience(bead: dict[str, Any], audience: str) -> dict[str, Any]:
+    summary = issue_summary(bead)
+    if audience == "main-thread":
+        return summary
+    profile = managed_review_profile(bead)
+    if not profile:
+        return summary
+    if audience == "contractor":
+        raise SystemExit("managed contractor reviews require a redacted contractor packet")
+    evidence = require_review_inputs(profile["required_inputs"], redact_value(bead.get("description")),
+                                     redact_value(bead.get("acceptance_criteria")))
+    rows = [f"Review input [{name}]: {value}" for name, value in evidence.items()]
+    summary["description"] += "\n\n" + "\n".join([f"Expert profile: {profile['persona_file']}", *rows])
+    return summary
+
+
 def related_issue_entries(bead: dict[str, Any], depth: str, limit: int) -> list[dict[str, Any]]:
     if depth not in {"heavy", "audit"}:
         return []
@@ -146,7 +163,7 @@ def build_brief(
                 include_dependents=include_dependents,
             )
         )
-        entries.append(issue_summary(bead))
+        entries.append(assignment_for_audience(bead, audience))
         entries.extend(related_issue_entries(bead, normalized_depth, max_related))
         if include_comments:
             entries.extend(comment_entries(bead, max_comments))

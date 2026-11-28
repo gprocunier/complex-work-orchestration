@@ -62,8 +62,14 @@ class LocalWorkload:
         _require(len(matches) == 1, 'workload must select one declared route node')
         return route, matches[0]
 
-    def task(self):
-        _, node = self.route_node()
+    def task(self, node=None, *, advisory=None):
+        if node is None:
+            _, node = self.route_node()
+        if advisory is not None:
+            text = self.screening_text(node)
+            _require(return_advisory.source_digest(text) == advisory['target']['return_sha256'],
+                     'original workload text differs from the received return')
+            return return_advisory.render_task(text)
         _require(type(node.get('prompt')) is str, 'workload prompt must be text')
         sections = [node['prompt']]
         for label in ('wrappers', 'attachments', 'sources'):
@@ -72,21 +78,12 @@ class LocalWorkload:
             sections.extend(_render_entry(label, entry) for entry in entries)
         return redact_text('\n\n'.join(sections), require_policy_patterns=True)
 
-    def screening_text(self):
-        _, node = self.route_node()
+    @staticmethod
+    def screening_text(node):
         _require(all(node.get(label) == [] for label in ('wrappers', 'attachments', 'sources')),
                  'return screening permits only the original return text')
         _require(type(node.get('prompt')) is str, 'return screening requires a UTF-8 return')
         return node['prompt']
-
-    def task_for_envelope(self, envelope):
-        advisory = envelope.get(return_advisory.BINDING_KEY)
-        if advisory is None:
-            return self.task()
-        text = self.screening_text()
-        _require(return_advisory.source_digest(text) == advisory['target']['return_sha256'],
-                 'original workload text differs from the received return')
-        return return_advisory.render_task(text)
 
 
 def _render_entry(label, entry):
@@ -101,7 +98,8 @@ def _check_execution(workload, envelope, post, prepared):
     options = envelope['request_options']
     _require(envelope['bead_id'] == route['parent_id'] and envelope['epic_id'] == route['aggregate_id'],
              'original workload parent or aggregate differs from dispatch')
-    _require(envelope['messages'][-1]['content'].partition('\n\nTask:\n')[2] == workload.task_for_envelope(envelope),
+    rendered = envelope['messages'][-1]['content'].partition('\n\nTask:\n')[2]
+    _require(rendered == workload.task(node, advisory=envelope.get(return_advisory.BINDING_KEY)),
              'rendered dispatch differs from the original redacted workload request')
     _require((execution['executor'], execution['provider'], execution['model'], execution['options']) ==
              (envelope['executor_key'], envelope['provider_key'], envelope['model'], options),

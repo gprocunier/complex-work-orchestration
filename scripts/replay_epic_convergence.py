@@ -5,7 +5,6 @@ from __future__ import annotations
 import argparse
 import json
 import re
-import sys
 from pathlib import Path
 from typing import Any
 
@@ -196,7 +195,24 @@ def _coerce_non_negative_float(value: float, minimum: float, *, name: str) -> fl
     return float(value)
 
 
-def _validate_and_project_records(inputs: list[str]) -> tuple[list[dict[str, Any]], dict[str, int]]:
+def _validate_unsealed_record(
+    source: dict[str, Any], projection: dict[str, Any], usage: dict[str, Any],
+) -> None:
+    candidate = {field: source.get(field) for field in ec.RECORD_FIELDS}
+    candidate.update(
+        record_type=source.get("record_type", ec.RECORD_TYPE),
+        version=source.get("version", ec.RECORD_VERSION),
+        call_category=projection["call_category"],
+        artifact_disposition=projection["artifact_disposition"],
+        graph_counters=projection["graph_counters"],
+        usage=usage,
+    )
+    if "delivery_accounting" in source:
+        candidate["delivery_accounting"] = source["delivery_accounting"]
+    ec.build_record(candidate)
+
+
+def _validate_and_project_records(inputs: list[str]) -> tuple[list[dict[str, Any]], dict[str, Any]]:
     records: list[dict[str, Any]] = []
     null_counts = {
         "usage": {field: 0 for field in ec.USAGE_FIELDS},
@@ -207,12 +223,11 @@ def _validate_and_project_records(inputs: list[str]) -> tuple[list[dict[str, Any
         "tool_calls": 0,
     }
     for path in inputs:
-        for index, source_record in enumerate(_parse_json_or_jsonl(path), 1):
-            if not isinstance(source_record, dict):
-                raise TypeError(f"{path}:{index} is not an object")
+        for source_record in _parse_json_or_jsonl(path):
+            sealed = source_record.get("record_sha256") is not None
+            if sealed:
+                ec.validate_record(source_record)
             category = _classify_category(source_record)
-            if category is None:
-                null_counts["call_category"] += 1
             usage = _normalize_nested(source_record, "usage", ec.USAGE_FIELDS)
             graph_counters = _normalize_nested(
                 source_record,
@@ -234,43 +249,58 @@ def _validate_and_project_records(inputs: list[str]) -> tuple[list[dict[str, Any
                 if graph_counters.get(field) is None:
                     null_counts["graph_counters"][field] += 1
 
-            candidate = {
-                "record_type": source_record.get("record_type", ec.RECORD_TYPE),
-                "version": source_record.get("version", ec.RECORD_VERSION),
-                "epic_id": source_record.get("epic_id"),
-                "work_unit_id": source_record.get("work_unit_id"),
-                "bead_id": source_record.get("bead_id"),
-                "packet_id": source_record.get("packet_id"),
-                "session_id": source_record.get("session_id"),
-                "model": source_record.get("model"),
-                "phase": source_record.get("phase"),
-                "event": source_record.get("event"),
+            projection = {
                 "call_category": category,
-                "usage": usage,
+                "tool_calls": call_count,
                 "artifact_disposition": _resolve_disposition(source_record),
                 "graph_counters": graph_counters,
-                "timestamp": source_record.get("timestamp"),
-                "previous_record_sha256": source_record.get(
-                    "previous_record_sha256",
-                    None,
-                ),
-                "record_sha256": source_record.get("record_sha256"),
+                "delivery_accounting": source_record.get("delivery_accounting"),
+                "_protected_stop": _is_protected_stop(source_record),
             }
-            if candidate["artifact_disposition"] is None:
+            if projection["artifact_disposition"] is None:
                 null_counts["artifact_disposition"] += 1
-            if candidate["session_id"] is None:
+            if source_record.get("session_id") is None:
                 null_counts["session_id"] += 1
-
-            if source_record.get("record_sha256") is None:
-                validated = ec.build_record(candidate)
-            else:
-                validated = ec.validate_record(candidate)
-            validated["tool_calls"] = call_count
-            validated["tool_calls_source"] = call_source
-            validated["_session_id"] = source_record.get("session_id")
-            validated["_protected_stop"] = _is_protected_stop(source_record)
-            records.append(validated)
+            if not sealed:
+                _validate_unsealed_record(source_record, projection, usage)
+            records.append(projection)
     return records, null_counts
+
+
+def _delivery_accounting_summary(records: list[dict[str, Any]]) -> dict[str, Any]:
+    counts = dict.fromkeys(ec.DELIVERY_CLASSIFICATIONS, 0)
+    corrective_passes: set[str] = set()
+    outcomes: dict[str, set[str]] = {}
+    for record in records:
+        accounting = record["delivery_accounting"] or {}
+        counts[accounting.get("classification", "unknown")] += 1
+        if "corrective_pass_id" in accounting:
+            corrective_passes.add(accounting["corrective_pass_id"])
+        if "original_ref" in accounting:
+            attempts = outcomes.setdefault(accounting["original_ref"], set())
+            if "first_acceptance_outcome" in accounting:
+                attempts.add(accounting["first_acceptance_outcome"])
+
+    missing = sum(not observed for observed in outcomes.values())
+    conflicting = sum(len(observed) > 1 for observed in outcomes.values())
+    accepted = sum(observed == {"accepted"} for observed in outcomes.values())
+    known_deliveries = len(outcomes)
+    observed_attempts = known_deliveries - missing - conflicting
+    rate = None
+    if known_deliveries and observed_attempts == known_deliveries:
+        rate = 100.0 * accepted / known_deliveries
+    return {
+        "record_counts": counts,
+        "corrective_passes": len(corrective_passes),
+        "first_pass": {
+            "known_deliveries": known_deliveries,
+            "observed_attempts": observed_attempts,
+            "first_attempt_acceptances": accepted,
+            "missing_attempts": missing,
+            "conflicting_attempts": conflicting,
+            "rate_percent": rate,
+        },
+    }
 
 
 def _compute_summary(records: list[dict[str, Any]], null_counts: dict[str, Any]) -> dict[str, Any]:
@@ -327,6 +357,7 @@ def _compute_summary(records: list[dict[str, Any]], null_counts: dict[str, Any])
 
     return {
         "record_count": len(records),
+        "delivery_accounting": _delivery_accounting_summary(records),
         "categories": {
             "record_counts": records_by_category,
             "call_totals": calls_by_category,

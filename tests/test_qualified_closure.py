@@ -123,6 +123,7 @@ class QualifiedClosureTests(unittest.TestCase):
                 case = self.compact()
                 with self.registered(case) as (host, effects, directory):
                     self.reviewed(case, host, directory)
+                    self.assertEqual(host.report["delivery_readiness"]["state"], "ready")
                     if target == "task":
                         effects.bead["id"] = "EXAMPLE-other-task"
                     elif target == "contract":
@@ -135,6 +136,7 @@ class QualifiedClosureTests(unittest.TestCase):
                         (directory / "review.json").unlink()
                     with self.assertRaises((original.ClosureError, FileNotFoundError, AssertionError)):
                         closure.execute_qualified_completed(host)
+                    self.assertEqual(host.report["delivery_readiness"]["state"], "blocked")
                     self.assertEqual(effects.effects, [])
 
     def test_failed_results_and_open_blocker_cannot_issue_qualified_completion(self):
@@ -148,6 +150,10 @@ class QualifiedClosureTests(unittest.TestCase):
                     with self.assertRaises(original.ClosureError):
                         closure.execute_qualified_completed(host)
                     self.assertEqual(effects.effects, [])
+                    readiness = host.report["delivery_readiness"]
+                    expected = {"failed": "failed", "refused": "unrun", "blocker": "passed"}[variant]
+                    self.assertEqual(readiness["checks"][0]["status"], expected)
+                    self.assertEqual(readiness["state"], "blocked")
 
     def test_detected_read_refusal_is_not_erased_by_recovery(self):
         case = self.compact()
@@ -387,7 +393,15 @@ class QualifiedClosureTests(unittest.TestCase):
         with self.registered(case) as (host, effects, directory):
             observation = self.reviewed(case, host, directory)
             self.assertEqual(observation.production_mode, "validator-only")
-            self.assertTrue(closure.execute_qualified_completed(host)["fake_completed"])
+            report = closure.execute_qualified_completed(host)
+            self.assertTrue(report["fake_completed"])
+            readiness = report["delivery_readiness"]
+            self.assertEqual(readiness["state"], "ready")
+            self.assertEqual(readiness["observation_sha256"], original.observation_digest(observation))
+            checks = {check["criterion_id"]: check for check in readiness["checks"]}
+            self.assertEqual(checks["EXAMPLE-validator"]["status"], "passed")
+            self.assertEqual(checks[row["id"]]["status"], "not-applicable")
+            self.assertEqual(checks[row["id"]]["reason"], row["not_applicable_reason"])
             self.assertEqual(len(effects.effects), 2)
 
     def test_final_review_cannot_replay_into_another_registration_database(self):

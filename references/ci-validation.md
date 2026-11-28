@@ -13,6 +13,7 @@ each Python version. CWO's installed Python runtime uses the standard library.
 
 Run the unit shards under each interpreter. For one shard at a time, use the
 command below, changing the index from `0` through `3`.
+Each isolated test worker can import `cwo_core` directly from the checkout.
 
 ```bash
 python scripts/run_parallel_unittest.py --workers 4 --verbose --shard-index 0 --shard-count 4

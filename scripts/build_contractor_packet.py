@@ -40,6 +40,14 @@ from cwo_core.errors import CWOPolicyError
 from cwo_core.outbound_approval import require_outbound_approval, require_outbound_project
 from cwo_core.outbound_screen import require_clean, screen_outbound
 from cwo_core.packet_provenance import rehearsal_result
+from cwo_core.review_inputs import (
+    discover_review_issue,
+    managed_review_profile,
+    packet_review_evidence,
+    remove_assignment_profile_reference,
+    require_review_inputs,
+    review_persona_matches,
+)
 from cwo_core.packets import (
     fenced_block,
     file_snippet,
@@ -198,6 +206,24 @@ def inline_snippet(snippet: str, *, index: int, max_lines: int, path: str | None
     }
 
 
+def _assigned_review_profile(profile: dict[str, Any] | None, bead: Any, job_label: str) -> dict[str, Any]:
+    source_profile = managed_review_profile(bead, job_label=job_label)
+    return profile or source_profile
+
+
+def _review_input_contract(
+    profile: dict[str, Any], included_profile: dict[str, Any], summary: dict[str, Any], snippets: list[dict[str, Any]],
+) -> dict[str, Any]:
+    required = profile.get("required_inputs", [])
+    if not required:
+        return {}
+    if included_profile and not review_persona_matches(included_profile, profile):
+        raise SystemExit("packet included expert profile does not match the assigned job")
+    require_review_inputs(required, *packet_review_evidence(summary, snippets))
+    remove_assignment_profile_reference(summary)
+    return {"required_inputs": required}
+
+
 def build_packet(
     *,
     bead_id: str,
@@ -223,6 +249,7 @@ def build_packet(
     nonproduction: bool = False,
     candidate_record: Any = None,
     candidate_root: Path | None = None,
+    assigned_review: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     boundary = boundary_config(share_boundary)
     registered_executor = load_policy("executor-registry").get("executors", {}).get(executor, {})
@@ -277,6 +304,9 @@ def build_packet(
             )
         )
 
+    review_profile = _assigned_review_profile(assigned_review, bead_json, job_description_label)
+    input_contract = _review_input_contract(review_profile, expert_profile, bead_summary, selected_snippets)
+
     included = [
         {"type": "assignment_summary", "sha256": artifact_hash(json.dumps(bead_summary, sort_keys=True))},
         *[{key: item[key] for key in ["type", "path", "line_count", "truncated", "sha256"]} for item in selected_snippets],
@@ -323,6 +353,7 @@ def build_packet(
             "Packet-reported claims",
         ],
     }
+    review_surface_contract.update(input_contract)
     required_return_sections = list(load_policy("acceptance-policy").get("contractor_return_required_sections", []))
     for section in review_surface_contract["required_disclosures"]:
         if section not in required_return_sections:
@@ -401,6 +432,12 @@ def _packet_assignment(args):
     if args.bead_json_file:
         return json.loads(Path(args.bead_json_file).read_text(encoding="utf-8")), project
     return show_bead_json(args.bead, directory=project), project
+
+
+def _live_packet_review(args, project, job_label):
+    if not args.bead_json_file or args.rehearsal:
+        return None
+    return managed_review_profile(discover_review_issue(args.bead, directory=project), job_label=job_label)
 
 
 def _packet_opt_in(args, bead_json, epic_id, job_label, executor_info, project):
@@ -608,6 +645,7 @@ def main() -> None:
         requested_executor=requested_executor,
         expected_return_language=args.expected_return_language,
         nonproduction=args.rehearsal,
+        assigned_review=_live_packet_review(args, project, job_label),
         **candidate_context(args),
     )
     packet_errors = validate_contractor_packet(

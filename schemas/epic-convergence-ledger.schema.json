@@ -74,6 +74,30 @@
       ]
     },
     "artifact_disposition": {"type": ["string", "null"]},
+    "delivery_accounting": {
+      "type": "object",
+      "required": ["classification"],
+      "properties": {
+        "classification": {"enum": ["initial-delivery", "correction", "mixed", "unknown"]},
+        "original_ref": {"type": "string", "pattern": "\\S"},
+        "discovery_source": {"type": "string", "pattern": "\\S"},
+        "corrective_pass_id": {"type": "string", "pattern": "\\S"},
+        "first_acceptance_outcome": {"enum": ["accepted", "not-accepted"]}
+      },
+      "dependentRequired": {"first_acceptance_outcome": ["original_ref"]},
+      "allOf": [
+        {
+          "if": {"properties": {"classification": {"enum": ["initial-delivery", "correction", "mixed"]}}},
+          "then": {"required": ["original_ref"]}
+        },
+        {
+          "if": {"properties": {"classification": {"enum": ["correction", "mixed"]}}},
+          "then": {"required": ["corrective_pass_id", "discovery_source"]},
+          "else": {"not": {"required": ["corrective_pass_id"]}}
+        }
+      ],
+      "additionalProperties": false
+    },
     "graph_counters": {
       "oneOf": [
         {"type": "null"},

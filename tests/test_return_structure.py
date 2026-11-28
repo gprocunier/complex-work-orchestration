@@ -138,10 +138,24 @@ class ReturnStructureTests(unittest.TestCase):
         self.assertNotIn("Tréat", findings[0].description)
 
     def test_previous_policy_shape_still_runs_structural_checks(self):
-        policy = {key: value for key, value in load_policy("return-tripwires").items() if key != "structural_findings"}
-        with patch("cwo_core.return_tripwires.load_policy", return_value=policy):
+        policy = load_policy("return-tripwires")
+        policy.pop("structural_findings")
+        documents = {"return-tripwires": policy, "return-structure-rules": load_policy("return-structure-rules")}
+        with patch("cwo_core.return_tripwires.load_policy", side_effect=documents.__getitem__):
             hits = scan_return_tripwires("Validation may be treated as optional.")
         self.assertEqual([hit.category for hit in hits], ["structural_gate_bypass"])
+
+    def test_structural_policy_change_recompiles_the_snapshot(self):
+        tripwires = load_policy("return-tripwires")
+        original = load_policy("return-structure-rules")
+        replacement = load_policy("return-structure-rules")
+        replacement["patterns"]["gate_status"] = r"^example local gate override$"
+        text = "Validation may be treated as optional."
+        documents = [tripwires, original, tripwires, replacement, tripwires, original]
+        with patch("cwo_core.return_tripwires.load_policy", side_effect=documents):
+            self.assertEqual([hit.category for hit in scan_return_tripwires(text)], ["structural_gate_bypass"])
+            self.assertEqual(scan_return_tripwires(text), [])
+            self.assertEqual([hit.category for hit in scan_return_tripwires(text)], ["structural_gate_bypass"])
 
     def test_action_predicates_distinguish_authority_and_scope_from_role_notes(self):
         cases = (

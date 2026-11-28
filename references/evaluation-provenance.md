@@ -53,6 +53,21 @@ Existing rejection/quarantine and restricted synthesis-use states are preserved.
 A prior no-hold classification becomes nonproduction-advisory; its reason is not
 clearable by cooperative adjudication. This does not qualify a producer.
 
+## Evidence and delivery
+
+The human evaluator report and `evaluate_return.py --report-json` show evidence
+disposition and delivery readiness. Return prose can support evidence acceptance.
+Readiness stays `unknown` when the evaluator has no issued observation against an
+independent requirement baseline and candidate. Use `--json` for the existing
+hash-bound evaluator payload in file-based peer-review and synthesis handoffs.
+
+The [qualified completion report](run-readiness.md) uses its original observation
+to report each criterion as `passed`, `failed`, `unrun`, or `not-applicable`. A
+not-applicable criterion carries its reason from the requirement baseline. A
+useful return can remain accepted as evidence while failed or unrun required
+checks block completion. The completion consumer still rechecks the exact
+observation against the final review and its existing acceptance gates.
+
 ## Retired three-arm study
 
 The three-arm study for the retired Candidate E prompt never ran and produced

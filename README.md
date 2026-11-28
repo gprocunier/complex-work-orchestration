@@ -22,9 +22,11 @@ responses and tool requests as untrusted.
   dependencies and accepted decisions, so a fresh session can continue after
   compaction or a restart. It is a saved record, not perfect recall.
 - **Prepares focused review requests and checks the returns.** CWO builds and
-  validates request packets for approved cloud or local reviewers. For local
-  models, CWO can send the screened request to a configured vLLM endpoint after
-  workload admission and evaluate the captured reply. [Local model dispatch](references/local-inference.md#dispatch)
+  validates request packets for approved cloud or local reviewers. Managed
+  expert reviews carry the registry's required inputs and stop if essential
+  context is missing. For local models, CWO can send the screened request to a
+  configured vLLM endpoint after workload admission and evaluate the reply.
+  [Local model dispatch](references/local-inference.md#dispatch)
   · [Desktop workflow for ChatGPT Pro](references/chatgpt-pro-browser.md).
 - **Connects registered single-worker dispatch to hand review.** The installed
   launcher uses Codex's foreground approval for an exact registered assignment.
@@ -36,6 +38,8 @@ responses and tool requests as untrusted.
   `pending-acceptance` delivery. A reviewer working by hand can accept and close
   it in one command using the exact candidate digest they reviewed. Closure
   requires the current requirement baseline and no open blockers or children.
+  The evaluator can accept a failure report as evidence. Delivery readiness
+  depends on checked obligations from the current baseline.
   [Accept a delivery by hand](references/run-readiness.md#accepting-a-delivery-by-hand)
   or see the [verified closure library](references/run-readiness.md#verified-closure-library)
   for embedding hosts.
@@ -224,6 +228,10 @@ compaction trial.
 [What to save and how to recover](https://gprocunier.github.io/complex-work-orchestration/beads-memory.html#compaction).
 Local records are not remote backup; shared recovery needs separately configured
 and verified synchronization.
+
+Convergence reports count corrective passes separately from productive calls
+and accepted artifacts. First-pass rates use recorded first acceptance
+attempts. [Convergence replay](references/run-readiness.md#projection-rules)
 
 ## Match coordination to the task
 

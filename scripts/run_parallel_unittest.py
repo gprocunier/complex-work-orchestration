@@ -248,7 +248,8 @@ def _write_discovery(paths: list[str], output: str) -> int:
 
 def _worker_environment(start_directory: Path, temp_root: Path) -> dict[str, str]:
     environment = os.environ.copy()
-    python_path = [str(start_directory)]
+    # Both discovery and execution can import the package before any test modifies sys.path.
+    python_path = [str(start_directory), str(Path(__file__).resolve().parent)]
     if environment.get("PYTHONPATH"):
         python_path.append(environment["PYTHONPATH"])
     environment.update({
