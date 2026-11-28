@@ -33,14 +33,14 @@ from generate_manual_dispatch_prompt import (
 from routing_cli_options import (
     DISCLOSURE_ESCALATION_HELP, add_local_route_arguments, add_route_boundary_arguments, route_decision_options,
 )
-from cwo_core.routing import current_authority_file_arguments
 
+from cwo_core import return_advisory
 from cwo_core.codex_critic_capture import prepare_codex_critic_request
 from cwo_core.dispatch_workload import WorkloadRefused, read_export_workload
 from cwo_core.errors import CWOError, CWOPolicyError
 from cwo_core.adjudication import dispatch_provenance
 import local_http_admission
-from cwo_core.host_records import configured_store
+from cwo_core.host_records import HostRecordError, configured_store
 from cwo_core.invocation_ledger import InvocationTimeout
 from cwo_core.prepared_outbound import PreparedSource
 from cwo_core.private_artifact import PrivateArtifactError, read_private_artifact
@@ -48,7 +48,12 @@ from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, r
 from cwo_core.reasoning_effort import effort_arguments, failed_default_delivery
 from cwo_core.review_inputs import discover_review_issue, managed_review_profile, require_review_inputs
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
-from cwo_core.routing import classify_work
+from cwo_core.routing import (
+    classify_work,
+    current_authority_file_arguments,
+    executor_policy_violations,
+    resolve_data_sensitivity,
+)
 from cwo_core.audit import (
     enforce_contracting_quota,
     record_audit_event,
@@ -60,7 +65,7 @@ from cwo_core.access_profiles import (
     access_profile_runtime_status,
     sanitized_access_profile,
 )
-from cwo_core.policy import GEMINI_CRITIC_EXECUTOR, executor_config
+from cwo_core.policy import GEMINI_CRITIC_EXECUTOR, executor_config, load_policy
 from cwo_core.return_language import analyze_return_language, default_expected_return_language
 from cwo_core.util import (
     artifact_hash,
@@ -1741,6 +1746,23 @@ def _require_original_local_configuration(envelope, args, prepared):
     parsed = urlparse(configured)
     if parsed.query or parsed.fragment:
         raise SystemExit('local HTTP workload admission endpoint cannot contain a query or fragment')
+    _require_return_screening_configuration(envelope, parsed)
+
+
+def _require_return_screening_configuration(envelope, parsed):
+    advisory = envelope.get(return_advisory.BINDING_KEY)
+    if advisory is None:
+        return
+    if (envelope['executor_key'] != return_advisory.EXECUTOR
+            or envelope['share_boundary'] != 'no-outside-sharing'):
+        raise SystemExit('return screening requires the configured local vLLM worker with no outside sharing')
+    if parsed.scheme == 'https' and envelope['tls_verify'] is not True:
+        raise SystemExit('return screening requires TLS verification for HTTPS')
+    target = advisory['target']
+    current = return_advisory.require_target(configured_store(), target['dispatch_id'], target['return_sha256'])
+    if (advisory != return_advisory.binding(current, envelope['model'])
+            or envelope['messages'][0]['content'] != return_advisory.SYSTEM_PROMPT):
+        raise SystemExit('return screening differs from the received return or classifier contract')
 
 
 def _resolve_local_http_target(base_url, transport, deadline):
@@ -1756,13 +1778,23 @@ def _build_admitted_local_opener(base_url, transport, args, pinned_address, dead
     return _build_local_opener(base_url, transport, args, pinned_address, deadline=deadline)
 
 
-def _evaluate_admitted_local_result(workload, gate, envelope, result):
-    if workload is None or result['usable_final_content'] is not True:
+def _observe_admitted_local_result(workload, gate, envelope, result):
+    screening = return_advisory.BINDING_KEY in envelope
+    if not screening and (workload is None or result['usable_final_content'] is not True):
         return
-    from evaluate_return import evaluate_captured_local_return
-
     gate.require_workload()
     gate.require_source_unchanged()
+    if screening:
+        codes = _return_screening_codes(envelope, result)
+        # Make the observation durable before the invocation can complete.
+        outcome = return_advisory.record_observation(configured_store(), envelope['dispatch_id'],
+            result['request_payload_sha256'], envelope[return_advisory.BINDING_KEY], result['raw_response_sha256'], codes)
+        result.clear()
+        result.update(return_advisory=outcome, usable_final_content=codes is not None)
+        return
+
+    from evaluate_return import evaluate_captured_local_return
+
     normalized = result['normalized_return'] or result['final_content']
     evaluation = evaluate_captured_local_return(normalized, envelope, result)
     result.update(normalized_return=normalized, normalized_return_sha256=evaluation['return_sha256'],
@@ -1772,6 +1804,16 @@ def _evaluate_admitted_local_result(workload, gate, envelope, result):
         result.update(normalized_return=None, final_content='', usable_final_content=False,
                       final_content_sha256=artifact_hash(''), final_content_chars=0,
                       completion_status='content-unsafe', content_security_status='rejected')
+
+
+def _return_screening_codes(envelope, result):
+    if result['usable_final_content'] is not True:
+        return None
+    response = result['response']
+    choices = response['choices']
+    if len(choices) != 1 or response.get('model') != envelope['model'] or choices[0].get('finish_reason') != 'stop':
+        return None
+    return return_advisory.parse_reply(result['final_content'])
 
 
 def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str, Any], args: argparse.Namespace,
@@ -1947,7 +1989,7 @@ def execute_local_envelope(envelope: dict[str, Any], selected_executor: dict[str
                     "normalized_return": normalized_return,
                     **response_metadata,
                 }
-                _evaluate_admitted_local_result(workload, gate, envelope, result)
+                _observe_admitted_local_result(workload, gate, envelope, result)
                 gate.observe_workload_result(result)
                 return _local_review_result(result, qualified_review)
         except HTTPError as exc:
@@ -2253,6 +2295,7 @@ def record_local_execution(envelope: dict[str, Any], selected: dict[str, Any], r
         requirements = evaluation_requirements(qualified_review, envelope)
     metadata = {'dispatch_mode': selected['dispatch_mode'], 'share_boundary': envelope.get('share_boundary'),
                 'job_description_label': envelope.get('job_description_label'), **requirements,
+                **_return_screening_metadata(envelope),
                 **_local_admission_metadata(store, dispatch_id, workload, admission)}
     if store.find('dispatch', dispatch_id=dispatch_id):
         existing = store.require_dispatch(dispatch_id)
@@ -2270,6 +2313,11 @@ def record_local_execution(envelope: dict[str, Any], selected: dict[str, Any], r
         executor=envelope['executor_key'], provider_key=selected.get('provider_key'),
         evaluation_metadata=metadata,
     )
+
+
+def _return_screening_metadata(envelope):
+    key = return_advisory.BINDING_KEY
+    return {key: envelope[key]} if key in envelope else {}
 
 
 def codex_dispatch_reasoning(route: dict[str, Any]) -> dict[str, str] | None:
@@ -2384,7 +2432,7 @@ def _local_workload_task(args, workload, files):
     args.bead = args.bead or route.get('parent_id')
     args.epic = args.epic or route.get('aggregate_id')
     args.dispatch_id = args.dispatch_id or node['id']
-    return [workload.task()]
+    return [workload.task(node)]
 
 
 def require_local_review_inputs(task: str, route: dict[str, Any], bead_id: str | None) -> None:
@@ -2408,14 +2456,70 @@ def _stage_requested_local_admission(args, workload, task, route, dispatch_id, f
         raise SystemExit('--prepare-local-admission requires a local worker route')
     envelope = build_local_envelope(task=task, route=route, dispatch_id=dispatch_id,
                                     bead_id=args.bead, epic_id=args.epic, args=args)
+    _stage_local_envelope(args, workload, envelope, selected, files)
+
+
+def _stage_local_envelope(args, workload, envelope, selected, files):
     wire = _prepare_local_http(envelope, selected, args, None, files)
     _require_original_local_configuration(envelope, args, wire)
     binding = local_http_admission.stage(workload, envelope, wire.request, wire.preflight)
     wire.capture.require_unchanged(wire.source)
     record = record_local_execution(envelope, selected, wire.request_payload_sha256, admission=binding)
-    print(json.dumps({'dispatch_id': dispatch_id, 'admission_sha256': binding['binding_sha256'],
+    print(json.dumps({'dispatch_id': envelope['dispatch_id'], 'admission_sha256': binding['binding_sha256'],
                       'host_record_sha256': record}, sort_keys=True))
     raise SystemExit(0)
+
+
+def _screen_return_workload(args, workload, files):
+    if args.screen_return is None:
+        return
+    if (workload is None or args.rehearsal or args.external_ok or args.allow_disclosure_escalation
+            or args.allow_offline_access_profile):
+        raise SystemExit('--screen-return requires --local-ok and an audited local workload')
+    if args.local_profile not in {None, 'openshift-ai-vllm'}:
+        raise SystemExit('return screening uses the openshift-ai-vllm local profile')
+    try:
+        _run_return_screening(args, workload, files)
+    except HostRecordError as exc:
+        raise SystemExit(str(exc)) from exc
+
+
+def _require_return_screening_eligibility(route, text, args):
+    sensitivity = resolve_data_sensitivity(text, load_policy('routing-policy'),
+                                           data_sensitivity=args.data_sensitivity)['data_sensitivity']
+    violations = executor_policy_violations(
+        route['selected_executor'], task_class=route['task_class'], risk=route['risk_level'],
+        share_boundary=route['share_boundary'], sensitivity=sensitivity, external_ok=False,
+        local_ok=args.local_ok, local_profile=args.local_profile,
+    )
+    if violations:
+        raise SystemExit('return screening policy refused: ' + '. '.join(violations))
+
+
+def _run_return_screening(args, workload, files):
+    store = configured_store()
+    original, node = workload.route_node()
+    text = workload.screening_text(node)
+    target = return_advisory.require_target(store, args.screen_return, return_advisory.source_digest(text))
+    dispatch_id = args.dispatch_id or node['id']
+    if dispatch_id == args.screen_return:
+        raise SystemExit('return screening requires a separate classifier dispatch')
+    selected = executor_config(return_advisory.EXECUTOR)
+    route = {'selected_executor': selected, 'recommended_executor': return_advisory.EXECUTOR,
+             'share_boundary': args.share_boundary, 'task_class': 'classification', 'risk_level': 'low'}
+    _require_return_screening_eligibility(route, text, args)
+    envelope = build_local_envelope(task=return_advisory.render_task(text), route=route, dispatch_id=dispatch_id,
+                                    bead_id=args.bead or original['parent_id'],
+                                    epic_id=args.epic or original['aggregate_id'], args=args)
+    envelope[return_advisory.BINDING_KEY] = return_advisory.binding(target, envelope['model'])
+    envelope['messages'][0]['content'] = return_advisory.SYSTEM_PROMPT
+    envelope['messages_sha256'] = _canonical_json_hash(envelope['messages'])
+    if args.prepare_local_admission:
+        require_access_profile_online_for_execution(envelope, args)
+        _stage_local_envelope(args, workload, envelope, selected, files)
+    response = execute_local_envelope(envelope, selected, args, workload=workload, source_files=tuple(files))
+    print(json.dumps(response['return_advisory'], sort_keys=True))
+    raise SystemExit(0 if response['usable_final_content'] else LOCAL_UNUSABLE_RESPONSE_EXIT_CODE)
 
 
 def main() -> None:
@@ -2487,6 +2591,8 @@ def _main() -> None:
     )
     parser.add_argument("--execute-local", action="store_true", help="Actually POST a local-worker envelope to the endpoint.")
     parser.add_argument("--local-workload", help="Original whole-route planning JSON and selected node for local HTTP.")
+    parser.add_argument("--screen-return", metavar="SOURCE_DISPATCH_ID",
+                        help="Classify the selected workload's exact received return through configured local vLLM.")
     parser.add_argument("--prepare-local-admission", action="store_true",
                         help="Stage the exact screened local HTTP admission in the host chain without sending.")
     parser.add_argument(
@@ -2535,6 +2641,7 @@ def _main() -> None:
 
     files: list = []
     workload = _local_workload_arguments(args, files)
+    _screen_return_workload(args, workload, files)
     if args.packet:
         packet = load_packet_file(args.packet, captures=files)
         inputs = {"packet": packet, "options": vars(args)}

@@ -15,6 +15,7 @@ from pathlib import Path
 import sys
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNNER_PATH = "tools/verify_affected_historical_contract.py"
 MANIFEST = "tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json"
 MODEL_ROLE_POLICY = "policy/model-roles.yaml"
 MODEL_ROLE_SCHEMA = "schemas/model-roles.schema.json"
@@ -237,7 +238,7 @@ def _current_rosters(manifest):
     require(files == set(manifest["current_file_modes"]), "current dependency/mode roster mismatch")
     required = {"tests/fixtures/affected_contract_compatibility/EXAMPLE-admission-v1.json",
                 FIXTURE_PATH, MODEL_ROLE_SCHEMA, "tests/historical_policy_fixtures.py",
-                "scripts/verify_affected_historical_contract.py"}
+                RUNNER_PATH}
     for key in ("roots", "registered_current_roots", "registered_current_consumers", "registered_current_resources"):
         required.update(manifest[key])
     require(required <= files, "required current dependency roster mismatch")
@@ -421,11 +422,10 @@ def runtime_identity(*, manifest=None):
         raw, _ = _regular_artifact(ROOT, MANIFEST, "required scoped manifest missing")
         manifest = _json_document(raw)
     expected = manifest["files"]
-    own_path = "scripts/verify_affected_historical_contract.py"
     for name, observed in files.items():
         require(expected.get(name) == observed, "loaded dependency missing/drifted: " + name)
     return {"loaded_local_paths": sorted(files), "local_bindings_sha256": digest(canonical(files)),
-            "runner_sha256": files[own_path]}
+            "runner_sha256": files[RUNNER_PATH]}
 
 
 def registered_consumer_observations():

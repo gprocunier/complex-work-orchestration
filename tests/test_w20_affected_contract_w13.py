@@ -1214,12 +1214,12 @@ class RunIdentityReport(unittest.TestCase):
     """Bind finite registered consumers and report the loaded source identity."""
 
     def test_f5_f6_report_current_run_identity(self) -> None:
-        import verify_affected_historical_contract as checkpoint
+        from tools import verify_affected_historical_contract as checkpoint
 
         registered = checkpoint.registered_consumer_observations()
         manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())
         self.assertEqual(registered["current_roots"], manifest["registered_current_roots"])
-        self.assertIn("scripts/verify_affected_historical_contract.py",
+        self.assertIn(checkpoint.RUNNER_PATH,
                       manifest["local_import_edges"]["tests/test_w20_affected_contract_w13.py"])
         _assert_current_caller_bindings(self, checkpoint, manifest)
         self.assertFalse(registered["current_authority"])
@@ -1228,7 +1228,7 @@ class RunIdentityReport(unittest.TestCase):
         # paths. Exercise actual missing/changed files without new test methods.
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            for name in [*registered["current_roots"], "scripts/verify_affected_historical_contract.py",
+            for name in [*registered["current_roots"], checkpoint.RUNNER_PATH,
                          *manifest["registered_current_resources"]]:
                 target = root / name
                 target.parent.mkdir(parents=True, exist_ok=True)

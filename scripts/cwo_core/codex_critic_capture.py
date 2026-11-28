@@ -13,6 +13,7 @@ from pathlib import Path
 import re
 import stat
 
+from . import return_advisory
 from .dispatch_workload import WorkloadRefused, validate_export_workload
 from .errors import CWOPolicyError
 from .host_acceptance import _host_inputs
@@ -444,8 +445,9 @@ def _peer_review_request(store, dispatch_id: str, target_dispatch_id: str, targe
     receipt = store.require_return(target_dispatch_id, return_digest)
     _need(receipt.get("return_sha256") == return_digest and receipt.get("capture_provenance") == "host-capture-v1",
           "review target requires the exact original host-captured return")
+    advisory = return_advisory.advisory_hold_reasons(store, dispatch, receipt)
     pending = make_acceptance_decision(text, peer_review_status="pending",
-        **_host_inputs(dispatch, dispatch.get("bead_id"), target_dispatch_id))
+        **_host_inputs(dispatch, dispatch.get("bead_id"), target_dispatch_id, advisory=advisory))
     evaluation_digest = pending_evaluation_sha256(pending)
     selected = dispatch["evaluation_metadata"].get("codex_review_reasoning")
     launch_identity = _launch_identity(selected["reasoning_effort"]) if selected else _launch_identity()

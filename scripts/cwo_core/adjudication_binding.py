@@ -25,7 +25,7 @@ from .synthesis_inputs import call_view, consensus_policy_view, dispatch_record_
 MAX_SUPPORT_BYTES = 1024 * 1024
 MAX_SUPPORT_FILES = 32
 MAX_JSON_DEPTH = 64
-POLICIES = ('contracting-controls', 'acceptance-policy', 'return-tripwires', 'synthesis-policy',
+POLICIES = ('contracting-controls', 'acceptance-policy', 'return-tripwires', 'return-structure-rules', 'synthesis-policy',
             'zero-trust-consensus-policy', 'provider-registry', 'executor-registry')
 MISSING_PRODUCTION = ('cooperative-source-has-no-production-authority',
                       'no-invocation-or-completion-authority', 'effect-restoration-held')

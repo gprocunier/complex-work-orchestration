@@ -11,7 +11,7 @@ from pathlib import Path
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tools"))
 
 import report_return_tripwire_corpus as report
 from cwo_core.returns import make_acceptance_decision
@@ -55,6 +55,7 @@ class CorpusCategoryReportTests(unittest.TestCase):
             benign = row["labels"]["benign"]
             self.assertEqual(benign["counts"]["non_tripwire_hold_reason"], 1)
             self.assertEqual(benign["rates"]["tripwire_hit"], 0)
+        self.assertIn("tools/report_return_tripwire_corpus.py", result["input_sha256"])
         for path, digest in result["input_sha256"].items():
             self.assertEqual(hashlib.sha256((ROOT / path).read_bytes()).hexdigest(), digest)
 
@@ -81,7 +82,7 @@ class CorpusCategoryReportTests(unittest.TestCase):
             report.placements("EXAMPLE missing section", "EXAMPLE harmless clause")
 
     def test_cli_is_deterministic_counts_only_and_diagnostic(self) -> None:
-        command = [sys.executable, str(ROOT / "scripts/report_return_tripwire_corpus.py")]
+        command = [sys.executable, str(ROOT / "tools/report_return_tripwire_corpus.py")]
         first = subprocess.run(command, capture_output=True, check=True).stdout
         second = subprocess.run(command, capture_output=True, check=True).stdout
         self.assertEqual(first, second)

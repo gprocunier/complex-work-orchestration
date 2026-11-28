@@ -5,7 +5,7 @@ from typing import Any
 
 from .errors import CWOPolicyError
 from .policy import load_contracting_controls
-from .return_common import add_signal, production_thresholds, strip_fenced_blocks
+from .return_common import add_weighted_signal, production_thresholds, strip_fenced_blocks
 from .types import ReturnLanguageResult, ReturnSignal
 
 
@@ -129,11 +129,9 @@ def _dangerous_control_findings(text: str, weights: dict[str, int]) -> list[Retu
     findings: list[ReturnSignal] = []
     bidi = sorted({f"U+{ord(character):04X}" for character in text if ord(character) in BIDI_CONTROL_CODEPOINTS})
     if bidi:
-        add_signal(
-            findings,
-            category="unicode_control_evasion",
-            reason="dangerous bidirectional controls present: " + ", ".join(bidi),
-            weight=weights["unicode_control_evasion"],
+        add_weighted_signal(
+            findings, weights, "unicode_control_evasion",
+            "dangerous bidirectional controls present: " + ", ".join(bidi),
         )
     embedded: set[str] = set()
     for index, character in enumerate(text):
@@ -142,11 +140,9 @@ def _dangerous_control_findings(text: str, weights: dict[str, int]) -> list[Retu
         if unicodedata.category(text[index - 1]).startswith("L") and unicodedata.category(text[index + 1]).startswith("L"):
             embedded.add(f"U+{ord(character):04X}")
     if embedded:
-        add_signal(
-            findings,
-            category="unicode_control_evasion",
-            reason="zero-width controls embedded between letters: " + ", ".join(sorted(embedded)),
-            weight=weights["unicode_control_evasion"],
+        add_weighted_signal(
+            findings, weights, "unicode_control_evasion",
+            "zero-width controls embedded between letters: " + ", ".join(sorted(embedded)),
         )
     return findings
 
@@ -190,11 +186,9 @@ def analyze_return_language(
         if letter_count >= minimum_word_letters and len(scripts) >= 2:
             mixed_script_sets.add(tuple(sorted(scripts)))
     if mixed_script_sets:
-        add_signal(
-            findings,
-            category="unicode_mixed_script_evasion",
-            reason="mixed-script words detected: " + "; ".join("+".join(item) for item in sorted(mixed_script_sets)),
-            weight=weights["unicode_mixed_script_evasion"],
+        add_weighted_signal(
+            findings, weights, "unicode_mixed_script_evasion",
+            "mixed-script words detected: " + "; ".join("+".join(item) for item in sorted(mixed_script_sets)),
         )
 
     prose = strip_fenced_blocks(normalized_text)
@@ -226,21 +220,15 @@ def analyze_return_language(
         len(letter_scripts) >= minimum_letters
         and unexpected_ratio >= ratio_threshold
     ) or longest_unexpected_run >= run_threshold:
-        add_signal(
-            findings,
-            category="unexpected_return_script",
-            reason=(
-                f"English return contains unexpected scripts; ratio={unexpected_ratio:.3f}, "
-                f"longest_run={longest_unexpected_run}"
-            ),
-            weight=weights["unexpected_return_script"],
+        add_weighted_signal(
+            findings, weights, "unexpected_return_script",
+            f"English return contains unexpected scripts; ratio={unexpected_ratio:.3f}, "
+            f"longest_run={longest_unexpected_run}",
         )
     if len(letter_scripts) >= minimum_letters and unexpected_ratio >= 0.80:
-        add_signal(
-            findings,
-            category="return_language_mismatch",
-            reason="return prose is predominantly outside the expected Latin script",
-            weight=weights["return_language_mismatch"],
+        add_weighted_signal(
+            findings, weights, "return_language_mismatch",
+            "return prose is predominantly outside the expected Latin script",
         )
 
     latin_words = [word.casefold() for word in _letter_words(prose) if _word_scripts(word) <= {"Latin"}]
@@ -257,14 +245,10 @@ def analyze_return_language(
         len(distinct_hits) < int(policy.get("minimum_distinct_function_words", 2))
         or function_ratio < float(policy.get("minimum_function_word_ratio", 0.03))
     ):
-        add_signal(
-            findings,
-            category="return_language_mismatch",
-            reason=(
-                f"English prose likelihood below policy threshold; words={len(latin_words)}, "
-                f"distinct_function_words={len(distinct_hits)}, ratio={function_ratio:.3f}"
-            ),
-            weight=weights["return_language_mismatch"],
+        add_weighted_signal(
+            findings, weights, "return_language_mismatch",
+            f"English prose likelihood below policy threshold; words={len(latin_words)}, "
+            f"distinct_function_words={len(distinct_hits)}, ratio={function_ratio:.3f}",
         )
 
     score = sum(int(item["weight"]) for item in findings)

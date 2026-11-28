@@ -10,7 +10,9 @@ import re
 
 from cwo_core.adjudication_binding import _evaluation_disposition
 from cwo_core.errors import CWOPolicyError
-from cwo_core.host_acceptance import _current_policy, _policy_sha256, _source_context, _verify_review_dispatch
+from cwo_core.host_acceptance import (
+    _current_policy, _policy_sha256, _source_context, _verify_review_dispatch, require_current_advisory_holds,
+)
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import MAX_RETURN_BYTES
 from cwo_core.peer_review import pending_evaluation_sha256, validate_peer_review_request
@@ -82,6 +84,7 @@ def _recorded_evaluation(store, dispatch, receipt, evaluation, policy_sha256, se
     if any(evaluation.get(name) != dispatch.get(name)
            for name in ("dispatch_id", "bead_id", "executor", "packet_sha256", "provider_key")):
         raise ValueError("evaluation identity does not match its recorded dispatch")
+    require_current_advisory_holds(store, dispatch, receipt, evaluation)
     return evaluation_digest
 
 

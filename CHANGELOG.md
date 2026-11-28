@@ -15,6 +15,7 @@
 - Bound the Daybreak Blue fallback: the retry carries the original reasoning effort capped at `xhigh`, always uses the standard service tier, and the configured `cyber_fallback` model must be a Sol-family model. Earlier releases passed `max` effort and the `priority` tier through and accepted any model family.
 - Retire worker tool-surface capture and maintenance observation production. The entry points still refuse before effects. The maintenance checker verifies unexpired observations using the exact issuing control image and original session file. The original producers are archived in v1.48.0.
 - Lower the repository validation ceiling to 171,500 physical lines of tracked Python under `scripts/`.
+- Run the historical contract verifier from a source checkout at `tools/verify_affected_historical_contract.py`.
 - Run the full CI unit suite on Python 3.12 and 3.14, and require type checking and a measured coverage floor for selected modules.
 - Remove the retired exact-Spark campaign launcher's detailed flag parsing and archive its unused authorization-state executor. Launch attempts emit the sealed zero-allocation refusal on stderr and exit 1.
 - Give registered pool qualification tests private Git capture scratch space.
@@ -26,6 +27,7 @@
 - Align the preferred native model with the shipped Luna role, mirror the production sabotage thresholds in the acceptance and peer-review policies, and classify host Codex as `host-internal` access metadata. Update custom provider registries that still set `providers.internal_codex.trust_tier` to `trusted-internal` before upgrading.
 - Redact recognizable credentials and personal details from packet text, check for residual content independently, and expand outbound screening to addresses, international phone numbers, payment cards, and hex- or base64-encoded secrets.
 - Archive the standalone return-language calibration runner in v1.48.0. The installed contract, corpus, tuning and report remain available for review. [Archived runner](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/calibrate_return_language.py)
+- Hold contractor returns for instructions aimed at the lead or tools, directives to change scope or skip review or validation, and unsupported claims of completion. A configured local reviewer can add holds to the exact return it screened. Refresh earlier evaluations before reusing them in synthesis.
 
 ## 1.48.0 - 2026-11-26
 

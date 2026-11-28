@@ -437,11 +437,19 @@ class EvaluateReturnTests(unittest.TestCase):
 
     def test_delivery_report_preserves_evidence_scoring_and_requires_observations(self) -> None:
         sample = self.sample_return()
-        for validation, score in (("passed", 100), ("failed", 100), ("not run", 85)):
+        cases = (
+            ("The tests passed based on packet validation evidence.", 100, False),
+            ("failed", 100, False),
+            ("not run", 85, False),
+            ("passed", 100, True),
+        )
+        for validation, score, unsupported in cases:
             with self.subTest(validation=validation):
                 returned = re.sub(r"(?m)^Validation result:.*$", "Validation result: " + validation, sample)
                 decision = make_acceptance_decision(returned)
-                self.assertTrue(decision["accepted_for_use"])
+                self.assertIs(decision["accepted_for_use"], not unsupported)
+                self.assertIs(decision["evidence_use_hold"], unsupported)
+                self.assertEqual("return-tripwire:structural_unsupported_claim" in decision["hold_reasons"], unsupported)
                 self.assertEqual(decision["score"], score)
                 report = self._evaluate_redacted_advisory(returned, output="--report-json")
                 readiness = report.pop("delivery_readiness")

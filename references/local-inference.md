@@ -349,6 +349,46 @@ For GLM-5.2 BF16 reviews, use the architecture role and the executor
 selected by its profile in the original workload. The hardened 256K lane uses
 `--local-profile openshift-ai-glm-256k` once its access profile is available.
 
+### Screen a received return
+
+You can ask the configured OpenShift AI vLLM worker to look for additional
+[return-screening findings](external-contracting.md#return-screening). Use an
+admitted local workload whose selected node contains the exact received UTF-8
+return as its prompt, up to 8,192 bytes. Leave the node's wrappers, attachments
+and sources empty.
+Use a new classifier dispatch ID and the existing vLLM endpoint, model and
+request options. Set the selected node to executor `openshift_ai_vllm_worker`,
+provider `openshift_ai_vllm`, the configured model, and `default` effort. The
+source return must already have a host receipt.
+
+```bash
+screen_args=(
+  --screen-return "$SOURCE_DISPATCH_ID" --local-workload "$WORKLOAD_FILE"
+  --local-ok --local-profile openshift-ai-vllm --share-boundary no-outside-sharing
+  --local-max-tokens "$VLLM_MAX_TOKENS"
+)
+
+python3 scripts/dispatch_work.py "${screen_args[@]}" --prepare-local-admission &&
+  python3 scripts/dispatch_work.py "${screen_args[@]}" --execute-local --json
+```
+
+The request contains a redacted copy of the return and passes the ordinary
+outbound checks. Restricted returns are refused before redaction and
+admission. Private-network HTTPS requires certificate verification. Keep the
+same endpoint, model, timeout and request options for preparation and execution.
+A valid result records only finding codes and the source and request bindings.
+Re-evaluate the original return to see the combined holds. Empty, invalid or
+unavailable model results leave all existing holds in effect.
+
+For an already captured local return, inspect the current holds with its exact
+return file and source dispatch ID.
+
+```bash
+python3 scripts/evaluate_return.py --file "$RETURN_FILE" \
+  --dispatch-id "$SOURCE_DISPATCH_ID" --advisory --no-audit \
+  --waiver-reason "inspect existing local return" --json
+```
+
 ### GLM-5.2 BF16 thinking modes
 
 Use request-side controls from the selected GLM executor:
