@@ -327,12 +327,15 @@ class CurrentEntryPointRefusalTests(RefusalAssertions):
                 self.assertFalse(output.exists())
 
     def test_dispatch_of_a_valid_packet_refuses_malformed_contracting_controls(self) -> None:
+        from tests.dispatch_workload_fixture import write_workload
+
         for label, (name, mutate, raw, fragment) in {"positive control": (None, None, None, None), **CONTROLS_CASES}.items():
             with self.subTest(case=label), current_policy() as home:
                 # The packet and its packet_built audit record are produced under the shipped policy.
                 packet_path = home / "packet.json"
                 _, raised = run_main(build_contractor_packet, self.packet_argv(packet_path))
                 self.assertIsNone(raised)
+                workload = write_workload(home / "workload.json", json.loads(packet_path.read_text(encoding="utf-8")))
                 audit_before = (home / "audit" / "audit.jsonl").read_bytes()
                 if name is not None:
                     document = raw if raw is not None else None
@@ -342,7 +345,8 @@ class CurrentEntryPointRefusalTests(RefusalAssertions):
                         document = json.dumps(changed, indent=2)
                     (policy.POLICY_DIR / f"{name}.yaml").write_text(document, encoding="utf-8")
                 policy.clear_policy_cache()
-                spies, raised = run_main(dispatch_work, ["dispatch_work.py", "--packet", str(packet_path), "--json"])
+                argv = ["dispatch_work.py", "--packet", str(packet_path), "--workload", workload, "--json"]
+                spies, raised = run_main(dispatch_work, argv)
                 if name is None:
                     self.assertIsNone(raised)
                     self.assertEqual(spies.mocks["persistence: dispatch_work.record_audit_event"].call_count, 1)

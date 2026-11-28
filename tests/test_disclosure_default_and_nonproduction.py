@@ -239,15 +239,20 @@ class NonproductionPacketTests(unittest.TestCase):
 
 
     def test_production_consumers_accept_a_production_packet(self) -> None:
+        from tests.dispatch_workload_fixture import write_workload
+
         # Positive control for every consumer below: the same packet without --rehearsal is used.
         with current_policy() as home:
             packet_path = self.write(home, self.build(home))
+            workload = write_workload(home / "workload.json", json.loads(packet_path.read_text()))
             expected = {
                 "dispatch_work --packet": "persistence: dispatch_work.record_audit_event",
                 "evaluate_return --contractor-packet": "persistence: evaluate_return.record_audit_event",
             }
             for label, (module, argv) in self.consumers(home, packet_path).items():
                 with self.subTest(consumer=label):
+                    if module in (dispatch_work, generate_manual_dispatch_prompt):
+                        argv += ["--workload", workload]
                     spies, raised = run_main(module, argv)
                     self.assertIsNone(raised, str(raised))
                     self.assertNotEqual(spies.stdout.getvalue(), "")

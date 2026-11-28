@@ -64,6 +64,8 @@ class OutboundApprovalTests(unittest.TestCase):
                     self.assertEqual(spies.stdout.getvalue(), "")
 
     def test_one_grant_covers_repeat_builds_and_exports(self):
+        from tests.dispatch_workload_fixture import write_workload
+
         grant = outbound_grant(BEAD, EPIC, EXECUTOR, "repo-readonly")
         with current_policy() as home, approved_outbound(grant) as calls:
             for dispatch in (None, "review-second"):
@@ -75,7 +77,8 @@ class OutboundApprovalTests(unittest.TestCase):
                     self.assertIn(".dispatch-review-1-", document["dispatch_id"])
                 else:
                     self.assertEqual(document["dispatch_id"], dispatch)
-                export = ["generate_manual_dispatch_prompt.py", "--packet", str(packet), "--json"]
+                workload = write_workload(home / "workload.json", document)
+                export = ["generate_manual_dispatch_prompt.py", "--packet", str(packet), "--workload", workload, "--json"]
                 spies, failure = run_main(generate_manual_dispatch_prompt, export)
                 self.assertIsNone(failure)
                 self.assertIn("Review the public retry plan.", spies.stdout.getvalue())
@@ -83,6 +86,8 @@ class OutboundApprovalTests(unittest.TestCase):
             self.assertEqual(calls.call_args_list, [mock.call("outbound-approval", REFERENCE)] * 4)
 
     def test_one_skill_keeps_target_checkout_approvals_separate(self):
+        from tests.dispatch_workload_fixture import write_workload
+
         with current_policy() as home:
             first, second = home / "first-project", home / "second-project"
             for project in (first, second):
@@ -102,7 +107,8 @@ class OutboundApprovalTests(unittest.TestCase):
                 self.assertEqual(show.call_args.args, (command,))
                 self.assertEqual(show.call_args.kwargs["cwd"], first.resolve())
                 self.assertTrue(wrong_git.keys().isdisjoint(show.call_args.kwargs["env"]))
-                export = ["generate_manual_dispatch_prompt.py", "--packet", str(packet)]
+                workload = write_workload(home / "workload.json", json.loads(packet.read_text()))
+                export = ["generate_manual_dispatch_prompt.py", "--packet", str(packet), "--workload", workload]
                 spies, failure = run_main(generate_manual_dispatch_prompt, export)
                 self.assertIsNone(failure, str(failure))
                 self.assertIn("Review the public retry plan.", spies.stdout.getvalue())
@@ -118,6 +124,8 @@ class OutboundApprovalTests(unittest.TestCase):
                 self.assertEqual(spies.stdout.getvalue(), "")
 
     def test_long_example_bead_uses_safe_generated_dispatch_id_for_production_export(self):
+        from tests.dispatch_workload_fixture import write_workload
+
         bead_file = ROOT / "examples" / "sample-bead.json"
         bead_id = json.loads(bead_file.read_text())["id"]
         grant = outbound_grant(bead_id, EPIC, EXECUTOR, "redacted-packet")
@@ -133,7 +141,8 @@ class OutboundApprovalTests(unittest.TestCase):
             self.assertIsNone(failure, str(failure))
             generator.uuid4.assert_called_once_with()
             self.assertEqual(json.loads(packet.read_text())["dispatch_id"], str(nonce))
-            export = ["generate_manual_dispatch_prompt.py", "--packet", str(packet)]
+            workload = write_workload(home / "workload.json", json.loads(packet.read_text()))
+            export = ["generate_manual_dispatch_prompt.py", "--packet", str(packet), "--workload", workload]
             spies, failure = run_main(generate_manual_dispatch_prompt, export)
             self.assertIsNone(failure, str(failure))
             self.assertIn(f"Dispatch ID: {nonce}", spies.stdout.getvalue())

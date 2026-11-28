@@ -185,53 +185,6 @@ REFINEMENT_LINEAGE_FIELDS = (
     "protected_change_authorizations",
 )
 
-# Mirrors the top-level properties in native-work-estimate.schema.json.  The
-# contract-version split is enforced here before any payload field is copied.
-WORK_ESTIMATE_SCHEMA_FIELDS = frozenset(
-    {
-        "estimate_type",
-        "version",
-        "estimate_contract_version",
-        "work_unit_id",
-        "bead_id",
-        "requested_model",
-        "work_kind",
-        "primary_outcome",
-        "parent_estimate_sha256",
-        "refinement_authority",
-        "operator_approval_receipts",
-        "protected_change_authorizations",
-        "expected_artifacts",
-        "expert_profiles",
-        "frozen_decisions",
-        "unresolved_decisions",
-        "subsystems",
-        "write_paths",
-        "context_manifest",
-        "acceptance_checks",
-        "task_profile",
-        "estimates",
-        "scores",
-        "semantic_estimate",
-        "pm_estimate",
-        "domain_expert_estimate",
-        "semantic_scores",
-        "score_total",
-        "route",
-        "v1_route",
-        "semantic_route",
-        "authority_route",
-        "operative_route",
-        "route_conflict",
-        "variance_metrics",
-        "task_class",
-        "fit_mode",
-        "protected_surface_matches",
-        "fit_evidence",
-        "hard_gate_reasons",
-        "aggregate_allowance",
-    }
-)
 WORK_ESTIMATE_V2_ONLY_FIELDS = frozenset(
     {
         "work_kind",
@@ -249,6 +202,13 @@ WORK_ESTIMATE_V2_ONLY_FIELDS = frozenset(
     }
 )
 
+# Mirrors the top-level properties in native-work-estimate.schema.json.  The
+# contract-version split is enforced here before any payload field is copied.
+WORK_ESTIMATE_SCHEMA_FIELDS = frozenset({
+    *REQUIRED_SOURCE_FIELDS, *REFINEMENT_LINEAGE_FIELDS, *DERIVED_FIELDS,
+    *DERIVED_TASK_PROFILE_FIELDS, *WORK_ESTIMATE_V2_ONLY_FIELDS, "estimate_contract_version",
+})
+
 
 def _route_priority(route: str) -> int:
     return ROUTE_PRIORITY.get(route, 0)
@@ -262,65 +222,11 @@ def _route_from_priority(priority: int) -> str:
     return ROUTE_BY_PRIORITY[2]
 
 
-def _bucket_diff_score(diff_p90: int) -> int:
-    if diff_p90 <= 80:
-        return 0
-    if diff_p90 <= 250:
-        return 1
-    if diff_p90 <= 600:
-        return 2
-    return 3
-
-
-def _bucket_behavior_score(behavioral_changes: int) -> int:
-    if behavioral_changes <= 0:
-        return 0
-    if behavioral_changes <= 2:
-        return 1
-    if behavioral_changes <= 5:
-        return 2
-    return 3
-
-
-def _bucket_state_schema_score(state_machine_changes: int, schema_changes: int) -> int:
-    total = int(state_machine_changes) + int(schema_changes)
-    if total <= 0:
-        return 0
-    if total == 1:
-        return 1
-    if total <= 3:
-        return 2
-    return 3
-
-
-def _bucket_surface_score(surface_count: int) -> int:
-    if surface_count <= 0:
-        return 0
-    if surface_count <= 2:
-        return 1
-    if surface_count <= 5:
-        return 2
-    return 3
-
-
-def _bucket_regression_score(expected_regressions: int) -> int:
-    if expected_regressions <= 3:
-        return 0
-    if expected_regressions <= 8:
-        return 1
-    if expected_regressions <= 16:
-        return 2
-    return 3
-
-
-def _bucket_read_mutation_ratio_score(ratio: float) -> int:
-    if ratio <= 2:
-        return 0
-    if ratio <= 5:
-        return 1
-    if ratio <= 10:
-        return 2
-    return 3
+def _bucket_score(value: int | float, upper_bounds: tuple[int, ...]) -> int:
+    for score, upper in enumerate(upper_bounds):
+        if value <= upper:
+            return score
+    return len(upper_bounds)
 
 
 def _normalize_ratio(expected_reads: int, expected_mutations: int) -> float:
@@ -341,15 +247,6 @@ def _validate_ratio_input(expected_ratio: Any, expected_reads: int, expected_mut
             "malformed source payload: semantic_estimate.read_to_mutation_ratio must equal expected_context_reads/expected_mutations"
         )
     return ratio
-
-
-def _surface_total(semantic_payload: Mapping[str, Any]) -> int:
-    return (
-        int(semantic_payload["contract_surfaces"])
-        + int(semantic_payload["cli_surfaces"])
-        + int(semantic_payload["policy_surfaces"])
-        + int(semantic_payload["telemetry_surfaces"])
-    )
 
 
 def _ensure_mapping(value: Any, *, label: str) -> Mapping[str, Any]:
@@ -410,16 +307,7 @@ def _ensure_mapping_exact(value: Any, *, path: str, required_fields: tuple[str, 
 
 
 def _ensure_estimate_mapping(value: Any, *, path: str) -> dict[str, Any]:
-    estimate = _ensure_mapping_exact(
-        value,
-        path=path,
-        required_fields=(
-            "tool_calls_p50",
-            "tool_calls_p90",
-            "runtime_seconds_p50",
-            "runtime_seconds_p90",
-        ),
-    )
+    estimate = _ensure_mapping_exact(value, path=path, required_fields=COMMITMENT_ESTIMATE_KEYS)
     for key in estimate:
         _ensure_int(estimate[key], path=f"{path}.{key}", minimum=0)
     if estimate["tool_calls_p50"] > estimate["tool_calls_p90"]:
@@ -842,22 +730,15 @@ def _evaluate_task_profile_fit(
 
 
 def _compute_semantic_scores(semantic_payload: dict[str, Any]) -> dict[str, int]:
-    diff_score = _bucket_diff_score(int(semantic_payload["estimated_diff_p90"]))
-    behavior_score = _bucket_behavior_score(int(semantic_payload["behavioral_changes"]))
-    state_schema_score = _bucket_state_schema_score(
-        int(semantic_payload["state_machine_changes"]),
-        int(semantic_payload["schema_changes"]),
-    )
-    surface_score = _bucket_surface_score(_surface_total(semantic_payload))
-    regression_score = _bucket_regression_score(int(semantic_payload["expected_regressions"]))
-    ratio_score = _bucket_read_mutation_ratio_score(semantic_payload["read_to_mutation_ratio"])
+    state_schema_changes = int(semantic_payload["state_machine_changes"]) + int(semantic_payload["schema_changes"])
+    surface_count = sum(int(semantic_payload[key]) for key in SEMANTIC_SURFACE_KEYS)
     return {
-        "diff_p90": diff_score,
-        "behavioral_changes": behavior_score,
-        "state_schema_changes": state_schema_score,
-        "surface_changes": surface_score,
-        "expected_regressions": regression_score,
-        "read_to_mutation_ratio": ratio_score,
+        "diff_p90": _bucket_score(int(semantic_payload["estimated_diff_p90"]), (80, 250, 600)),
+        "behavioral_changes": _bucket_score(int(semantic_payload["behavioral_changes"]), (0, 2, 5)),
+        "state_schema_changes": _bucket_score(state_schema_changes, (0, 1, 3)),
+        "surface_changes": _bucket_score(surface_count, (0, 2, 5)),
+        "expected_regressions": _bucket_score(int(semantic_payload["expected_regressions"]), (3, 8, 16)),
+        "read_to_mutation_ratio": _bucket_score(semantic_payload["read_to_mutation_ratio"], (2, 5, 10)),
         "self_hosting_live_control_risk": max(
             int(semantic_payload["self_hosting_risk"]),
             int(semantic_payload["live_control_risk"]),
@@ -871,12 +752,7 @@ def _compute_semantic_scores(semantic_payload: dict[str, Any]) -> dict[str, int]
 
 
 def _estimate_deltas(left: Mapping[str, Any], right: Mapping[str, Any]) -> dict[str, int]:
-    return {
-        "tool_calls_p50": abs(int(left["tool_calls_p50"]) - int(right["tool_calls_p50"])),
-        "tool_calls_p90": abs(int(left["tool_calls_p90"]) - int(right["tool_calls_p90"])),
-        "runtime_seconds_p50": abs(int(left["runtime_seconds_p50"]) - int(right["runtime_seconds_p50"])),
-        "runtime_seconds_p90": abs(int(left["runtime_seconds_p90"]) - int(right["runtime_seconds_p90"])),
-    }
+    return {key: abs(int(left[key]) - int(right[key])) for key in COMMITMENT_ESTIMATE_KEYS}
 
 
 def _ensure_context_item(item: Any, *, index: int) -> None:
@@ -1022,14 +898,11 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
     _ensure_nonempty_str(payload.get("requested_model"), path="requested_model")
     validate_work_kind(payload)
     _ensure_nonempty_str(payload.get("primary_outcome"), path="primary_outcome")
-    _ensure_list(payload.get("expected_artifacts"), path="expected_artifacts")
-    _ensure_list(payload.get("expert_profiles"), path="expert_profiles")
-    _ensure_list(payload.get("frozen_decisions"), path="frozen_decisions")
-    _ensure_list(payload.get("unresolved_decisions"), path="unresolved_decisions")
-    _ensure_list(payload.get("subsystems"), path="subsystems")
-    _ensure_list(payload.get("write_paths"), path="write_paths")
-    _ensure_list(payload.get("context_manifest"), path="context_manifest")
-    _ensure_list(payload.get("acceptance_checks"), path="acceptance_checks")
+    for key in (
+        "expected_artifacts", "expert_profiles", "frozen_decisions", "unresolved_decisions",
+        "subsystems", "write_paths", "context_manifest", "acceptance_checks",
+    ):
+        _ensure_list(payload.get(key), path=key)
     estimates = _ensure_mapping(payload.get("estimates"), label="estimates")
     scores = _ensure_mapping(payload.get("scores"), label="scores")
     _validate_refinement_lineage_shape(payload)
@@ -1075,25 +948,9 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
             "test_construction_complexity",
             "command_complexity",
         }
-        for key in (
-            "estimated_diff_p50",
-            "estimated_diff_p90",
-            "behavioral_changes",
-            "state_machine_changes",
-            "schema_changes",
-            "self_hosting_risk",
-            "live_control_risk",
-            "contract_surfaces",
-            "cli_surfaces",
-            "policy_surfaces",
-            "telemetry_surfaces",
-            "expected_regressions",
-            "test_construction_complexity",
-            "command_complexity",
-            "nested_quote_layers",
-            "expected_context_reads",
-            "expected_mutations",
-        ):
+        for key in SEMANTIC_ESTIMATE_KEYS:
+            if key == "read_to_mutation_ratio":
+                continue
             _ensure_int(
                 estimate_payload[key],
                 path=f"semantic_estimate.{key}",
@@ -1126,27 +983,13 @@ def _validate_required_fields(payload: Mapping[str, Any]) -> dict[str, Any]:
     for idx, item in enumerate(_ensure_list(payload.get("context_manifest"), path="context_manifest")):
         _ensure_context_item(item, index=idx)
 
-    for idx, subsystem in enumerate(payload.get("subsystems", [])):
-        if not isinstance(subsystem, str) or not subsystem:
-            raise ValueError(f"malformed source payload: subsystems[{idx}] must be a non-empty string")
-    for idx, path_value in enumerate(payload.get("write_paths", [])):
-        if not isinstance(path_value, str) or not path_value:
-            raise ValueError(f"malformed source payload: write_paths[{idx}] must be a non-empty string")
-    for idx, decision in enumerate(payload.get("frozen_decisions", [])):
-        if not isinstance(decision, str) or not decision:
-            raise ValueError(f"malformed source payload: frozen_decisions[{idx}] must be a non-empty string")
-    for idx, decision in enumerate(payload.get("unresolved_decisions", [])):
-        if not isinstance(decision, str) or not decision:
-            raise ValueError(f"malformed source payload: unresolved_decisions[{idx}] must be a non-empty string")
-    for idx, check in enumerate(payload.get("acceptance_checks", [])):
-        if not isinstance(check, str) or not check:
-            raise ValueError(f"malformed source payload: acceptance_checks[{idx}] must be a non-empty string")
-    for idx, item in enumerate(payload.get("expected_artifacts", [])):
-        if not isinstance(item, str) or not item:
-            raise ValueError(f"malformed source payload: expected_artifacts[{idx}] must be a non-empty string")
-    for idx, profile in enumerate(payload.get("expert_profiles", [])):
-        if not isinstance(profile, str) or not profile:
-            raise ValueError(f"malformed source payload: expert_profiles[{idx}] must be a non-empty string")
+    for key in (
+        "subsystems", "write_paths", "frozen_decisions", "unresolved_decisions",
+        "acceptance_checks", "expected_artifacts", "expert_profiles",
+    ):
+        for idx, item in enumerate(payload.get(key, [])):
+            if not isinstance(item, str) or not item:
+                raise ValueError(f"malformed source payload: {key}[{idx}] must be a non-empty string")
 
     return {
         "estimates": estimates,
@@ -1343,8 +1186,6 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
         hard_gate_reasons.extend(semantic_reasons)
 
         # Authority-vs-size route conflict and deterministic variance.
-        pm_estimate = normalized.get("pm_estimate")
-        domain_estimate = normalized.get("domain_expert_estimate")
         thresholds = _ensure_mapping_exact(
             _ensure_mapping(semantic_policy.get("variance_thresholds"), label="semantic_routing.variance_thresholds")
             if semantic_policy.get("variance_thresholds")
@@ -1363,20 +1204,14 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
             ),
         )
 
-        if pm_estimate is not None and isinstance(pm_estimate, Mapping):
-            pm_delta = _estimate_deltas(estimates, pm_estimate)
-            variance_metrics["pm_estimate_delta"] = pm_delta
-            if pm_delta["tool_calls_p90"] > int(thresholds["pm_tool_calls_p90_delta"]) or pm_delta["runtime_seconds_p90"] > int(
-                thresholds["pm_runtime_seconds_p90_delta"]
-            ):
-                route_conflict = True
-        if domain_estimate is not None and isinstance(domain_estimate, Mapping):
-            domain_delta = _estimate_deltas(estimates, domain_estimate)
-            variance_metrics["domain_estimate_delta"] = domain_delta
-            if domain_delta["tool_calls_p90"] > int(
-                thresholds["domain_tool_calls_p90_delta"]
-            ) or domain_delta["runtime_seconds_p90"] > int(thresholds["domain_runtime_seconds_p90_delta"]):
-                route_conflict = True
+        for label, field in (("pm", "pm_estimate"), ("domain", "domain_expert_estimate")):
+            comparison = normalized.get(field)
+            if isinstance(comparison, Mapping):
+                delta = _estimate_deltas(estimates, comparison)
+                variance_metrics[f"{label}_estimate_delta"] = delta
+                if any(delta[key] > int(thresholds[f"{label}_{key}_delta"])
+                       for key in ("tool_calls_p90", "runtime_seconds_p90")):
+                    route_conflict = True
 
         if route_conflict and "semantic-estimate-variance" not in hard_gate_reasons:
             hard_gate_reasons.append("semantic-estimate-variance")
@@ -1429,9 +1264,7 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
     }
     if profile_contradiction:
         hard_gate_reasons.append("task-profile-contradiction")
-        route = "architect"
-        route_axes = {"authority_route": "architect", "operative_route": "architect"}
-    elif fit_mode == "architect":
+    if profile_contradiction or fit_mode == "architect":
         route = "architect"
         route_axes = {"authority_route": "architect", "operative_route": "architect"}
     elif (
@@ -1483,16 +1316,10 @@ def evaluate_work_estimate(payload: Any, policy: Mapping[str, Any] | None = None
             task_class_policy.get(task_class),
             label=f"task_class_policy.{task_class}",
         )
-        aggregate_allowance["tool_calls_hard"] = _ensure_int(
-            class_policy.get("tool_calls_hard"),
-            path=f"task_class_policy.{task_class}.tool_calls_hard",
-            minimum=1,
-        )
-        aggregate_allowance["runtime_seconds_hard"] = _ensure_int(
-            class_policy.get("runtime_seconds_hard"),
-            path=f"task_class_policy.{task_class}.runtime_seconds_hard",
-            minimum=1,
-        )
+        for key in ("tool_calls_hard", "runtime_seconds_hard"):
+            aggregate_allowance[key] = _ensure_int(
+                class_policy.get(key), path=f"task_class_policy.{task_class}.{key}", minimum=1,
+            )
 
     estimate: dict[str, Any] = deepcopy(source)
     if task_profile is not None:
@@ -1587,14 +1414,9 @@ def validate_work_estimate(
     def exact_match(left: Any, right: Any) -> bool:
         return canonical_authority_sha256(left) == canonical_authority_sha256(right)
 
-    if not exact_match(source["score_total"], computed["score_total"]):
-        errors.append("derived check failed: score_total must equal computed score_total")
-    if not exact_match(source["route"], computed["route"]):
-        errors.append("derived check failed: route must equal computed route")
-    if not exact_match(source["hard_gate_reasons"], computed["hard_gate_reasons"]):
-        errors.append("derived check failed: hard_gate_reasons must equal computed hard_gate_reasons")
-    if not exact_match(source["aggregate_allowance"], computed["aggregate_allowance"]):
-        errors.append("derived check failed: aggregate_allowance must equal computed aggregate_allowance")
+    for field in DERIVED_FIELDS:
+        if not exact_match(source[field], computed[field]):
+            errors.append(f"derived check failed: {field} must equal computed {field}")
     for field in DERIVED_TASK_PROFILE_FIELDS:
         if field in source and not exact_match(source.get(field), computed.get(field)):
             errors.append(f"derived check failed: {field} must equal computed {field}")
@@ -2185,11 +2007,7 @@ def validate_worker_commitment(
         for idx, item in enumerate(configurable_decisions):
             if not isinstance(item, str) or not item:
                 raise ValueError(f"malformed policy: commitment.decisions[{idx}] must be a non-empty string")
-        if dispatchable:
-            dispatchable_decision = _ensure_nonempty_str(commitment_policy.get("dispatchable_decision"), path="work_sizing.commitment.dispatchable_decision")
-            if decision != dispatchable_decision:
-                raise ValueError("commitment.decision must be the dispatchable decision for dispatchable commitments")
-        elif decision not in configurable_decisions:
+        if decision not in configurable_decisions:
             raise ValueError("commitment.decision must match configured commitment decision set")
 
         confidence = _ensure_float(commitment_source.get("confidence"), path="commitment.confidence")

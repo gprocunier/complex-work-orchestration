@@ -79,12 +79,16 @@ class WriterChecks(unittest.TestCase):
     def test_packet_writer_records_provenance_before_export(self):
         """Check: a validated packet's host record exists before its manual export."""
         import tests.test_packet_production_provenance as packets
+        from cwo_core.dispatch_workload import POLICY_FILE
         from cwo_core.host_records import configured_store
+        from tests.dispatch_workload_fixture import write_workload
         from tests.test_policy_current_effects import current_policy
         helper = packets.ProvenanceCase()
         with current_policy() as home, packets.packet_approvals():
             packet = helper.build(home, dispatch_id='packet-writer')
             path = helper.write(home, packet, 'packet.json')
+            workload = home / 'workload.json'
+            write_workload(workload, packet)
             store = configured_store()
             def export(screened, *, prepared, source):
                 observed = store.require_dispatch('packet-writer')
@@ -96,11 +100,14 @@ class WriterChecks(unittest.TestCase):
                 self.assertTrue(prepared.payload is screened, 'export must use the frozen screened token')
                 prepared.require_unchanged(source, screened.data)
                 self.assertTrue(source['inputs']['packet'] == packet, 'prepared source must bind the validated packet')
-                self.assertTrue(prepared.source.files == ((str(path), path.read_bytes()),),
-                                'prepared source must capture the exact packet file')
+                captured = tuple((str(file), file.read_bytes()) for file in (path, workload, POLICY_FILE))
+                self.assertEqual(prepared.source.files, captured,
+                                 'prepared source must capture the exact packet, workload and policy files')
+                self.assertEqual(observed['evaluation_metadata']['dispatch_workload']['request_sha256'],
+                                 observed['request_sha256'])
                 for key, value in prepared.metadata().items():
                     self.assertEqual(observed['evaluation_metadata'][key], value)
-            with patch.object(sys, 'argv', ['dispatch_work.py', '--packet', str(path)]), \
+            with patch.object(sys, 'argv', ['dispatch_work.py', '--packet', str(path), '--workload', str(workload)]), \
                     patch.object(dispatch, 'write_export', side_effect=export) as write:
                 dispatch.main()
             write.assert_called_once()

@@ -487,9 +487,15 @@ class SynthesisWorkflowTests(unittest.TestCase):
         return self._run_json("evaluate_return.py", evaluate_main,
             "--contractor-packet", packet_path, "--file", report_path, "--json", *flags)
 
+    def _prepare_manual(self, packet, packet_path):
+        from tests.dispatch_workload_fixture import write_workload
+
+        workload = write_workload(Path(packet_path).with_name("manual-workload.json"), packet)
+        return self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--workload", workload, "--json")
+
     def _manual_packet_input(self, report_path, *, peer_required=False):
         packet, packet_path = self._manual_packet()
-        artifact = self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--json")
+        artifact = self._prepare_manual(packet, packet_path)
         self.assertEqual(artifact["dispatch_mode"], "manual_ui")
         self.assertIn("Review the retry plan", artifact["manual_prompt"])
         normalized = self._run_json("normalize_contractor_return.py", normalize_main,
@@ -519,7 +525,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         inputs, _ = self._panel()
         report_path = inputs[1]["return"]
         packet, packet_path = self._manual_packet()
-        self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--json")
+        self._prepare_manual(packet, packet_path)
         before = self.store.audit_events()
         with self.assertRaisesRegex(SystemExit, "return receipt is missing"):
             self._evaluate_manual(packet_path, report_path)
@@ -576,7 +582,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         packet, packet_path = self._manual_packet()
 
         def score(*args, **kwargs):
-            self._run_json("dispatch_work.py", dispatch_main, "--packet", packet_path, "--json")
+            self._prepare_manual(packet, packet_path)
             self._run_json("normalize_contractor_return.py", normalize_main,
                 "--contractor-packet", packet_path, "--file", report_path)
             return _evaluate_current_return(*args, **kwargs)

@@ -130,7 +130,7 @@ class BrowserProvenanceTests(unittest.TestCase):
 
         packet_path = self.base / "packet.json"
         packet_path.write_text(json.dumps(self.packet), encoding="utf-8")
-        request = prepare_browser_packet_request(packet_path)
+        request = prepare_browser_packet_request(packet_path, workload_path=self.workload())
         submitted = request.require_unchanged()
         dispatch_id = self.packet["dispatch_id"]
         prepared = request.record_dispatch()
@@ -181,13 +181,18 @@ class BrowserProvenanceTests(unittest.TestCase):
                          "--capture-event", event["event_hash"]])
         return argv
 
+    def workload(self):
+        from tests.dispatch_workload_fixture import write_workload
+
+        return write_workload(self.base / "workload.json", self.packet, browser=True)
+
     def test_prepared_dispatch_refuses_a_changed_packet_before_recording(self):
         from browser_request import prepare_browser_packet_request
 
         packet_path = self.base / "packet.json"
         original = json.dumps(self.packet).encode("utf-8")
         packet_path.write_bytes(original)
-        request = prepare_browser_packet_request(packet_path)
+        request = prepare_browser_packet_request(packet_path, workload_path=self.workload())
         packet_path.write_bytes(original + b"\n")
         with self.assertRaisesRegex(OutboundRefused, "input file changed after capture"):
             request.record_dispatch()
@@ -198,7 +203,7 @@ class BrowserProvenanceTests(unittest.TestCase):
 
         packet_path = self.base / "packet.json"
         packet_path.write_text(json.dumps(self.packet), encoding="utf-8")
-        request = prepare_browser_packet_request(packet_path)
+        request = prepare_browser_packet_request(packet_path, workload_path=self.workload())
         unrelated_store = host_records.HostRecordStore.for_tests(self.base / "unrelated-host")
         with host_records.using_test_store(unrelated_store):
             with self.assertRaisesRegex(SystemExit, "contractor packet has no production provenance"):

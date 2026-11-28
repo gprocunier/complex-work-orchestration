@@ -40,6 +40,8 @@ __all__ = [
     "chatgpt_urls",
     "coach",
     "codex_critic_capture",
+    "dispatch_workload",
+    "route_feasibility",
     "codex_hook_enforcement",
     "codex_protocol_capabilities",
     "codex_protocol_pin",

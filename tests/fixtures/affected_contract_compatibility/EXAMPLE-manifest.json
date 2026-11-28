@@ -90,10 +90,12 @@
     "scripts/cwo_core/checked_command.py": 420,
     "scripts/cwo_core/checked_command_sequence.py": 420,
     "scripts/cwo_core/coach.py": 420,
+    "scripts/cwo_core/codex_critic_capture.py": 420,
     "scripts/cwo_core/codex_hook_enforcement.py": 420,
     "scripts/cwo_core/codex_protocol_capabilities.py": 420,
     "scripts/cwo_core/codex_protocol_pin.py": 420,
     "scripts/cwo_core/codex_tool_surface.py": 420,
+    "scripts/cwo_core/dispatch_workload.py": 420,
     "scripts/cwo_core/epic_convergence.py": 420,
     "scripts/cwo_core/errors.py": 420,
     "scripts/cwo_core/execution_status_report.py": 420,
@@ -185,6 +187,7 @@
     "scripts/cwo_core/returns.py": 420,
     "scripts/cwo_core/review_inputs.py": 420,
     "scripts/cwo_core/risk_features.py": 420,
+    "scripts/cwo_core/route_feasibility.py": 420,
     "scripts/cwo_core/routing.py": 420,
     "scripts/cwo_core/routing_signals.py": 420,
     "scripts/cwo_core/server_request_preparation.py": 420,
@@ -389,7 +392,7 @@
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "923e38988513324f5b5b69961816d49d5f0968b24b124ea5cf8d06f5704afc98",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
-    "scripts/cwo_core/__init__.py": "5e7c6679e814a302c9a45fe04bdf804bd8600b95f23bbcddc6f45eb3ad00cac6",
+    "scripts/cwo_core/__init__.py": "b91bc9cb9f57b66a72f6c9e0bbe5874a251ffd43ea19f22b73bfb5ddc84e1573",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",
     "scripts/cwo_core/adjudication.py": "fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",
     "scripts/cwo_core/adjudication_binding.py": "e704095388cfd9e1ef735ba056bde005ac328f4633a506509012fc18a888a1c0",
@@ -405,16 +408,18 @@
     "scripts/cwo_core/checked_command.py": "5a019dc810fc8a096cf422484c797515c35b745e474881d7dbda1beee41d6548",
     "scripts/cwo_core/checked_command_sequence.py": "ba99b618d548ff236de1735127a4cbc5370f5f554d9ea21c696171841e0d6f3b",
     "scripts/cwo_core/coach.py": "3d7e88c6a933cc49486b3f4936150ccf0badeb68830a35356e9cb8bd57204f25",
+    "scripts/cwo_core/codex_critic_capture.py": "97f15e891fa831d3f19800f1e42cfaeecc2f8b282cbd7e8d0deb7af85f6e026d",
     "scripts/cwo_core/codex_hook_enforcement.py": "b988f0062b354cf193ec3528462168cb828f2721d29d046573c78f69ee1685a0",
     "scripts/cwo_core/codex_protocol_capabilities.py": "9d0c0b5b036762c29ca01717cd63b7d068c280a5ff370700cd6c4e8a5b4528bb",
     "scripts/cwo_core/codex_protocol_pin.py": "5f65e2bfedc3ccbb1f5248c63fa17c4d7b60a6586bf93044741e157a35c94bbd",
     "scripts/cwo_core/codex_tool_surface.py": "e315a29dc6a5667eab1fa89a00f231bbe9ca085b7e3743ea253edeb64ef4eb18",
+    "scripts/cwo_core/dispatch_workload.py": "f72c41b0334af2e7e46f089a6a40298c85a5e2eca53337ef122fae0072e44b9a",
     "scripts/cwo_core/epic_convergence.py": "04a2f6e9b14bd60e56bdb2960d695e3172f3086c9880afc55ca157386f53b226",
     "scripts/cwo_core/errors.py": "312e60e2cbdc320ad173bd7938d9bc89abac8699727d4c8b60fa0f6cb250faf2",
     "scripts/cwo_core/execution_status_report.py": "bcddf84b6eb15d162a706930958b188758ed056de4f386d88db9d9598b6403ef",
     "scripts/cwo_core/git_store.py": "2fa81b35cfdd97a859cb44ac773029735fe0cde1dbee38e599231eb59db87951",
     "scripts/cwo_core/harness.py": "c8a05a630f4210b4931e6384e3b6d892798f76e02eb2abafd6b6085f008a279f",
-    "scripts/cwo_core/host_acceptance.py": "b1bc611c9c324b0fe517bffc6b5a787c282b76dbb8b0b7696888beece455fdb9",
+    "scripts/cwo_core/host_acceptance.py": "1fd1a4bbf0367a8a4a383fea24a7503f5804828591686865c179dd001c1f4ba5",
     "scripts/cwo_core/host_record_inventory.py": "f278c0b50c2d931f3378769af398fdfc2fa93040b4af325aef13620c2b415f1c",
     "scripts/cwo_core/host_record_quarantine.py": "2f68e16621d10aa34c221811d291a057cb39d547f8db462885b529b7784955a7",
     "scripts/cwo_core/host_records.py": "f75035c220b7cc7007a7199fdedb77a66fcec158b7a1b9aca5c458c6f562a463",
@@ -469,7 +474,7 @@
     "scripts/cwo_core/native_tool_isolation.py": "db04c9e1c822e07acc648323e4e2825122e2cf3c3cf40e65f46cb352403dbf93",
     "scripts/cwo_core/native_turn_dispatch.py": "9a8ecaacd04876a1378fb7b544619c1e69fcf67c4f012eb92ef7f6468408e1bb",
     "scripts/cwo_core/native_worker_contracts.py": "3162aa1846bcd951b14b645754cf9e696b774e5b795cf37fef5e4d7840bdb7a5",
-    "scripts/cwo_core/operative_routing.py": "f76d8e67a7db111a3c3cbf95a2ae5564f7f430c2d274e1d7d711ddfc0a861a2e",
+    "scripts/cwo_core/operative_routing.py": "bedf7bc2add85db552b313276bed375ccef516de284197fa0b1c657fd96a1d61",
     "scripts/cwo_core/outbound_approval.py": "caec4acc9ce8b28a8c58c0d00d47ba4f383504fd522753dacfacaaeee1040b8c",
     "scripts/cwo_core/outbound_screen.py": "5ba8a92ccfbf5640dd90c457491dd4b55649021bacd998176c7daa24ede2adb9",
     "scripts/cwo_core/ownership_producer.py": "5829643ab1a5bba6999bd91b912fe8cf0f1a0115379b5b185296a2226f4478cd",
@@ -500,6 +505,7 @@
     "scripts/cwo_core/returns.py": "84357f1ca2bee2624343f7b2ba8a2f5b330506f09e42bdc192f4433bcb980fc2",
     "scripts/cwo_core/review_inputs.py": "26e767687064f776491269bf1d8422d246a76526ed7250a780915ea1a6b8cd91",
     "scripts/cwo_core/risk_features.py": "4e59207e6e986a253cdf8a1da46e08ef15f8b01215648b648d94f3febfb45273",
+    "scripts/cwo_core/route_feasibility.py": "9e3e24b753b2eb0369fec6923b43ac5133b55d197ebbe25fc8f35de9ccff5b2b",
     "scripts/cwo_core/routing.py": "a08c5807902969b48ca7f6670d14975461dc8d9edcd082823c8ff2a6b0c16be1",
     "scripts/cwo_core/routing_signals.py": "c96bbabca3678b393434f4e30f35e7f571e911750f9d332613019c94e35e42a8",
     "scripts/cwo_core/server_request_preparation.py": "c78ce4d85b553a81e58b5c222127fb0e29add4342270b341af855d34ddc8bae7",
@@ -520,16 +526,16 @@
     "scripts/cwo_core/types.py": "916626069351d211e93f180bb3ebfa097f9225c58f81bfddd06fd6dfbcd20ef4",
     "scripts/cwo_core/util.py": "ef58eee52930447e2f6dc743880e27de95c61890b38e7f932a8a386676703069",
     "scripts/cwo_core/waivers.py": "dd27ea554c45d372b8f5967b833bff3e2cf74cad9fc9767dd18683229c5cd106",
-    "scripts/cwo_core/work_sizing.py": "07a55e72e413baa85e8bd0851209ab41e2ff3846c0bc3b8150ded6245951923d",
+    "scripts/cwo_core/work_sizing.py": "12b622f53c22dad859624c4681e73e2d5874e23fb155ba6193c033b96241f822",
     "scripts/cwo_core/workgraph_markdown.py": "f135fb64e2e62747178a3521792d4cb934d2b4680a7560b9ecc20290b6404cb3",
     "scripts/cwo_core/workspace.py": "9b7b23700b8a4538ef211ee461440bd6024230013e87c32abbce3d9440638bb9",
     "scripts/cwo_core/workspace_capture.py": "f70f1b40e94d444b5e73b6f9f685f2666f41cf3e45eced89811731deb74b7c0d",
     "scripts/cwo_core/workspace_transition.py": "f7838c9d953e325d7221bdd8ed8761dfcb175f68710ea04e0bbe72c2c28cb14c",
     "scripts/delegate_internal_work.py": "c35782f665a72dc4fe2fc6234fc4695e418faa4b5a01e25f9c3ad9beb1905f75",
-    "scripts/dispatch_work.py": "cec6b3961362d9029f4e51fbce3c6607dea4ace77c4a9938460842235337a90c",
+    "scripts/dispatch_work.py": "2fa6b364d1dfb3071381f408e83b99b030f54df25c1e82867f5724a8d2df39a2",
     "scripts/evaluate_return.py": "fe7d5c64f7e6acb2c4338c53286257fd7cda1ab9e8bf03cc717c58c3fa5f1489",
     "scripts/evidence_use.py": "60387077e995f67da609cba1fe7df8fb6a7b63f6fd5526078f8d707c1a52bfa4",
-    "scripts/generate_manual_dispatch_prompt.py": "6e6e1693ddbb892bb2b1014f577d4a6de57a73a1c8ac75d55fe8c72a838f0872",
+    "scripts/generate_manual_dispatch_prompt.py": "a8d969bc5c576d83d0cb712cb4f6e63cac4a0b2099dc6ca9761e4e2208b13a98",
     "scripts/guarded_artifact_target.py": "7780fc04a6eae8ffc437681ed1de877491ec901d2500b94df0c92a3725699e1d",
     "scripts/import_execution_telemetry.py": "bc5531f6014a7afde377b71f752dc668657561ba6c59a2c9ed2d3dc7bf663f75",
     "scripts/install.sh": "0befb7520d9bc0efd7e5d0fad963501b6dbd3049d75dead9481ea68ccc5d874b",
@@ -548,7 +554,7 @@
     "scripts/prepare_local_admission.py": "653c27644ab260eb70c29e52e91f88e04d80d4f03abbaf493aefb0e7c5ff3586",
     "scripts/prepare_native_worker.py": "ad157702201d338f3efeadf517ea9a3d22c4a89f0e6228b6b443e007d5bb0462",
     "scripts/prepare_risk_narrowing.py": "2d0812f234c53844327573de9d789448302d942f9df8e8024a1ba59a40008a4f",
-    "scripts/prepare_route_feasibility.py": "85a8d13f806a27b1ecd825cf640da02be5ff7a07c7f2c3a68fed6904571528d8",
+    "scripts/prepare_route_feasibility.py": "85cce4c24d99b5eb85f4b7b6b16c087a4be55e774fb4a504d89daff2bb12587e",
     "scripts/prepare_route_ledger_reconciliation.py": "1364831313473c68972a4f6a750e9e3ac88c919cad6540e45d9a977de690b127",
     "scripts/prepare_server_request_frames.py": "b2a31e4d03b9c838299c790c86e6c070972b52ee7b82c98f33ed822ef53f5c40",
     "scripts/prepare_validator_receipts.py": "b62f09f7d8590cc6077ac48dcc1b98f668d6e7647aab540f013c440d7d11cd48",
@@ -573,8 +579,8 @@
     "scripts/registered_server_requests.py": "2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",
     "scripts/registered_worker_login_config.py": "dcf89ebfd323b689639f6ec16747f574f2b464660e9ebf4b2340277031d26810",
     "scripts/render_execution_status_report.py": "e46dbf44101e51a17d127eebaeddbe7e3c6f3b7290e09e8aac899975d16cd615",
-    "scripts/route_work.py": "01b84e83193770e477f9b98311cbf84eda466cd232846a1a0fe6ebf9387252f7",
-    "scripts/routing_cli_options.py": "43f78dfd4bb165789919486a670877cb506e0babcd05cb67afb33c5492bd581f",
+    "scripts/route_work.py": "eca6fe4094299e6d9d8e90324766f049e9ed8cf6b136fc49248b5609dbef2ccd",
+    "scripts/routing_cli_options.py": "d104bf9ba9fd603e783aa365ab00f8c940e682f0f575e6b16f7fddc1a62c1c24",
     "scripts/run_admitted_native_pool_transaction.py": "17effe6df9fc690897cedda87c848d63ea9e9c405c80068590d145b1954ab6bf",
     "scripts/run_native_pool_activation_preview.py": "33d6dfbf35ba77fa2fe205e70361fe949be1b8d5cf7f7b132e1539806eaef19e",
     "scripts/run_native_pool_live_canaries.py": "a5e54d822c0faa7cd24ec213f95992d106e25eedb81a44da4512e1725679cd24",
@@ -594,7 +600,7 @@
     "tests/historical_policy_fixtures.py": "8419f9bb4bbca4f030630eaee21d6f40e5605bf014de2e8f63ab9653e6005040",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
-    "tests/test_affected_contract_compatibility.py": "5941df78e1028497562aef620ba08b9e3d9fd306142b59cc56e25950213a368a",
+    "tests/test_affected_contract_compatibility.py": "0730e62a1daadf150c9ce8f3506857ce0a4f8c4a568a3328d2013962d7f33ff3",
     "tests/test_beads_ready_set.py": "f0d40bac7c5596fbef8e9d2739b0823eb3df1abd1b10fe8a5bca183d2983a8cc",
     "tests/test_codex_tool_surface.py": "5527d43f3b5658669a99ee02e6403b0ed57f1cc6f8491f6a3f373eb5bfd1d9b8",
     "tests/test_finite_fixture_progress_acknowledgment.py": "966f50fde466583060fcb0dce898c6bd7e479efba639f551bcc2e2f3444637d2",
@@ -622,7 +628,7 @@
     "tests/test_offline_n1_host.py": "3ca5431dd1b20cceeb6ed8a5014df90982044d45a6195dd6a775a9613aa8caf2",
     "tests/test_operative_routing.py": "5c0d49129abe021d292e45a824180e2ef2f4f3ec17b4c0547c9a34083c97b138",
     "tests/test_ownership_producer.py": "14d7a0ec68767275fd1e96daca77e524bf0dee174e108fe033c0dcb8f8c81c60",
-    "tests/test_policy_current_effects.py": "ab30cb36fb2609340deeed29b9b5a1d015fdc5e81f579cab215fcda8f178181e",
+    "tests/test_policy_current_effects.py": "c9b7874dd97c9cffb39933fea4d09e6dc6346e0f8f38b79a98f76497840beea6",
     "tests/test_qualified_review_dispatch.py": "652c6819674cca5e074de36756a1a6bc6952b7bf5ef08293ddd8cafb51c2ec37",
     "tests/test_registered_controlled_output_schedule.py": "2cdd3d39ead6c089a9aa1aa594f8817c62fadda752e5ef60da614ca034d7139d",
     "tests/test_registered_finite_input.py": "33786717c01a7dcba7b329674e6a94f2759f5f4b9c71a7b108bbaa4bc378d28a",
@@ -630,7 +636,7 @@
     "tests/test_registered_finite_tool_wiring.py": "631e71ecf38debc5b951db609e7cf364d4fcafc2d98e70c7772081fac771c3d1",
     "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
     "tests/test_registered_n1_qualification.py": "67d0be4b236ce65aac06f95e62ec464ed11bbc8fe6164005cf024b2b1fa51d92",
-    "tests/test_registered_n1_workflow.py": "f59f71d049575f7ca366c736a776901d420b4341d4090823a47dde5849e22b23",
+    "tests/test_registered_n1_workflow.py": "1d7ceb2a5c3f55f34726d44e39940dbb24a018c8f5ca944c4adaa2749309d2cc",
     "tests/test_registered_native_pool_host.py": "4cd0bc00dce22022f1754f6defa17adb93759f749fcb7a67634e33eb35a27c4a",
     "tests/test_registered_native_pool_profiles.py": "d2be1853a7672e84c7f3cdcc5e460baf0758af549dad295c1c76b2d4dc893889",
     "tests/test_registered_outbound_screen.py": "de9f7f9b071365afef9236a20fbeef321d55cbdf941a4c3673646612a7b5949c",
@@ -906,6 +912,23 @@
       "scripts/cwo_core/types.py",
       "scripts/cwo_core/util.py"
     ],
+    "scripts/cwo_core/codex_critic_capture.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/dispatch_workload.py",
+      "scripts/cwo_core/errors.py",
+      "scripts/cwo_core/host_acceptance.py",
+      "scripts/cwo_core/host_return_intake.py",
+      "scripts/cwo_core/model_identities.py",
+      "scripts/cwo_core/native_session_boundary.py",
+      "scripts/cwo_core/outbound_screen.py",
+      "scripts/cwo_core/peer_review.py",
+      "scripts/cwo_core/peer_review_identity.py",
+      "scripts/cwo_core/policy.py",
+      "scripts/cwo_core/policy_schema.py",
+      "scripts/cwo_core/reasoning_effort.py",
+      "scripts/cwo_core/return_advisory.py",
+      "scripts/cwo_core/returns.py"
+    ],
     "scripts/cwo_core/codex_hook_enforcement.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/errors.py"
@@ -918,6 +941,12 @@
     "scripts/cwo_core/codex_tool_surface.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/native_tool_isolation.py"
+    ],
+    "scripts/cwo_core/dispatch_workload.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/paths.py",
+      "scripts/cwo_core/policy_schema.py",
+      "scripts/cwo_core/route_feasibility.py"
     ],
     "scripts/cwo_core/epic_convergence.py": [],
     "scripts/cwo_core/errors.py": [],
@@ -1427,10 +1456,20 @@
       "scripts/cwo_core/types.py",
       "scripts/cwo_core/util.py"
     ],
+    "scripts/cwo_core/review_inputs.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/beads.py",
+      "scripts/cwo_core/policy.py"
+    ],
     "scripts/cwo_core/risk_features.py": [
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/errors.py",
       "scripts/cwo_core/policy.py"
+    ],
+    "scripts/cwo_core/route_feasibility.py": [
+      "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/native_authority.py",
+      "scripts/cwo_core/work_sizing.py"
     ],
     "scripts/cwo_core/routing.py": [
       "scripts/cwo_core/__init__.py",
@@ -1596,6 +1635,8 @@
       "scripts/cwo_core/access_profiles.py",
       "scripts/cwo_core/adjudication.py",
       "scripts/cwo_core/audit.py",
+      "scripts/cwo_core/codex_critic_capture.py",
+      "scripts/cwo_core/dispatch_workload.py",
       "scripts/cwo_core/errors.py",
       "scripts/cwo_core/host_records.py",
       "scripts/cwo_core/invocation_ledger.py",
@@ -1607,6 +1648,7 @@
       "scripts/cwo_core/reasoning_effort.py",
       "scripts/cwo_core/return_advisory.py",
       "scripts/cwo_core/return_language.py",
+      "scripts/cwo_core/review_inputs.py",
       "scripts/cwo_core/risk_features.py",
       "scripts/cwo_core/routing.py",
       "scripts/cwo_core/telemetry.py",
@@ -1616,7 +1658,8 @@
       "scripts/generate_manual_dispatch_prompt.py",
       "scripts/local_http_admission.py",
       "scripts/model_catalog_startup.py",
-      "scripts/qualified_review_dispatch.py"
+      "scripts/qualified_review_dispatch.py",
+      "scripts/routing_cli_options.py"
     ],
     "scripts/evaluate_return.py": [
       "scripts/cwo_core/__init__.py",
@@ -1643,6 +1686,7 @@
     ],
     "scripts/generate_manual_dispatch_prompt.py": [
       "scripts/cwo_core/__init__.py",
+      "scripts/cwo_core/dispatch_workload.py",
       "scripts/cwo_core/errors.py",
       "scripts/cwo_core/outbound_screen.py",
       "scripts/cwo_core/packet_provenance.py",
@@ -1650,7 +1694,8 @@
       "scripts/cwo_core/risk_features.py",
       "scripts/cwo_core/routing.py",
       "scripts/cwo_core/waivers.py",
-      "scripts/model_catalog_startup.py"
+      "scripts/model_catalog_startup.py",
+      "scripts/routing_cli_options.py"
     ],
     "scripts/guarded_artifact_target.py": [
       "scripts/cwo_core/__init__.py",
@@ -1790,8 +1835,7 @@
     ],
     "scripts/prepare_route_feasibility.py": [
       "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/native_authority.py",
-      "scripts/cwo_core/work_sizing.py"
+      "scripts/cwo_core/route_feasibility.py"
     ],
     "scripts/prepare_route_ledger_reconciliation.py": [
       "scripts/cwo_core/__init__.py",

@@ -38,11 +38,13 @@ def require_desktop_reply_source(packet):
             raise SystemExit("a prepared desktop browser return requires --browser-reply")
 
 
-def _resume_request(path, dispatch, request_id):
+def _resume_request(path, dispatch, request_id, workload_path):
     metadata = dispatch["evaluation_metadata"]
     if not _is_desktop_preparation(dispatch) or request_id != metadata.get("request_id"):
         raise SystemExit("request ID does not match the recorded browser preparation")
-    request = prepare_browser_packet_request(path, request_id=request_id)
+    if "dispatch_workload" not in metadata:
+        raise SystemExit("recorded browser preparation has no workload sizing; build a packet with a fresh dispatch ID")
+    request = prepare_browser_packet_request(path, request_id=request_id, workload_path=workload_path)
     pinned = (dispatch["dispatch_id"], dispatch["packet_sha256"], dispatch["request_sha256"],
               metadata["packet_source_sha256"], metadata["outbound_prepared_sha256"])
     current = (request.metadata["dispatch_id"], request.metadata["packet_sha256"], request.outbound.payload.sha256,
@@ -52,14 +54,14 @@ def _resume_request(path, dispatch, request_id):
     return request
 
 
-def prepare_desktop_request(path):
+def prepare_desktop_request(path, *, workload_path=None):
     store = configured_store()
     path = Path(path).expanduser().resolve()
     dispatch = _find_dispatch(store, load_packet_file(str(path)))
     if dispatch:
-        request = _resume_request(path, dispatch, dispatch["evaluation_metadata"].get("request_id"))
+        request = _resume_request(path, dispatch, dispatch["evaluation_metadata"].get("request_id"), workload_path)
     else:
-        request = prepare_browser_packet_request(path)
+        request = prepare_browser_packet_request(path, workload_path=workload_path)
         metadata = request.metadata
         enforce_contracting_quota(metadata["epic_id"], EXECUTOR_KEY, "external-contract",
                                   dispatch_id=metadata["dispatch_id"], packet_sha256=metadata["packet_sha256"])
@@ -144,9 +146,14 @@ def record_desktop_reply(dispatch_id, raw, args):
 def main():
     parser = argparse.ArgumentParser(description="Prepare an exact screened packet request for desktop @Chrome.")
     parser.add_argument("--packet", required=True, help="Production ChatGPT browser contractor packet.")
+    parser.add_argument("--workload", help="Whole-route sizing JSON and selected node for the browser request.")
     args = parser.parse_args()
     try:
-        sys.stdout.write(prepare_desktop_request(args.packet).decode("utf-8"))
+        request = prepare_desktop_request(args.packet, workload_path=args.workload)
+        if hasattr(sys.stdout, "buffer"):
+            sys.stdout.buffer.write(request)
+        else:
+            sys.stdout.write(request.decode("utf-8"))
     except CWOPolicyError as exc:
         raise SystemExit(str(exc)) from exc
 

@@ -26,12 +26,18 @@ from generate_manual_dispatch_prompt import (
     read_task_segments,
     render_packet_prompt,
     render_prompt,
+    require_packet_workload,
     screen_export,
     write_export,
 )
+from routing_cli_options import (
+    DISCLOSURE_ESCALATION_HELP, add_local_route_arguments, add_route_boundary_arguments, route_decision_options,
+)
 
-from cwo_core.errors import CWOError
 from cwo_core import return_advisory
+from cwo_core.codex_critic_capture import prepare_codex_critic_request
+from cwo_core.dispatch_workload import WorkloadRefused, read_export_workload
+from cwo_core.errors import CWOError, CWOPolicyError
 from cwo_core.adjudication import dispatch_provenance
 import local_http_admission
 from cwo_core.host_records import HostRecordError, configured_store
@@ -2364,12 +2370,33 @@ def _check_retry_options(args: argparse.Namespace) -> None:
         raise SystemExit("--retry-dispatch is available for internal Codex task preparation")
 
 
+def _record_critic_route(args, dispatch_id, task, metadata):
+    try:
+        workload = read_export_workload(args.workload)
+        prepare_codex_critic_request(configured_store(), dispatch_id, request=task.encode('utf-8'),
+            bead_id=args.bead, workload=workload, evaluation_metadata=metadata)
+    except (WorkloadRefused, CWOPolicyError) as exc:
+        raise SystemExit(str(exc)) from exc
+
+
 def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], task: str,
                              dispatch_id: str, manual_prompt: str | None,
                              local_envelope: dict[str, Any] | None, *, manual_phase: bool = False,
                              outbound_metadata: dict[str, Any] | None = None) -> None:
     if (not args.audit or getattr(args, 'rehearsal', False) or getattr(args, 'execute_local', False)
             or (manual_prompt is not None) != manual_phase):
+        return
+    metadata = {
+        'share_boundary': route.get('share_boundary'),
+        'job_description_label': dispatch_job_label(route),
+        'dispatch_mode': route['selected_executor']['dispatch_mode'],
+        'peer_review_required': route.get('peer_review_required', True),
+        'provider_conflict_domains': route.get('provider_conflict_domains', []),
+        **codex_dispatch_metadata(route),
+        **(outbound_metadata or {}),
+    }
+    if route['recommended_executor'] == 'codex_architecture_critic':
+        _record_critic_route(args, dispatch_id, task, metadata)
         return
     request_sha256 = (
         local_request_sha256(local_envelope) if local_envelope
@@ -2378,15 +2405,7 @@ def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], ta
     record_prepared_dispatch(
         dispatch_id, provider=route['selected_executor'].get('provider_key'),
         request_sha256=request_sha256, bead_id=args.bead, executor=route['recommended_executor'],
-        evaluation_metadata={
-            'share_boundary': route.get('share_boundary'),
-            'job_description_label': dispatch_job_label(route),
-            'dispatch_mode': route['selected_executor']['dispatch_mode'],
-            'peer_review_required': route.get('peer_review_required', True),
-            'provider_conflict_domains': route.get('provider_conflict_domains', []),
-            **codex_dispatch_metadata(route),
-            **(outbound_metadata or {}),
-        },
+        evaluation_metadata=metadata,
     )
 
 
@@ -2517,6 +2536,7 @@ def _main() -> None:
     parser.add_argument("text", nargs="*")
     parser.add_argument("--file")
     parser.add_argument("--packet", help="Boundary-gated JSON contractor packet from build_contractor_packet.py.")
+    parser.add_argument("--workload", help="Whole-route sizing JSON and selected node for a managed dispatch.")
     parser.add_argument(
         "--allow-degraded-packet",
         action="store_true",
@@ -2539,17 +2559,8 @@ def _main() -> None:
     )
     parser.add_argument("--mode", choices=["manual"], default="manual")
     parser.add_argument("--external-ok", action="store_true")
-    parser.add_argument(
-        "--allow-disclosure-escalation",
-        action="store_true",
-        help="Explicitly approve repo-readonly or patch-branch disclosure routing.",
-    )
-    parser.add_argument("--local-ok", action="store_true", help="Permit low-risk local worker dispatch.")
-    parser.add_argument("--prefer-local", action="store_true", help="Prefer local worker routing when policy permits it.")
-    parser.add_argument(
-        "--local-profile",
-        help="Require a named local executor profile, for example openshift-ai-vllm.",
-    )
+    parser.add_argument("--allow-disclosure-escalation", action="store_true", help=DISCLOSURE_ESCALATION_HELP)
+    add_local_route_arguments(parser)
     parser.add_argument("--local-base-url", help="OpenAI-compatible local endpoint base URL.")
     parser.add_argument("--local-model", help="Model name for local OpenAI-compatible dispatch.")
     local_auth = parser.add_mutually_exclusive_group()
@@ -2595,12 +2606,7 @@ def _main() -> None:
         action="store_true",
         help="Permit execution when the selected access profile is marked offline. Requires --waiver-reason.",
     )
-    parser.add_argument("--share-boundary", default="no-outside-sharing")
-    parser.add_argument(
-        "--data-sensitivity",
-        choices=["public", "redacted", "internal", "restricted"],
-        help="Declare known input data sensitivity; overrides the advisory text heuristic.",
-    )
+    add_route_boundary_arguments(parser)
     parser.add_argument("--requested-role", action="append", default=[])
     parser.add_argument("--bead")
     parser.add_argument("--epic")
@@ -2677,13 +2683,13 @@ def _main() -> None:
             packet_sha256=packet.get("packet_sha256"),
         )
         artifact.update(quota_info)
-        input_capture.require_unchanged(inputs)
         source = {"inputs": inputs, "artifact": artifact}
-        capture = PreparedSource.capture(source, files)
         screened_output = screen_export(
             json.dumps(artifact, indent=2, sort_keys=True) if args.json else artifact["manual_prompt"], as_json=args.json
         )
-        prepared = capture.bind(source, screened_output)
+        sizing = require_packet_workload(args.workload, captured["packet"], manual_prompt, files, rehearsal=args.rehearsal)
+        input_capture.require_unchanged(inputs)
+        prepared = PreparedSource.capture(source, files).bind(source, screened_output)
         if audited_dispatch(args):
             record_prepared_dispatch(
                 artifact["dispatch_id"], provider=artifact["provider_key"],
@@ -2696,6 +2702,7 @@ def _main() -> None:
                     "dispatch_mode": "manual_ui", "peer_review_required": True,
                     "expected_return_language": expected_language,
                     "expected_return_language_source": expected_language_source,
+                    "dispatch_workload": sizing,
                     **codex_peer_effort_metadata(packet),
                     **prepared.metadata(),
                 },
@@ -2753,14 +2760,8 @@ def _main() -> None:
         route = classify_work(
             task,
             text_segments=task_segments,
-            external_ok=args.external_ok,
-            allow_disclosure_escalation=args.allow_disclosure_escalation,
-            local_ok=args.local_ok,
-            prefer_local=args.prefer_local,
+            **route_decision_options(args),
             local_profile=args.local_profile,
-            share_boundary=args.share_boundary,
-            data_sensitivity=args.data_sensitivity,
-            requested_roles=args.requested_role,
             **_retry_evidence(args, task),
             **current_authority_file_arguments(args.current_authority),
         )

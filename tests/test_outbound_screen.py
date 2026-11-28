@@ -409,6 +409,8 @@ class ManualExportTests(unittest.TestCase):
             self.test_corpus_material_never_leaves_through_manual_export()
 
     def test_corpus_material_never_leaves_through_manual_export(self) -> None:
+        from tests.dispatch_workload_fixture import write_workload
+
         """Every sensitive seed case, plain and as JSON, either exports with none of its sensitive content
         or is refused by the screen for content of that case. Any other exit fails the test, and so does a
         refusal with a finding outside the case's own snippet."""
@@ -428,10 +430,12 @@ class ManualExportTests(unittest.TestCase):
                 with self.subTest(case=case["id"], json=bool(extra)), tempfile.TemporaryDirectory() as tmpdir:
                     path = Path(tmpdir) / "packet.json"
                     path.write_text(json.dumps(packet), encoding="utf-8")
+                    workload = write_workload(path.with_name("workload.json"), packet)
                     record: list[tuple[str, tuple]] = []
                     stdout = io.StringIO()
                     refusal = None
-                    with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", "--packet", str(path), *extra]), \
+                    with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", "--packet", str(path),
+                                                    "--workload", workload, *extra]), \
                             contextlib.redirect_stdout(stdout), with_provenance(packet), \
                             patch.object(generate_manual_dispatch_prompt, "require_clean", side_effect=recording_screen(record)):
                         try:
@@ -458,13 +462,15 @@ class ManualExportTests(unittest.TestCase):
 
     def test_export_prints_exactly_the_screened_bytes(self) -> None:
         from generate_manual_dispatch_prompt import render_packet_prompt
+        from tests.dispatch_workload_fixture import write_workload
 
         packet = packet_with("Review the retry plan for duplicate jobs.")
         with tempfile.TemporaryDirectory() as tmpdir:
             path = Path(tmpdir) / "packet.json"
             path.write_text(json.dumps(packet), encoding="utf-8")
+            workload = write_workload(path.with_name("workload.json"), packet)
             with with_provenance(packet):
-                printed, raised = self.run_export(["--packet", str(path)])
+                printed, raised = self.run_export(["--packet", str(path), "--workload", workload])
         self.assertIsNone(raised)
         self.assertEqual(printed, render_packet_prompt(packet) + "\n")
 
@@ -1146,15 +1152,18 @@ class RoundFiveTests(_OutboundHelpers, unittest.TestCase):
     def test_clean_json_exports_pass_in_both_commands(self) -> None:
         import dispatch_work
         import generate_manual_dispatch_prompt
+        from tests.dispatch_workload_fixture import write_workload
 
         with tempfile.TemporaryDirectory() as tmpdir:
             path = self._clean_packet(tmpdir)
+            workload = write_workload(path.with_name("workload.json"), json.loads(path.read_text(encoding="utf-8")))
+            args = ["--packet", str(path), "--workload", workload, "--json"]
             stdout = io.StringIO()
-            with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", "--packet", str(path), "--json"]), \
+            with patch.object(sys, "argv", ["generate_manual_dispatch_prompt.py", *args]), \
                     contextlib.redirect_stdout(stdout), with_provenance(json.loads(path.read_text(encoding="utf-8"))):
                 generate_manual_dispatch_prompt.main()
             self.assertIn("Secret or personal-data spill:\nScope compliance:", json.loads(stdout.getvalue())["prompt"])
-            argv = ["dispatch_work.py", "--packet", str(path), "--json"]
+            argv = ["dispatch_work.py", *args]
             stdout = io.StringIO()
             with patch.object(sys, "argv", argv), contextlib.redirect_stdout(stdout), \
                     with_provenance(json.loads(path.read_text(encoding="utf-8"))), \
