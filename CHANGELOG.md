@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Publish the [six-case workshop handoff comparison](references/evaluation-evidence.md#workshop-handoff-comparison) with check outcomes, elapsed time, and token use for CWO and plain Codex.
+
 ## 1.49.0 - 2026-11-28
 
 - Add optional local run records to `cwo continue` and a read-only `cwo analyze` report for saved plan artifacts.

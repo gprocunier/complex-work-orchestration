@@ -2,7 +2,8 @@
 
 The [evaluation evidence](evaluation-evidence.md) records the observed
 single-worker and contained-pool qualifications, the architect prompt check,
-and the architect real-use trial.
+the architect real-use trial, and a fixed six-case workshop handoff comparison
+with plain Codex fanout.
 
 Production `evaluate_return.py` accepts an audited contractor packet through
 `--contractor-packet`. The common `require_production_contractor_packet` rule

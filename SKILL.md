@@ -149,7 +149,7 @@ three units or six reads warn; four or eleven require replanning.
 
 ## Reference Map
 
-- [Guide](README.md) and [CI ratchets](references/ci-validation.md)
+- [Guide](README.md), [CI ratchets](references/ci-validation.md), and [evaluation evidence](references/evaluation-evidence.md)
 - Prompt coach: `references/prompt-coach.md`
 - External contracting and trust boundary: `references/external-contracting.md`
 - Contractor briefing: `references/contractor-brief.md`
