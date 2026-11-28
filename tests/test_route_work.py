@@ -587,6 +587,33 @@ class RouteWorkTests(unittest.TestCase):
         self.assertEqual(payload["data_sensitivity_source"], "operator-declared")
         self.assertEqual(payload["data_sensitivity_heuristic"], "public")
 
+    def test_route_cli_compacts_catalogs_without_changing_the_decision(self) -> None:
+        command = [sys.executable, "scripts/route_work.py", "--json", "--file-path", "README.md"]
+        task = "Fix a typo in README.md"
+        compact_output = subprocess.check_output([*command, task], cwd=ROOT)
+        compact = json.loads(compact_output)
+        self.assertNotIn("required_experts", compact)
+        self.assertNotIn("executor_candidates", compact["ranked_experts"][0])
+        self.assertNotIn("access_profile_details", compact["ranked_executors"][0])
+
+        full_output = subprocess.check_output([*command, "--include-catalog", task], cwd=ROOT)
+        full = json.loads(full_output)
+        self.assertNotIn("required_experts", full)
+        library = classify_work(task, file_paths=["README.md"])
+        self.assertEqual(library["required_experts"], library["ranked_experts"])
+        self.assertEqual(full["ranked_experts"], library["ranked_experts"])
+        self.assertEqual(full["ranked_executors"], library["ranked_executors"])
+        for field, identity in (("ranked_experts", "name"), ("ranked_executors", "key")):
+            self.assertEqual([row[identity] for row in compact[field]], [row[identity] for row in full[field]])
+        expert = compact["ranked_experts"][0]
+        self.assertEqual(expert["selected_executor"]["key"], expert["recommended_executor"])
+        self.assertEqual(compact.keys(), full.keys())
+        for field in compact.keys() - {"ranked_experts", "ranked_executors", "operative_route"}:
+            self.assertEqual(compact[field], full[field], field)
+        for field in compact["operative_route"].keys() - {"evaluated_at", "route_sha256"}:
+            self.assertEqual(compact["operative_route"][field], full["operative_route"][field], field)
+        self.assertLess(len(compact_output), len(full_output) // 3)
+
 
     def test_human_output_shows_per_expert_executor_and_controls(self) -> None:
         result = classify_work(

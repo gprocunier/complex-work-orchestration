@@ -110,8 +110,9 @@ class OrdinaryPoolSourceTests(unittest.TestCase):
 
     def test_sensitive_patch_source_refuses_before_approval(self):
         secret = "Authorization: Bearer example-secret-value"
-        with self.assertRaisesRegex(OutboundRefused, "registered pool patch source") as error:
-            self.prepare(secret.encode())
+        with (patch.object(preparation, "read_pool_patch_file", return_value=secret.encode()),
+              self.assertRaisesRegex(OutboundRefused, "registered pool patch source") as error):
+            self.prepare(b"Original bytes for this assignment.\n")
         self.assertNotIn(secret, str(error.exception))
         self.assertFalse((self.root / "productive-spool-1").exists())
 

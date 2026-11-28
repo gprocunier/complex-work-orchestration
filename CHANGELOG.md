@@ -8,6 +8,7 @@
 - Update the public guides for protected review approvals and sizing, return screening, delivery readiness, saved runs and plan analysis, architecture design, and retired native controls.
 - Explain how approved workers in a registered contained pool propose one-file patches and how the host verifies the writer’s result.
 - Summarize the measured workshop handoff comparison and explain the code-health check and required documentation terms. [Examples](docs/use-cases.html#workshop-handoff-comparison) · [Reference](docs/reference.html#maintain)
+- Slim `route_work.py --json`. Read `ranked_experts` in place of the removed top-level `required_experts` alias, and add `--include-catalog` for full ranked expert and executor details. Risk-required experts are still listed at `risk_assessment.required_experts`.
 
 ## 1.49.0 - 2026-11-28
 

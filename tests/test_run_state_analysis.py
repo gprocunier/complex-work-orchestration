@@ -89,20 +89,26 @@ class RunStateAnalysisTests(unittest.TestCase):
         self.assertEqual(saved_markdown.returncode, 0, saved_markdown.stderr)
         graph = self.write("scaffold.json", saved_graph.stdout)
         markdown = self.write("scaffold.md", saved_markdown.stdout)
-        route = json.loads(saved_graph.stdout)[0]["metadata"]["orchestration_route"]
-        route_path = self.write("route.json", json.dumps(route))
+        embedded_route = json.loads(saved_graph.stdout)[0]["metadata"]["orchestration_route"]
+        embedded_path = self.write("embedded-route.json", json.dumps(embedded_route))
+        routed = self.cwo("route", "--json", "CSV invoice exports")
+        self.assertEqual(routed.returncode, 0, routed.stderr)
+        route = json.loads(routed.stdout)
+        self.assertNotIn("required_experts", route)
+        route_path = self.write("route.json", routed.stdout)
         ledger = self.write("ledger.jsonl", "")
         coach = self.coach(True)
         handoff = self.write("handoff.md", "# Missing fields\n")
         plan = json.loads((ROOT / "examples" / "sample-run-readiness-plan.json").read_text(encoding="utf-8"))
         plan["workstreams"][0]["validation_refs"] = ["criterion:unmapped"]
         readiness = self.write("readiness.json", json.dumps(plan))
-        artifacts = (graph, markdown, route_path, ledger, coach, readiness, handoff)
+        artifacts = (graph, markdown, embedded_path, route_path, ledger, coach, readiness, handoff)
         for workgraph in (graph, markdown):
-            with self.subTest(workgraph=workgraph):
-                clean = self.cwo("analyze", "--workgraph", str(workgraph), "--route", str(route_path))
-                self.assertEqual(clean.returncode, 0, clean.stderr or clean.stdout)
-                self.assertEqual(json.loads(clean.stdout)["findings"], [])
+            for saved_route in (embedded_path, route_path):
+                with self.subTest(workgraph=workgraph, route=saved_route):
+                    clean = self.cwo("analyze", "--workgraph", str(workgraph), "--route", str(saved_route))
+                    self.assertEqual(clean.returncode, 0, clean.stderr or clean.stdout)
+                    self.assertEqual(json.loads(clean.stdout)["findings"], [])
 
         route["route"] = "different-route"
         route_path.write_text(json.dumps(route), encoding="utf-8")

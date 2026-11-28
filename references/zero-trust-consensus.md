@@ -198,8 +198,9 @@ python3 scripts/evaluate_synthesis.py --inputs critic-inputs.json \
   --route route.json --adjudications return-adjudications.json
 ```
 
-`--route` reads the JSON from `route_work.py --json` and carries its
-consensus requirement and provider-conflict flags into the report. To require
+`--route` reads the default JSON from `route_work.py --json` and carries its
+consensus requirement and provider-conflict flags into the report. Saved route
+files from older versions are also accepted. To require
 claim comparison directly, pass `--zero-trust-required`. The optional
 adjudications file contains existing [adjudication records](#adjudication),
 which still govern recommended primary use. For a host-recorded lane, the
