@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Publish the [six-case workshop handoff comparison](references/evaluation-evidence.md#workshop-handoff-comparison) with check outcomes, elapsed time, and token use for CWO and plain Codex.
+- Update the public guides for protected review approvals and sizing, return screening, delivery readiness, saved runs and plan analysis, architecture design, and retired native controls.
 
 ## 1.49.0 - 2026-11-28
 

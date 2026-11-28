@@ -261,6 +261,7 @@
             <h2>Prepare the request without calling the model (optional)</h2>
             <p>Before the first real call, or when troubleshooting a profile, you can inspect what CWO would send. Without <code>--execute-local</code>, dispatch writes a <strong>local envelope</strong>: a request record containing the selected profile, environment-variable names, readiness flags and the bounded prompt. It contains neither API-key values nor endpoint URLs, and no endpoint call occurs.</p>
             <p>The envelope is not the working path. To send the request, configure the endpoint, stage the original workload admission and execute. <a href="#execute-local">Admit and send the request</a>.</p>
+            <p>For a managed expert review, pass the assigned <code>--bead</code>. In the task text or <code>--file</code>, retain the <code>Expert profile: experts/&lt;profile&gt;.md</code> line and include one <code>Review input [input name]: concrete evidence</code> line per declared input. Dispatch refuses an incomplete managed request before preparing or sending it.</p>
             <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_BASE_URL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"https://vllm.example.internal"</span></span>
 <span class="line"><span class="shiki-style-a694eb0da6a49aaf">export</span><span class="shiki-style-d6f50f15d04b4a1d"> CWO_OPENSHIFT_AI_VLLM_MODEL</span><span class="shiki-style-a694eb0da6a49aaf">=</span><span class="shiki-style-fccf53bf0d08ec6a">"vllm-local"</span></span>
 <span class="line"></span>
@@ -281,7 +282,7 @@
           </section>
 
           <section id="endpoint-safety">
-            <h2>Endpoint Safety</h2><p>Before any request leaves the machine, CWO redacts known secret patterns in the request text (replacing them with <code>[REDACTED]</code>) and screens the exact HTTP request: method, URL, non-authentication headers and body. A screening finding refuses the call and nothing is sent. Redaction and screening check for known patterns; they can miss sensitive material, so inspect what the request may contain.</p><p>The local dispatcher rechecks the request against the selected executor, restricts the destination and disables proxy/redirect routing. Hardened profiles also require an exact model preflight and a usable final-response contract, separating reasoning from the returned answer. These checks are profile-specific; a generic OpenAI-compatible profile is not proof of the same hardening or of live endpoint qualification.</p>
+            <h2>Endpoint Safety</h2><p>Before sending a local review request, CWO redacts recognizable sensitive text and screens the exact HTTP request: method, URL, non-authentication headers and body. The body uses the same sensitive-content checks as a manual export, including recognizable addresses, international phone numbers, payment-card numbers and encoded secrets. A finding stops the request before transport. Inspect the material for sensitive details the checks may miss.</p><p>The local dispatcher rechecks the request against the selected executor, restricts the destination and disables proxy/redirect routing. Hardened profiles also require an exact model preflight and a usable final-response contract, separating reasoning from the returned answer. These checks are profile-specific; a generic OpenAI-compatible profile is not proof of the same hardening or of live endpoint qualification.</p>
             <p>
               Execution is fail-closed: a failed check prevents the call. Before <code>--execute-local</code>
               sends a request, CWO validates the endpoint URL, disables proxy
@@ -390,9 +391,10 @@
               Inspect the return in nonproduction advisory mode. Local dispatch
               artifacts have no reviewed production producer contract; this mode
               retains an implementation hold and cannot clear a finding or qualify
-              local execution. Pass
-              <code>--peer-review-required</code> only if route policy or
-              provider-conflict flags require it:
+              local execution. When the recorded route policy or provider-conflict
+              flags require peer review, include <code>--peer-review-required</code>
+              in this diagnostic. Complete the separate peer review and architect
+              adjudication before using those findings in the implementation plan.
             </p>
             <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/evaluate_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --advisory</span><span class="shiki-style-ab138001542cb31f"> --no-audit</span><span class="shiki-style-ab138001542cb31f"> --waiver-reason</span><span class="shiki-style-fccf53bf0d08ec6a"> "nonproduction diagnostic"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>

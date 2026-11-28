@@ -167,31 +167,23 @@
 
           <section id="dispatch">
             <h2>Preparing a prompt was separate from calling a model</h2>
-            <p>The historical procedure separated packet preparation from the model call. The project manager created a task and checked brief, then rendered a manual prompt for an approved CLI. Rendering alone did not call the model. Use the <a href="./external-contracting.html#packet">current packet procedure</a> for a new assignment.</p>
-            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/build_contractor_packet.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+            <p>The historical procedure separated packet preparation from the model call. The example below uses the <a href="./external-contracting.html#packet">current packet procedure</a> to prepare a new Claude Code assignment like the demo’s Pages assignment. From the target checkout, set <code>CWO_SCRIPTS</code> to the absolute path of the CWO installation’s <code>scripts</code> directory. Set <code>BEAD_ID</code> to the new contractor Bead with its job-description label, <code>OUTBOUND_APPROVAL</code> to the protected host reference for that assignment and <code>DISCLOSURE_REASON</code> to the operator’s reason for approving the patch-branch boundary. After the build, follow the linked sizing steps for the complete rendered prompt and set <code>WORKLOAD_FILE</code> to the file with the original <code>route_input</code> and its selected <code>node_id</code>. Inspect the screened prompt before giving it to the approved Claude Code CLI.</p>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/build_contractor_packet.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$BEAD_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> claude_code_manual</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --share-boundary</span><span class="shiki-style-fccf53bf0d08ec6a"> patch-branch</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --allow-disclosure-escalation</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --external-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --waiver-reason</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$DISCLOSURE_REASON</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --opt-in-record</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$OUTBOUND_APPROVAL</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --format</span><span class="shiki-style-fccf53bf0d08ec6a"> json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-packet.json</span></span>
 <span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/dispatch_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/dispatch_work.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --packet</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-packet.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --mode</span><span class="shiki-style-fccf53bf0d08ec6a"> manual</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --workload</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$WORKLOAD_FILE</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-dispatch-prompt.md</span></span></code></pre>
-            <p>The demo guide prescribed a separate worktree or branch per contractor and repository commands running as the repo owner. Its CLI instructions named the intended directory, branch, allowed paths and command limits. The historical checklist also required workspace snapshots before and after the call. The guard commands below retain their original form; add <code>--include-untracked</code> to both calls when new files must count. These are procedure notes, not permission to arrange new account access or repeat the calls.</p>
-            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --snapshot</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span></span>
-<span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">agy</span><span class="shiki-style-ab138001542cb31f"> -p</span><span class="shiki-style-fccf53bf0d08ec6a"> "$(</span><span class="shiki-style-3655fcaf5376929f">cat</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-dispatch-prompt.md)"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return.md</span></span>
-<span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --compare</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span></span></code></pre>
+            <p>The demo guide prescribed a separate worktree or branch per contractor and repository commands running as the repo owner. Its CLI instructions named the intended directory, branch, allowed paths and command limits. The historical checklist also required workspace snapshots before and after the call. For new assignments, use the <a href="./external-contracting.html#return">current workspace guard procedure</a>.</p>
             <div class="callout">
               <strong>Ignored artifacts:</strong>
               Packet JSON, rendered prompts, and contractor returns are useful
@@ -203,24 +195,11 @@
           <section id="returns">
             <h2>How returned work was checked</h2>
             <p>
-              Contractor output is evidence, not authority. Normalize and
-              evaluate returns before using the work. Parser or heuristic
-              failures should trigger architect review; they are not automatic
-              proof that the patch is bad, and they are not permission to skip
-              review.
+              Treat contractor output as evidence. For a new managed assignment,
+              use the <a href="./external-contracting.html#return">current return procedure</a>
+              with the exact original packet and unedited reply. Send parser and
+              heuristic findings to the architect for review before using the work.
             </p>
-            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/normalize_contractor_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$BEAD_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --dispatch-id</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$DISPATCH_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --packet-sha256</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$PACKET_SHA256</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return.md</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return-bundle.json</span></span>
-<span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/evaluate_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$BEAD_ID</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return.md</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span></span></code></pre>
             <p>
               The demo exposed two practical quality gates. Return headings
               should use the canonical labels expected by the evaluator, and
