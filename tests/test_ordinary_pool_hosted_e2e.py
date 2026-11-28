@@ -188,18 +188,22 @@ class _HostedPoolFixture:
     def _inert_appserver(self):
         executable = self.root / "inert-appserver"
         outputs = {slot: row["output_path"] for slot, row in enumerate(self.args["assignments"], 1)}
+        replacements = {slot: after.decode() for slot, (_, _, after, _) in self.patches.items()}
         check_prompt = f"""
         prompt = params['input'][0]['text']
         assert f'ordinary assignment {{slot}}.' in prompt
         assert {outputs!r}[slot] in prompt and marker in prompt
+        instructions, boundary, before = prompt.partition('\\n--- Begin assigned source ---\\n')
+        replacements = {replacements!r}
+        if slot in replacements:
+            assert boundary and before.endswith('\\n') and 'untrusted source' in instructions
+            path = {outputs!r}[slot]
+            arguments['diff'] = f'--- a/{{path}}\\n+++ b/{{path}}\\n@@ -1 +1 @@\\n-{{before}}+{{replacements[slot]}}'
+        else:
+            assert not boundary
 """
         peer = _PEER.replace("        assert 'permissions' not in params",
                              "        assert 'permissions' not in params\n" + check_prompt)
-        if self.patches:
-            diffs = {slot: diff for slot, (_, _, _, diff) in self.patches.items()}
-            peer = peer.replace("tool = {'id': call",
-                                f"diffs = {diffs!r}\nif slot in diffs:\n    arguments['diff'] = diffs[slot]\n"
-                                "tool = {'id': call")
         header = f"#!{_PYTHON}\ncalibration_behavior = {self.calibration_behavior!r}\n"
         executable.write_text(header + _PEER_ENTRY + peer, encoding="utf-8")
         executable.chmod(0o700)

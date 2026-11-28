@@ -281,6 +281,10 @@ class _WorkerWire(RegisteredAppServer):
 
     def _checked_write_frame(self, binding, frame, deadline, method):
         try:
+            if method == "turn/start" and self.factory.patch_mode:
+                from registered_contained_pool_host import require_patch_preimage
+
+                require_patch_preimage(self.factory.parent._ordinary.children[self.factory.child_id], deadline=deadline)
             return _checked_native_frame(binding, frame, deadline, method)
         except Exception as failure:
             self._fail_transport(failure, source="effect-write")
@@ -1116,7 +1120,7 @@ class _PoolParent:
         self.plan = deepcopy(plan)
         self._ordinary = ordinary
         self.authority_path = _private_path(authority_path)
-        self.authority = self._read_authority()
+        self.authority = _read_authority(self.authority_path, self.plan["authority_sha256"])
         self._capability = capability
         _check_admission(admission, self.authority)
         self.admission = admission
@@ -1146,40 +1150,28 @@ class _PoolParent:
         _require(stat.S_ISDIR(details.st_mode) and details.st_uid == os.geteuid() and not details.st_mode & 0o022,
                  "control-root-not-private")
         self.fixture_root, self.control_root = fixture, root
-        self.protected_roots = self._controller_roots()
+        ordinary = self._ordinary
+        self.protected_roots = (root, self.authority_path.parent, ordinary.project, ordinary.integration_root,
+                                ordinary.ledger.root, ordinary.lease_registry_path)
         journal_path = _inside(_private_path(settings["journal_path"]), root)
         self.journal = TransactionJournal(journal_path, self.plan["transaction_id"])
         self.files = {key: root / name for key, name in (("state_file", "pool-state.json"),
             ("decision_file", "pool-decision.json"), ("control_file", "pool-control.json"))}
-        self.leases = PoolLeaseRegistry(self._lease_registry_path())
-
-    def _controller_roots(self):
-        roots = (self.control_root, self.authority_path.parent)
-        return (*roots, self._ordinary.project, self._ordinary.integration_root, self._ordinary.ledger.root,
-                self._ordinary.lease_registry_path)
-
-    def _lease_registry_path(self):
-        return self._ordinary.lease_registry_path
+        self.leases = PoolLeaseRegistry(ordinary.lease_registry_path)
 
     def _worktree_for(self, child_id):
         return self._ordinary.children[child_id].worktree
 
-    def _integration_root(self):
-        return self._ordinary.integration_root
-
     def _prepare_children(self):
+        from registered_pool_ordinary_runtime import ordinary_pool_tasks
+
         children = self.plan["children"]
         self.children = {row["child_id"]: row for row in children}
-        self.tasks = self._selected_tasks(children)
+        self.tasks = ordinary_pool_tasks(self._ordinary, children, self.authority)
         spools = self.authority["spools"]
         _require(type(spools) is dict and spools.keys() == self.children.keys(), "worker-spool-set-drift")
         self.spools = {key: _private_path(value) for key, value in spools.items()}
         self._verify_spool_topology()
-
-    def _selected_tasks(self, children):
-        from registered_pool_ordinary_runtime import ordinary_pool_tasks
-
-        return ordinary_pool_tasks(self._ordinary, children, self.authority)
 
     def _verify_spool_topology(self):
         custody = {spool.parent for spool in self.spools.values()}
@@ -1208,17 +1200,13 @@ class _PoolParent:
         admission = getattr(limits, "_contained_admission", None)
         _require(type(admission) is _ContainedPoolAdmission and admission._claimed
                  and admission._selection.runtime.start_worker_session.__self__ is self
-                 and self._original_stage_custody(limits), "original-contained-stage-limits-required")
+                 and limits._allowance.ordinary is self._ordinary, "original-contained-stage-limits-required")
         self.limits = limits
         self.require_effect()
 
     def _require_stage_mode(self, limits):
         _require(self.calibration_only is (getattr(limits, "calibration_only", False) is True),
                  "original-stage-mode-drift")
-
-    def _original_stage_custody(self, limits):
-        allowance = limits._allowance
-        return allowance.ordinary is self._ordinary
 
     def require_effect(self):
         native_live_availability.require_registered_contained_pool_live()
@@ -1245,14 +1233,11 @@ class _PoolParent:
 
     def _verify_artifacts(self):
         _check_factory_source(self.plan)
-        observed = self._read_authority()
+        observed = _read_authority(self.authority_path, self.plan["authority_sha256"])
         _require(observed == self.authority, "retained-authority-drift")
         for name in ("candidate_manifest", "controller_overlay"):
             path = _private_path(self.authority["artifacts"][name])
             _private_artifact(path, self.plan[name + "_sha256"], "contained-pool-" + name)
-
-    def _read_authority(self):
-        return _read_authority(self.authority_path, self.plan["authority_sha256"])
 
     def _validate_capability(self):
         from cwo_core.native_pool_deferred_context import QUALIFICATION_ADAPTER_VERSION, QUALIFICATION_SURFACE
@@ -1328,13 +1313,10 @@ class _PoolParent:
         _require(self.children.get(child_id) == child and child_id not in self.workers
                  and context["transaction_allocation"]["child_id"] == child_id, "worker-allocation-drift")
         task = self.tasks[child_id]
-        worker = _PoolWorker(self, child, task, self._worktree_for(child_id), self.spools[child_id], self._login_slot(task))
+        login_slot = int(task["worker_slot"].rsplit("-", 1)[1])
+        worker = _PoolWorker(self, child, task, self._worktree_for(child_id), self.spools[child_id], login_slot)
         self.workers[child_id] = worker
         return worker.start()
-
-    @staticmethod
-    def _login_slot(task):
-        return int(task["worker_slot"].rsplit("-", 1)[1])
 
     def _bind_worker_control(self, render):
         child_id = render["child_id"]
@@ -1370,7 +1352,7 @@ class _PoolParent:
             worktree_identity_sha256=identity)
 
     def _launch_options(self, contract, capability):
-        monitor = PoolWorkspaceMonitor(contract, integration_root=self._integration_root(),
+        monitor = PoolWorkspaceMonitor(contract, integration_root=self._ordinary.integration_root,
             child_worktrees={key: worker.worktree for key, worker in self.workers.items()})
         guards = {key: worker.containment._workspace_capture_guard for key, worker in self.workers.items()
                   if worker.patch_mode}
@@ -1396,7 +1378,7 @@ class _PoolParent:
         _check_admission(self.admission, self.authority)
         capability = self._validate_capability()
         render = deepcopy(self.authority["render_request"])
-        _require(render["integration_root"] == str(self._integration_root()), "integration-root-drift")
+        _require(render["integration_root"] == str(self._ordinary.integration_root), "integration-root-drift")
         render["children"] = [self._bind_worker_control(child) for child in render["children"]]
         render["admission_reservation"] = self.receipt
         contract = build_pool_contract(render, capability_receipt=capability, enable_concurrency=True)

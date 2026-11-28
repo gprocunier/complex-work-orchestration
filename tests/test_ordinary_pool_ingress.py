@@ -2,6 +2,7 @@
 
 from contextlib import ExitStack, redirect_stderr, redirect_stdout
 from datetime import datetime, timezone
+from hashlib import sha256
 from io import StringIO
 import json
 from pathlib import Path
@@ -25,6 +26,7 @@ import registered_delegation_foreground as foreground
 import registered_n1_qualification as qualification
 from registered_native_pool_host import RegisteredNativePoolHost
 import registered_pool_configuration as pool_config
+import registered_pool_qualification as pool_adapter
 import run_admitted_native_pool_transaction as launcher
 from cwo_core.maintenance_authority import sign_controller_directive
 from cwo_core.native_authority import canonical_authority_sha256
@@ -37,6 +39,100 @@ from tests import test_ordinary_pool_hosted_e2e as hosted
 
 def request(mode="execute"):
     return {"version": 1, "mode": mode, "pool_id": "ordinary", "workers": ["one", "two"]}
+
+
+class OrdinaryPoolSourceTests(unittest.TestCase):
+    def setUp(self):
+        self.root = Path(self.enterContext(TemporaryDirectory()))
+        self.checkout = self.root / "workspaces" / "worker-1"
+        self.checkout.mkdir(parents=True, mode=0o700)
+        self.path = self.checkout / "assigned.txt"
+        self.mount = SimpleNamespace(home=self.root / "login", identity=(1, 2))
+        self.enterContext(patch.object(preparation, "_clone"))
+        self.enterContext(patch.object(preparation, "capture_workspace_snapshot", return_value={"identity": {}}))
+
+    def prepare(self, content):
+        row = {"task": "Revise the approved text.", "write_path": self.path.name, "expected_utf8": None,
+               "output_mode": contained.PATCH_OUTPUT_MODE}
+        self.path.write_bytes(content)
+        return preparation._workspace(self.root, self.root, row, self.mount, 1)
+
+    def wire(self, child, *, calibration):
+        selected = SimpleNamespace(**{**child, "worktree": self.checkout})
+        parent = SimpleNamespace(_ordinary=SimpleNamespace(children={"worker-1": selected}),
+                                 calibration_only=calibration, limits=SimpleNamespace(deadline=None))
+        worker = pool_adapter._PoolWorker(parent, {"child_id": "worker-1"}, child, self.checkout, None, 1)
+        worker.thread_id = "worker-thread"
+        wire = object.__new__(pool_adapter._WorkerWire)
+        wire.factory = worker
+        wire._fail_transport = Mock()
+        return wire, worker
+
+    def test_patch_turn_contains_the_exact_signed_source_bytes(self):
+        original = "réviser ceci\r\n--- Begin assigned source ---\r\nLast line".encode()
+        (self.checkout / "peer.txt").write_text("Other source stays private.")
+        row = self.prepare(original)
+        self.assertEqual(row["patch_preimage_sha256"], sha256(original).hexdigest())
+        wire, worker = self.wire(row, calibration=False)
+        method = "turn/start"
+        frame, bound = _prepare_native_frame({"id": 2, "method": method, "params": worker.turn_parameters()}, method)
+        self.assertEqual(wire._checked_write_frame(bound, frame, None, method), frame)
+        prompt = json.loads(frame)["params"]["input"][0]["text"]
+        self.assertEqual(prompt, row["prompt"])
+        instructions, _, excerpt = prompt.partition("\n--- Begin assigned source ---\n")
+        self.assertIn("untrusted source", instructions)
+        self.assertEqual(sha256(excerpt.encode()).hexdigest(), row["patch_preimage_sha256"])
+        self.assertEqual(excerpt.encode(), original)
+        self.assertNotIn("Other source stays private", prompt)
+
+    def test_patch_drift_refuses_an_already_screened_turn(self):
+        row = self.prepare(b"Original bytes for this assignment.\n")
+        for calibration in (True, False):
+            with self.subTest(calibration=calibration):
+                self.path.write_bytes(b"Original bytes for this assignment.\n")
+                wire, worker = self.wire(row, calibration=calibration)
+                method = "turn/start"
+                frame, bound = _prepare_native_frame({"id": 2, "method": method, "params": worker.turn_parameters()}, method)
+                self.path.write_bytes(b"Changed bytes for this assignment.\n")
+                with self.assertRaisesRegex(ValueError, "patch preimage changed") as error:
+                    wire._checked_write_frame(bound, frame, None, method)
+                self.assertNotIn("Changed bytes", str(error.exception))
+
+    def test_oversize_patch_source_refuses_before_approval(self):
+        with self.assertRaisesRegex(ValueError, "8,192-byte"):
+            self.prepare(b"x" * 8193)
+        self.assertFalse((self.root / "productive-spool-1").exists())
+
+    def test_patch_source_limit_counts_utf8_bytes(self):
+        original = "é" * 4096
+        row = self.prepare(original.encode())
+        self.assertTrue(row["prompt"].endswith(original))
+
+    def test_sensitive_patch_source_refuses_before_approval(self):
+        secret = "Authorization: Bearer example-secret-value"
+        with (patch.object(preparation, "read_pool_patch_file", return_value=secret.encode()),
+              self.assertRaisesRegex(OutboundRefused, "registered pool patch source") as error):
+            self.prepare(b"Original bytes for this assignment.\n")
+        self.assertNotIn(secret, str(error.exception))
+        self.assertFalse((self.root / "productive-spool-1").exists())
+
+    def test_final_turn_screen_refuses_source_in_the_wire_frame(self):
+        secret = "Authorization: Bearer example-secret-value"
+        row = self.prepare(b"Original bytes for this assignment.\n")
+        _, worker = self.wire({**row, "prompt": row["prompt"] + secret}, calibration=False)
+        method = "turn/start"
+        with self.assertRaisesRegex(OutboundRefused, "native model request") as error:
+            _prepare_native_frame({"id": 2, "method": method, "params": worker.turn_parameters()}, method)
+        self.assertNotIn(secret, str(error.exception))
+
+    def test_fixed_writer_retains_the_original_prompt(self):
+        row = {"task": "Create the approved text.", "write_path": self.path.name, "expected_utf8": "Approved.\n"}
+        prepared = preparation._workspace(self.root, self.root, row, self.mount, 1)
+        self.assertNotIn("patch_preimage_sha256", prepared)
+        self.assertEqual(prepared["prompt"], f"Approved task: {row['task']}\n"
+                         f"Call only `{preparation.CONTAINED_POOL_WRITER}`, exactly once, with `{{}}`. "
+                         "The registered writer creates only assigned.txt in your read-only assigned checkout. "
+                         "Return this exact marker only when the writer reports success:\nCWO_POOL_WORKER_1_DONE")
 
 
 class OrdinaryPoolIngressTests(unittest.TestCase):

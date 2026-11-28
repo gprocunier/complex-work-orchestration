@@ -15,7 +15,7 @@ from uuid import uuid4
 
 import everyday_delegation
 import registered_contained_pool_host as pool
-from cwo_core import manual_delivery, native_live_availability
+from cwo_core import manual_delivery, native_live_availability, outbound_screen
 from cwo_core.beads_ready_set import _admission_metadata
 from cwo_core.invocation_ledger import MAX_UNITS
 from cwo_core.maintenance_authority import sign_controller_directive
@@ -29,7 +29,7 @@ from registered_delegation_preparation import _clone, _custody_ticket, _known_ou
 from registered_n1_factory import _file
 from registered_n1_qualification import _login_overlap, pool_worker_login_mount, worker_login_state
 from registered_pool_configuration import PoolContainmentError, trim_model_catalog
-from registered_pool_containment import _writer_bytes, pool_patch_path, read_pool_patch_file
+from registered_pool_containment import MAX_POOL_PATCH_SOURCE_BYTES, _writer_bytes, pool_patch_path, read_pool_patch_file, render_pool_patch_prompt
 from registered_pool_qualification_capability import callback_implementation_sha256
 from registered_worker_login_config import read_pool_worker_login_homes
 
@@ -178,35 +178,29 @@ def _bundled_catalog(host):
         return None
 
 
-def _bind_output(worktree: Path, row: dict[str, str | None]) -> dict[str, str | None]:
+def _bind_output(worktree: Path, row: dict[str, str | None], marker: str) -> dict[str, str | None]:
     path = row["write_path"]
     if row.get("output_mode") == pool.PATCH_OUTPUT_MODE:
-        before = read_pool_patch_file(worktree, path)
-        return {**row, "patch_preimage_sha256": sha256(before).hexdigest()}
+        before = read_pool_patch_file(worktree, path, maximum_bytes=MAX_POOL_PATCH_SOURCE_BYTES)
+        digest = outbound_screen.require_clean(before, surface="registered pool patch source").sha256
+        prompt = render_pool_patch_prompt(row["task"], path, marker, before, digest)
+        outbound_screen.require_clean(prompt, surface="registered pool patch prompt")
+        return {**row, "patch_preimage_sha256": digest, "prompt": prompt}
     pool.require(not os.path.lexists(worktree / path), "The contained writer requires a fresh output path.")
-    return row
-
-
-def _worker_prompt(row: dict[str, str | None], marker: str) -> str:
-    if row.get("output_mode") == pool.PATCH_OUTPUT_MODE:
-        return (f"Approved task: {row['task']}\n"
-                f"Inspect {row['write_path']} in your read-only assigned checkout. "
-                f"Call only `{CONTAINED_POOL_WRITER}`, exactly once, with a `diff` string containing "
-                f"a unified diff against that file. Use its exact repository-relative path in both diff headers. "
-                f"Return this exact marker only when the writer reports success:\n{marker}")
-    return (f"Approved task: {row['task']}\n"
+    prompt = (f"Approved task: {row['task']}\n"
               f"Call only `{CONTAINED_POOL_WRITER}`, exactly once, with `{{}}`. "
-              f"The registered writer creates only {row['write_path']} in your read-only assigned checkout. "
+              f"The registered writer creates only {path} in your read-only assigned checkout. "
               f"Return this exact marker only when the writer reports success:\n{marker}")
+    return {**row, "prompt": prompt}
 
 
 def _workspace(root, project, row, mount, index):
     worker_id = f"worker-{index}"
     worktree = root / "workspaces" / worker_id
     _clone(project, worktree)
-    row = _bind_output(worktree, row)
-    fingerprint = capture_workspace_snapshot(worktree, allowed_paths=[row["write_path"]])["identity"]
     marker = f"CWO_POOL_WORKER_{index}_DONE"
+    row = _bind_output(worktree, row, marker)
+    fingerprint = capture_workspace_snapshot(worktree, allowed_paths=[row["write_path"]])["identity"]
     spools = {}
     for phase in ("calibration", "productive"):
         custody = root / f"{phase}-spool-{index}"
@@ -217,7 +211,7 @@ def _workspace(root, project, row, mount, index):
     return {**row, **spools, "worker_id": worker_id, "worktree": str(worktree),
             "worktree_identity_sha256": canonical_authority_sha256(fingerprint),
             "login_home": str(mount.home), "login_identity": list(mount.identity),
-            "prompt": _worker_prompt(row, marker), "completion_marker": marker}
+            "completion_marker": marker}
 
 
 def _manifest(root, project, database, epic, selection, assignments, limits, mounts):

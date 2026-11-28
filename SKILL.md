@@ -132,9 +132,9 @@ three units or six reads warn; four or eleven require replanning.
   realignment remains nonaccepted. Containment precedes owned-state restoration.
 - For one known text output, use `cwo-delegation` in local `cwo-codex` to get the operator's standing approval, then run `cwo delegate` with the same task and baseline.
   Lead-run supervision checks are advisory. [Production requirements](references/native-live-route-holds.md#standing-approved-delegation).
-- Native pool work additionally needs trusted-controller factory authority (not shipped), so
-  the version-2 launcher refuses ordinary plans, even `--validate-only`. Cohorts
-  stay N=1..3; concurrency needs actual compatible capability evidence.
+- The direct version-2 pool launcher requires trusted factory authority, even for
+  `--validate-only`. Approved patch turns carry the signed file's screened source.
+  [Contained pool admission](references/native-supervision-pools.md#start-an-approved-cohort).
 - Maintenance transactions use the explicit version-8 plan and opaque owner
   capabilities. Missing authority rejects before runtime adapter execution,
   including validate-only. The trusted parent selects/pins the installed factory.

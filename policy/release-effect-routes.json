@@ -1656,7 +1656,7 @@
 
 "hs":[37,"BeadsClaimAdapter.__init__",323,"gEe-56s4jkJCIESglNrEzVkMQwL9nLOlVC6Qu5I2GP8"],
 
-"hs1":[200,"HostedOrdinaryPoolTests._assert_shared_settlement",764,"Yy6W9qVCkiMNUzSiQ_XGZsoSqH5F0xrODfqarwymIBg"],
+"hs1":[200,"HostedOrdinaryPoolTests._assert_shared_settlement",768,"Yy6W9qVCkiMNUzSiQ_XGZsoSqH5F0xrODfqarwymIBg"],
 
 "ht":[60,351,"self.handle.require_intent()"],
 
@@ -1720,7 +1720,7 @@
 
 "iN":[128,"PoolTests.signed_record",218,"dktJqU4_Y0A-8JsaP18x4LttRjwjmP95ZZA9oaRJ0fc"],
 
-"iO":[200,{"$":438},736,"Fy2yJlv1-6M3zmHkWmCypb5AuICIrsGbfg1q57GBvrQ"],
+"iO":[200,{"$":438},740,"Fy2yJlv1-6M3zmHkWmCypb5AuICIrsGbfg1q57GBvrQ"],
 
 "iR":[156,"PoolWorkerContainmentTests._assert_login_round_trip",575,"y58Z9rqWv-LG7lv1IvenzmDvBVvMNtT9c_SodSWeXSg"],
 
@@ -1790,11 +1790,11 @@
 
 "j":[178,"StandingDelegation.approval_scope",68,"-L7wvPR9fZch-GHW84SFhvsNAAb_3rEPonj8NpD2ETg"],
 
-"j0":[155,470,"os.unlink(name, dir_fd=self._directory_fd)",16,470,58],
+"j0":[155,490,"os.unlink(name, dir_fd=self._directory_fd)",16,490,58],
 
 "j1":[99,"F5NativeLiveHoldTests.test_f5_legacy_retry_holds_and_retirement_precede_effects",203,"-q-xFXwNo4Ubx9QxQBPIfeExWAk5Mu6tnPaO0eN8KDQ"],
 
-"j3":[200,{"$":438},736,"Fy2yJlv1-6M3zmHkWmCypb5AuICIrsGbfg1q57GBvrQ"],
+"j3":[200,{"$":438},740,"Fy2yJlv1-6M3zmHkWmCypb5AuICIrsGbfg1q57GBvrQ"],
 
 "j5":[99,"F5NativeLiveHoldTests.test_f5_legacy_pool_holds_and_retirement_precede_effects",191,"xtoXqEVXXGjNmfYCAVNgb73Evsqwc9__2SvkvDSK4qA"],
 
@@ -1850,11 +1850,11 @@
 
 "jW":[156,"PoolWorkerContainmentTests.test_login_projection_failure",637,"VdwnmQOXTklMXYkntaDqX-NpW5pTcBL4sOgN5qFPVgA"],
 
-"jX":[155,397,"os.symlink(target, name, dir_fd=self._directory_fd)",12,397,63],
+"jX":[155,417,"os.symlink(target, name, dir_fd=self._directory_fd)",12,417,63],
 
 "jY":[133,"LauncherAuthorityTests.test_legacy_launcher_validates_original_authority_and_refuses_execution",231,"hQ98A8fC7WGw28eZhIQ-LBNfwEog7LGH_dOV0FHuQDY"],
 
-"jZ":[155,"PoolWorkerContainment._release_login",965,"N5DTw7_JxWDnX2h6VKbQxB_YnCy30EvEFnD-9LsM7o4"],
+"jZ":[155,"PoolWorkerContainment._release_login",985,"N5DTw7_JxWDnX2h6VKbQxB_YnCy30EvEFnD-9LsM7o4"],
 
 "ja":[65,"RegisteredN1Workflow._production_selected",508,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
 
@@ -1886,9 +1886,9 @@
 
 "jo":[174,43,"_await_original_contexts(controls)"],
 
-"jp":[199,"OrdinaryPoolIngressTests._foreground_pool_decision",200,"MABWzcOvDJe0EVZL2xckFupmwJ-udyyNDDw0qoX0mVQ"],
+"jp":[199,"OrdinaryPoolIngressTests._foreground_pool_decision",296,"MABWzcOvDJe0EVZL2xckFupmwJ-udyyNDDw0qoX0mVQ"],
 
-"jq":[200,"HostedOrdinaryPoolTests.test_calibration_waits_for_owned_durable_context",589,"jkE9Jv7fk5RG7G36AAZRouE9HtN0yZ2xtj-lwEYQBZY"],
+"jq":[200,"HostedOrdinaryPoolTests.test_calibration_waits_for_owned_durable_context",593,"jkE9Jv7fk5RG7G36AAZRouE9HtN0yZ2xtj-lwEYQBZY"],
 
 "jr":[147,"ProviderBrokerCloseTests.test_idle_receive_wakes_on_close",231,"9iErhsoem8RV9Cu6Zsa5Mlj6ruW1QSvb19XpR-EsZoI"],
 
@@ -2050,7 +2050,7 @@
 
 "lD":[23,190,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT if directory is None else directory,\n            env=project_env,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,199,9],
 
-"lE":[202,242,"\"callback_implementation_sha256\": callback_implementation_sha256(), \"host_inputs\": host}"],
+"lE":[202,236,"\"callback_implementation_sha256\": callback_implementation_sha256(), \"host_inputs\": host}"],
 
 "lF":[42,419,{"$":310},12,419,42],
 
@@ -2060,7 +2060,7 @@
 
 "lJ":[54,246,"subprocess.Popen([sys.executable, \"-I\", \"-S\", \"-c\", _CHILD], cwd=worker,\n            env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",16,247,90],
 
-"lK":[200,"HostedOrdinaryPoolTests.test_approval_without_current_callback_source_refuses_before_admission",481,"U09T0IeqTWrP7CEhPaOxRxx2zuvC88BJn-xYMg-QzAM"],
+"lK":[200,"HostedOrdinaryPoolTests.test_approval_without_current_callback_source_refuses_before_admission",485,"U09T0IeqTWrP7CEhPaOxRxx2zuvC88BJn-xYMg-QzAM"],
 
 "lL":[21,"main",46,"IgAulEK2M7iX9IUlv4Ss0OGT_gtWptNcqagr_ax3WaA"],
 
@@ -2070,7 +2070,7 @@
 
 "lO":[203,"ApprovedOrdinaryPool.require_current",174,"rX9RktymiSJtDsCUGGpIFatT6-NlS_ov-Wuz8FfxsCg"],
 
-"lP":[202,294,"directory.write(pool.APPROVAL_FILE, raw)",8,294,48],
+"lP":[202,288,"directory.write(pool.APPROVAL_FILE, raw)",8,288,48],
 
 "lQ":[75,270,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,275,9],
 
@@ -2282,13 +2282,13 @@
 
 "n5":[187,"_authorize_pool",232,"ayEahGPJWqEnfgNTQsPqB4_JSc57bgfN4hgFl8jPgW4"],
 
-"n6":[203,"RegisteredContainedPoolHost.run",321,"O7x7A2IqguQfPwH9IhKAXBbhs4R9whyTgRBvSUiIBQY"],
+"n6":[203,"RegisteredContainedPoolHost.run",324,"O7x7A2IqguQfPwH9IhKAXBbhs4R9whyTgRBvSUiIBQY"],
 
 "n7":[66,44,"if type(run) is not MethodType or run.__self__ is not host or run.__func__ is not type(host).run:",4,44,101],
 
-"n8":[155,732,"self._worker_login.claim()",30,732,56],
+"n8":[155,752,"self._worker_login.claim()",30,752,56],
 
-"n9":[155,975,"self._worker_login.release(self._managed_lease)",12,975,59],
+"n9":[155,995,"self._worker_login.release(self._managed_lease)",12,995,59],
 
 "nA":[77,"probe_pid_reuse",1450,"1LHCR4_9085b2IUYJ7YTzLOyplwoBSnt7NTcPkhA5JI"],
 
@@ -2326,15 +2326,15 @@
 
 "nR":[133,"LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary",48,"qPbmEimu-I5gM3TIaEJKE-BBYF6ZxwPo_r6qbgi0PT0"],
 
-"nS":[203,299,"directory.write(\"admission.json\", encode(admitted.receipt))",4,299,63],
+"nS":[203,302,"directory.write(\"admission.json\", encode(admitted.receipt))",4,302,63],
 
-"nT":[203,297,"reserve_pool_cohort(AdmissionCandidate(evidence, estimates, assessment, bindings),\n        claim_adapter=approved.claim_adapter, admission_nonce=approved.binding_sha256, live_revalidate=revalidate)",15,298,114],
+"nT":[203,300,"reserve_pool_cohort(AdmissionCandidate(evidence, estimates, assessment, bindings),\n        claim_adapter=approved.claim_adapter, admission_nonce=approved.binding_sha256, live_revalidate=revalidate)",15,301,114],
 
 "nU":[176,"setup_pool_delegation",111,"Qr-1i9Me3H7mXe1_bKfZiQLohyHLtlRipCc8iXec9eA"],
 
 "nV":[187,234,"if not elicitation or project is None:",8,234,46],
 
-"nW":[203,295,"directory.write(\"execution-intent.json\", encode({\"approval_sha256\": approved.binding_sha256,\n                                                    \"beads\": sorted(bindings)}))",4,296,80],
+"nW":[203,298,"directory.write(\"execution-intent.json\", encode({\"approval_sha256\": approved.binding_sha256,\n                                                    \"beads\": sorted(bindings)}))",4,299,80],
 
 "nX":[133,"LauncherAuthorityTests.test_pool_request_fifo_refuses_without_waiting_for_a_writer",119,"rUhzofby4-L6P-QVwVF4mbAVGr9xLLgbjEpvdqfV_SQ"],
 
@@ -2432,7 +2432,7 @@
 
 "oH":[24,"capture_audit_fields",191,"S0k6OjusneyVlH9t8yr2cIv21j74TpW_-r4ABENgRKI"],
 
-"oI":[202,272,"shutil.rmtree(root.name, dir_fd=parent.descriptor)",16,272,66],
+"oI":[202,266,"shutil.rmtree(root.name, dir_fd=parent.descriptor)",16,266,66],
 
 "oJ":[24,"validate_private_capture",289,"wb9eW69tRCkkhouZa6jCWR9MkugrX3KLG37kU19cDA0"],
 
@@ -2440,7 +2440,7 @@
 
 "oL":[24,"packet_subject",86,"YKsBMNcFKB4ji0G2TqcBcFUdj_jrAc9xdjsgaC9A0XA"],
 
-"oM":[202,"prepare_pool",245,"gVZT8jnRll_E72UPKz51zx_QoKiTQJpaTvwJ-532ryQ"],
+"oM":[202,"prepare_pool",239,"gVZT8jnRll_E72UPKz51zx_QoKiTQJpaTvwJ-532ryQ"],
 
 "oN":[204,525,"_run_phase(productive, runtime, allowance, limits)",13,525,63],
 
@@ -2470,9 +2470,9 @@
 
 "oa":[67,"RegisteredNativePoolHost._require_directory",236,"4G6QZ71lya9EHgDfEitBkUoHArePl81fNdzX2gsc-fo"],
 
-"ob":[203,325,"if request[\"mode\"] == \"validate-only\":",8,325,46],
+"ob":[203,328,"if request[\"mode\"] == \"validate-only\":",8,328,46],
 
-"oc":[202,262,"os.mkdir(root.name, 0o700, dir_fd=parent.descriptor)",8,262,60],
+"oc":[202,256,"os.mkdir(root.name, 0o700, dir_fd=parent.descriptor)",8,256,60],
 
 "od":[117,"PrivatePidCIApplicabilityTests.test_original_watchdog_exit_reap_and_error_free_close_reports_are_required",489,"1lpv_KmvdH27h5SAJqZOuTgvdvBSjDktRxnBYJX8ZyE"],
 
@@ -2654,7 +2654,7 @@
 
 "q1":[204,"require_ordinary_runtime_source",111,"grBWZ_dnkTd4OLTooobiLZt5bsoPOAlGjEJH8dh4jtE"],
 
-"q2":[202,185,"return {**row, \"patch_preimage_sha256\": sha256(before).hexdigest()}"],
+"q2":[202,185,"digest = outbound_screen.require_clean(before, surface=\"registered pool patch source\").sha256"],
 
 "q3":[49,369,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
@@ -2746,7 +2746,7 @@
 
 "ql":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",835,"QW7IhyKId1VpQRXElivAO11TiYcNTbUdt0kMEpIyAf8"],
 
-"qm":[155,"PoolWorkerContainment.production_live",639,"GGDt89l1yOcnShGrAPAa6-NKSAK_p4Qc_DoM0OH78TY"],
+"qm":[155,"PoolWorkerContainment.production_live",659,"GGDt89l1yOcnShGrAPAa6-NKSAK_p4Qc_DoM0OH78TY"],
 
 "qn":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",388,"0kT0hDSYR0CEH5NGG52sZ_fK3M15k65SiKUaORT_knw"],
 
@@ -2776,15 +2776,15 @@
 
 "r":[8,379,"if not args.dry_run:"],
 
-"r1":[199,"OrdinaryPoolIngressTests.test_fixed_offline_bundled_catalog_and_stock_fallback",225,"RpHeEk_3aX9QI3EAusLUqyjxQ8m_Oa8T9pU9R0WqNRE"],
+"r1":[199,"OrdinaryPoolIngressTests.test_fixed_offline_bundled_catalog_and_stock_fallback",321,"RpHeEk_3aX9QI3EAusLUqyjxQ8m_Oa8T9pU9R0WqNRE"],
 
-"r3":[199,"OrdinaryPoolIngressTests.test_authorize_pool_foreground_declines_or_retains_original_cohort",145,"Y-vBHFugdIlgMFIy0QAYmgrwrdNvBUPAbfTQRxOoT6Y"],
+"r3":[199,"OrdinaryPoolIngressTests.test_authorize_pool_foreground_declines_or_retains_original_cohort",241,"Y-vBHFugdIlgMFIy0QAYmgrwrdNvBUPAbfTQRxOoT6Y"],
 
 "r5":[156,"PoolWorkerContainmentTests.test_production_uncertain_cleanup_keeps_the_original_n1_lease",559,"3znHXWRafYv28xAzl2Lq90d0oKBRR4q04VjvbFWc6kg"],
 
-"r7":[200,"HostedOrdinaryPoolTests.test_missing_or_changed_configured_logins_precede_productive_effects",717,"TxuxWrs4WDwd5Wa5yi365ZXcsL2AbcpyiXWylHG7nXs"],
+"r7":[200,"HostedOrdinaryPoolTests.test_missing_or_changed_configured_logins_precede_productive_effects",721,"TxuxWrs4WDwd5Wa5yi365ZXcsL2AbcpyiXWylHG7nXs"],
 
-"r8":[200,{"$":438},736,"Fy2yJlv1-6M3zmHkWmCypb5AuICIrsGbfg1q57GBvrQ"],
+"r8":[200,{"$":438},740,"Fy2yJlv1-6M3zmHkWmCypb5AuICIrsGbfg1q57GBvrQ"],
 
 "rA":[177,55,"host_records._write_at(directory, name, raw, atomic_create=True)",12,55,76],
 
@@ -2818,17 +2818,17 @@
 
 "rP":[37,514,"pre_hash != expected_pre_show_sha256"],
 
-"rQ":[200,"HostedOrdinaryPoolTests._assert_patch_settlement_requires_observation_and_bytes",361,"mdNppRGqFrgQacSbmZsVg0NvyRZU1C1YelvsyBCmjvQ"],
+"rQ":[200,"HostedOrdinaryPoolTests._assert_patch_settlement_requires_observation_and_bytes",365,"mdNppRGqFrgQacSbmZsVg0NvyRZU1C1YelvsyBCmjvQ"],
 
 "rR":[25,265,"\"preflight_status\": \"failed\", \"linter\": \"spec-validator\", \"execution_status\": \"not-started\", \"exit_code\": None,"],
 
-"rS":[203,241,"require(sha256(current).hexdigest() == child.patch_preimage_sha256, \"The signed worker patch preimage changed.\")"],
+"rS":[203,242,"require(digest == child.patch_preimage_sha256, \"The signed worker patch preimage changed.\")"],
 
-"rU":[200,"HostedOrdinaryPoolTests.test_signed_patch_preimage_drift_refuses_before_admission",375,"KTgCEPoQxwLpGrXahl4fqVGP0O8O3vbEi3CipZWqk_w"],
+"rU":[200,"HostedOrdinaryPoolTests.test_signed_patch_preimage_drift_refuses_before_admission",379,"KTgCEPoQxwLpGrXahl4fqVGP0O8O3vbEi3CipZWqk_w"],
 
-"rW":[200,"HostedOrdinaryPoolTests.test_signed_existing_file_patch_and_fixed_text_settle_together",329,"VR3wn_xkFJX-VDaGReOyA7Of4W4mWhUWA5oXyTcK3qo"],
+"rW":[200,"HostedOrdinaryPoolTests.test_signed_existing_file_patch_and_fixed_text_settle_together",333,"VR3wn_xkFJX-VDaGReOyA7Of4W4mWhUWA5oXyTcK3qo"],
 
-"rX":[155,876,"stdout, stderr = process.communicate(stdin, self._remaining(deadline))"],
+"rX":[155,896,"stdout, stderr = process.communicate(stdin, self._remaining(deadline))"],
 
 "rZ":[156,"PoolWorkerContainmentTests.test_checked_patch_uses_the_same_gate_and_bounded_postimage_pipe",767,"BammfqbQPJY9bSfzy4arLviyZ5lGgH7Dq0zmkUBc2Ko"],
 
@@ -2838,7 +2838,7 @@
 
 "rc":[73,118,{"$":58}],
 
-"rd":[157,361,"_require(writer_arguments_match(params[\"arguments\"], patch_mode=self.factory.patch_mode), \"writer-policy\")"],
+"rd":[157,365,"_require(writer_arguments_match(params[\"arguments\"], patch_mode=self.factory.patch_mode), \"writer-policy\")"],
 
 "re":[37,"consume_pool_admission",1978,"bch8Tk1qzu7ORNP0_wkGu6kCjvqlgpU5M9Zj_KHsrMY"],
 
@@ -2880,7 +2880,7 @@
 
 "rn":[38,1937,"if final_horizon_errors:"],
 
-"ro":[155,843,"require(preimage_sha256 == self._patch_preimage_sha256, 'The checked patch preimage changed.')"],
+"ro":[155,863,"require(preimage_sha256 == self._patch_preimage_sha256, 'The checked patch preimage changed.')"],
 
 "rp":[38,1623,"require_recovery_authority(plan, runtime)"],
 
@@ -2924,39 +2924,39 @@
 
 "sK":[121,"R1ActivationPreviewHoldTests.test_standalone_calibration_is_absent_from_installed_sources",37,"u2pv_v8lvYESqajZxikTSvzgqMuoSWDYw7dUtlklaY8"],
 
-"sa":[200,"HostedOrdinaryPoolTests.test_substituted_host_and_held_generic_route_are_refused",701,"D2jCxJORJhii9ojv8L86i77OsRXPfKXrphlCFjn7waY"],
+"sa":[200,"HostedOrdinaryPoolTests.test_substituted_host_and_held_generic_route_are_refused",705,"D2jCxJORJhii9ojv8L86i77OsRXPfKXrphlCFjn7waY"],
 
-"sb":[200,"HostedOrdinaryPoolTests.test_signed_n2_settles_exact_writes_and_shared_accounting",246,"c2fZsizdfJgMrwU8Ufa0CZCKkoo6IAJKw9WkD1e8PKc"],
+"sb":[200,"HostedOrdinaryPoolTests.test_signed_n2_settles_exact_writes_and_shared_accounting",250,"c2fZsizdfJgMrwU8Ufa0CZCKkoo6IAJKw9WkD1e8PKc"],
 
-"sc":[200,{"$":458},386,"cHP5RuGDv3J5sbEqrN5YiDOnYoY33XKn94VyMRD_oxc"],
+"sc":[200,{"$":458},390,"cHP5RuGDv3J5sbEqrN5YiDOnYoY33XKn94VyMRD_oxc"],
 
-"sd":[200,{"$":459},751,"NqP96n3zn4kNOxqfT32aT4biSCm1PJESz9vUBa0CLog"],
+"sd":[200,{"$":459},755,"NqP96n3zn4kNOxqfT32aT4biSCm1PJESz9vUBa0CLog"],
 
-"se":[200,{"$":449},788,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
+"se":[200,{"$":449},792,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
 
-"sf":[200,{"$":451},803,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
+"sf":[200,{"$":451},807,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
 
-"sg":[200,"HostedOrdinaryPoolTests.test_signed_n3_settles_exact_writes_and_shared_accounting",249,"9Ho3kLqnoESysEvhYRS2Xg2f8i30HY25UovB3W3D8YA"],
+"sg":[200,"HostedOrdinaryPoolTests.test_signed_n3_settles_exact_writes_and_shared_accounting",253,"9Ho3kLqnoESysEvhYRS2Xg2f8i30HY25UovB3W3D8YA"],
 
-"sh":[200,{"$":458},386,"cHP5RuGDv3J5sbEqrN5YiDOnYoY33XKn94VyMRD_oxc"],
+"sh":[200,{"$":458},390,"cHP5RuGDv3J5sbEqrN5YiDOnYoY33XKn94VyMRD_oxc"],
 
-"si":[200,{"$":459},751,"NqP96n3zn4kNOxqfT32aT4biSCm1PJESz9vUBa0CLog"],
+"si":[200,{"$":459},755,"NqP96n3zn4kNOxqfT32aT4biSCm1PJESz9vUBa0CLog"],
 
-"sj":[200,{"$":449},788,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
+"sj":[200,{"$":449},792,"wCe5erGbmcqZH3_liqlbpWYl84xHTVazyMQ0bsHEqiI"],
 
-"sk":[200,{"$":451},803,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
+"sk":[200,{"$":451},807,"ur2MbSjaMk2EJjrREIMKTMs1WNxlTc4gDz5Km78to6A"],
 
-"sm":[200,"HostedOrdinaryPoolTests.test_writer_gate_refusal_retains_peer_output_and_full_charge",394,"CzocHR7h_70imXKUp0Xo7vXA4vSCfcnLhfVbE_NqIbU"],
+"sm":[200,"HostedOrdinaryPoolTests.test_writer_gate_refusal_retains_peer_output_and_full_charge",398,"CzocHR7h_70imXKUp0Xo7vXA4vSCfcnLhfVbE_NqIbU"],
 
-"sn":[200,"HostedOrdinaryPoolTests._assert_refused_writer",411,"vQLbd5eiczdHcsuaXJxkRBJbYQrUe1uzxeW2yURTQ2E"],
+"sn":[200,"HostedOrdinaryPoolTests._assert_refused_writer",415,"vQLbd5eiczdHcsuaXJxkRBJbYQrUe1uzxeW2yURTQ2E"],
 
-"sp":[199,"OrdinaryPoolIngressTests.test_hostless_execute_stays_lazy_and_validate_has_no_authority",49,"XWw4JpshYrOgQtiHxLg2nDTP1EmdCd8eqDZAPvR0WLk"],
+"sp":[199,"OrdinaryPoolIngressTests.test_hostless_execute_stays_lazy_and_validate_has_no_authority",145,"XWw4JpshYrOgQtiHxLg2nDTP1EmdCd8eqDZAPvR0WLk"],
 
-"sq":[200,"HostedOrdinaryPoolTests.test_validate_only_and_signed_scope_refusals_precede_productive_effects",432,"pOK5VQXN6mdemF8wWhBFzsxdZz6_asNXajQtnJ_aA1Q"],
+"sq":[200,"HostedOrdinaryPoolTests.test_validate_only_and_signed_scope_refusals_precede_productive_effects",436,"pOK5VQXN6mdemF8wWhBFzsxdZz6_asNXajQtnJ_aA1Q"],
 
-"st":[200,"HostedOrdinaryPoolTests.test_slow_close_receipt",556,"6aSJu328FF70ROtiNZ7JQ4VV_7pqSzoPxxWJEPN_dOc"],
+"st":[200,"HostedOrdinaryPoolTests.test_slow_close_receipt",560,"6aSJu328FF70ROtiNZ7JQ4VV_7pqSzoPxxWJEPN_dOc"],
 
-"sv":[200,"HostedOrdinaryPoolTests.test_stale_runtime_source_refuses_before_admission",459,"hYVuTL8blRAh36kEZugTqL1i0MKlacroVNkldzB3gWg"],
+"sv":[200,"HostedOrdinaryPoolTests.test_stale_runtime_source_refuses_before_admission",463,"hYVuTL8blRAh36kEZugTqL1i0MKlacroVNkldzB3gWg"],
 
 "sw":[161,87,"elif method == 'turn/start':"],
 
@@ -3200,13 +3200,13 @@
 
 "xh":[146,"_bootstrap",456,"v1F_jC1bVB-U2Iyd5d8UaNmkJ0V4I-AYQYOpSLHu5O8"],
 
-"xi":[155,"PoolWorkerContainment.launch_appserver",753,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
+"xi":[155,"PoolWorkerContainment.launch_appserver",773,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
 "xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",519,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
 
-"xk":[157,"build_pool_qualification_runtime",1501,"EDBaS_2VcEUYfNXte49q09tF5v0MUBY8ETdj4Z23xDU"],
+"xk":[157,"build_pool_qualification_runtime",1483,"EDBaS_2VcEUYfNXte49q09tF5v0MUBY8ETdj4Z23xDU"],
 
-"xl":[155,"PoolWorkerContainment.run_writer",815,"0_yAkAF1t2-lxNhNKyJzkq_UWAJmBCkkMle6Uu_xCQI"],
+"xl":[155,"PoolWorkerContainment.run_writer",835,"0_yAkAF1t2-lxNhNKyJzkq_UWAJmBCkkMle6Uu_xCQI"],
 
 "xn":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1848,"fohJgDaTU4AKlFvtzZUQJmX2UA8v9X3D3gaFzriU-Dc"],
 
@@ -3348,7 +3348,7 @@
 
 "zC":[63,"QualifiedToolEvidence._wait_terminal_reply",301,"lzxZGOEYrAlsvQAqlphfcRF8rnCO-4ULGfaulpWueo4"],
 
-"zE":[155,762,"self._appserver.launch(command, self.home)",23,762,65],
+"zE":[155,782,"self._appserver.launch(command, self.home)",23,782,65],
 
 "zF":[144,83,"os.execvp(\"codex\", command + arguments)",8,83,47],
 
@@ -3380,7 +3380,7 @@
 
 "zT":[117,"PrivatePidCIApplicabilityTests.test_actual_original_watchdog_exit_retains_confirmed_cleanup_evidence",684,"A8gKF8grrSFM3l4p_rgbzGXhHmcErV2qw7A7Cfxvj7o"],
 
-"zU":[157,712,"self.wire.request(\"turn/start\", self.turn_parameters())",20,712,75],
+"zU":[157,716,"self.wire.request(\"turn/start\", self.turn_parameters())",20,716,75],
 
 "zV":[146,301,{"$":366},21,301,40],
 
@@ -3402,11 +3402,11 @@
 
 "ze":[147,{"$":334},49,{"$":335}],
 
-"zf":[155,502,{"$":148}],
+"zf":[155,522,{"$":148}],
 
 "zg":[147,"ProviderNamespaceTests._synthetic_endpoint",407,"38QTXTdLT8n-5hpaQrerPQOcqqrfJxA57nGD-_fm-KY"],
 
-"zh":[155,535,{"$":148}],
+"zh":[155,555,{"$":148}],
 
 "zi":[147,"ProviderNamespaceTests._confirm_natural_exit_reaps_relay",455,"Cay30SPJmnKAChtR0NRIfv2Szpqjqe3rZMak5LZ5ftA"],
 
@@ -3416,7 +3416,7 @@
 
 "zl":[146,196,"upstream.connect(address)",12,196,37],
 
-"zm":[155,866,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,866,98],
+"zm":[155,886,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,886,98],
 
 "zn":[146,193,{"$":360},19,193,60],
 
@@ -3438,7 +3438,7 @@
 
 "zx":[127,"FactoryTests.assert_terminal_worker_failure",1829,"osH5ulByQ7HU651Sb7wBNY402iq8B6v1Tq1oNutli60"],
 
-"zy":[157,652,"self.wire.request(\"thread/start\", selectors)",22,652,66],
+"zy":[157,656,"self.wire.request(\"thread/start\", selectors)",22,656,66],
 
 "zz":[157,263,"super().notify(method, params)",15,263,45]
 },
@@ -5375,11 +5375,11 @@
 
 [66,188,25,188,61,{"$":3},"SCvoraezWaK2GCaXGRRrGjG5yPJglr1Qc-K-fsZnoTI",[{"$":9},"XR375"]],
 
-[82,235,17,235,36,"dynamic","9nRHWlymJ4_VgW06VaPnBFWX1xKHFhDbRgH6twO876M",[{"$":9},"p118-stat"]],
+[82,237,17,237,36,"dynamic","9nRHWlymJ4_VgW06VaPnBFWX1xKHFhDbRgH6twO876M",[{"$":9},"p118-stat"]],
 
-[82,762,23,762,65,"browser","nEhNbuH-IlrkTRYfsQkZIFHIFQe3lQ_IEOWI5zgkzE0",["route","N3.15","zE"]],
+[82,782,23,782,65,"browser","nEhNbuH-IlrkTRYfsQkZIFHIFQe3lQ_IEOWI5zgkzE0",["route","N3.15","zE"]],
 
-[82,866,18,866,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
+[82,886,18,886,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
 
 [60,176,26,176,47,"dynamic","6Udd_Lk_-YdcDSCjV4DMrOOutvv2IFVEU4jXcLiIlf8",[{"$":9},"XPool101-2"]],
 
@@ -5387,17 +5387,17 @@
 
 [83,263,15,263,45,{"$":3},"zn2F8ic2CBXkGOU3-IAm68NPKRDdOD8VOJnhLuG1IWI",["route","N4.3","zz"]],
 
-[83,473,23,473,60,"dynamic",{"$":193},[{"$":9},"al"]],
+[83,477,23,477,60,"dynamic",{"$":193},[{"$":9},"al"]],
 
-[83,652,22,652,66,{"$":3},"ASrHBvTxXjo6EcL91WNjSV7qP4Up9zNEQrOXC0jRWNU",["route","N4.3","zy"]],
+[83,656,22,656,66,{"$":3},"ASrHBvTxXjo6EcL91WNjSV7qP4Up9zNEQrOXC0jRWNU",["route","N4.3","zy"]],
 
-[83,712,20,712,75,{"$":3},"oetzLYzEwzVftN11UnRUwmTpaRYOodkzp6eSS6H-Pa4",["route","N4.3","zU"]],
+[83,716,20,716,75,{"$":3},"oetzLYzEwzVftN11UnRUwmTpaRYOodkzp6eSS6H-Pa4",["route","N4.3","zU"]],
 
-[83,982,21,982,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
+[83,986,21,986,39,"dynamic","8o02ko4n5rjbbbar2vBXE5907m-ZY1h6PBShG6fxckw",[{"$":9},"aa"]],
 
-[83,1208,20,1208,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
+[83,1200,20,1200,65,"dynamic","1KWjjW17Ho5bDkj2f1AY46yUzmc10y10wPQA17HL0oc",[{"$":9},"xQadm"]],
 
-[83,1216,43,1216,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
+[83,1208,43,1208,85,"dynamic","W5j9tGSFmOfGu9eKI1J-FHxIyLLjlAmT-U1WGQ5gLck",[{"$":9},"7"]],
 
 [81,193,19,193,60,"network",{"$":348},["route","N3.7","zn"]],
 
@@ -5990,7 +5990,7 @@
 
 {"contract":"HD","effect":"Owner-only reply, host receipt and evaluation","effect_points":["dW","dA","dV"],"entry_aliases":["cwo evaluate"],"entrypoint":"kd","gate_limits":"Local guards cover writes. Request and prior receipt checks require cross-function review.","gates":["dG","dN","dE"],"id":"H5.9","limits":"Wrong ID/audit override/malformed reply: zero receipt/evaluation. Private storage can precede receipt failure. One receipt on replay; changed reply or label refuses. Stdout/audit omit body.","ordering":"Check packet, posted ID, label, reply and prior receipt; retain/recheck private bytes before receipt and evaluation.","review_gates":["dI","dR"],"trace_files":[{"$":400},{"$":405},{"$":404},{"$":105},{"$":271},{"$":268}],"witnesses":["cA","aX"]},
 
-{"admission":{"$":4},"authority":"Original cwo-codex foreground parent, project controller key and affirmative response for the exact displayed cohort.","contract":"N12","earlier_effects":"Read exact project Beads and baseline. Prepare private local-only independent clones, spools and a bounded offline bundled-catalog export.","effect":"Prepare and retain a signed ordinary contained cohort","effect_points":["g","lV","oc","lP","oI"],"entrypoint":"n5","gate_chains":[],"gate_limits":"These contextual checks show the original foreground and accepted response selection. Static route analysis leaves the callback and adoption chain to the named witness and independent review.","gates":[],"id":"N12.3","limits":"Catalog probe uses the pinned executable in the fixed unshared namespace with cleared environment, empty home, fixed argv and a 30-second subprocess timeout. Use trimmed catalog when its export succeeds and pinned feature restrictions for the stock catalog fallback.","manual_decisions":["pool101"],"ordering":"Check source, project and logins. Bind fixed output or the canonical patch target and preimage. Accept the original linked foreground elicitation before signing and writing the bounded request and approval. Remove only the same unretained private preparation on decline.","review_gates":["nV","lT"],"trace_files":[{"$":354},{"$":402},{"$":420},{"$":388},{"$":411},{"$":385},{"$":373}],"witnesses":["r2","r0","rV"]},
+{"admission":{"$":4},"authority":"Original cwo-codex foreground parent, project controller key and affirmative response for the exact displayed cohort.","contract":"N12","earlier_effects":"Read exact project Beads and baseline. Prepare private local-only independent clones, spools and a bounded offline bundled-catalog export.","effect":"Prepare and retain a signed ordinary contained cohort","effect_points":["g","lV","oc","lP","oI"],"entrypoint":"n5","gate_chains":[],"gate_limits":"These contextual checks show the original foreground and accepted response selection. Static route analysis leaves the callback and adoption chain to the named witness and independent review.","gates":[],"id":"N12.3","limits":"Catalog probe uses the pinned executable in the fixed unshared namespace with cleared environment, empty home, fixed argv and a 30-second subprocess timeout. Use trimmed catalog when its export succeeds and pinned feature restrictions for the stock catalog fallback.","manual_decisions":["pool101"],"ordering":"Check source, project and logins. Bind fixed output or the canonical patch target, screened source and preimage. Accept the original linked foreground elicitation before signing and writing the bounded request and approval. Remove only the same unretained private preparation on decline.","review_gates":["nV","lT"],"trace_files":[{"$":354},{"$":402},{"$":420},{"$":388},{"$":411},{"$":385},{"$":373}],"witnesses":["r2","r0","rV"]},
 
 {"admission":{"$":4},"authority":"Operator selects two or three existing private configured Codex worker login homes through setup_delegation.py.","contract":"I5","earlier_effects":"Inspect canonical directories and private login file metadata with the same production WorkerLoginMount checks.","effect":"Store the protected ordinary pool login roster","effect_points":["pd","pf"],"entrypoint":"nU","gate_chains":[],"gates":[],"id":"I5.3","limits":"The explicit pool setup branch writes its own configuration file. Existing single-worker setup, actual sign-in and account use have their own boundaries. The hosted witness exercises original roster consumption and drift refusal.","manual_decisions":["pool101"],"ordering":"Require the configured homes to be distinct and pairwise disjoint before writing the protected roster.","review_gates":[],"trace_files":[{"$":391},{"$":394},{"$":328},{"$":411}],"witnesses":["r6","iv"]},
 
@@ -6922,11 +6922,11 @@
 
 "@154":["31ATreEahZ1M0jldL-8GARmNUytjOSaUfqgX9HFQt_4",420,52261],
 
-"@155":["h37TOVuTiPnRpkd2A4ZvHiByaLn6CXZ-39yjZeClOXA",420,48600],
+"@155":["d0lfxKD1km7WD-edMujr8as8YUDlqELStPtigh1E80Y",420,49949],
 
 "@156":["QHJnorUcmMGL99E5z5drYUBHQWQokv-tLE8-Cv-dB8I",420,45012],
 
-"@157":["_8rGnJEThXsFBAVgKg07n5oLkhMBTmoGv8CtxvKnWCk",420,78347],
+"@157":["lARu8nFD9I2e1gpT6-LjWZjWEOiFPR3BkZYjGi1dABs",420,78084],
 
 "@158":["17X480x3QdgXKVj1vwdDxrjw8u9WhaQpYCr7rPNpCnQ",420,50034],
 
@@ -6986,7 +6986,7 @@
 
 "@186":["LkQzJatQjAJ97E6BMxZ4gk5L9kncItvvATWRrue0odc",420,14535],
 
-"@187":["3pnbW2MMKexm760UMx5t5_0d98Qc0v2B6Fr21PFsoSM",420,15058],
+"@187":["T3MczgUHU__71KzbB0wm78c7oggVzARobkGy9TZaF5M",420,15092],
 
 "@188":["Ts5EdGngg0xdlv0-iUGgXjZ50WInKIdOoD91ned0oZ4",420,7291],
 
@@ -7012,19 +7012,19 @@
 
 "@198":["QyCXEc7r6THtOaSOKQYyfDmF6ur8I84s0t9e0GX03AM",420,85440],
 
-"@199":["jX1sL2d81ORnw6rwmojcp-R58aZZjhnirs4yjIWxSP8",420,16503],
+"@199":["V-Ha8bDNq-kiGj2svJ31o-d5pz08C-q-MYuQVoLwtX4",420,22315],
 
 "@2":["z0ZY_NRPet_XK8qOWfGspMYVZFa5jwvY0yLF6P7VUHc",420,3165],
 
 "@20":["Xxk49TOGt-yQyKGUaRehpq0XA-5W1Rfzp-exIVetons",493,92],
 
-"@200":["vEYAkcbmeaVZOdSwJsTownQ53IhoCumctHC0nmOBg4A",420,47370],
+"@200":["8ZJ9Au6TpZZcmy-s8lBSI07I3TFmfjTpE2h99sKNhn4",420,47605],
 
 "@201":["HBWemFO9BffWJfbs541ZPPpfo3WsE9UCykq3kdaLMOk",420,1218],
 
-"@202":["IqLXKMDDGLnKF_CujZ4mMSEClfucUZN12HtsCQ8qfHY",420,16388],
+"@202":["SJSek96IaxocD6jfNaK1wMG_kzPSbAxl_Q1DljPDGbg",420,16194],
 
-"@203":["DbZASHGMoWHEK2NLuutR4vElTphiyvPq4tl-3oSeo8k",420,19270],
+"@203":["C1-uL-eUhz59XxzZXhbLhMjOAgsYCwxZNlhqFqJ_pgo",420,19646],
 
 "@204":["zBjyhyX3yBbmSoBNnDHZmi0lHE3iide9fhZb39WE1ro",420,28589],
 
