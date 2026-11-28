@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from contextlib import redirect_stdout
+from dataclasses import replace
 from hashlib import sha256
 from io import StringIO
 import json
@@ -235,5 +236,32 @@ class ReturnAdvisoryReplayTests(unittest.TestCase):
         after = qualified_adjudication.evaluate_current(self.raw, expected, metadata_bytes=metadata)
         self.assertNotEqual(before.evaluation_sha256, after.evaluation_sha256)
         self.assertEqual(json.loads(after.result_bytes)["hold_reasons"], [HOLD])
-        with self.assertRaisesRegex(CWOPolicyError, "return receipt is missing"):
-            qualified_adjudication.evaluate_current(self.raw + b"\n", expected, metadata_bytes=metadata)
+        with self.assertRaisesRegex(ValueError, "received return dispatch differs from qualified source context"):
+            qualified_adjudication.evaluate_current(self.raw, replace(expected, task="EXAMPLE_OTHER"),
+                                                    metadata_bytes=metadata)
+        different = qualified_adjudication.evaluate_current(self.raw + b"\n", expected, metadata_bytes=metadata)
+        self.assertNotIn(HOLD, json.loads(different.result_bytes)["hold_reasons"])
+
+    def test_qualified_replay_leaves_unreceived_return_independent_of_host_inventory(self):
+        self.capture(observed=True)
+        expected = adjudication_binding.ExpectedContext(TASK, "example-scope", "example-candidate",
+                                                        DISPATCH, PACKET, EXECUTOR)
+        metadata = adjudication_binding._json(qualified_adjudication.METADATA_DEFAULTS)
+        raw = self.raw + b"\n"
+        before = qualified_adjudication.evaluate_current(raw, expected, metadata_bytes=metadata)
+
+        database = self.root / "database"
+        database.mkdir(mode=0o700)
+        self.store.setup_database_identity(database)
+        setup, = self.store.find("workspace-database-identity")
+        (self.store.root / (setup["_record_sha256"] + ".json")).unlink()
+        after = qualified_adjudication.evaluate_current(raw, expected, metadata_bytes=metadata)
+        self.assertEqual(after, before)
+
+    def test_qualified_replay_preserves_legacy_context_without_a_positive_hold(self):
+        self.capture(observed=True)
+        expected = adjudication_binding.ExpectedContext(TASK, "example-scope", "example-candidate",
+                                                        DISPATCH, "1" * 64, EXECUTOR)
+        metadata = adjudication_binding._json(qualified_adjudication.METADATA_DEFAULTS)
+        evaluation = qualified_adjudication.evaluate_current(self.raw, expected, metadata_bytes=metadata)
+        self.assertEqual(json.loads(evaluation.result_bytes)["hold_reasons"], [])

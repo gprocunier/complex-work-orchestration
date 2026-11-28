@@ -149,16 +149,23 @@ class QualifiedState:
 
 def _current_source_advisory(raw: bytes, context: binding.ExpectedContext) -> tuple[str, ...]:
     store = configured_store()
-    if not store.find('return-received', dispatch_id=context.dispatch_id):
+    digest = binding._sha(raw)
+    # An independently observed source can predate host intake. The verified
+    # audit anchor lets it retain that path without reading unrelated records.
+    anchor = ('host_record_written', 'return-received', context.dispatch_id, digest)
+    if not any((event.get('event_type'), event.get('host_record_type'), event.get('dispatch_id'),
+                event.get('return_sha256')) == anchor for event in store.audit_events()):
         return ()
     dispatch = store.require_dispatch(context.dispatch_id)
-    digest = binding._sha(raw)
     receipt = store.require_return(context.dispatch_id, digest)
+    advisory = return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+    if not advisory:
+        return ()
     actual = (dispatch.get('bead_id'), dispatch.get('executor'), dispatch.get('packet_sha256'),
               dispatch.get('dispatch_role'), receipt['return_sha256'])
     if actual != (context.task, context.executor, context.packet_sha256, 'executor', digest):
         raise ValueError('received return dispatch differs from qualified source context')
-    return return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+    return advisory
 
 
 def evaluate_current(raw: bytes, context: binding.ExpectedContext, *,

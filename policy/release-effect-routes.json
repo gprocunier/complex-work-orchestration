@@ -848,7 +848,7 @@
 
 "ax":[24,254,"if not isinstance(expected, PrivateCaptureExpectation) or _EXPECTATIONS.get(id(expected)) is not expected:"],
 
-"ay":[23,"add_dependency",351,{"$":177}],
+"ay":[23,"add_dependency",351,"erXHX12-PnCGnr5u6BuaYBbGZJWm_wX09-5d3V0pLxY"],
 
 "az":[130,"ReleaseEffectRoutesTests._driver_pair",1378,"-91-odVuLzHrmAize7uXBmwjiOIWTjnzObvWTBrQ65A"],
 
@@ -928,7 +928,7 @@
 
 "bn":[34,308,"_run(\n        [\"bd\", *args],\n        cwd=directory,\n        env=_bd_environment(directory),\n        label=\"activation-beads\",\n    )",11,313,5],
 
-"bo":[43,"run_git",435,{"$":213}],
+"bo":[43,"run_git",435,"pMhH3d3Cy2BIRoOEtNsg8V4Z-tEp3eJ-kF8bKS6uyfg"],
 
 "bp":[99,"F5NativeLiveHoldTests.test_n10_raw_rpc_rechecks_native_methods_after_construction_and_keeps_cleanup",389,"3Nfe2_UgpHXkwElA2TPvLK1fwOcMwDJ6WpKt1KMqjM4"],
 
@@ -3020,7 +3020,7 @@
 
 "vT":[32,430,{"$":13}],
 
-"vU":[17,"write_hooks",306,{"$":234}],
+"vU":[17,"write_hooks",306,"1yV4Dgqm4KH3QMlzAx_fLfG1ytJCTndqLsJcz-VozNk"],
 
 "vW":[70,"_load_runtime",69,"ILCkAwsee6H_gNy7qGQXBb2uiUf4Jmf0ADwJWmzTMac"],
 
@@ -3358,11 +3358,11 @@
 
 "zb":[126,"RegisteredFiniteToolWiringTests._qualification_terminal_during_poll_write",1941,"w9DenRejWKX2So9OGxgtuDcHJ5HU-1Gnl9OeZYdHHHo"],
 
-"zc":[148,{"$":330},672,{"$":343}],
+"zc":[148,{"$":330},672,"1ZuEFxguA_k5EqB1-wGVFprOFqqKh1vn5Kiw81AjvYo"],
 
 "zd":[64,"_Containment._require_launch_command",735,"lTWOR6VsN8RLdFPs6kyd9EsxnuR7KnSLCozYbCCtVEc"],
 
-"ze":[147,{"$":334},49,{"$":335}],
+"ze":[147,{"$":334},49,"o4Uvw59XKRXwx_OXEf9azQqjOapeZk7R47YBC4OCHoI"],
 
 "zf":[155,308,{"$":148}],
 
@@ -5255,9 +5255,9 @@
 
 [60,129,12,129,52,"dynamic","RKEk3JYvHqFSM5t6GYfSkxjdqAsjGjLLZp00B8BQu14",[{"$":9},"eL"]],
 
-[60,187,16,187,38,"dynamic","M890g9eNcO_mWo82AyJqNDXpXg25OEfhc0XiBfUk4Pw",[{"$":9},"eM"]],
+[60,194,16,194,38,"dynamic","M890g9eNcO_mWo82AyJqNDXpXg25OEfhc0XiBfUk4Pw",[{"$":9},"eM"]],
 
-[60,310,54,310,87,"dynamic","a1OasE8amBEtrU-siPtZfdxkE_9HEy3WtbsaOWOC-b8",[{"$":9},"eN"]],
+[60,317,54,317,87,"dynamic","a1OasE8amBEtrU-siPtZfdxkE_9HEy3WtbsaOWOC-b8",[{"$":9},"eN"]],
 
 [61,498,11,499,66,"beads",{"$":169},[{"$":9},"A"]],
 
@@ -5391,7 +5391,7 @@
 
 [69,110,17,110,68,"dynamic","KmP64YCVuQM5XEzlr0TtM2GbHxfPUACTXDC2-Q5REVw",[{"$":9},"XR378"]],
 
-[71,384,41,384,84,"dynamic",{"$":218},[{"$":9},"XR403"]],
+[71,384,41,384,84,"dynamic","rfAMWagEPdVFTanAXmC4agwLKGj8pnMux9jmzHkFyEU",[{"$":9},"XR403"]],
 
 [72,269,17,274,9,"process","lAX-zUK4AIVcn4IZaYm5ZV1TlDefknrp6hLUmaf_vGc",["route","X6.4","lQ"]],
 
@@ -5423,7 +5423,7 @@
 
 [74,758,23,758,65,"dynamic",{"$":79},[{"$":9},"c"]],
 
-[74,806,25,806,44,"dynamic",{"$":180},[{"$":9},"a"]],
+[74,806,25,806,44,"dynamic","f722a9o_a7QYKDWSAWkAygtfP97838zV5vO4bpk2GPw",[{"$":9},"a"]],
 
 [74,1183,9,1183,46,"network","bGprDYvzgQ8pU74JEhso-jD8fRqesOT-OrhUisD5pBk",["route","N13.6","ln"]],
 
@@ -6140,13 +6140,9 @@
 
 "176":"7728a7b16389533f56de476f96703e50ab6bd866726f4ae7e43646b5ea96c590",
 
-"177":"7ab5c75f5dbe3e70869ebe6ee81b9a6016c66495a6ff05f4f7ee5ddd5d292f16",
-
 "179":"7f5893a1e776a1b36a5d61678c43d73b9f76991438f648b6b6ba507403838dd1",
 
 "18":"scripts/browser_action_dispatch.py",
-
-"180":"7fbdb66bda3f6bb418283592016900ca0b5f3fdefcdfccd5e6f3b86e993618fc",
 
 "182":"88b7fa4949777613fa071a683f7356b1f0c230a0c2a897b3a35e129c5b375df0",
 
@@ -6186,8 +6182,6 @@
 
 "21":"scripts/cwo_core/beads.py",
 
-"213":"a4c847ddddc2cb6048468384b4db20f15e19fad129dde27e905f1b292eaec9f8",
-
 "214":"a5b2d603ce594e14be79a832ba5360e68436912dd36f6eefa371ebcc5cef767c",
 
 "215":"ab9993e1c876cdf8cb778ebc81288475d7fa5ab3dd25e0626066744989ffbd47",
@@ -6195,8 +6189,6 @@
 "216":"abab5adbe043532953e4e03667f9ab7721929a33c15b5f18912f1325428c9c27",
 
 "217":"add_dependency(\n            blocked,\n            blocker,\n            dependency_type=dependency_type,\n        )",
-
-"218":"adf00c59a8043dd5454da9c05e60b86a0c0b2868fca6732ec7d8e6cc7905c845",
 
 "219":"b0b1881232addb34af547af3e34ae8d013b0b8b0f79d07bb46df4fd0ed463993",
 
@@ -6219,8 +6211,6 @@
 "231":"child.assert_not_called()",
 
 "232":"connect.assert_called_once_with((\"10.2.3.4\", 443), 2, None)",
-
-"234":"d725780e0aa6e0a1f740c973031fdf2df1b5cad2424e776a2ec25ccfe568ccd9",
 
 "237":"df03982192cab7b5e649994eb33f6776e1875c7d8c6dd687b5008f2c8ea1c0ce",
 
@@ -6390,8 +6380,6 @@
 
 "334":"ProviderNetworkTests.test_provider_endpoint_receives_validated_tls_byte_stream",
 
-"335":"a3852fc39f572915f0c7f39711ff5acd0aa339aa5e664ed1e3b6010b83821e82",
-
 "337":"self.assertEqual(received.get(timeout=3), hello)",
 
 "338":"self.assertEqual(self.fixture.spawned, [])",
@@ -6401,8 +6389,6 @@
 "341":"self.assertEqual(set(archived), {(1, 'paired-failure') if chars else (2, 'paired-success')})",
 
 "342":"scripts/cwo_core/codex_protocol_capabilities.py",
-
-"343":"d59b8417182e03f93912a075fb0195169ace16aa8a875be7e4a8b0f35023bd8a",
 
 "344":"self.assertEqual(self.provider_request.get(timeout=3), b'Authorization: Bearer ' + _EXAMPLE_ACCESS_TOKEN)",
 
@@ -7514,7 +7500,7 @@
 
 "scripts/profile_preparation_diagnostics.py":["bbaBOrwleJLU4i4ZlBJ-D2lp3-mqoKAClzhImaFf5q4",420,12961],
 
-"scripts/qualified_adjudication.py":["k7Ww5_xZ71OsH7f5fAX8UqgJZstr8bMy_cRJJEJw2S0",420,17850],
+"scripts/qualified_adjudication.py":["dwwiGTpNNftvejrEA73BAJaEge-CfCNnvMX8iml4VaU",420,18267],
 
 "scripts/qualified_risk_use.py":["-JIlAQueCzWELDyyHm1ewX8KbABVrbr4B1Hmrwg53VQ",420,13133],
 
@@ -7580,7 +7566,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["3omO8e0qZysZhpD7ppoR28iD_1VGJ9WYWr7yLc_iyIk",420,141515],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["1izuG8X45ecSUmY3Y47Y4LHilY-_EeW47N2kK67N14A",420,141557],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
