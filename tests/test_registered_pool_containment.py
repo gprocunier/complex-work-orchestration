@@ -292,6 +292,7 @@ class PoolWorkerContainmentTests(unittest.TestCase):
             auth.write_text(f'synthetic marker {slot}\n')
             auth.chmod(0o600)
         self.production_home = None
+        self.login_homes = ()
         self.login_state = self.root / 'worker-login-state'
         self.launcher = Path('/usr/bin/bwrap').resolve()
         self.validator = Path('/usr/bin/python3').resolve()
@@ -319,7 +320,8 @@ assert sys.stdin.read() == ''
 
     def _original_effect(self, effect, worker_id, worktree, spool, slot, containment=None):
         effect()
-        return self.configured[slot] if self.production_home is None else self.production_home
+        home = self.configured[slot] if self.production_home is None else self.production_home
+        return home, self.login_homes
 
     def _select_production_login(self, name='configured-login'):
         self.production_home = self.root / name
@@ -421,6 +423,38 @@ assert sys.stdin.read() == ''
             n1_mount.release(n1_mount.claim())
             self.assertEqual(list(self.login_state.iterdir()), [])
         self.assertEqual(list(self.login_state.iterdir()), [])
+
+    def test_qualification_pool_interlocks_follow_containment_cleanup(self):
+        self.slots = self.configured
+        self.login_homes = tuple(self.slots.values())
+        self.enterContext(patch.object(qualification, '_controller_home', return_value=self.root))
+        qualification.initialize_campaign()
+        first, second = (self._worker(slot, self._paths(slot)) for slot in (1, 2))
+        self.assertIn(qualification.campaign_directory(), first._protected_roots())
+
+        historical = qualification.claim_managed_login(1)
+        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+            first._worker_login.claim()
+        self.assertEqual(list(self.login_state.iterdir()), [])
+        qualification.release_managed_login(historical, 1)
+        first._prepare_home()
+        second._prepare_home()
+        for slot in (1, 2):
+            with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+                qualification.claim_managed_login(slot)
+        self.assertEqual(len(list(self.login_state.iterdir())), 2)
+
+        first.close()
+        historical = qualification.claim_managed_login(1)
+        qualification.release_managed_login(historical, 1)
+        second._managed_lifetime = containment._PoolLifetime(second, 'appserver', [])
+        second._managed_lifetime._managed_mount_started = True
+        with self.assertRaisesRegex(config.PoolContainmentError, 'cleanup is unresolved'):
+            second.close()
+        self.assertEqual(len(list(self.login_state.iterdir())), 1)
+        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+            qualification.claim_managed_login(2)
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
 
     def test_production_provider_requires_managed_login(self):
         self._select_production_login()

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result.
+- Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result. A three-worker qualification can use the existing dedicated logins as a complete roster.
 
 ## 1.49.0 - 2026-11-28
 

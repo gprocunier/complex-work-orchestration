@@ -41,6 +41,8 @@ _SOURCE_PATHS = (
     "registered_contained_pool_host.py",
     "registered_pool_containment.py",
     "registered_pool_configuration.py",
+    "registered_n1_qualification.py",
+    "registered_worker_login_config.py",
     "registered_app_server_transport.py",
     "registered_finite_tool_calls.py",
     "registered_server_requests.py",

@@ -27,7 +27,7 @@ from cwo_core.native_tool_isolation import CONTAINED_POOL_WRITER
 from cwo_core.private_artifact import PrivateDirectory
 from registered_delegation_preparation import _clone, _custody_ticket, _known_output_data, _project_key, _screen, _text
 from registered_n1_factory import _file
-from registered_n1_qualification import WorkerLoginMount, worker_login_state, _login_overlap
+from registered_n1_qualification import _login_overlap, pool_worker_login_mount, worker_login_state
 from registered_pool_configuration import PoolContainmentError, trim_model_catalog
 from registered_pool_containment import _writer_bytes, pool_patch_path, read_pool_patch_file
 from registered_pool_qualification_capability import callback_implementation_sha256
@@ -142,7 +142,8 @@ def _limits(admissions, size):
 def _mounts(size):
     homes = read_pool_worker_login_homes()[:size]
     pool.require(len(homes) == size, "Configure one distinct dedicated login per concurrent worker.")
-    mounts = tuple(WorkerLoginMount(home, worker_login_state()) for home in homes)
+    state = worker_login_state()
+    mounts = tuple(pool_worker_login_mount(home, state, homes) for home in homes)
     pool.require(len({mount.identity for mount in mounts}) == size, "The pool login homes share a directory identity.")
     pool.require(not any(_login_overlap(home, peer) for index, home in enumerate(homes) for peer in homes[index + 1:]),
                  "The pool login homes overlap.")

@@ -726,7 +726,7 @@
 
 "I":[176,99,"_sign_in(binary, home)",12,99,34],
 
-"J":[176,"_sign_in",64,"VxWSOtD033CfMjUMUcn3pLE7pabOKgQSXGLFKPSsdQA"],
+"J":[176,"_sign_in",63,"VxWSOtD033CfMjUMUcn3pLE7pabOKgQSXGLFKPSsdQA"],
 
 "K":[175,"DelegationSetupTests.test_fake_device_login_checks_startup_then_saves_only_worker_path",89,"tqsTKKHIxjXE0KgJpcOLffekpY3eXrH59LJDLw1wK5M"],
 
@@ -1722,7 +1722,7 @@
 
 "iO":[200,{"$":438},736,"Fy2yJlv1-6M3zmHkWmCypb5AuICIrsGbfg1q57GBvrQ"],
 
-"iR":[156,"PoolWorkerContainmentTests._assert_login_round_trip",541,"y58Z9rqWv-LG7lv1IvenzmDvBVvMNtT9c_SodSWeXSg"],
+"iR":[156,"PoolWorkerContainmentTests._assert_login_round_trip",575,"y58Z9rqWv-LG7lv1IvenzmDvBVvMNtT9c_SodSWeXSg"],
 
 "iS":[128,"PoolTests.test_signed_status_reads_only_original_records",250,"nD-QTfaLJEGfuLxN96hZk2C-1GT3_WNSnO2JtOzSiNo"],
 
@@ -1832,13 +1832,13 @@
 
 "jN":[175,"DelegationSetupTests.test_startup_failure_does_not_sign_in_or_publish_setting",110,"RbJLCLwiWfpuZpMDJojrUvMGbb4r3JINAcUwjMlwkxk"],
 
-"jO":[175,"GuidedInstallerTests.test_dry_run_never_invokes_setup_even_when_requested",224,"nbFxrVO9kClIOt7wUhB4CLiehJUloKJjy6g3TMoRu5Y"],
+"jO":[175,"GuidedInstallerTests.test_dry_run_never_invokes_setup_even_when_requested",253,"nbFxrVO9kClIOt7wUhB4CLiehJUloKJjy6g3TMoRu5Y"],
 
-"jP":[175,"GuidedInstallerTests.test_decline_and_noninteractive_install_print_command_without_running_it",204,"bhzuQn23Pp6FfDmd5fVIkf1maAkAe0Ph2A4troAZx7I"],
+"jP":[175,"GuidedInstallerTests.test_decline_and_noninteractive_install_print_command_without_running_it",233,"bhzuQn23Pp6FfDmd5fVIkf1maAkAe0Ph2A4troAZx7I"],
 
-"jQ":[175,"GuidedInstallerTests.test_uninstall_never_invokes_setup_even_when_requested",231,"lOtPMdaf-DEv9uNXjPZplTt01--X-pwNFo7WuQH3C2k"],
+"jQ":[175,"GuidedInstallerTests.test_uninstall_never_invokes_setup_even_when_requested",260,"lOtPMdaf-DEv9uNXjPZplTt01--X-pwNFo7WuQH3C2k"],
 
-"jR":[176,"main",124,"hHKmPiGh6TfB-wxZAxWLtBH4A6U3g-wW24UN9qSbkdI"],
+"jR":[176,"main",125,"hHKmPiGh6TfB-wxZAxWLtBH4A6U3g-wW24UN9qSbkdI"],
 
 "jS":[49,525,{"$":94}],
 
@@ -1848,13 +1848,13 @@
 
 "jV":[169,36,"if row.get(\"status\") != \"closed\":"],
 
-"jW":[156,"PoolWorkerContainmentTests.test_login_projection_failure",603,"VdwnmQOXTklMXYkntaDqX-NpW5pTcBL4sOgN5qFPVgA"],
+"jW":[156,"PoolWorkerContainmentTests.test_login_projection_failure",637,"VdwnmQOXTklMXYkntaDqX-NpW5pTcBL4sOgN5qFPVgA"],
 
 "jX":[155,397,"os.symlink(target, name, dir_fd=self._directory_fd)",12,397,63],
 
 "jY":[133,"LauncherAuthorityTests.test_legacy_launcher_validates_original_authority_and_refuses_execution",231,"hQ98A8fC7WGw28eZhIQ-LBNfwEog7LGH_dOV0FHuQDY"],
 
-"jZ":[155,"PoolWorkerContainment._release_login",963,"N5DTw7_JxWDnX2h6VKbQxB_YnCy30EvEFnD-9LsM7o4"],
+"jZ":[155,"PoolWorkerContainment._release_login",965,"N5DTw7_JxWDnX2h6VKbQxB_YnCy30EvEFnD-9LsM7o4"],
 
 "ja":[65,"RegisteredN1Workflow._production_selected",508,"5MGk9z_jmvywZ-Io1qroLnYYcTsYHor_hG6Mr1Ns2mA"],
 
@@ -1874,7 +1874,7 @@
 
 "ji":[153,"WorkflowTests.test_production_refuses_protected_login_homes_before_claim",440,"by01nAo4Q_Uv1pKcPEMjctqhRskDKDKYY1rFUu_YhNE"],
 
-"jj":[149,"WorkerLoginMount.claim",292,"PhDbIILxkMNqTrvq-uZtKKrOX5eFRL1xQN2Ce9GGIU0"],
+"jj":[149,"WorkerLoginMount.claim",304,"n0JXWsu7xvq3e6ktG4DqvudU5KPgLXDg_kyPTbjfXuQ"],
 
 "jk":[148,"ManagedLoginNamespaceTests.test_real_worker_mount_persists_refresh_without_qualification_campaign",221,"7--8xD5h47oOZJaIMLAJ731_SpVDVBoVjJi-x9TFgQs"],
 
@@ -1886,13 +1886,13 @@
 
 "jo":[174,43,"_await_original_contexts(controls)"],
 
-"jp":[199,"OrdinaryPoolIngressTests._foreground_pool_decision",179,"MABWzcOvDJe0EVZL2xckFupmwJ-udyyNDDw0qoX0mVQ"],
+"jp":[199,"OrdinaryPoolIngressTests._foreground_pool_decision",200,"MABWzcOvDJe0EVZL2xckFupmwJ-udyyNDDw0qoX0mVQ"],
 
 "jq":[200,"HostedOrdinaryPoolTests.test_calibration_waits_for_owned_durable_context",589,"jkE9Jv7fk5RG7G36AAZRouE9HtN0yZ2xtj-lwEYQBZY"],
 
 "jr":[147,"ProviderBrokerCloseTests.test_idle_receive_wakes_on_close",231,"9iErhsoem8RV9Cu6Zsa5Mlj6ruW1QSvb19XpR-EsZoI"],
 
-"js":[156,"PoolWorkerContainmentTests.test_production_login_round_trip",537,"OVEV-aC9ExA6PY_GMjvpBf47_rbQ-8Hvb_VTRbL8hJs"],
+"js":[156,"PoolWorkerContainmentTests.test_production_login_round_trip",571,"OVEV-aC9ExA6PY_GMjvpBf47_rbQ-8Hvb_VTRbL8hJs"],
 
 "jt":[147,"ProviderNetworkTests",37,"6mktAC1AEucbAbOAnZgNhPLtQro1zS1Qv0lhztTHghY"],
 
@@ -2020,7 +2020,7 @@
 
 "kz":[68,"observe_retry",19,"WF2S0W5w2KNNiYgc2p_bEtA7yHpKyCzIKEFaP4EFxZc"],
 
-"l":[176,86,"_worker_home(home, primary)",11,86,38],
+"l":[176,85,"_worker_home(home, primary)",11,85,38],
 
 "l0":[28,246,"_need(type(source_context) is dict"],
 
@@ -2044,13 +2044,13 @@
 
 "lA":[43,463,"subprocess.Popen(\n        [git.path, \"-C\", str(root), *INERT_GIT_CONFIG, *args],\n        env=environment,\n        stdin=subprocess.DEVNULL,\n        stdout=subprocess.PIPE,\n        stderr=subprocess.PIPE,\n    )",14,469,5],
 
-"lB":[194,"callback_implementation_sha256",88,"-uksq4TQCrzfjDIkO9WvxWu4rSbXRRqwyj3F7TFVzyY"],
+"lB":[194,"callback_implementation_sha256",90,"-uksq4TQCrzfjDIkO9WvxWu4rSbXRRqwyj3F7TFVzyY"],
 
 "lC":[204,"require_ordinary_custody",99,"24bDAfvc_1SMjVLKUQ-7bMr6D5CQurQSagq7C2JjPM8"],
 
 "lD":[23,190,"subprocess.run(\n            command,\n            check=False,\n            cwd=REPO_ROOT if directory is None else directory,\n            env=project_env,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,199,9],
 
-"lE":[202,241,"\"callback_implementation_sha256\": callback_implementation_sha256(), \"host_inputs\": host}"],
+"lE":[202,242,"\"callback_implementation_sha256\": callback_implementation_sha256(), \"host_inputs\": host}"],
 
 "lF":[42,419,{"$":310},12,419,42],
 
@@ -2068,9 +2068,9 @@
 
 "lN":[64,1585,"super().request(*args, **kwargs)",17,1585,49],
 
-"lO":[203,"ApprovedOrdinaryPool.require_current",170,"d-6gyULUVZDBI0CLDTFgF3jvnaZaemrBRgQpioN2pyQ"],
+"lO":[203,"ApprovedOrdinaryPool.require_current",174,"rX9RktymiSJtDsCUGGpIFatT6-NlS_ov-Wuz8FfxsCg"],
 
-"lP":[202,293,"directory.write(pool.APPROVAL_FILE, raw)",8,293,48],
+"lP":[202,294,"directory.write(pool.APPROVAL_FILE, raw)",8,294,48],
 
 "lQ":[75,270,"subprocess.run(\n            [sys.executable, str(Path(__file__).resolve()), \"--list-test-methods\",\n             *map(str, paths), \"--discovery-output\", str(output)],\n            cwd=working_directory, env=_worker_environment(start_directory, Path(temporary)),\n            text=True, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, check=False,\n        )",17,275,9],
 
@@ -2082,7 +2082,7 @@
 
 "lU":[204,522,"_calibrate(approved, calibration_run, allowance, baseline)",43,522,101],
 
-"lV":[202,174,"subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=30)",14,174,108],
+"lV":[202,175,"subprocess.run(command, stdin=subprocess.DEVNULL, capture_output=True, check=True, timeout=30)",14,175,108],
 
 "lW":[59,755,"_bd(state, [\"close\", \"--reason\", reason, \"--\", bead[\"id\"]])",8,755,67],
 
@@ -2120,7 +2120,7 @@
 
 "lp":[64,2249,"_need(type(self._model_task) is bytes\n              and self._model_task == _model_task(self.receipt, self.spec, self.policy.report),\n              'The model task changed from its original admitted inputs.')",8,2251,74],
 
-"lq":[203,"ApprovedOrdinaryPool._before_claim",187,"YA-QlhyAXfhNHmqckuT_pa8T8WWQ36Jbl036xF7g27A"],
+"lq":[203,"ApprovedOrdinaryPool._before_claim",191,"YA-QlhyAXfhNHmqckuT_pa8T8WWQ36Jbl036xF7g27A"],
 
 "lr":[23,97,"subprocess.run(\n            command,\n            check=False,\n            cwd=target,\n            text=True,\n            stdout=subprocess.PIPE,\n            stderr=subprocess.PIPE,\n            timeout=seconds,\n        )",20,105,9],
 
@@ -2140,7 +2140,7 @@
 
 "lz":[64,1994,"_need(self.prompt.encode() == factory.model_task_bytes() and self.worktree == factory.host.worker,\n              \"Task or workspace identity differs from the original admission.\")",8,1995,80],
 
-"m":[176,"_worker_home",20,"qGa20j-EivAoGQioKRaz5CxcJzu1C7sL_b2h_kuXa2M"],
+"m":[176,"_worker_home",20,"aa7aH3zNOZjhPyZ36mNWUgnBumUFg5uhi5ZLCzRbYZw"],
 
 "m0":[77,863,"'import os\\n' + _EXEC_CONTEXT + r'''\nimport time\ndeadline=time.monotonic()+10\nwhile time.monotonic()<deadline and not pathlib.Path('exit').exists():\n with pathlib.Path('heartbeat').open('a') as stream: stream.write('.')\n time.sleep(.01)\n'''",19,869,3],
 
@@ -2182,13 +2182,13 @@
 
 "mJ":[59,506,"bridge([\"--db\", str(state.custody / \"EXAMPLE.db\"),\n                   \"--actor\", \"EXAMPLE-qualified-closure\", *args])",11,507,66],
 
-"mK":[203,"ApprovedOrdinaryPool._before_claim",187,"YA-QlhyAXfhNHmqckuT_pa8T8WWQ36Jbl036xF7g27A"],
+"mK":[203,"ApprovedOrdinaryPool._before_claim",191,"YA-QlhyAXfhNHmqckuT_pa8T8WWQ36Jbl036xF7g27A"],
 
 "mL":[75,552,"if args.workers < 1:"],
 
 "mM":[78,197,"if unmet:"],
 
-"mN":[203,196,"directory.write(f\"claim-{bead_id}.json\", encode({\"actor\": _attempt_actor, \"bead_id\": bead_id}))",12,196,107],
+"mN":[203,200,"directory.write(f\"claim-{bead_id}.json\", encode({\"actor\": _attempt_actor, \"bead_id\": bead_id}))",12,200,107],
 
 "mO":[42,915,"self.request(\"mcpServerStatus/list\", params, timeout=15)",33,915,89],
 
@@ -2282,13 +2282,13 @@
 
 "n5":[187,"_authorize_pool",232,"ayEahGPJWqEnfgNTQsPqB4_JSc57bgfN4hgFl8jPgW4"],
 
-"n6":[203,"RegisteredContainedPoolHost.run",316,"O7x7A2IqguQfPwH9IhKAXBbhs4R9whyTgRBvSUiIBQY"],
+"n6":[203,"RegisteredContainedPoolHost.run",321,"O7x7A2IqguQfPwH9IhKAXBbhs4R9whyTgRBvSUiIBQY"],
 
 "n7":[66,44,"if type(run) is not MethodType or run.__self__ is not host or run.__func__ is not type(host).run:",4,44,101],
 
-"n8":[155,730,"self._worker_login.claim()",30,730,56],
+"n8":[155,732,"self._worker_login.claim()",30,732,56],
 
-"n9":[155,973,"self._worker_login.release(self._managed_lease)",12,973,59],
+"n9":[155,975,"self._worker_login.release(self._managed_lease)",12,975,59],
 
 "nA":[77,"probe_pid_reuse",1450,"1LHCR4_9085b2IUYJ7YTzLOyplwoBSnt7NTcPkhA5JI"],
 
@@ -2326,15 +2326,15 @@
 
 "nR":[133,"LauncherAuthorityTests.test_pool_request_byte_limit_has_a_matched_nonspending_boundary",48,"qPbmEimu-I5gM3TIaEJKE-BBYF6ZxwPo_r6qbgi0PT0"],
 
-"nS":[203,294,"directory.write(\"admission.json\", encode(admitted.receipt))",4,294,63],
+"nS":[203,299,"directory.write(\"admission.json\", encode(admitted.receipt))",4,299,63],
 
-"nT":[203,292,"reserve_pool_cohort(AdmissionCandidate(evidence, estimates, assessment, bindings),\n        claim_adapter=approved.claim_adapter, admission_nonce=approved.binding_sha256, live_revalidate=revalidate)",15,293,114],
+"nT":[203,297,"reserve_pool_cohort(AdmissionCandidate(evidence, estimates, assessment, bindings),\n        claim_adapter=approved.claim_adapter, admission_nonce=approved.binding_sha256, live_revalidate=revalidate)",15,298,114],
 
-"nU":[176,"setup_pool_delegation",111,"fr6DsIwCQNW5QnxvC1wq4NxC0fT8aFYggVK39xKCkwk"],
+"nU":[176,"setup_pool_delegation",111,"Qr-1i9Me3H7mXe1_bKfZiQLohyHLtlRipCc8iXec9eA"],
 
 "nV":[187,234,"if not elicitation or project is None:",8,234,46],
 
-"nW":[203,290,"directory.write(\"execution-intent.json\", encode({\"approval_sha256\": approved.binding_sha256,\n                                                    \"beads\": sorted(bindings)}))",4,291,80],
+"nW":[203,295,"directory.write(\"execution-intent.json\", encode({\"approval_sha256\": approved.binding_sha256,\n                                                    \"beads\": sorted(bindings)}))",4,296,80],
 
 "nX":[133,"LauncherAuthorityTests.test_pool_request_fifo_refuses_without_waiting_for_a_writer",119,"rUhzofby4-L6P-QVwVF4mbAVGr9xLLgbjEpvdqfV_SQ"],
 
@@ -2432,7 +2432,7 @@
 
 "oH":[24,"capture_audit_fields",191,"S0k6OjusneyVlH9t8yr2cIv21j74TpW_-r4ABENgRKI"],
 
-"oI":[202,271,"shutil.rmtree(root.name, dir_fd=parent.descriptor)",16,271,66],
+"oI":[202,272,"shutil.rmtree(root.name, dir_fd=parent.descriptor)",16,272,66],
 
 "oJ":[24,"validate_private_capture",289,"wb9eW69tRCkkhouZa6jCWR9MkugrX3KLG37kU19cDA0"],
 
@@ -2440,7 +2440,7 @@
 
 "oL":[24,"packet_subject",86,"YKsBMNcFKB4ji0G2TqcBcFUdj_jrAc9xdjsgaC9A0XA"],
 
-"oM":[202,"prepare_pool",244,"gVZT8jnRll_E72UPKz51zx_QoKiTQJpaTvwJ-532ryQ"],
+"oM":[202,"prepare_pool",245,"gVZT8jnRll_E72UPKz51zx_QoKiTQJpaTvwJ-532ryQ"],
 
 "oN":[204,525,"_run_phase(productive, runtime, allowance, limits)",13,525,63],
 
@@ -2470,9 +2470,9 @@
 
 "oa":[67,"RegisteredNativePoolHost._require_directory",236,"4G6QZ71lya9EHgDfEitBkUoHArePl81fNdzX2gsc-fo"],
 
-"ob":[203,320,"if request[\"mode\"] == \"validate-only\":",8,320,46],
+"ob":[203,325,"if request[\"mode\"] == \"validate-only\":",8,325,46],
 
-"oc":[202,261,"os.mkdir(root.name, 0o700, dir_fd=parent.descriptor)",8,261,60],
+"oc":[202,262,"os.mkdir(root.name, 0o700, dir_fd=parent.descriptor)",8,262,60],
 
 "od":[117,"PrivatePidCIApplicabilityTests.test_original_watchdog_exit_reap_and_error_free_close_reports_are_required",489,"1lpv_KmvdH27h5SAJqZOuTgvdvBSjDktRxnBYJX8ZyE"],
 
@@ -2520,15 +2520,15 @@
 
 "oz":[40,"prepare_json_frame",30,"eqL54mVfm5OkPvtf6FhWBsJNkZpfu4uQ_JgQHxMWINw"],
 
-"p":[176,70,"subprocess.run([str(binary), \"-c\", 'cli_auth_credentials_store=\"file\"', \"login\", \"--device-auth\"],\n                       env=env, check=True)",8,71,43],
+"p":[176,69,"subprocess.run([str(binary), \"-c\", 'cli_auth_credentials_store=\"file\"', \"login\", \"--device-auth\"],\n                       env=env, check=True)",8,70,43],
 
 "p0":[37,2009,"with capability._lock:"],
 
 "p1":[14,55,"subprocess.check_output(git + ['rev-parse', name], text=True)",15,55,76],
 
-"p118-stage-body":[156,"PoolWorkerContainmentTests.test_interrupted_patch_waits_for_original_writer_retirement_before_staging_cleanup",674,"JwH7VGyhT7AiF8pfGFokWJbaDJZwLI3Ou4SNIn7IxKE"],
+"p118-stage-body":[156,"PoolWorkerContainmentTests.test_interrupted_patch_waits_for_original_writer_retirement_before_staging_cleanup",708,"JwH7VGyhT7AiF8pfGFokWJbaDJZwLI3Ou4SNIn7IxKE"],
 
-"p118-stage-check":[156,"PoolWorkerContainmentTests._assert_interrupted_patch_staging",679,"kr6KqJjInz8gsrkjpREiXQkiYw4_KMW3FmJ-PP1hmpU"],
+"p118-stage-check":[156,"PoolWorkerContainmentTests._assert_interrupted_patch_staging",713,"kr6KqJjInz8gsrkjpREiXQkiYw4_KMW3FmJ-PP1hmpU"],
 
 "p2":[204,"run_registered_contained_pool",513,"vZzsHj4WUblsgdixV6-OeOLxRj9OEcSsUSmLSJSnTyY"],
 
@@ -2604,7 +2604,7 @@
 
 "pc":[14,67,"subprocess.check_output(\n                ['stat', '-f', '-c', '%T', tempfile.gettempdir()], text=True)",34,68,77],
 
-"pd":[176,121,"write_pool_worker_login_homes(selected)",4,121,43],
+"pd":[176,122,"write_pool_worker_login_homes(selected)",4,122,43],
 
 "pf":[205,93,"host_records._write_at(directory, _POOL_FILE, raw, replace=True)",8,93,72],
 
@@ -2654,7 +2654,7 @@
 
 "q1":[204,"require_ordinary_runtime_source",111,"grBWZ_dnkTd4OLTooobiLZt5bsoPOAlGjEJH8dh4jtE"],
 
-"q2":[202,184,"return {**row, \"patch_preimage_sha256\": sha256(before).hexdigest()}"],
+"q2":[202,185,"return {**row, \"patch_preimage_sha256\": sha256(before).hexdigest()}"],
 
 "q3":[49,369,"copy_projection \"$INSTALL_STAGE_DIR\" \"$directories\" \"$files\""],
 
@@ -2746,9 +2746,9 @@
 
 "ql":[126,"RegisteredFiniteToolWiringTests.test_failed_poll_reservation_does_not_start_success_completion_join",835,"QW7IhyKId1VpQRXElivAO11TiYcNTbUdt0kMEpIyAf8"],
 
-"qm":[155,"PoolWorkerContainment.production_live",637,"GGDt89l1yOcnShGrAPAa6-NKSAK_p4Qc_DoM0OH78TY"],
+"qm":[155,"PoolWorkerContainment.production_live",639,"GGDt89l1yOcnShGrAPAa6-NKSAK_p4Qc_DoM0OH78TY"],
 
-"qn":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",386,"0kT0hDSYR0CEH5NGG52sZ_fK3M15k65SiKUaORT_knw"],
+"qn":[156,"PoolWorkerContainmentTests.test_provider_registration_uses_only_managed_login_and_cleans_up_before_spawn",388,"0kT0hDSYR0CEH5NGG52sZ_fK3M15k65SiKUaORT_knw"],
 
 "qo":[77,769,"signal.pidfd_send_signal(descriptor, signal.SIGKILL)",16,769,68],
 
@@ -2776,11 +2776,11 @@
 
 "r":[8,379,"if not args.dry_run:"],
 
-"r1":[199,"OrdinaryPoolIngressTests.test_fixed_offline_bundled_catalog_and_stock_fallback",204,"RpHeEk_3aX9QI3EAusLUqyjxQ8m_Oa8T9pU9R0WqNRE"],
+"r1":[199,"OrdinaryPoolIngressTests.test_fixed_offline_bundled_catalog_and_stock_fallback",225,"RpHeEk_3aX9QI3EAusLUqyjxQ8m_Oa8T9pU9R0WqNRE"],
 
-"r3":[199,"OrdinaryPoolIngressTests.test_authorize_pool_foreground_declines_or_retains_original_cohort",144,"Y-vBHFugdIlgMFIy0QAYmgrwrdNvBUPAbfTQRxOoT6Y"],
+"r3":[199,"OrdinaryPoolIngressTests.test_authorize_pool_foreground_declines_or_retains_original_cohort",145,"Y-vBHFugdIlgMFIy0QAYmgrwrdNvBUPAbfTQRxOoT6Y"],
 
-"r5":[156,"PoolWorkerContainmentTests.test_production_uncertain_cleanup_keeps_the_original_n1_lease",525,"3znHXWRafYv28xAzl2Lq90d0oKBRR4q04VjvbFWc6kg"],
+"r5":[156,"PoolWorkerContainmentTests.test_production_uncertain_cleanup_keeps_the_original_n1_lease",559,"3znHXWRafYv28xAzl2Lq90d0oKBRR4q04VjvbFWc6kg"],
 
 "r7":[200,"HostedOrdinaryPoolTests.test_missing_or_changed_configured_logins_precede_productive_effects",717,"TxuxWrs4WDwd5Wa5yi365ZXcsL2AbcpyiXWylHG7nXs"],
 
@@ -2822,15 +2822,15 @@
 
 "rR":[25,265,"\"preflight_status\": \"failed\", \"linter\": \"spec-validator\", \"execution_status\": \"not-started\", \"exit_code\": None,"],
 
-"rS":[203,236,"require(sha256(current).hexdigest() == child.patch_preimage_sha256, \"The signed worker patch preimage changed.\")"],
+"rS":[203,241,"require(sha256(current).hexdigest() == child.patch_preimage_sha256, \"The signed worker patch preimage changed.\")"],
 
 "rU":[200,"HostedOrdinaryPoolTests.test_signed_patch_preimage_drift_refuses_before_admission",375,"KTgCEPoQxwLpGrXahl4fqVGP0O8O3vbEi3CipZWqk_w"],
 
 "rW":[200,"HostedOrdinaryPoolTests.test_signed_existing_file_patch_and_fixed_text_settle_together",329,"VR3wn_xkFJX-VDaGReOyA7Of4W4mWhUWA5oXyTcK3qo"],
 
-"rX":[155,874,"stdout, stderr = process.communicate(stdin, self._remaining(deadline))"],
+"rX":[155,876,"stdout, stderr = process.communicate(stdin, self._remaining(deadline))"],
 
-"rZ":[156,"PoolWorkerContainmentTests.test_checked_patch_uses_the_same_gate_and_bounded_postimage_pipe",733,"BammfqbQPJY9bSfzy4arLviyZ5lGgH7Dq0zmkUBc2Ko"],
+"rZ":[156,"PoolWorkerContainmentTests.test_checked_patch_uses_the_same_gate_and_bounded_postimage_pipe",767,"BammfqbQPJY9bSfzy4arLviyZ5lGgH7Dq0zmkUBc2Ko"],
 
 "ra":[23,97,{"$":61}],
 
@@ -2880,7 +2880,7 @@
 
 "rn":[38,1937,"if final_horizon_errors:"],
 
-"ro":[155,841,"require(preimage_sha256 == self._patch_preimage_sha256, 'The checked patch preimage changed.')"],
+"ro":[155,843,"require(preimage_sha256 == self._patch_preimage_sha256, 'The checked patch preimage changed.')"],
 
 "rp":[38,1623,"require_recovery_authority(plan, runtime)"],
 
@@ -2950,7 +2950,7 @@
 
 "sn":[200,"HostedOrdinaryPoolTests._assert_refused_writer",411,"vQLbd5eiczdHcsuaXJxkRBJbYQrUe1uzxeW2yURTQ2E"],
 
-"sp":[199,"OrdinaryPoolIngressTests.test_hostless_execute_stays_lazy_and_validate_has_no_authority",48,"XWw4JpshYrOgQtiHxLg2nDTP1EmdCd8eqDZAPvR0WLk"],
+"sp":[199,"OrdinaryPoolIngressTests.test_hostless_execute_stays_lazy_and_validate_has_no_authority",49,"XWw4JpshYrOgQtiHxLg2nDTP1EmdCd8eqDZAPvR0WLk"],
 
 "sq":[200,"HostedOrdinaryPoolTests.test_validate_only_and_signed_scope_refusals_precede_productive_effects",432,"pOK5VQXN6mdemF8wWhBFzsxdZz6_asNXajQtnJ_aA1Q"],
 
@@ -2964,7 +2964,7 @@
 
 "sz":[73,"_write_worker_contracts",86,"cROrQ6m9DGwJq6UdFJ5JT5k8O_7Hao5jrTD7gzYnxhk"],
 
-"t":[175,"GuidedInstallerTests.test_confirmed_prompt_runs_the_same_standalone_setup",197,"tsFmk96o7sS2hpMTCRBqYQ5du_Y1oeKSuMrP0KP1DCY"],
+"t":[175,"GuidedInstallerTests.test_confirmed_prompt_runs_the_same_standalone_setup",226,"tsFmk96o7sS2hpMTCRBqYQ5du_Y1oeKSuMrP0KP1DCY"],
 
 "ua":[170,352,"_need(0 < len(note) <= 240, \"enter a review note of 1 to 240 characters\")",4,352,77],
 
@@ -3010,7 +3010,7 @@
 
 "uv":[64,2357,"_need(self.production_live and type(server) is _RegisteredServer and self.server is server"],
 
-"uw":[149,122,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
+"uw":[149,127,"_need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),"],
 
 "ux":[65,679,"_need(type(guard) is MethodType and guard.__self__ is self and guard.__func__ is _EXECUTION_CURRENT,"],
 
@@ -3116,7 +3116,7 @@
 
 "x":[76,1215,{"$":217},8,1219,9],
 
-"x0":[149,"claim_managed_login",470,"uWJepFXiItQQNClCipDn_Ehq0-Y80G1Hf6OJ8xd_2xM"],
+"x0":[149,"claim_managed_login",534,"uWJepFXiItQQNClCipDn_Ehq0-Y80G1Hf6OJ8xd_2xM"],
 
 "x1":[148,"FactoryQualificationTests.test_schema_refusal_precedes_appserver_birth_and_campaign_start",684,"9d7NeOugVLiGTQyDA3CYCVabtUD0SEIcl-M3YQfGti4"],
 
@@ -3126,21 +3126,21 @@
 
 "x4":[147,"ProviderNetworkTests.test_auth_host_without_attachment_is_refused_before_dial",87,"KGRAydbhRXrGt08lhihJzS0poZ0JNpL8IvvnYVPQAaA"],
 
-"x5":[149,"initialize_campaign",434,"XiPNcCbIXtlN19kuLBMSIFIis4MG9PwTE08ncbRPb9Y"],
+"x5":[149,"initialize_campaign",498,"XiPNcCbIXtlN19kuLBMSIFIis4MG9PwTE08ncbRPb9Y"],
 
 "x6":[146,"ProviderBroker.__init__",324,"T47gO3pCnoUoDgQc-d4kYqtkJFOcCeVpxdb26XamgSg"],
 
 "x7":[127,"FactoryTests.test_worker_safety_refusal_adds_a_terminal_blocker_to_original_failure",1873,"0lvZgcN6PXBDTbkTnrBoOhBsGC3WNeTqrZAkqD8M6Bo"],
 
-"x8":[149,"_check_available",535,"NRsRwitkkSgUCjAi_ptjlet74EOp5HxVg5zGYfyfLB4"],
+"x8":[149,"_check_available",604,"NRsRwitkkSgUCjAi_ptjlet74EOp5HxVg5zGYfyfLB4"],
 
 "x9":[148,"FactoryQualificationTests.test_unsupported_login_mount_refuses_before_charge_and_releases_confirmed_namespace",414,"PV2NJuMF_6ABe30xaPTy5SvQ0UdWxuV6VgAonULCWTo"],
 
-"xA":[149,445,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
+"xA":[149,509,"host_records._write_at(directory_fd, _JOURNAL, host_records._json(_HEADER))"],
 
 "xC":[142,"CodexProtocolCapabilitiesTests.test_missing_method_names_the_capability",116,"zomVcuY4PGuSaFC7EzJ0lxOGhZt806c04LzhtYuEQ_Y"],
 
-"xD":[149,"_read_starts",509,"2Oi-LhNBtgUNvkcxWxJiO6OdxN1pWAmKFqMiu2xkVVE"],
+"xD":[149,"_read_starts",578,"2Oi-LhNBtgUNvkcxWxJiO6OdxN1pWAmKFqMiu2xkVVE"],
 
 "xE":[148,"FactoryQualificationTests.test_total_limit_refuses_before_any_worker_or_configuration",633,"UlehT9UtBFayl63NZf1X2U2FqDQIaKS_IMejhFRCze8"],
 
@@ -3154,7 +3154,7 @@
 
 "xJ":[147,"ProviderNamespaceTests.test_appserver_delivers_attachment_over_auth_tls_and_separate_children_cannot",502,"cDmZcPXamrdQWVguZOksJvbYb8i-RFcsZVUiP0f9Njc"],
 
-"xK":[149,560,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
+"xK":[149,629,"_need(os.write(descriptor, raw) == len(raw), 'The qualification start record is incomplete.')"],
 
 "xL":[146,304,"if socket.send_fds(control, [b'1'], [broker.fileno()]) != 1:"],
 
@@ -3172,17 +3172,17 @@
 
 "xS":[146,"_handoff",299,"I2ouohuU6UsnLsZy2gM0JAFnzj90s-MY-xIKB5bC3qM"],
 
-"xT":[149,439,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
+"xT":[149,503,"os.mkdir(directory.name, mode=0o700, dir_fd=parent_fd)"],
 
 "xV":[143,"provider_policy_blocker",24,"RgL8fz6sMapKK6muDpQ309ZJxLXIi3-S5VroYuBhQQ8"],
 
 "xW":[127,"FactoryTests.test_worker_overload_with_policy_wording_keeps_ordinary_failure",1881,"tNbh_A5HLbbzgrkmshS47aS715x1Xy6AuCAimxZYdI0"],
 
-"xX":[149,"_StartRequest.authorization",387,"k4iqmJ_MKe5nPtALm7snK2-486n-FSG98xr2AsQnLBs"],
+"xX":[149,"_StartRequest.authorization",451,"k4iqmJ_MKe5nPtALm7snK2-486n-FSG98xr2AsQnLBs"],
 
 "xY":[148,"FactoryQualificationTests.test_unknown_login_mount_teardown_preserves_the_interlock",424,"zht_ejcvPCBdIUGtRo_qFm2DF1X51riSMDfSGFDkkS0"],
 
-"xZ":[149,"ManagedLoginMount.prepare",184,"xBjS_yw1BFc3tzxG2gBH1dDkp1jnS17lndTbgzqgf4Y"],
+"xZ":[149,"ManagedLoginMount.prepare",193,"xBjS_yw1BFc3tzxG2gBH1dDkp1jnS17lndTbgzqgf4Y"],
 
 "xa":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_a_poll_item_completed_after_the_original_turn_terminal",1997,"PAp0EV984N9v4xN-E2bbDenXuW6cCnySfKkhPc_I3I8"],
 
@@ -3200,13 +3200,13 @@
 
 "xh":[146,"_bootstrap",456,"v1F_jC1bVB-U2Iyd5d8UaNmkJ0V4I-AYQYOpSLHu5O8"],
 
-"xi":[155,"PoolWorkerContainment.launch_appserver",751,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
+"xi":[155,"PoolWorkerContainment.launch_appserver",753,"0EFwSTsAMmjIQ5tbGZbAbLDHFYtKZ6GVLg3fGqU-ZnU"],
 
 "xj":[158,"RegisteredPoolQualificationTests.test_bad_callback_never_reaches_the_barrier_or_writer",519,"57wdI6RB-RQc86JFW_TACG2gEh8om44BlRvm662jR94"],
 
 "xk":[157,"build_pool_qualification_runtime",1501,"EDBaS_2VcEUYfNXte49q09tF5v0MUBY8ETdj4Z23xDU"],
 
-"xl":[155,"PoolWorkerContainment.run_writer",813,"0_yAkAF1t2-lxNhNKyJzkq_UWAJmBCkkMle6Uu_xCQI"],
+"xl":[155,"PoolWorkerContainment.run_writer",815,"0_yAkAF1t2-lxNhNKyJzkq_UWAJmBCkkMle6Uu_xCQI"],
 
 "xn":[126,"RegisteredFiniteToolWiringTests.test_qualification_nonempty_poll_refusal_settles_after_the_original_turn_terminal",1848,"fohJgDaTU4AKlFvtzZUQJmX2UA8v9X3D3gaFzriU-Dc"],
 
@@ -3220,7 +3220,7 @@
 
 "xs":[148,"FactoryQualificationTests.test_permit_requires_signed_version_two_and_exact_integer_start_limit",609,"6rRVn0HfkhAFuvpCZlE1palcc5f5mAXNZwsJz2mxCws"],
 
-"xt":[149,"require_executable_schema",339,"_sNtyxu7DnTGdo7wfiyYZIzutl2-J8-BmhlMHbSkpIg"],
+"xt":[149,"require_executable_schema",403,"_sNtyxu7DnTGdo7wfiyYZIzutl2-J8-BmhlMHbSkpIg"],
 
 "xu":[62,"RegisteredFiniteInput._finish_reply_publication",1580,"En1qbNis3xhip8NUQLpYFUEyS85mpN6HnzaAZHBtNkE"],
 
@@ -3228,7 +3228,7 @@
 
 "xw":[64,"_RegisteredServer._register_qualification_rpc",1250,"uBLRaet5Pwvp1SR7HB0ceL1TNZHvnI8xDAQLBurimnE"],
 
-"xx":[149,"verify_qualification_permit",406,"ambRElxX6xxNdeIhI3AVt8FST7X77XpWbsDNKxrYhQI"],
+"xx":[149,"verify_qualification_permit",470,"ambRElxX6xxNdeIhI3AVt8FST7X77XpWbsDNKxrYhQI"],
 
 "xy":[147,"RegisteredMonitorExitTests.test_reaped_monitor_requires_original_identity_and_no_signal",522,"fykJRXURGFNZjg4R7oUVP2lc_5ai6i0vjA0CEr-14Zw"],
 
@@ -3294,7 +3294,7 @@
 
 "yd":[64,"_RegisteredServer._check_qualification_wire",1270,"oCkA-pQKcaklegmFwoadOEApu0wV0P4jT0glqhrL8zM"],
 
-"ye":[149,561,"os.fsync(descriptor)"],
+"ye":[149,630,"os.fsync(descriptor)"],
 
 "yf":[146,427,"if os.fork() != 0:"],
 
@@ -3314,7 +3314,7 @@
 
 "ys":[53,"_advance",350,"Vhlxs4eEXH2tXwSnbmlQT8ZvU4Vr2wjaX_f-Q8xnP5Q"],
 
-"yt":[149,"ManagedLoginMount.confirm_archived",244,"tS6O4v3tlzQ3mR-9fOT0ekD8tp7WK9ny93RwwaPuozg"],
+"yt":[149,"ManagedLoginMount.confirm_archived",253,"tS6O4v3tlzQ3mR-9fOT0ekD8tp7WK9ny93RwwaPuozg"],
 
 "yu":[42,"_require_native_rpc",217,{"$":356}],
 
@@ -3348,7 +3348,7 @@
 
 "zC":[63,"QualifiedToolEvidence._wait_terminal_reply",301,"lzxZGOEYrAlsvQAqlphfcRF8rnCO-4ULGfaulpWueo4"],
 
-"zE":[155,760,"self._appserver.launch(command, self.home)",23,760,65],
+"zE":[155,762,"self._appserver.launch(command, self.home)",23,762,65],
 
 "zF":[144,83,"os.execvp(\"codex\", command + arguments)",8,83,47],
 
@@ -3386,9 +3386,9 @@
 
 "zW":[146,330,"socket.socketpair(type=socket.SOCK_DGRAM)",47,330,88],
 
-"zX":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",662,"lzFDdzNrTvpz66VacjEohnYvV5DqdDp-b0ibJdzoQyk"],
+"zX":[156,"PoolWorkerContainmentTests.test_refused_callback_never_writes_and_original_worker_is_cleaned",696,"lzFDdzNrTvpz66VacjEohnYvV5DqdDp-b0ibJdzoQyk"],
 
-"zY":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",632,"xy0mb4xk-6LHT9n8pqR3vu8zvjxZWQty-fuy01F071o"],
+"zY":[156,"PoolWorkerContainmentTests.test_physical_pool_worker_boundaries_and_exact_writes",666,"xy0mb4xk-6LHT9n8pqR3vu8zvjxZWQty-fuy01F071o"],
 
 "zZ":[64,"_Containment._preflight_qualification_schema",729,"pY2U5GO4Y72yPXGvIMATp5FYUzS-JeIcyyIvoT2h26w"],
 
@@ -3416,7 +3416,7 @@
 
 "zl":[146,196,"upstream.connect(address)",12,196,37],
 
-"zm":[155,864,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,864,98],
+"zm":[155,866,"self._writer.launch(command, self.home, tool_call=self._call, deadline=deadline)",18,866,98],
 
 "zn":[146,193,{"$":360},19,193,60],
 
@@ -3426,7 +3426,7 @@
 
 "zr":[126,"RegisteredFiniteToolWiringTests.test_qualification_refuses_unbound_direct_and_general_wrapper_rollout",2062,"4dDPt7_b5XjCafgK9ETW7SrPGwg82j4dpkhIjr49emA"],
 
-"zs":[149,"_campaign_start",551,"v9jnkwPl2nmVU-RlaBUF2dfM3afmeoJzRJjSpsk4Brc"],
+"zs":[149,"_campaign_start",620,"v9jnkwPl2nmVU-RlaBUF2dfM3afmeoJzRJjSpsk4Brc"],
 
 "zt":[63,"QualifiedToolEvidence.complete",233,"LW5l5VbuOexspkThoZJ6ZXdH4ZiyyCWYthge9INCkW0"],
 
@@ -5319,7 +5319,7 @@
 
 [61,395,8,395,85,"dynamic","6lJSrnnucgIJlyjJAK6o8PVZmrZGKNZWSXwDHz5xWug",[{"$":9},"eY"]],
 
-[65,174,14,174,108,"process","hJmlINBB3jI2ihcAeX-6TuxmARXYQzh6QJoa9GVpjd0",["route","N12.3","lV"]],
+[65,175,14,175,108,"process","hJmlINBB3jI2ihcAeX-6TuxmARXYQzh6QJoa9GVpjd0",["route","N12.3","lV"]],
 
 [88,98,17,99,110,"process","CZ5Xiphf3Nnx8t5YKZkz0Rp7x2rrphScK0CSMHjyCIE",["route","N12.1","g"]],
 
@@ -5377,9 +5377,9 @@
 
 [82,235,17,235,36,"dynamic","9nRHWlymJ4_VgW06VaPnBFWX1xKHFhDbRgH6twO876M",[{"$":9},"p118-stat"]],
 
-[82,760,23,760,65,"browser","nEhNbuH-IlrkTRYfsQkZIFHIFQe3lQ_IEOWI5zgkzE0",["route","N3.15","zE"]],
+[82,762,23,762,65,"browser","nEhNbuH-IlrkTRYfsQkZIFHIFQe3lQ_IEOWI5zgkzE0",["route","N3.15","zE"]],
 
-[82,864,18,864,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
+[82,866,18,866,98,"browser","2cvH9yz-DIVXIYifvbnRjMWlsMR44wV2FbZyNvUSPlc",["route","N3.16","zm"]],
 
 [60,176,26,176,47,"dynamic","6Udd_Lk_-YdcDSCjV4DMrOOutvv2IFVEU4jXcLiIlf8",[{"$":9},"XPool101-2"]],
 
@@ -5463,7 +5463,7 @@
 
 [72,1356,24,1356,43,"network",{"$":349},["route","N13.6","lo"]],
 
-[86,70,8,71,43,"process","wGo2gIIIP2SP3Oj3O1FrefhAjPxIQrW2WDKgEYX1GEY",["route","I5.1","p"]],
+[86,69,8,70,43,"process","wGo2gIIIP2SP3Oj3O1FrefhAjPxIQrW2WDKgEYX1GEY",["route","I5.1","p"]],
 
 [73,206,15,217,9,"beads","yiXKKfEESyKYCbulmiA0WJB5H7az4o5o68jOBWLwQyQ",["route","B2.1","pb"]],
 
@@ -6908,7 +6908,7 @@
 
 "@148":["Z9C-SyNs5lqsBvleYuxGTtEbvI_mFkAFzwJLKx-lHZI",420,42007],
 
-"@149":["lUD9WPLvcr-TSYgNG_d9h7RPsCDgp0Rrvo0eCjUPIJE",420,24263],
+"@149":["pw3mG0o7wLlWNTFuzLopo_xwu-GNifWfxVC2z3RHikU",420,27175],
 
 "@15":["kj44mIUTMk9bW2mWGBbUnV8JaLJLEk6lz40G9XBK_Jg",493,25692],
 
@@ -6922,9 +6922,9 @@
 
 "@154":["31ATreEahZ1M0jldL-8GARmNUytjOSaUfqgX9HFQt_4",420,52261],
 
-"@155":["8b05I3e-TEEwkO_vdws1WVcOvVwnIxwzDU4_sdWCA5U",420,48342],
+"@155":["h37TOVuTiPnRpkd2A4ZvHiByaLn6CXZ-39yjZeClOXA",420,48600],
 
-"@156":["1kYWk9HEDwn0sbl2x2jjt4N9bmKhPYcvSPleDRi6oI8",420,43157],
+"@156":["QHJnorUcmMGL99E5z5drYUBHQWQokv-tLE8-Cv-dB8I",420,45012],
 
 "@157":["_8rGnJEThXsFBAVgKg07n5oLkhMBTmoGv8CtxvKnWCk",420,78347],
 
@@ -6960,9 +6960,9 @@
 
 "@174":["KzhbACmg2DgFrgItkBIvOHSRLe7kOLIgRaW8G39DQ1c",420,4637],
 
-"@175":["py_P7xSx__EQmYCJs5266i4nHFFeMlyfG_SNssvJASc",420,11598],
+"@175":["A0_rdzGWpieVR34MVRI_jI46uaxnjJPqaiPm_mo-vvk",420,13583],
 
-"@176":["rqR_EI7LVlw8xh7dZGEtG47wFJUCo1GJunx6vBMLR-s",420,6834],
+"@176":["WOFK2JhAGd39hEMlGcmEu2LR12gfWReZPx3AyrY9YdY",420,6869],
 
 "@177":["_QZjmKkYwEdU0wpKs2Y4aKdXWkPdxWFJZTAqvqvOVDM",420,7800],
 
@@ -7002,7 +7002,7 @@
 
 "@193":["WXbbB17EFTnhP840btPyepjpIHMsCm1th8Vkq0k6BLk",420,2259],
 
-"@194":["KEvoQI9NK6wifgKq44e6m2QWnG9UNzBDyKnpGs0EorU",420,24637],
+"@194":["d4fwWk9fxM2XHeS2pts0nhLM-Kv7ODQUH_Y6fLtHgZ0",420,24716],
 
 "@195":["pG5N8VoYGSoZy_6gIB07Np_RhOeBRZP5C0LAqvMmVkg",420,6036],
 
@@ -7012,7 +7012,7 @@
 
 "@198":["QyCXEc7r6THtOaSOKQYyfDmF6ur8I84s0t9e0GX03AM",420,85440],
 
-"@199":["YRMLkwU_elZ9Yzsh9d3Aos5tUFec5pV4g9wYX9m1-W8",420,15023],
+"@199":["jX1sL2d81ORnw6rwmojcp-R58aZZjhnirs4yjIWxSP8",420,16503],
 
 "@2":["z0ZY_NRPet_XK8qOWfGspMYVZFa5jwvY0yLF6P7VUHc",420,3165],
 
@@ -7022,9 +7022,9 @@
 
 "@201":["HBWemFO9BffWJfbs541ZPPpfo3WsE9UCykq3kdaLMOk",420,1218],
 
-"@202":["HQk25otv2oypLAZbgYNZMkKnZCD_rBW2N_KSsuLJ9wc",420,16349],
+"@202":["IqLXKMDDGLnKF_CujZ4mMSEClfucUZN12HtsCQ8qfHY",420,16388],
 
-"@203":["SIO6hWX3hKyDmEonz-RxmzB7sGY1DZOHbEjxxKtpoak",420,19108],
+"@203":["DbZASHGMoWHEK2NLuutR4vElTphiyvPq4tl-3oSeo8k",420,19270],
 
 "@204":["zBjyhyX3yBbmSoBNnDHZmi0lHE3iide9fhZb39WE1ro",420,28589],
 
@@ -7606,7 +7606,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["zwmDemmx4Z431YzuzgxSiwV4yaa0tVduSZHIHnT4_yk",420,143537],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["pFdd_Ju5bA21ys61LSgMy5LNAumUOpaWHdA9TmiCuwo",420,143537],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 

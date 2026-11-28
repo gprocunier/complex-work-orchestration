@@ -23,7 +23,6 @@ def _worker_home(home: Path, primary: Path) -> Path:
         raise ValueError("The worker login requires a canonical path without symlinks.")
     if qualification._login_overlap(home, primary) or qualification._login_overlap(home, primary.resolve()):
         raise ValueError("Choose a worker login home separate from the main Codex home.")
-    qualification.require_worker_login_location(home)
     protected = (REPO_ROOT, host_records.configured_store().state_root, qualification.worker_login_state())
     if any(qualification._login_overlap(home, path) for path in protected):
         raise ValueError("Choose a worker login home separate from the skill and its host state.")
@@ -84,6 +83,7 @@ def _check_startup(binary: Path) -> None:
 
 def setup_delegation(home: Path, primary: Path) -> Path:
     home = _worker_home(home, primary)
+    qualification.require_worker_login_location(home)
     binary = _codex_binary()
     directory = host_records._directory(home, create=True, private=True)
     try:
@@ -112,7 +112,8 @@ def setup_pool_delegation(homes: list[Path], primary: Path) -> None:
     if len(homes) not in (2, 3):
         raise ValueError("Provide two or three existing, separate pool worker login homes.")
     selected = tuple(_worker_home(home, primary) for home in homes)
-    mounts = tuple(qualification.WorkerLoginMount(home, qualification.worker_login_state()) for home in selected)
+    state = qualification.worker_login_state()
+    mounts = tuple(qualification.pool_worker_login_mount(home, state, selected) for home in selected)
     if len({mount.identity for mount in mounts}) != len(selected):
         raise ValueError("The pool worker login homes share a directory identity.")
     if any(qualification._login_overlap(home, peer)

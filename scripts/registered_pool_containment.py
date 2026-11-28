@@ -190,7 +190,7 @@ def _require_original_worker(effect, worker_id, worktree, spool, login_slot, con
             == (worker_id, worktree, spool, login_slot) and worker.containment is containment,
             'Original retained pool worker required.')
     effect()
-    return worker.production_login_home
+    return worker.production_login_home, worker.parent._ordinary.login_homes
 
 
 def _require_original_writer(effect, authorize, call_id, deadline):
@@ -588,7 +588,7 @@ class PoolWorkerContainment:
                  patch_preimage_sha256: str | None = None):
         require(type(worker_id) is str and _ID.fullmatch(worker_id) is not None,
                 'The original protected worker and effect check are required.')
-        login_home = _require_original_worker(require_effect, worker_id, worktree, spool, login_slot)
+        login_home, login_homes = _require_original_worker(require_effect, worker_id, worktree, spool, login_slot)
         _route_available()
         require(isinstance(login_home, Path), 'The original configured worker login is required.')
         self._authorize_effect = require_effect
@@ -600,8 +600,10 @@ class PoolWorkerContainment:
         self._protected = (*tuple(native._path(path) for path in protected_roots), *self._peer_worktrees)
         self.host_records = configured_store()
         self._slot = login_slot
-        self._worker_login = self._select_worker_login(login_home)
-        self._login_home, self._lease_home = self._worker_login.protected_roots()
+        self._worker_login = self._select_worker_login(login_home, login_homes)
+        self._login_homes = login_homes
+        self._login_home, self._lease_home, *extra_login_roots = self._worker_login.protected_roots()
+        self._protected += tuple(extra_login_roots)
         self._login_identity = _directory_identity(self._login_home)
         self._paths = (self.host.worker, self.host.worker / '.git', self.home, self._custody)
         self._identities = tuple(_directory_identity(path) for path in self._paths)
@@ -639,9 +641,9 @@ class PoolWorkerContainment:
         return self._worker_login is not None
 
     @staticmethod
-    def _select_worker_login(home):
+    def _select_worker_login(home, homes: tuple[Path, ...]):
         state = native._path(qualification.worker_login_state())
-        return qualification.WorkerLoginMount(native._path(home), state)
+        return qualification.pool_worker_login_mount(native._path(home), state, homes)
 
     def _pin_executables(self, selections):
         pins = tuple(n1._file(path) for path, _ in selections)
@@ -703,9 +705,9 @@ class PoolWorkerContainment:
     def require_effect(self):
         _route_available()
         require(not self._closed and not self._failed, 'The original worker is no longer open.')
-        home = _require_original_worker(self._authorize_effect, self.operation_id, self.host.worker, self.home,
-                                        self._slot, self)
-        require(home == self._login_home,
+        home, homes = _require_original_worker(self._authorize_effect, self.operation_id, self.host.worker, self.home,
+                                               self._slot, self)
+        require((home, homes) == (self._login_home, self._login_homes),
                 'The original configured worker login changed.')
         require((self.host.worker, self.home) == (self._paths[0], self._paths[2])
                 and tuple(_directory_identity(path) for path in self._paths) == self._identities,

@@ -22,7 +22,7 @@ from cwo_core.native_pool_workspace import capture_workspace_snapshot
 from cwo_core.private_artifact import PrivateDirectory
 from delegate_internal_work import PROJECT_CONTROLLER_IDENTITY
 from registered_delegation_entry import _protected_store, _read_key
-from registered_n1_qualification import EFFORT, MODEL, TIER, WorkerLoginMount, worker_login_state
+from registered_n1_qualification import EFFORT, MODEL, TIER, pool_worker_login_mount, worker_login_state
 from registered_native_pool_client import CONTAINED_EXECUTION_ROUTE, validate_structure
 from registered_worker_login_config import read_pool_worker_login_homes
 
@@ -167,6 +167,10 @@ class ApprovedOrdinaryPool:
         object.__setattr__(self, "readiness_evidence", evidence)
         object.__setattr__(self, "work_estimates", estimates)
 
+    @property
+    def login_homes(self) -> tuple[Path, ...]:
+        return tuple(child.login_home for child in self.children.values())
+
     def require_current(self):
         native_live_availability.require_registered_contained_pool_live()
         with PrivateDirectory.open(self.root) as directory:
@@ -180,7 +184,7 @@ class ApprovedOrdinaryPool:
                 and str(Path(database["selector"]).resolve(strict=True)) == database["selector"],
                 "The original project Beads database changed.")
         homes = read_pool_worker_login_homes()
-        selected = tuple(child.login_home for child in self.children.values())
+        selected = self.login_homes
         require(homes[:len(selected)] == selected, "The configured pool worker logins changed.")
         _verify(self._scope, self._directive, self._key, self.ledger.current_time())
 
@@ -203,8 +207,9 @@ class ApprovedOrdinaryPool:
         snapshot = capture_workspace_snapshot(self.integration_root)["identity"]
         require(canonical_authority_sha256(snapshot) == self._scope["integration_identity_sha256"],
                 "The original pool integration checkout changed.")
+        homes, state = self.login_homes, worker_login_state()
         for child in self.children.values():
-            mount = WorkerLoginMount(child.login_home, worker_login_state())
+            mount = pool_worker_login_mount(child.login_home, state, homes)
             require(mount.identity == child.login_identity, "A configured pool worker login inode changed.")
             require(_worktree_identity(child) == child.worktree_identity_sha256, "An approved worker worktree changed.")
 

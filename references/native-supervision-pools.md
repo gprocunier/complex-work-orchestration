@@ -106,6 +106,14 @@ python3 scripts/setup_delegation.py \
   --pool-worker-home ~/.cwo-pool-worker-b
 ```
 
+For a three-worker qualification using the existing dedicated qualification
+logins, list `~/.cwo-qual-codex`, `~/.cwo-qual-codex-2` and
+`~/.cwo-qual-codex-3` in that order. These homes require the original
+private qualification campaign journal and a signed three-worker approval.
+The controller holds each historical slot lease alongside its ordinary login
+inode lease until it confirms cleanup. Keep the primary and ambient Codex
+homes separate from all three.
+
 From the original project checkout, use `authorize_pool` in the foreground
 `cwo-delegation` tool to approve the ordered group and its shared allowance.
 Each assignment needs its own Bead, worktree and output scope. The registered
