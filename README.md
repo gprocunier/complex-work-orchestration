@@ -136,8 +136,9 @@ that checks server names and port numbers:
 
 Limits of this record: one configured Linux host and one existing account; not
 a novice study, benchmark or cost claim. An offline rehearsal of the revised
-walkthrough verified the current setup, acceptance step and pending CLI
-delivery using a fresh project and the authored solution. [Read both records](examples/first-project/VALIDATION.md)
+walkthrough used a fresh project and the authored solution to verify the
+current setup, validator acceptance and the CLI's `pending-acceptance`
+delivery. [Read both records](examples/first-project/VALIDATION.md)
 or [try the guided practice example](https://gprocunier.github.io/complex-work-orchestration/get-started.html).
 
 ## Plan across models, then supervise the work
