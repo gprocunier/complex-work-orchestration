@@ -98,6 +98,8 @@ disabled or removed. See the [architect prompt reference](references/cwo-system-
 CWO does not include model access; your account supplies it and its quota. Local
 task records do not mean prompts stay offline. Your configured model provider
 receives selected context. Additional outside review is off by default.
+Inspect the [redacted and screened packet](references/external-contracting.md#trust-model-and-enforcement-boundary)
+before sharing it with an outside reviewer.
 
 ### Upgrading from 0.2.0-dev
 

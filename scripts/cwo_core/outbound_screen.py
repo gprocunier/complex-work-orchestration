@@ -33,6 +33,10 @@ Every finding maps back to offsets in the raw text. Views read:
   each counting toward the run budget; with more base64 text after it before
   the first ordinary word it is opaque too, and what that decoder reads through
   it is read;
+- printable UTF-8 in standalone hex and base64 tokens, when the decoded text
+  contains a recognizable credential. These tokens have a shared decoding
+  budget and are read one layer deep; unmarked tokens that do not decode to
+  recognizable credentials are treated as ordinary text;
 - under a credential name or header, every value in a nested list, tuple or
   mapping written in text, and every string and number under a credential key
   in JSON; a literal that cannot be read whole is reported.
@@ -88,6 +92,7 @@ import re
 import sys
 import traceback
 import unicodedata
+from collections import OrderedDict
 from contextlib import contextmanager
 from dataclasses import dataclass, field
 from functools import lru_cache
@@ -1005,6 +1010,161 @@ _CODE_REFERENCE = re.compile(
     re.X,
 )
 
+# A personal field, honorific or common given name anchors the name shape.
+# Unqualified pairs of title-case words are frequent in technical prose.
+_NAME_WORD = r"[A-ZÀ-ÖØ-ÞĀ-Ž](?:[^\W\d_]{1,31}(?:['’-][^\W\d_]{1,31}){0,2}|['’][^\W\d_]{1,31})"
+_SURNAME = rf"(?:(?i:da|de|del|della|der|di|dos|la|le|van|von)[ \t]+){{0,3}}{_NAME_WORD}"
+_NAME_END = r"(?![\w/-]|[.'’][^\W_])"
+_PERSON_CONTEXT = (
+    r"(?i:(?:[\"']?(?:full|legal|personal|contact|customer|employee|patient|recipient)[ _-]name"
+    r"[\"']?[ \t]*[:=][ \t]*[\"']?)|(?:(?:my|your|his|her|their|full)[ \t]+name[ \t]+is"
+    r"|(?:signed|reviewed|reported|authored)[ \t]+by|contact(?:[ \t]+person(?:[ \t]+is)?)?"
+    r"|(?:the[ \t]+)?(?:customer|patient|employee|applicant)[ \t]+is)[ \t]+)"
+    r"|(?i:Mr|Mrs|Ms|Mx|Dr)\.[ \t]+"
+)
+_PERSON_IN_CONTEXT = re.compile(
+    rf"(?<![\w./-])(?:{_PERSON_CONTEXT})(?P<name>{_NAME_WORD}[ \t]+(?:[A-Z]\.[ \t]+)?{_SURNAME}){_NAME_END}"
+)
+_GIVEN_NAMES = (
+    "Aisha|Alex|Alice|Amelia|Ana|Ava|Benjamin|Bob|Carlos|Carol|Casey|Charlotte|Daniel|David|"
+    "Elena|Elizabeth|Emily|Emma|Ethan|"
+    "Fatima|Gabriel|Grace|Hannah|Isabel|James|Jane|Jennifer|Jessica|John|Jonathan|Jose|Julia|Liam|Lucas|"
+    "Maria|Marta|Mary|Michael|Muhammad|Natalie|Noah|Olivia|Patricia|Priya|Rachel|Robert|Sam|Sarah|Sofia|"
+    "Sophia|Thomas|Victoria|William|Yuki"
+)
+_RECOGNIZABLE_NAME = re.compile(
+    rf"(?<![\w./-])(?:{_GIVEN_NAMES})[ \t]+(?:[A-Z]\.[ \t]+)?{_SURNAME}{_NAME_END}"
+)
+_NAME_PLACEHOLDERS = {"example", "placeholder", "sample", "test", "user"}
+_ORGANIZATION_SUFFIXES = {
+    "administration", "company", "department", "engineering", "foundation", "group", "inc", "office",
+    "operations", "service", "services", "support", "team",
+}
+
+_STREET_WORD = r"(?:[^\W\d_]+(?:['’-][^\W\d_]+){0,2}|[0-9]{1,4}(?i:st|nd|rd|th))"
+_STREET_SUFFIX = (
+    r"(?i:street|st\.?|avenue|ave\.?|boulevard|blvd\.?|road|rd\.?|lane|ln\.?|drive|dr\.?|"
+    r"court|ct\.?|circle|cir\.?|crescent|cres\.?|highway|hwy\.?|parkway|pkwy\.?|place|pl\.?|"
+    r"terrace|ter\.?|close|square|sq\.?|trail|trl\.?|way)"
+)
+_STREET_ADDRESS = re.compile(
+    rf"(?<![\w./-])[0-9]{{1,6}}[A-Za-z]?[ \t]+(?:{_STREET_WORD}[ \t]+){{1,5}}{_STREET_SUFFIX}"
+    r"(?:[ \t]+(?:NE|NW|SE|SW))?(?:,?[ \t]+(?i:apt\.?|suite|unit|#)[ \t]*[0-9][\w-]{0,7})?"
+    r"(?![\w/-]|\.[A-Za-z0-9])"
+)
+_STREET_PREFIX_ADDRESS = re.compile(
+    rf"(?<![\w./-])[0-9]{{1,6}}[A-Za-z]?[ \t]+(?i:avenida|avenue|boulevard|calle|rue|via)[ \t]+"
+    rf"(?:(?i:de|del|des|della|du|la|le)[ \t]+){{0,3}}{_NAME_WORD}"
+    rf"(?:[ \t]+{_NAME_WORD}){{0,2}}(?![\w/-]|\.[A-Za-z0-9])"
+)
+
+_PHONE = re.compile(
+    r"(?<![\w./+-])(?:(?:\+|00[ .-]?)[1-9](?:[ .-]?(?:[0-9]|\([0-9]{1,5}\))){6,14}"
+    r"|(?:\(\d{3}\)[ .-]?|\d{3}[ .-])\d{3}[ .-]\d{4})(?![\w/-]|[ .-][0-9])"
+)
+_LABELED_PHONE = re.compile(
+    r"(?i)\b(?:phone|telephone|mobile|cell|fax|tel)(?:[ _-]+number)?[\"']?[ \t]*[:=][ \t]*[\"']?"
+    r"(\d{8,15})(?![\w/-]|\.[0-9])"
+)
+_CARD_NUMBER = re.compile(
+    r"(?<![\w./+-])(?:[0-9]{13,19}(?![\w/-]|\.[0-9])|"
+    r"(?<![0-9][ -])[0-9](?:[ -]?[0-9]){12,18}(?![\w/-]|[ .-][0-9]))"
+)
+_CARD_LABEL = re.compile(
+    r"(?i)\b(?:(?:payment|credit|debit)[ _-]+card(?:[ _-]+number)?|card[ _-]+number|pan)[\s\"':=]*$"
+)
+_URL_USERINFO = re.compile(
+    r"\b(?P<scheme>[A-Za-z][A-Za-z0-9+.\-]*)://(?P<user>[^\s/@:\"'<>]*)(?::(?P<password>[^\s/@\"'<>]*))?"
+    r"@(?P<host_start>[^\s/@\"'<>]|/)"
+)
+
+
+def _personal_names(text: str) -> Iterator[tuple[str, str, int, int]]:
+    for pattern in (_PERSON_IN_CONTEXT, _RECOGNIZABLE_NAME):
+        for match in pattern.finditer(text):
+            start, end = match.span("name" if pattern is _PERSON_IN_CONTEXT else 0)
+            words = text[start:end].split()
+            if _NAME_PLACEHOLDERS.intersection(word.lower() for word in words) or words[-1].lower() in _ORGANIZATION_SUFFIXES:
+                continue
+            if pattern is _RECOGNIZABLE_NAME and words[-1].isupper():
+                continue
+            yield ("pii:name", "uncertain", start, end)
+
+
+def _phone_spans(text: str) -> Iterator[tuple[int, int]]:
+    for match in _PHONE.finditer(text):
+        if sum(character.isdecimal() for character in match[0].removeprefix("00")) <= 15:
+            yield match.span()
+    for match in _LABELED_PHONE.finditer(text):
+        yield match.span(1)
+
+
+def _likely_card_issuer(digits: str) -> bool:
+    """Common issuers anchor a card without a label, so generic numbers can pass."""
+    size = len(digits)
+    first_two = int(digits[:2])
+    return (
+        (digits.startswith("4") and size in {13, 16, 19})
+        or (size == 15 and first_two in {34, 37})
+        or (size == 14 and 36 <= first_two <= 39)
+        or (size == 16 and (2221 <= int(digits[:4]) <= 2720 or 51 <= first_two <= 55 or first_two == 35))
+        or (16 <= size <= 19 and 60 <= first_two <= 69)
+    )
+
+
+def _luhn_valid(digits: str) -> bool:
+    values = [int(character) for character in digits]
+    parity = len(values) % 2
+    doubled = [2 * digit for digit in values[parity::2]]
+    checksum = sum(values[1 - parity::2]) + sum(value - 9 if value > 9 else value for value in doubled)
+    return checksum % 10 == 0
+
+
+def _payment_cards(text: str) -> Iterator[tuple[str, str, int, int]]:
+    for match in _CARD_NUMBER.finditer(text):
+        digits = re.sub(r"[ -]", "", match[0])
+        prefix = text[max(0, match.start() - 48):match.start()]
+        if len(set(digits)) > 1 and (_likely_card_issuer(digits) or _CARD_LABEL.search(prefix)) and _luhn_valid(digits):
+            yield ("pii:payment-card", "uncertain", match.start(), match.end())
+
+
+_STANDALONE_TOKEN = re.compile(r"(?<![\w+/_-])[A-Za-z0-9+/_-]{7,}={0,2}")
+_STANDALONE_END = re.compile(r"(?![\w+/=_-])")
+_HEX_BYTES = re.compile(r"[0-9A-Fa-f]+")
+_BASE64_STANDARD = str.maketrans("-_", "+/")
+
+
+def _standalone_candidates(text: str) -> Iterator[re.Match[str]]:
+    # Declared data URIs have their own reader and decoding/opacity limits.
+    uri_spans = ((start, joined_end) for _parameters, start, _end, joined_end, _cont in _data_uri_spans(text))
+    uri = next(uri_spans, None)
+    for match in _STANDALONE_TOKEN.finditer(text):
+        while uri is not None and uri[1] <= match.start():
+            uri = next(uri_spans, None)
+        if (uri is None or match.end() <= uri[0]) and _STANDALONE_END.match(text, match.end()):
+            yield match
+
+
+def _standalone_base64(token: str) -> str | None:
+    body = token.rstrip("=").translate(_BASE64_STANDARD)
+    padding = -len(body) % 4
+    if padding == 3 or len(token) - len(body) not in {0, padding}:
+        return None
+    data = binascii.a2b_base64(body + "=" * padding)
+    text = _text_of(data, "utf-8")
+    if text is None or binascii.b2a_base64(data, newline=False).rstrip(b"=") != body.encode("ascii"):
+        return None
+    return text
+
+
+def _standalone_readings(token: str) -> Iterator[tuple[str, str]]:
+    hex_body = token[2:] if token.startswith(("0x", "0X")) else token
+    if len(hex_body) % 2 == 0 and _HEX_BYTES.fullmatch(hex_body):
+        if (text := _text_of(bytes.fromhex(hex_body), "utf-8")) is not None:
+            yield "hex", text
+    if (text := _standalone_base64(token)) is not None:
+        yield "base64", text
+
 
 class _Detector:
     def __init__(self, rules: dict[str, Any]) -> None:
@@ -1173,7 +1333,11 @@ class _Detector:
     # Detectors ------------------------------------------------------------
 
     def scan(self, view: _View) -> Iterator[tuple[str, str, int, int]]:
-        text = view.text
+        yield from self.credentials(view.text)
+        yield from self.contact(view.text)
+        yield from self.entropic(view.text)
+
+    def credentials(self, text: str) -> Iterator[tuple[str, str, int, int]]:
         yield from self.key_blocks(text)
         yield from self.url_userinfo(text)
         for pattern in self.prefixes:
@@ -1181,6 +1345,13 @@ class _Detector:
                 yield ("token-prefix", "certain", match.start(), match.end())
         for match in re.finditer(r"(?<![A-Za-z0-9_-])eyJ[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{5,}\.[A-Za-z0-9_-]{2,}", text):
             yield ("jwt", "certain", match.start(), match.end())
+        yield from self.headers(text)
+        yield from self.member_headers(text)
+        yield from self.flags(text)
+        yield from self.assignments(text)
+        yield from self.prose(text)
+
+    def headers(self, text: str) -> Iterator[tuple[str, str, int, int]]:
         for match in self.header_re.finditer(text):
             value = match.group(3)
             credential_like = bool(match.group(2)) or match.group(1).lower() in {"cookie", "set-cookie"} or (
@@ -1194,6 +1365,8 @@ class _Detector:
                 # A placeholder, or a first word that is not credential-shaped, exempts the value only when
                 # it is the whole value: with what continues it on its line, it is tested whole.
                 yield (f"header:{match.group(1).lower()}", "certain", match.start(3), rest_end)
+
+    def member_headers(self, text: str) -> Iterator[tuple[str, str, int, int]]:
         for match in self.member_header_re.finditer(text):
             header = match.group(2).lower()
             read = self.member_header_values(text, match.end())
@@ -1208,6 +1381,8 @@ class _Detector:
             if rest_end is not None:
                 # Nothing after the value is exempt: what continues it is part of the header's value.
                 yield (f"header:{header}", "certain", match.end(), rest_end)
+
+    def flags(self, text: str) -> Iterator[tuple[str, str, int, int]]:
         for match in self.flag_re.finditer(text):
             value = match.group(2)
             if not self.placeholder(value) and not self.code_reference(value):
@@ -1222,10 +1397,6 @@ class _Detector:
         for match in re.finditer(r"(?i)(?<!\S)-u\s+[^\s:@]+:(\S+)", text):
             if not self.placeholder(match.group(1)):
                 yield ("cli-flag:user-password", "certain", match.start(1), match.end(1))
-        yield from self.assignments(text)
-        yield from self.prose(text)
-        yield from self.contact(text)
-        yield from self.entropic(text)
 
     def key_blocks(self, text: str) -> Iterator[tuple[str, str, int, int]]:
         for match in re.finditer(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----", text):
@@ -1234,12 +1405,15 @@ class _Detector:
             yield ("key-block", "certain", match.start(), max(close, match.end()))
 
     def url_userinfo(self, text: str) -> Iterator[tuple[str, str, int, int]]:
-        for match in re.finditer(r"\b[A-Za-z][A-Za-z0-9+.\-]*://([^\s/@:\"'<>]+)(?::([^\s/@\"'<>]*))?@[^\s/@\"'<>]", text):
-            user, password = match.group(1), match.group(2)
+        for match in _URL_USERINFO.finditer(text):
+            # PostgreSQL accepts a default Unix socket when the host is empty.
+            if match["host_start"] == "/" and match["scheme"].lower().partition("+")[0] not in {"postgres", "postgresql"}:
+                continue
+            user, password = match["user"], match["password"]
             if password and not self.placeholder(password):
-                yield ("url-userinfo", "certain", match.start(2), match.end(2))
+                yield ("url-userinfo", "certain", *match.span("password"))
             elif password is None and len(user) >= 16 and re.search(r"\d", user) and re.search(r"[A-Za-z]", user):
-                yield ("url-userinfo", "certain", match.start(1), match.end(1))
+                yield ("url-userinfo", "certain", *match.span("user"))
 
     # Whitespace after a separator, including the escapes that stand for it in
     # JSON-encoded text (a JSON-quoted prompt writes a line break as \n).
@@ -1703,11 +1877,16 @@ class _Detector:
                 if match.group(1).lower() not in self.role_locals:
                     yield ("pii:email", str(self.pii["email"]), match.start(), match.end())
         if self.pii.get("phone"):
-            for match in re.finditer(r"(?<![\w.+-])(?:\+\d{1,3}[ .-]?)?(?:\(\d{3}\)|\d{3})[ .-]\d{3}[ .-]\d{4}(?![\w.-])", text):
-                yield ("pii:phone", str(self.pii["phone"]), match.start(), match.end())
+            for start, end in _phone_spans(text):
+                yield ("pii:phone", str(self.pii["phone"]), start, end)
         if self.pii.get("ssn"):
             for match in re.finditer(r"(?<![\d-])\d{3}-\d{2}-\d{4}(?![\d-])", text):
                 yield ("pii:ssn", str(self.pii["ssn"]), match.start(), match.end())
+        yield from _personal_names(text)
+        for pattern in (_STREET_ADDRESS, _STREET_PREFIX_ADDRESS):
+            for match in pattern.finditer(text):
+                yield ("pii:street-address", "uncertain", match.start(), match.end())
+        yield from _payment_cards(text)
 
     @staticmethod
     def word_like(token: str) -> bool:
@@ -1763,6 +1942,11 @@ class _Screen:
         self.disclosure_candidates: dict[tuple[int, int], Finding] = {}
         self.disclosure_reports: set[tuple[int, int]] = set()
         self.views = 0
+        # A standalone encoding has to decode to text that contains a recognized credential.
+        # Reuse results for recent tokens across raw, normalized and JSON string scans.
+        self.encoded_work = 0
+        self.encoded_budget = self.ENCODED_WORK_PER_CHARACTER * length + self.ENCODED_WORK_ALLOWANCE
+        self.encoded_cache: OrderedDict[str, tuple[tuple[str, str, str], ...]] = OrderedDict()
         self.json_depth = int(rules.get("limits", {}).get("max_json_depth", 64))
         # JSON already read structurally, by any entry point: (raw start, raw end, text); and the
         # payload's own JSON. Each is read once, so a second reading cannot spend the budgets again.
@@ -1960,6 +2144,8 @@ class _Screen:
     DECODING_DEPTH = 3
     # Decoded views per payload; more is refused as opaque rather than scanned slowly.
     MAX_VIEWS = 64
+    ENCODED_WORK_PER_CHARACTER = 2
+    ENCODED_WORK_ALLOWANCE = 8192
 
     def allow_view(self) -> bool:
         """Spend one decoded view of the allowance, or False when it is spent: asked before each view is
@@ -1968,6 +2154,35 @@ class _Screen:
             return False
         self.views += 1
         return True
+
+    def standalone_rules(self, token: str) -> tuple[tuple[str, str, str], ...] | None:
+        if token in self.encoded_cache:
+            self.encoded_cache.move_to_end(token)
+            return self.encoded_cache[token]
+        if len(token) > self.encoded_budget - self.encoded_work:
+            return None
+        self.encoded_work += len(token)
+        findings = tuple(dict.fromkeys(
+            (encoding, "assignment" if rule == _DISCLOSURE_ASSIGNMENT_CANDIDATE else rule, certainty)
+            for encoding, decoded in _standalone_readings(token)
+            for rule, certainty, _start, _end in self.detector.credentials(decoded if decoded.isascii() else "".join(
+                _skeleton(character, self.confusables) for character in decoded
+            ))
+        ))
+        self.encoded_cache[token] = findings
+        if len(self.encoded_cache) > 512:
+            self.encoded_cache.popitem(last=False)
+        return findings
+
+    def scan_standalone(self, view: _View) -> None:
+        for match in _standalone_candidates(view.text):
+            findings = self.standalone_rules(match[0])
+            if findings is None:
+                self.record(view, "encoded-content", "uncertain", match.start(), match.end())
+                break
+            for encoding, rule, certainty in findings:
+                encoded = _View(f"{view.name}+{encoding}", view.text, view.ranges)
+                self.record(encoded, rule, certainty, match.start(), match.end())
 
     def scan_text(self, view: _View, *, depth: int = 0, nesting: int = 0) -> None:
         """Scan ``view`` and its normalized copy, then decode data URIs, escapes and %XX
@@ -1984,6 +2199,7 @@ class _Screen:
         for current in (view,) if source is view else (view, normalized):
             for rule, certainty, start, end in self.detector.scan(current):
                 self.record(current, rule, certainty, start, end)
+            self.scan_standalone(current)
             self.scan_embedded_json(current, nesting)
         if depth >= self.DECODING_DEPTH or self.views >= self.MAX_VIEWS:
             for pattern in (_ESCAPE, _PERCENT):

@@ -55,6 +55,7 @@
     {
       "id": "ds06",
       "slot": "profile",
+      "packet_residual_path": "expert_profile.content",
       "text": "-----BEGIN PRIVATE KEY-----\nTW9jay1wYXJ0aWFsLWJsb2Nr",
       "sensitive": [
         "TW9jay1wYXJ0aWFsLWJsb2Nr"
@@ -64,6 +65,7 @@
     {
       "id": "ds07",
       "slot": "profile",
+      "packet_residual_path": "expert_profile.content",
       "text": "{\n  \"password\": \"MarbleOrchid73!\",\n  \"client_secret\": \"LanternCedar84!\"\n}",
       "sensitive": [
         "MarbleOrchid73!",

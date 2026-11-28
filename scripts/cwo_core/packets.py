@@ -6,7 +6,8 @@ import hashlib
 import json
 import re
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
+from urllib.parse import urlsplit
 
 from .errors import CWOPolicyError
 from .paths import REPO_ROOT, assert_repo_safe_path, repo_relative_path
@@ -165,8 +166,55 @@ AUTHORIZATION_BEARER_RE = re.compile(
 )
 BARE_BEARER_RE = re.compile(r"(?i)\bbearer\s+(?P<value>[A-Za-z0-9._~+/=-]{8,})")
 PRIVATE_KEY_RE = re.compile(
-    r"-----BEGIN [A-Z ]+ PRIVATE KEY-----[\s\S]*?-----END [A-Z ]+ PRIVATE KEY-----"
+    r"-----BEGIN (?P<label>(?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?)-----"
+    r"[\s\S]*?(?:-----END (?P=label)-----|\Z)"
 )
+_URL_AUTHORITY_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{0,63}://(?P<authority>[^\s/\"'<>`\\?#]+)")
+_AWS_ACCESS_ID_RE = re.compile(r"(?<![\w])(?:AKIA|ASIA)[A-Z0-9]{16}(?![\w])")
+_AWS_KEY_CONTEXT = r"(?:aws[ _-]+(?:secret[ _-]+)?(?:access[ _-]+)?key|secret[ _-]+access[ _-]+key|key[ \t]+is)"
+_AWS_SECRET_RE = re.compile(
+    rf"(?i:\b{_AWS_KEY_CONTEXT}\b[ \t]*(?:[:=][ \t]*|[ \t]+)(?:is[ \t]+)?[\"'`]?)"
+    r"(?P<value>[A-Za-z0-9/+]{40})(?![\w/+])"
+)
+_EMAIL_RE = re.compile(
+    r"(?<![\w.+-])[\w%][\w!#$%&*+.'\-/=?^{|}~]{0,63}@"
+    r"(?:[^\W_](?:[\w-]{0,61}[^\W_])?\.)+[^\W\d_]{2,63}(?![\w-])"
+)
+_PHONE_RE = re.compile(
+    r"(?<![\w.+-])(?:"
+    r"(?:\+|00[ .\t-]?)(?:[1-9](?:[ .\t-]?[0-9]){7,14}"
+    r"|[1-9][0-9]{0,2}[ .\t-]?\([0-9]{1,5}\)[ .\t-]?[0-9](?:[ .\t-]?[0-9]){5,9})"
+    r"|(?:1[ .\t-])?(?:\([0-9]{3}\)[ \t]*|[0-9]{3}[ .\t-])[0-9]{3}[ .\t-][0-9]{4}"
+    r")(?![\w-]|[.][0-9])"
+)
+_PHONE_LABEL_RE = re.compile(
+    r"(?i)(?<!\w)(?:(?:phone|telephone|mobile)(?:[ _-]*number)?|tel)[\"']?[ \t]*[:=][ \t]*[\"']?"
+    r"(?P<value>[0-9]{10,15})(?!\w)"
+)
+_PERSON_LABEL = r"(?:full[ _-]+name|contact[ _-]+person|(?:employee|customer|patient|recipient)[ _-]+name|name)"
+_PERSON_ROLE = r"(?:contact|owner|author|recipient|maintainer|reporter)"
+_PERSON_ACTION = r"(?:(?:reviewed|authored|signed|prepared|submitted|approved|reported|sent)[ \t]+by|name[ \t]+is)"
+_PERSON_HONORIFIC = r"(?:Mr|Mrs|Ms|Mx|Dr|Prof)\."
+_PERSON_CONTEXT_RE = re.compile(
+    rf"(?i)(?<![\w.-])(?:{_PERSON_LABEL}[\"']?[ \t]*[:=][ \t]*|"
+    rf"{_PERSON_ROLE}(?:[ \t]*:[ \t]*|[ \t]+)|{_PERSON_ACTION}[ \t]+|{_PERSON_HONORIFIC}[ \t]+)"
+    rf"[\"'`]?(?:{_PERSON_HONORIFIC}[ \t]+)?"
+)
+_PERSON_WORD = r"[^\W\d_]+(?:['’\-][^\W\d_]+)*"
+_PERSON_WORD_RE = re.compile(rf"(?:[^\W\d_]\.(?=[ \t])|{_PERSON_WORD})(?![\w@-])")
+_HORIZONTAL_GAP_RE = re.compile(r"[ \t]+")
+_PERSON_PARTICLES = frozenset({"da", "de", "del", "di", "la", "van", "von"})
+_PERSON_NON_NAME_WORDS = frozenset({
+    "actions", "customer", "docs", "documentation", "engineering", "operations", "project", "release", "review",
+    "service", "support", "team",
+})
+_GIVEN_NAMES = frozenset({
+    "Alice", "Amina", "Benjamin", "Bob", "Carlos", "Casey", "Catherine", "Daniel", "David", "Élodie", "Elena",
+    "Emily", "Emma", "Fatima", "Grace", "Hannah", "James", "Jane", "Jennifer", "Jessica", "John", "José", "Li",
+    "Liam", "Maria", "Maya", "Michael", "Mohammed", "Morgan", "Nadia", "Nguyen", "Olivia", "Priya", "Robert", "Sam",
+    "Sarah", "Sofia", "Sophia", "Taylor", "Thomas", "Wei", "William", "Yuki", "Zhang",
+})
+_BARE_PERSON_RE = re.compile(rf"(?<![\w./\\-])(?:{'|'.join(sorted(_GIVEN_NAMES))})(?=[ \t]+[^\W\d_])")
 KNOWN_CREDENTIAL_PREFIX_RE = re.compile(
     r"(?i)^(?:sk[-_]|ghp_|github_pat_|xox[baprs]-|AKIA|ASIA|eyJ)[A-Za-z0-9._~+/=-]+$"
 )
@@ -180,9 +228,9 @@ DEFAULT_REDACTION_PATTERNS = [
     PRIVATE_KEY_RE.pattern,
 ]
 RESIDUAL_SECRET_PATTERNS = [
-    re.compile(r"(?i)\bauthorization\b\s*:\s*bearer\s+(?!\[REDACTED\]\b)[A-Za-z0-9._~+/=-]{8,}"),
-    re.compile(r"(?i)\bbearer\s+(?!\[REDACTED\]\b)[A-Za-z0-9._~+/=-]{20,}"),
-    PRIVATE_KEY_RE,
+    re.compile(r"(?i)\bauthorization\s*:\s*bearer\s+[A-Za-z0-9._~+/=-]+"),
+    re.compile(r"(?i)\bbearer\s+[A-Za-z0-9._~+/=-]{8,}"),
+    re.compile(r"-----BEGIN (?:[A-Z0-9]+ )*PRIVATE KEY(?: BLOCK)?-----"),
 ]
 
 
@@ -737,18 +785,71 @@ def _configured_pattern_spans(value: str) -> list[tuple[int, int, str]]:
     return spans
 
 
+def _without_url_userinfo(match: re.Match[str]) -> str:
+    authority = match["authority"]
+    _userinfo, separator, host = authority.rpartition("@")
+    if not separator:
+        return match[0]
+    scheme_end = match.start("authority") - match.start()
+    return match[0][:scheme_end] + host
+
+
+def _person_word(word: str) -> bool:
+    return (
+        word[0].isupper()
+        and (len(word.rstrip(".")) == 1 or any(character.islower() for character in word))
+        and word.casefold() not in _PERSON_NON_NAME_WORDS
+    )
+
+
+def _person_span_end(value: str, start: int) -> int:
+    name_parts = 0
+    end = start
+    position = start
+    for _ in range(5):
+        word = _PERSON_WORD_RE.match(value, position)
+        if word is None:
+            break
+        if _person_word(word[0]):
+            name_parts += 1
+            end = word.end()
+        elif not name_parts or word[0] not in _PERSON_PARTICLES:
+            break
+        gap = _HORIZONTAL_GAP_RE.match(value, word.end())
+        if gap is None:
+            break
+        position = gap.end()
+    return end if name_parts >= 2 else start
+
+
+def _literal_private_spans(value: str) -> Iterator[tuple[int, int, str]]:
+    for pattern, group, reason in (
+        (PRIVATE_KEY_RE, 0, "private-key"),
+        (AUTHORIZATION_BEARER_RE, "value", "bearer-credential"),
+        (BARE_BEARER_RE, "value", "bearer-credential"),
+        (_AWS_ACCESS_ID_RE, 0, "aws-access-id"),
+        (_AWS_SECRET_RE, "value", "aws-secret-key"),
+        (_EMAIL_RE, 0, "email-address"),
+        (_PHONE_RE, 0, "phone-number"),
+        (_PHONE_LABEL_RE, "value", "phone-number"),
+    ):
+        for match in pattern.finditer(value):
+            yield (*match.span(group), reason)
+    starts = [context.end() for context in _PERSON_CONTEXT_RE.finditer(value)]
+    starts.extend(match.start() for match in _BARE_PERSON_RE.finditer(value))
+    for start in starts:
+        end = _person_span_end(value, start)
+        if end > start:
+            yield (start, end, "person-name")
+
+
 def _secret_spans(
     value: str, *, require_policy_patterns: bool = False
 ) -> list[tuple[int, int, str]]:
     _, _, field_assignment_re, leading_field_re = _effective_secret_field_pattern_state(
         require_policy_patterns=require_policy_patterns
     )
-    spans: list[tuple[int, int, str]] = []
-    for match in PRIVATE_KEY_RE.finditer(value):
-        spans.append((*match.span(), "private-key"))
-    for pattern in [AUTHORIZATION_BEARER_RE, BARE_BEARER_RE]:
-        for match in pattern.finditer(value):
-            spans.append((*match.span("value"), "bearer-credential"))
+    spans = list(_literal_private_spans(value))
     spans.extend(
         _multiline_structural_spans(
             value,
@@ -781,13 +882,13 @@ def _secret_spans(
 
 
 def _coalesced_secret_spans(
-    value: str, *, include_risky_spans: bool = False, require_policy_patterns: bool = False
+    value: str, *, require_policy_patterns: bool = False
 ) -> list[tuple[int, int, str]]:
     merged: list[list[object]] = []
     for start, end, reason in _secret_spans(value, require_policy_patterns=require_policy_patterns):
         if start >= end or value[start:end].strip() == REDACTION_SENTINEL:
             continue
-        if reason == "unbalanced-inline-container" and not include_risky_spans:
+        if reason == "unbalanced-inline-container":
             continue
         if merged and start <= merged[-1][1]:
             merged_end = max(merged[-1][1], end)
@@ -810,12 +911,15 @@ def _redaction_for_reason(reason: str) -> str:
 
 
 def redact_text(value: str, *, require_policy_patterns: bool = False) -> str:
-    redacted = value
-    for start, end, reason in reversed(
-        _coalesced_secret_spans(value, require_policy_patterns=require_policy_patterns)
-    ):
-        redacted = redacted[:start] + _redaction_for_reason(reason) + redacted[end:]
-    return redacted
+    # Remove the complete userinfo subcomponent so the remaining URL is valid.
+    value = _URL_AUTHORITY_RE.sub(_without_url_userinfo, value)
+    pieces: list[str] = []
+    position = 0
+    for start, end, reason in _coalesced_secret_spans(value, require_policy_patterns=require_policy_patterns):
+        pieces.extend((value[position:start], _redaction_for_reason(reason)))
+        position = end
+    pieces.append(value[position:])
+    return "".join(pieces)
 
 
 def redact_value(value: Any, *, require_policy_patterns: bool = False) -> Any:
@@ -1011,17 +1115,230 @@ def _value_is_redacted(value: Any) -> bool:
     return isinstance(value, str) and value.strip() == REDACTION_SENTINEL
 
 
+_RESIDUAL_URL_RE = re.compile(r"\b[A-Za-z][A-Za-z0-9+.-]{0,63}://[^\s`'\"<>\\]+")
+_RESIDUAL_EMAIL_RE = re.compile(r"[\w%][^\s<>\[\]()\"`,;:]{0,63}@([\w.-]+)")
+_RESIDUAL_PHONE_RE = re.compile(
+    r"(?<![\w.+-])(?:\+[1-9]|00[ .\t-]?[1-9]|\(\d{3}\)|\d{3})[\d .\t()-]{0,32}\d(?![\w-])"
+)
+_RESIDUAL_PHONE_LABEL_RE = re.compile(
+    r"(?i)\b(?:tel|(?:phone|mobile|telephone)(?:[ _-]*number)?)[\"']?[ \t]*[:=][ \t]*[\"']?"
+)
+_RESIDUAL_COMPACT_PHONE_RE = re.compile(r"[0-9]{10,15}(?!\w)")
+_RESIDUAL_AWS_ID_RE = re.compile(r"\bA(?:KI|SI)A[A-Z\d]{16}\b", re.ASCII)
+_RESIDUAL_AWS_KEY_RE = re.compile(r"(?<![\w/+])[A-Za-z0-9/+]{40}(?![\w/+])")
+_RESIDUAL_PERSON_RE = re.compile(
+    rf"(?i)(?<![\w.-])(?:{_PERSON_LABEL}[\"']?[ \t]*[:=][ \t]*|{_PERSON_ROLE}(?:[ \t]*:[ \t]*|[ \t]+)|"
+    rf"(?:{_PERSON_ACTION}|{_PERSON_HONORIFIC})[ \t]+)[\"'`]?(?:{_PERSON_HONORIFIC}[ \t]+)?"
+)
+_RESIDUAL_WORDS_RE = re.compile(
+    rf"(?:[^\W\d_]\.|{_PERSON_WORD})(?:[ \t]+(?:[^\W\d_]\.|{_PERSON_WORD})){{0,4}}(?![\w@-])"
+)
+_RESIDUAL_NAME_START_RE = re.compile(r"(?<![\w./\\-])[^\W\d_]+(?=[ \t])")
+
+
+def _residual_url_userinfo(value: str) -> bool:
+    for match in _RESIDUAL_URL_RE.finditer(value):
+        try:
+            authority = urlsplit(match[0]).netloc
+        except ValueError:
+            authority = re.split(r"[/#?]", match[0].split("://", 1)[1], maxsplit=1)[0]
+        if "@" in authority:
+            return True
+    return False
+
+
+def _residual_contact(value: str) -> bool:
+    for match in _RESIDUAL_EMAIL_RE.finditer(value):
+        *labels, suffix = match[1].rstrip(".").split(".")
+        if labels and all(labels) and len(suffix) >= 2 and suffix.isalpha():
+            return True
+    for match in _RESIDUAL_PHONE_RE.finditer(value):
+        blocks = re.findall(r"[0-9]+", match[0])
+        digits = sum(map(len, blocks))
+        if match[0].startswith("+") and 8 <= digits <= 15:
+            return True
+        if match[0].startswith("00") and 10 <= digits <= 17:
+            return True
+        if list(map(len, blocks[-3:])) == [3, 3, 4] and blocks[:-3] in ([], ["1"]):
+            return True
+    return any(
+        _RESIDUAL_COMPACT_PHONE_RE.match(value, match.end())
+        for match in _RESIDUAL_PHONE_LABEL_RE.finditer(value)
+    )
+
+
+def _residual_aws_key(value: str) -> bool:
+    if _RESIDUAL_AWS_ID_RE.search(value):
+        return True
+    for match in _RESIDUAL_AWS_KEY_RE.finditer(value):
+        before = value[max(0, match.start() - 80):match.start()].rstrip(" \t:=\"'`")
+        words = re.findall(r"[a-z]+", before.lower())
+        if words[-1:] == ["is"] and words[-2:] != ["key", "is"]:
+            words.pop()
+        if words[-2:] in (["key", "is"], ["aws", "key"]) or words[-3:] in (
+            ["secret", "access", "key"], ["aws", "secret", "key"], ["aws", "access", "key"],
+        ):
+            return True
+    return False
+
+
+def _residual_name_candidate(words: list[str]) -> bool:
+    count = 0
+    for word in words:
+        stem = word.rstrip(".")
+        if word.casefold() in _PERSON_NON_NAME_WORDS:
+            break
+        if stem[0].isupper() and (len(stem) == 1 or not stem.isupper()):
+            count += 1
+        elif not count or word not in _PERSON_PARTICLES:
+            break
+    return count >= 2
+
+
+def _residual_person(value: str) -> bool:
+    for context in _RESIDUAL_PERSON_RE.finditer(value):
+        words = _RESIDUAL_WORDS_RE.match(value, context.end())
+        if words and _residual_name_candidate(words[0].split()):
+            return True
+    for match in _RESIDUAL_NAME_START_RE.finditer(value):
+        if match[0] not in _GIVEN_NAMES:
+            continue
+        words = _RESIDUAL_WORDS_RE.match(value, match.start())
+        if words and _residual_name_candidate(words[0].split()):
+            return True
+    return False
+
+
+def _residual_plain_value(raw: str) -> bool:
+    raw = raw.strip()
+    if raw[:1] in ("\"", "'"):
+        end = _quoted_value_end(raw, 0, len(raw))
+        if end is None:
+            return True
+        raw = raw[1:end].strip()
+    return bool(raw and not _value_is_redacted(raw))
+
+
+def _residual_list_item(raw: str) -> bool:
+    item = raw[2:].lstrip(" \t")
+    return bool(item and item[0] not in "#{[" and _residual_plain_value(item[:_line_value_end(item, 0)]))
+
+
+def _residual_continuation(lines: list[str], line_index: int, indent: int) -> bool:
+    list_indent = None
+    for index in range(line_index + 1, len(lines)):
+        raw = lines[index].lstrip(" \t")
+        if not raw or raw.startswith("#"):
+            continue
+        current_indent = len(lines[index]) - len(raw)
+        if current_indent <= indent or (list_indent is not None and current_indent < list_indent):
+            return False
+        if raw.startswith("- "):
+            list_indent = current_indent if list_indent is None else list_indent
+            if _residual_list_item(raw):
+                return True
+        elif list_indent is None:
+            if raw[0] in "{[" or re.match(r"[\w.-]+[ \t]*:", raw):
+                return False
+            return _residual_plain_value(raw[:_line_value_end(raw, 0)])
+        elif current_indent <= list_indent:
+            return False
+    return False
+
+
+def _residual_prose_value(raw: str) -> bool:
+    raw = raw.lstrip(" \t")
+    if raw[:1] in ("\"", "'"):
+        end = _quoted_value_end(raw, 0, len(raw))
+        return end is not None and _looks_like_secret_value(raw[1:end])
+    candidate = re.split(r"[\s,;)}\]]", raw, maxsplit=1)[0].rstrip(".!?")
+    return _looks_like_secret_value(candidate)
+
+
+def _residual_field_value(
+    line: str, match: re.Match[str], field_start: int, lines: list[str], line_index: int,
+) -> bool:
+    structure = _containing_inline_structure(line, match.start())
+    structural = (
+        match["operator"] == "=" or match.start() == field_start or structure is not None
+        or _inside_unclosed_inline_structure(line, match.start())
+    )
+    end = _inline_value_end(line, match.end(), structure[1]) if structure else _line_value_end(line, match.end())
+    raw = line[match.end():end].strip()
+    if not structural:
+        return not _is_markdown_heading_line(line) and _residual_prose_value(raw)
+    if raw:
+        return _residual_plain_value(raw)
+    indent = len(lines[line_index]) - len(lines[line_index].lstrip(" \t"))
+    return _residual_continuation(lines, line_index, indent)
+
+
+def _residual_assignments(
+    value: str, assignment_re: re.Pattern[str], leading_re: re.Pattern[str],
+) -> bool:
+    lines = value.splitlines()
+    for index, line in enumerate(lines):
+        comment = COMMENT_FIELD_ASSIGNMENT_RE.match(line)
+        if comment and assignment_re.match(line, comment.end()):
+            line = line[comment.end():]
+        start = _field_position_start(line)
+        if any(_residual_field_value(line, match, start, lines, index) for match in assignment_re.finditer(line)):
+            return True
+        leading = leading_re.match(line, start)
+        if leading:
+            raw = line[leading.end():_line_value_end(line, leading.end())].strip()
+            if (leading["quote"] or leading["key"].startswith("_") or raw[:1] in ("\"", "'")
+                    or _looks_like_secret_value(raw)) and _residual_plain_value(raw):
+                return True
+    return False
+
+
+def _residual_configured_patterns(value: str) -> bool:
+    for pattern in load_policy("share-boundaries").get("redaction_patterns", []):
+        for match in re.finditer(pattern, value):
+            start = match.end(1) if match.groups() and match[1] is not None else match.start()
+            tail = value[start:match.end()].strip()
+            if tail and not _value_is_redacted(tail):
+                return True
+    return False
+
+
+def _has_residual_text(
+    value: str, assignment_re: re.Pattern[str], leading_re: re.Pattern[str],
+) -> bool:
+    # Scan for surviving values without calling the redactor or its span collectors.
+    return (
+        _residual_url_userinfo(value)
+        or _residual_aws_key(value)
+        or _residual_contact(value)
+        or _residual_person(value)
+        or any(pattern.search(value) for pattern in RESIDUAL_SECRET_PATTERNS)
+        or _residual_assignments(value, assignment_re, leading_re)
+        or _residual_configured_patterns(value)
+    )
+
+
+def _diagnostic_field_path(
+    prefix: str, key: Any, assignment_re: re.Pattern[str], leading_re: re.Pattern[str],
+) -> tuple[str, bool]:
+    label = str(key)
+    sensitive = _has_residual_text(label, assignment_re, leading_re)
+    if sensitive:
+        label = "<redacted-key>"
+    return (f"{prefix}.{label}" if prefix else label), sensitive
+
+
 def find_residual_private_context(
     value: Any, prefix: str = "", *, require_policy_patterns: bool = False
 ) -> list[str]:
     hits: list[str] = []
-    _, secret_like_field_re, _, _ = _effective_secret_field_pattern_state(
+    _, secret_like_field_re, assignment_re, leading_re = _effective_secret_field_pattern_state(
         require_policy_patterns=require_policy_patterns
     )
     if isinstance(value, dict):
         for key, item in value.items():
-            path = f"{prefix}.{key}" if prefix else str(key)
-            if secret_like_field_re.search(str(key)) and not _value_is_redacted(item):
+            path, sensitive_key = _diagnostic_field_path(prefix, key, assignment_re, leading_re)
+            if sensitive_key or (secret_like_field_re.search(str(key)) and not _value_is_redacted(item)):
                 hits.append(path)
             hits.extend(
                 find_residual_private_context(
@@ -1037,9 +1354,7 @@ def find_residual_private_context(
                 )
             )
     elif isinstance(value, str):
-        if _coalesced_secret_spans(
-            value, include_risky_spans=True, require_policy_patterns=require_policy_patterns
-        ):
+        if _has_residual_text(value, assignment_re, leading_re):
             hits.append(prefix or "<root>")
     return sorted(set(hits))
 
@@ -1130,7 +1445,7 @@ def find_forbidden_fields(value: Any, forbidden_fields: set[str], prefix: str = 
     hits: list[str] = []
     if isinstance(value, dict):
         for key, item in value.items():
-            path = f"{prefix}.{key}" if prefix else str(key)
+            path, _ = _diagnostic_field_path(prefix, key, FIELD_ASSIGNMENT_RE, LEADING_FIELD_RE)
             if key in forbidden_fields:
                 hits.append(path)
             hits.extend(find_forbidden_fields(item, forbidden_fields, path))
@@ -1322,6 +1637,7 @@ def validate_contractor_packet(
         {
             "bead_summary": packet.get("bead_summary"),
             "selected_snippets": packet.get("selected_snippets"),
+            "expert_profile": packet.get("expert_profile"),
         },
         require_policy_patterns=True,
     )

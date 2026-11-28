@@ -77,6 +77,16 @@ def rendered(packet, row, *, control=False):
     return text
 
 
+def packet_errors(row, control):
+    if control:
+        return []
+    if "packet_residual_path" in row:
+        return ["packet contains residual private or secret-like context at: " + row["packet_residual_path"]]
+    if row["slot"] == "attachment":
+        return ["packet contains forbidden boundary fields: attachments"]
+    return []
+
+
 @contextlib.contextmanager
 def input_limit(row, control):
     rules = screening._rules()
@@ -100,6 +110,11 @@ class DisclosureSurfaceTests(helpers._OutboundHelpers, unittest.TestCase):
         spans = private + [s[:12] for s in private if len(s) >= 12]
         self.assertFalse(any(s in message for s in spans for message in messages), "private fixture content in diagnostics")
 
+    def assert_packet_refusal(self, row, failure, errors):
+        self.assert_private_diagnostics(row, str(failure))
+        self.assertTrue(str(failure) == "invalid contractor packet:\n- " + "\n- ".join(errors),
+                        "consumer did not refuse at packet validation")
+
     def test_manual_plain_and_json(self):
         for row in fixture()["cases"]:
             for as_json in (False, True):
@@ -109,9 +124,9 @@ class DisclosureSurfaceTests(helpers._OutboundHelpers, unittest.TestCase):
 
     def _manual_case(self, row, as_json, control):
         packet = packet_for(row, control=control)
-        errors = validate_contractor_packet(packet)
-        expected = ["packet contains forbidden boundary fields: attachments"] if row["slot"] == "attachment" and not control else []
-        self.assertTrue(errors == expected, "fixture must pass production bindings or refuse the unsupported declaration")
+        # Exercise the export seam independently, including the JSON packet and rendered prompt.
+        self.assertTrue(validate_contractor_packet(packet) == packet_errors(row, control),
+                        "unexpected validation result for bound fixture")
         output, stderr = io.StringIO(), io.StringIO()
         failure, writes = None, []
         real_write = manual.write_export
@@ -141,29 +156,68 @@ class DisclosureSurfaceTests(helpers._OutboundHelpers, unittest.TestCase):
             self.assertEqual(len(output.getvalue()), 0, "refusal emitted output")
             self.assert_private_diagnostics(row, output.getvalue())
 
+    def test_manual_refuses_residual_profile_before_rendering(self):
+        for row in fixture()["cases"]:
+            if "packet_residual_path" in row:
+                for as_json in (False, True):
+                    with self.subTest(row=row["id"], surface="manual-json" if as_json else "manual-plain"):
+                        self._assert_manual_validation_refusal(row, as_json)
+
+    def _assert_manual_validation_refusal(self, row, as_json):
+        packet = packet_for(row)
+        output, stderr = io.StringIO(), io.StringIO()
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "packet.json"
+            path.write_text(json.dumps(packet), encoding="utf-8")
+            argv = ["generate_manual_dispatch_prompt.py", "--packet", str(path)]
+            if as_json:
+                argv.append("--json")
+            with patch.object(sys, "argv", argv), helpers.with_provenance(packet), \
+                    contextlib.redirect_stdout(output), contextlib.redirect_stderr(stderr), \
+                    patch.object(manual, "render_packet_prompt", wraps=manual.render_packet_prompt) as render, \
+                    patch.object(manual, "write_export", wraps=manual.write_export) as write:
+                with self.assertRaises(SystemExit) as caught:
+                    manual.main()
+            self.assert_packet_refusal(row, caught.exception, packet_errors(row, False))
+            self.assertEqual((render.call_count, write.call_count, len(output.getvalue())), (0, 0, 0))
+            self.assert_private_diagnostics(row, stderr.getvalue())
+
     def test_desktop_browser_packet_is_screened_before_export(self):
         request_id = "0" * 32
         for row in fixture()["cases"]:
             for control in (False, True):
-                with self.subTest(row=row["id"], control=control), tempfile.TemporaryDirectory() as tmp:
+                with self.subTest(row=row["id"], control=control):
                     packet = packet_for(row, control=control)
-                    path = Path(tmp) / "packet.json"
-                    path.write_text(json.dumps(packet), encoding="utf-8")
-                    with input_limit(row, control), helpers.with_provenance(packet), patch.object(
-                        browser_request, "render_packet_prompt", side_effect=lambda p: rendered(p, row, control=control)
-                    ):
-                        if control:
-                            request = browser_request.prepare_browser_packet_request(path, request_id=request_id)
-                            expected = browser_request.bound_request(rendered(packet, row, control=True), request_id)
-                            self.assertEqual(digest(request.require_unchanged()), digest(expected))
-                        else:
-                            with self.assertRaises(SystemExit) as caught:
-                                browser_request.prepare_browser_packet_request(path, request_id=request_id)
-                            self.assert_private_diagnostics(row, str(caught.exception))
-                            if row["slot"] == "attachment":
-                                self.assertIn("forbidden boundary fields: attachments", str(caught.exception))
-                            else:
-                                self.assertIsInstance(caught.exception, screening.OutboundRefused)
+                    self._browser_case(row, packet, request_id, control=control, errors=packet_errors(row, control))
+
+    def test_desktop_browser_screens_rendered_profile_witnesses(self):
+        for row in fixture()["cases"]:
+            if "packet_residual_path" in row:
+                with self.subTest(row=row["id"], surface="browser-outbound"):
+                    # Inject the original rendered witness after a clean packet passes validation.
+                    clean_packet = packet_for(row, control=True)
+                    self._browser_case(row, clean_packet, "0" * 32, control=False, errors=[], rendered_packet=packet_for(row))
+
+    def _browser_case(self, row, packet, request_id, *, control, errors, rendered_packet=None):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "packet.json"
+            path.write_text(json.dumps(packet), encoding="utf-8")
+            with input_limit(row, control), helpers.with_provenance(packet), patch.object(
+                browser_request, "render_packet_prompt", side_effect=lambda p: rendered(rendered_packet or p, row, control=control)
+            ) as render:
+                if control:
+                    request = browser_request.prepare_browser_packet_request(path, request_id=request_id)
+                    expected = browser_request.bound_request(rendered(packet, row, control=True), request_id)
+                    self.assertEqual(digest(request.require_unchanged()), digest(expected))
+                else:
+                    with self.assertRaises(SystemExit) as caught:
+                        browser_request.prepare_browser_packet_request(path, request_id=request_id)
+                    if errors:
+                        self.assert_packet_refusal(row, caught.exception, errors)
+                    else:
+                        self.assert_private_diagnostics(row, str(caught.exception))
+                        self.assertTrue(isinstance(caught.exception, screening.OutboundRefused), "browser outbound screen did not refuse")
+                self.assertEqual(render.call_count, 0 if errors else 1)
 
     def test_local_user_message_from_rendered_source_fields(self):
         # HTTP has no contractor-packet consumer: render disclosed fields into its supported task text.
