@@ -12,6 +12,10 @@
 - Slim `route_work.py --json`. Read `ranked_experts` in place of the removed top-level `required_experts` alias, and add `--include-catalog` for full ranked expert and executor details. Risk-required experts are still listed at `risk_assessment.required_experts`.
 - Tighten the code-health baseline and consolidate repeated checks in native worker and pool validators. Renew registered delegation and pool approvals bound to earlier source digests after upgrading.
 
+### Tests
+
+- Make the hosted pool calibration and signed writer cutoff fixtures deterministic.
+
 ## 1.49.0 - 2026-11-28
 
 - Add optional local run records to `cwo continue` and a read-only `cwo analyze` report for saved plan artifacts.

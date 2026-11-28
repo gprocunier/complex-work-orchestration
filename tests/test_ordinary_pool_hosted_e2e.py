@@ -44,6 +44,11 @@ _LAUNCHER = Path("/usr/bin/bwrap")
 _PYTHON = Path("/usr/bin/python3").resolve()
 
 
+def _measure_synthetic_action(action):
+    """Run the original calibration action with a deterministic fixture duration."""
+    return action(), 1.0
+
+
 def _existing_file_patch(slot):
     path = "src/result.txt" if slot == 1 else f"src/result-{slot}.txt"
     before = f"Original result for witness {slot}.\n"
@@ -220,6 +225,7 @@ class _HostedPoolFixture:
         return inputs
 
     def _replace_host_boundaries(self, stack):
+        stack.enter_context(patch.object(callbacks, "_measure_action_ms", _measure_synthetic_action))
         stack.enter_context(patch.object(host_records, "configured_store", return_value=self.store))
         stack.enter_context(patch.object(containment, "configured_store", return_value=self.store))
         for module in (login, prepare, producer):
@@ -562,7 +568,6 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
                 launch.assert_not_called()
 
     def test_slow_close_receipt(self):
-        measure = callbacks._measure_action_ms
         for record_fails in (False, True):
             with self.subTest(record_fails=record_fails), _pool_test_directory() as scratch, ExitStack() as stack:
                 fixture = _HostedPoolFixture(scratch, 2, stack)
@@ -570,7 +575,7 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
                 record = containment.PoolWorkerContainment.record
 
                 def measure_close(action):
-                    result, elapsed = measure(action)
+                    result, elapsed = _measure_synthetic_action(action)
                     return (result, 251.0) if result == {"ack": "closed"} else (result, elapsed)
 
                 def record_close(worker, name, observation):
@@ -690,9 +695,9 @@ class HostedOrdinaryPoolTests(unittest.TestCase):
                         raise
 
                 stack.enter_context(patch.object(stage.PoolQualificationRunLimits, "_append", append_after_cutoff))
-                exit_code, _, _ = fixture.submit()
-                self.assertEqual(exit_code, 2)
-                self.assertTrue(refusals)
+                exit_code, _, errors = fixture.submit()
+                self.assertEqual(exit_code, 2, errors)
+                self.assertTrue(refusals, errors)
                 limits = refusals[0]
                 journal = limits._journal.read()
                 self.assertNotIn("qualification-" + target, [row["event_type"] for row in journal])
