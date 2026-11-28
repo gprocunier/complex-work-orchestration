@@ -1170,6 +1170,35 @@ def select_executor_for_expert(
     }
 
 
+def _critic_route_record(
+    route: str,
+    recommended_executor: str | None,
+    requested_critic_keys: Sequence[str],
+    architecture_critic_contracts: list[dict[str, Any]],
+) -> dict[str, Any]:
+    return {
+        "route_type": "cwo-critic-route",
+        "selected_executor": recommended_executor if route in {"external-contract", "local-worker", "architect-review"} else None,
+        "requested_executors": list(requested_critic_keys),
+        "contracts": architecture_critic_contracts,
+        "evidence_only": True,
+        "may_change_operative_route": False,
+    }
+
+
+def _peer_review_route_record(
+    peer_required: bool, peer_review_count: int, peer_policy: dict[str, Any]
+) -> dict[str, Any]:
+    return {
+        "route_type": "cwo-peer-review-route",
+        "required": peer_required,
+        "minimum_reviews": peer_review_count,
+        "executor": peer_policy.get("defaults", {}).get("local_secure_review_executor") if peer_required else None,
+        "evidence_only": True,
+        "may_change_operative_route": False,
+    }
+
+
 def classify_work(
     text: str,
     *,
@@ -1530,22 +1559,10 @@ def classify_work(
         evaluated_at=operative_evaluated_at,
         **authority_arguments,
     )
-    critic_route = {
-        "route_type": "cwo-critic-route",
-        "selected_executor": recommended_executor if route in {"external-contract", "local-worker", "architect-review"} else None,
-        "requested_executors": list(requested_critic_keys),
-        "contracts": architecture_critic_contracts,
-        "evidence_only": True,
-        "may_change_operative_route": False,
-    }
-    peer_review_route = {
-        "route_type": "cwo-peer-review-route",
-        "required": peer_required,
-        "minimum_reviews": peer_review_count,
-        "executor": peer_policy.get("defaults", {}).get("local_secure_review_executor") if peer_required else None,
-        "evidence_only": True,
-        "may_change_operative_route": False,
-    }
+    critic_route = _critic_route_record(
+        route, recommended_executor, requested_critic_keys, architecture_critic_contracts
+    )
+    peer_review_route = _peer_review_route_record(peer_required, peer_review_count, peer_policy)
 
     synthesis_result = recommend_model_synthesis(text, {}, force_accepted=model_synthesis)
     beads_depth = resolve_beads_context_depth(
