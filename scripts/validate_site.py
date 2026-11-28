@@ -35,7 +35,7 @@ SOURCE_BLOB_LINK_ALLOWLIST.update(
         "references/cwo-system-prompt.md",
         "references/local-inference.md", "references/chatgpt-pro-browser.md", "references/zero-trust-consensus.md",
         "references/execution-environments.md", "references/native-pool-capacity-migration.md",
-        "references/run-readiness.md", "references/security-threat-model.md",
+        "references/run-readiness.md", "references/security-threat-model.md", "references/claims-register.md",
         "references/frozen-protocol-lock.md", "references/pre-dispatch-readiness.md",
         "references/evaluation-evidence.md#workshop-handoff-comparison",
         "policy/native-worker-execution.yaml", "policy/executor-registry.yaml",
@@ -87,12 +87,12 @@ SOURCE_LINK_PATTERNS.extend([
     'https://code.claude.com/docs/en/agent-teams',
     'https://docs.opencode.ai/docs/providers/',
     'https://docs.opencode.ai/docs/permissions/',
-    'https://docs.langchain.com/oss/python/langgraph/persistence',
-    'https://docs.langchain.com/oss/python/langgraph/interrupts',
+    'https://docs.langchain.com/oss/python/deepagents/overview',
+    'https://learn.microsoft.com/en-us/agent-framework/overview/',
     'https://docs.crewai.com/en/concepts/flows',
     'https://openai.github.io/openai-agents-python/models/',
     'https://openai.github.io/openai-agents-python/guardrails/',
-    'https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html',
+    'https://github.com/microsoft/autogen', 'https://docs.openhands.dev/sdk',
 ])
 # Shell/navigation inventory has one producer. Content safety stays independent.
 REQUIRED_PAGES = list(PAGES)

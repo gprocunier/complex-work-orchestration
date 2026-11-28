@@ -42,10 +42,31 @@ The starter/reference regression suite is independently repeatable with
 uses an authored solution and must not be described as repeating the live
 two-session result. See the canonical [walkthrough](../../docs/get-started.html).
 
-## Presentation update
+## Offline walkthrough rehearsal
 
-The walkthrough is now split into preparation, installation, first task and
-continuation pages. The observations above describe the earlier two-session run.
-The split pages preserve its setup commands and accepted utility behavior; their
-current navigation and rendering are checked separately. A new two-fresh-session
-model execution of the split presentation has not yet been observed.
+On November 28, 2026, a fresh disposable project exercised the current
+local workflow on Linux with Python 3.14.10, Git 2.56.1 and Beads 1.3.4
+(embedded Dolt). The run used the authored reference solution in two phases
+and reopened project files and task records at the handoff. The commands ran
+in a network namespace without external access. The earlier October record
+is the observed agent-session evidence.
+
+| Step | Command and observed result |
+| --- | --- |
+| Create the starter and baseline | `python3 scripts/create_first_project.py PROJECT` created the project. The first `python3 -m unittest -v` ran 8 tests and exited 1 with `FAILED (failures=13, errors=7)`. The local `cwo-tutorial-start` tag recorded the untouched starter. |
+| Initialize the local task database | `bd init --prefix cwo-demo --skip-agents --skip-hooks --sandbox` reported embedded Dolt. `bd ready --json --sandbox` returned `[]`. The setup produced no editor integrations or Git hooks. |
+| Verify the validator phase | The authored validator passed all 8 starter tests. From the practice folder, the narrative helper posted `pending-acceptance` using its absolute script path. `bd where --json --sandbox` reported the practice project’s local `.beads` directory and embedded Dolt storage. `bd ready --json --sandbox` listed only the validator while both tasks were open. |
+| Accept and resume | `bd close VALIDATOR_TASK_ID --reason "Accepted after reviewing the validator diff and passing tests" --sandbox` closed the validator only. `bd ready --json --sandbox` then listed the CLI task. The handoff and validator tests were checked again before the CLI edit. |
+| Verify the CLI phase | `python3 -m unittest -v` passed 13 tests, including 5 subprocess checks. `python3 checker.py service.json` printed `valid` and exited 0. `invalid.json` reported `port must be an integer from 1 to 65535` and exited 1. `missing.json` exited 2. The original validator tests remained byte-for-byte unchanged. |
+| Inspect the final record | `bd show CLI_TASK_ID --json --sandbox` showed the CLI open with its validator dependency. `bd comments CLI_TASK_ID --json --sandbox` included the `pending-acceptance` delivery. The validator’s recorded acceptance and the final `HANDOFF.md` remained available. |
+
+For both deliveries, the practice project was the working directory.
+The absolute path to `close_bead_with_summary.py` pointed into the CWO source
+checkout. The helper used local Beads discovery and ran with
+`--disposition pending-acceptance --meaningful --json` and the complete
+narrative fields. Each result reported `closure_memory_quality` as
+`complete`, `closed` as `false`, and empty missing-field and warning lists.
+The saved comment text matched the returned summary for each open task.
+
+Beads 1.3.4 enables editor integration and hooks during ordinary
+initialization, so the walkthrough skips those steps.

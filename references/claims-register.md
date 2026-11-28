@@ -4,7 +4,8 @@ This register maps CWO's consequential safety claims to the mechanism that backs
 them and the limit of that mechanism. Public copy should not claim more than the
 "what it does" column. The public-copy validator rejects the retired wordings
 listed at the end. The site validator uses the availability labels for the exact
-capability named in each marked row.
+capability named in each marked row. The public
+[capability matrix](../docs/index.html#capabilities) summarizes the prerequisites.
 
 | Claim area | What it does | What it does not do | Evidence |
 | --- | --- | --- | --- |
