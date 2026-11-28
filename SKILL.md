@@ -171,7 +171,7 @@ three units or six reads warn; four or eleven require replanning.
 
 Outside packets need opt-in, a primary `contract-jd-*` label, guard labels, a share boundary,
 provider metadata, redaction, screening, validation, [sizing](references/run-readiness.md#dispatch-readiness),
-audit, return normalization, evaluation and architect adjudication.
+audit, return normalization, [screening](references/external-contracting.md#return-screening) and architect adjudication.
 
 ```bash
 python3 scripts/build_contractor_packet.py --bead <id> --executor <executor> --share-boundary redacted-packet --opt-in-record="$APPROVAL_REF" --format json --output contractor-packet.json

@@ -135,7 +135,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "return_language": {"errors", "policy", "return_common", "types"},
     "return_sections": {"errors", "policy"},
     "return_boundary": {"return_common", "return_sections"},
-    "return_evidence": {"return_common", "return_sections", "types"},
+    "return_evidence": {"policy_schema", "return_common", "return_sections", "types"},
     "return_risk": {"errors", "peer_review", "policy", "return_common", "return_evidence", "return_language", "return_sections", "types"},
     "peer_review": {"errors", "peer_review_identity"},
     "peer_review_identity": {"adjudication", "errors", "host_records", "model_identities", "peer_review", "policy"},
@@ -447,64 +447,6 @@ PUBLIC_COPY_INTERNAL_LABEL_ALLOWED_FILES = {
     "SKILL.md",
     "AGENTS.md",
 }
-WAIVER_CONVENTION_SCRIPTS = {
-    "scripts/authorize_sol_breakfix.py": {
-        "flags": ["--allow-sol-breakfix"],
-        "audit_fields": True,
-    },
-    "scripts/build_contractor_packet.py": {
-        "flags": ["--allow-disclosure-escalation", "--no-audit"],
-        "audit_fields": True,
-    },
-    "scripts/chatgpt_browser_review.py": {
-        "flags": ["--allow-degraded-packet", "--allow-unlinked-packet", "--no-audit"],
-        "audit_fields": True,
-    },
-    "scripts/dispatch_work.py": {
-        "flags": [
-            "--allow-degraded-packet",
-            "--allow-unlinked-packet",
-            "--allow-raw-manual-prompt",
-            "--allow-disclosure-escalation",
-            "--local-allow-private-dns",
-            "--local-insecure-tls",
-            "--allow-offline-access-profile",
-            "--no-audit",
-        ],
-        "audit_fields": True,
-    },
-    "scripts/evaluate_return.py": {
-        "flags": ["--no-audit"],
-        "audit_fields": True,
-    },
-    "scripts/render_harness_dispatch.py": {
-        "flags": ["--no-audit"],
-        "audit_fields": True,
-    },
-    "scripts/import_execution_telemetry.py": {
-        "flags": ["--allow-unmatched"],
-        "audit_terms": ["waiver_required", "waiver_flags", "waiver_reason"],
-    },
-    "scripts/generate_manual_dispatch_prompt.py": {
-        "flags": [
-            "--allow-degraded-packet",
-            "--allow-raw-manual-prompt",
-            "--allow-disclosure-escalation",
-        ],
-    },
-    "scripts/configure_codex_beads_hooks.py": {
-        "flags": ["--force-visibility-hint", "--allow-degraded-context"],
-    },
-    "scripts/coach_prompt.py": {
-        "flags": ["--allow-disclosure-escalation"],
-    },
-    "scripts/route_work.py": {
-        "flags": ["--allow-disclosure-escalation"],
-    },
-    "scripts/scaffold_workgraph.py": {
-        "flags": ["--allow-disclosure-escalation"],
-    },
-}
 WAIVER_FLAG_DISCOVERY_EXCEPTIONS = {
     "scripts/workspace_mutation_guard.py": {"--allow-path"},
 }
@@ -523,7 +465,8 @@ def load_json(path: Path) -> Any:
     try:
         return json.loads(path.read_text(encoding="utf-8"))
     except json.JSONDecodeError as exc:
-        raise ValueError(f"{path.relative_to(REPO_ROOT)} is not valid JSON: {exc}") from exc
+        name = path.relative_to(REPO_ROOT) if path.is_relative_to(REPO_ROOT) else path
+        raise ValueError(f"{name} is not valid JSON: {exc}") from exc
 
 
 def validate_retired_beads_context_aliases(
@@ -590,25 +533,18 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
                     f"graph item {idx} has invalid closure_pressure metadata",
                 )
                 continue
-            if closure_pressure.get("active") is not True:
-                _report_error(
-                    "graph",
-                    f"graph item {idx} has closure_pressure.active={closure_pressure.get('active')!r} expected True",
-                )
-            if closure_pressure.get("disposition") != disposition:
-                _report_error(
-                    "graph",
-                    f"graph item {idx} has closure_pressure.disposition={closure_pressure.get('disposition')!r} expected {disposition!r}",
-                )
-            if closure_pressure.get("allowed") is not True:
-                _report_error(
-                    "graph",
-                    f"graph item {idx} has closure_pressure.allowed={closure_pressure.get('allowed')!r} expected True",
-                )
+            for field, expected in (("active", True), ("disposition", disposition), ("allowed", True)):
+                actual = closure_pressure.get(field)
+                mismatched = actual != expected if field == "disposition" else actual is not True
+                if mismatched:
+                    _report_error("graph", f"graph item {idx} has closure_pressure.{field}={actual!r} expected {expected!r}")
 
     current_action = "continue-current-work-unit"
     repair_action = "create-routine-repair-child"
     allowed_dispositions = list(epic_convergence.CLOSURE_DISPOSITIONS)
+
+    def _closure_route(action: str, disposition: str | None) -> dict[str, Any]:
+        return {"closure_pressure": {"active": True, "action": action, "disposition": disposition}}
 
     def _decision_cases() -> Iterator[tuple[bool, str | None, tuple[tuple[str, bool, str], ...]]]:
         yield False, None, ((current_action, True, "closure-pressure-inactive"),)
@@ -639,27 +575,12 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
                 _report_error("evaluator", f"decision mismatch for active={active}: {decisions[0]} != {expected[0]}")
             continue
 
-        allowed, denied = decisions
-        expected_allowed, expected_denied = expected
-        if allowed != expected_allowed:
-            _report_error(
-                "evaluator",
-                f"current-work decision invalid for disposition={disposition!r}: {allowed}",
-            )
-        if denied != expected_denied:
-            _report_error(
-                "evaluator",
-                f"routine-child decision invalid for disposition={disposition!r}: {denied}",
-            )
+        for label, decision, expectation in zip(("current-work", "routine-child"), decisions, expected, strict=True):
+            if decision != expectation:
+                _report_error("evaluator", f"{label} decision invalid for disposition={disposition!r}: {decision}")
 
         try:
-            continue_route = {
-                "closure_pressure": {
-                    "active": True,
-                    "action": current_action,
-                    "disposition": disposition,
-                }
-            }
+            continue_route = _closure_route(current_action, disposition)
             continue_graph = scaffold_workgraph.planned_graph("closure-pressure-continue", continue_route)
         except Exception as exc:
             _report_error(
@@ -670,14 +591,7 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
         _check_graph_fields(continue_graph, disposition)
         try:
             scaffold_workgraph.planned_graph(
-                "closure-pressure-routine-child",
-                {
-                    "closure_pressure": {
-                        "active": True,
-                        "action": "create-routine-repair-child",
-                        "disposition": disposition,
-                    }
-                },
+                "closure-pressure-routine-child", _closure_route(repair_action, disposition),
             )
         except ValueError as exc:
             if "routine-repair-child-rejected" not in str(exc):
@@ -1152,162 +1066,36 @@ def validate_repository() -> list[str]:
 
 
 def _validate_contractor_schemas(errors: list[str]) -> None:
-    _require_runtime_schema_fields(
-        errors, "contractor packet", load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json"),
-        CONTRACTOR_PACKET_REQUIRED_FIELDS,
-    )
-    evidence_properties = [
-        "evidence_quality_score",
-        "evidence_quality_signals",
-        "evidence_quality_signal_categories",
-        "research_evidence_score",
-        "research_evidence_signals",
-        "research_evidence_signal_categories",
-        "research_evidence_items",
-        "research_contradictions",
-        "research_reflection",
-    ]
-    language_properties = [
-        "expected_return_language",
-        "expected_return_language_source",
-        "return_language_status",
-        "return_language_findings",
-        "detected_letter_scripts",
-        "unexpected_script_ratio",
-        "unicode_normalization_changed",
-    ]
-    _require_schema_file_properties(errors, {
-        "opt-in-record.schema.json": ["allowed_providers"],
-        "acceptance-decision.schema.json": [
-            "malpractice_score",
-            "malpractice_signals",
-            *evidence_properties,
-            "signal_categories",
-            "peer_review_required",
-            "peer_review_status",
-            "boundary_taint_status",
-            "boundary_taint_findings",
-            "provider_key",
-            "provider_trust_tier",
-            "provider_external",
-            "model_profile",
-            "provenance_class",
-            "human_adjudication_required",
-            "recommended_disposition",
-            "recommended_synthesis_use",
-            *language_properties,
-        ],
-        "contractor-return-bundle.schema.json": [
-            "provider_key",
-            "provider_trust_tier",
-            "provider_external",
-            "dispatch_mode",
-            "local_profile",
-            "model_profile",
-            "provenance_class",
-            *evidence_properties,
-            *language_properties,
-        ],
-    })
+    packet_schema = load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json")
+    _require_runtime_schema_fields(errors, "contractor packet", packet_schema, CONTRACTOR_PACKET_REQUIRED_FIELDS)
+    _require_checkout_schema_properties(errors, "contractor")
 
 
 def _validate_routing_schemas(errors: list[str]) -> None:
-    local_envelope_schema = load_json(REPO_ROOT / "schemas" / "local-dispatch-envelope.schema.json")
-    _require_runtime_schema_fields(errors, "local dispatch envelope", local_envelope_schema, LOCAL_DISPATCH_REQUIRED_FIELDS)
-    require_schema_properties(
-        errors, schema_name="local-dispatch-envelope.schema.json", schema=local_envelope_schema,
-        properties=[
-            "access_profile",
-            "access_profile_details",
-            "access_profile_readiness",
-            "model_profile",
-            "allow_private_dns",
-            "tls_verify",
-            "tls_ca_bundle_env",
-            "request_options",
-            "thinking_parser",
-            "response_sanitization",
-        ],
-    )
-    prompt_coach_schema = load_json(REPO_ROOT / "schemas" / "prompt-coach-result.schema.json")
-    _require_runtime_schema_fields(errors, "prompt coach result", prompt_coach_schema, PROMPT_COACH_RESULT_REQUIRED_FIELDS)
-    require_schema_properties(
-        errors, schema_name="prompt-coach-result.schema.json", schema=prompt_coach_schema,
-        properties=[
-            "scaffold_sizing",
-            "requires_user_selection_before_plan",
-            "selection_before_plan_reason",
-            "selection_before_plan_question_ids",
-        ],
-    )
-    _require_schema_file_properties(errors, {
-        "route-result.schema.json": [
-            "access_profile",
-            "model_synthesis",
-            "data_sensitivity_source",
-            "data_sensitivity_heuristic",
-            "data_sensitivity_provenance",
-            "data_sensitivity_disclaimer",
-            "beads_context_depth",
-            "zero_trust_consensus_required",
-            "zero_trust_consensus_trigger_reasons",
-            "zero_trust_minimum_independent_domains",
-            "zero_trust_policy_version",
-        ],
-    })
-    harness_dispatch_schema = load_json(REPO_ROOT / "schemas" / "harness-dispatch-envelope.schema.json")
-    _require_runtime_schema_fields(errors, "harness dispatch envelope", harness_dispatch_schema, HARNESS_DISPATCH_REQUIRED_FIELDS)
-    require_schema_properties(
-        errors, schema_name="harness-dispatch-envelope.schema.json", schema=harness_dispatch_schema,
-        properties=[
-            "model_profile",
-            "model_profile_details",
-            "access_profile",
-            "access_profile_details",
-            "access_profile_readiness",
-        ],
-    )
-    _require_schema_file_properties(errors, {"access-profile.schema.json": ["profiles"]})
+    for name, required_fields in (
+        ("local-dispatch-envelope", LOCAL_DISPATCH_REQUIRED_FIELDS),
+        ("prompt-coach-result", PROMPT_COACH_RESULT_REQUIRED_FIELDS),
+        ("route-result", []),
+        ("harness-dispatch-envelope", HARNESS_DISPATCH_REQUIRED_FIELDS),
+        ("access-profile", []),
+    ):
+        filename = f"{name}.schema.json"
+        schema = load_json(REPO_ROOT / "schemas" / filename)
+        if required_fields:
+            _require_runtime_schema_fields(errors, name.replace("-", " "), schema, required_fields)
+        _require_checkout_schema_properties(errors, name, loaded={filename: schema})
     model_profile_schema = load_json(REPO_ROOT / "schemas" / "model-profile.schema.json")
-    profile_properties = (
-        model_profile_schema.get("properties", {})
-        .get("profiles", {})
-        .get("additionalProperties", {})
-        .get("properties", {})
-    )
-    for field in MODEL_PROFILE_REQUIRED_FIELDS:
+    profile_map = model_profile_schema.get("properties", {}).get("profiles", {})
+    profile_properties = profile_map.get("additionalProperties", {}).get("properties", {})
+    for field in (*MODEL_PROFILE_REQUIRED_FIELDS, "precision", "thinking_enabled", "reasoning_mode",
+                  "request_options", "required_vllm_flags"):
         if field not in profile_properties:
             errors.append(f"model-profile.schema.json profile is missing property {field!r}")
-    for field in ["precision", "thinking_enabled", "reasoning_mode", "request_options", "required_vllm_flags"]:
-        if field not in profile_properties:
-            errors.append(f"model-profile.schema.json profile is missing property {field!r}")
-    _require_schema_file_properties(errors, {"execution-environment.schema.json": ["profiles"]})
+    _require_checkout_schema_properties(errors, "execution-environment")
 
 
 def _validate_activation_schemas(errors: list[str]) -> None:
-    _require_schema_file_properties(errors, {
-        "native-tool-activation-result-v2.schema.json": [
-            "tool_trace_sha256",
-            "bead_closure_sha256",
-            "result_sha256",
-        ],
-        "native-tool-activation-trace.schema.json": [
-            "children",
-            "all_satisfied",
-            "tool_trace_sha256",
-        ],
-        "native-tool-activation-bead-closure.schema.json": [
-            "expected_bead_ids",
-            "attempted_bead_ids",
-            "unattempted_bead_ids",
-            "close_receipts",
-            "errors",
-            "parent_close_attempted",
-            "publication_close_attempted",
-            "all_closed",
-            "bead_closure_sha256",
-        ],
-    }, check_required=True)
+    _require_checkout_schema_properties(errors, "activation", check_required=True)
     activation_result_schemas = (
         (1, load_json(REPO_ROOT / "schemas" / "native-tool-activation-result.schema.json")),
         (2, load_json(REPO_ROOT / "schemas" / "native-tool-activation-result-v2.schema.json")),
@@ -1323,41 +1111,7 @@ def _validate_activation_schemas(errors: list[str]) -> None:
 
 
 def _validate_readiness_schemas(errors: list[str]) -> None:
-    _require_schema_file_properties(errors, {
-        "run-readiness-plan.schema.json": [
-            "workstreams",
-            "rubric",
-            "criterion_evidence_matrix",
-            "provider_provenance",
-            "quarantine_rules",
-            "boundary_negative_tests",
-            "next_version_rail",
-            "patrol_stopping_rule",
-            "handoff_evidence_requirements",
-            "adjudication_record",
-        ],
-        "sprint-continuation.schema.json": [
-            "recommended_next_issue",
-            "why_next",
-            "ready_issues",
-            "blocked_issues",
-            "definition_of_ready",
-            "definition_of_done",
-            "resume_commands",
-            "operator_handoff_packet",
-            "modeling_note",
-            "ranked_ready_issues",
-            "recommended_ready_set",
-            "excluded_ready_issues",
-            "beads_readiness_snapshot",
-            "beads_readiness_snapshot_sha256",
-            "fanout_decision",
-            "fanout_reasons",
-            "candidate_capacity_evidence",
-            "ready_set_authority",
-            "dispatch_authorized",
-        ],
-    })
+    _require_checkout_schema_properties(errors, "readiness")
     sprint_continuation_schema = load_json(REPO_ROOT / "schemas" / "sprint-continuation.schema.json")
     operator_packet_schema = sprint_continuation_schema.get("properties", {}).get("operator_handoff_packet", {})
     for field in [
@@ -1688,11 +1442,29 @@ def require_schema_properties(
         errors.append(f"schema {schema_name} is missing properties: {', '.join(missing)}")
 
 
-def _require_schema_file_properties(
-    errors: list[str], requirements: dict[str, list[str]], *, check_required: bool = False
+def _valid_schema_roster_entry(name: str, fields: Any) -> bool:
+    return (
+        re.fullmatch(r"[a-z0-9][a-z0-9-]*\.schema\.json", name) is not None
+        and isinstance(fields, list) and bool(fields)
+        and all(isinstance(field, str) and field for field in fields)
+    )
+
+
+def _require_checkout_schema_properties(
+    errors: list[str], group: str, *, check_required: bool = False, loaded: dict[str, Any] | None = None,
 ) -> None:
-    for schema_name, properties in requirements.items():
-        schema = load_json(REPO_ROOT / "schemas" / schema_name)
+    path = REPO_ROOT / "tools" / "ci" / "required-schema-properties.json"
+    try:
+        groups = load_json(path)
+    except (OSError, ValueError) as exc:
+        errors.append(f"Could not read schema requirements: {exc}")
+        return
+    rules = groups.get(group) if isinstance(groups, dict) else None
+    if not isinstance(rules, dict) or not rules or not all(_valid_schema_roster_entry(*entry) for entry in rules.items()):
+        errors.append(f"Invalid or missing schema requirements for {group!r}")
+        return
+    for schema_name, properties in rules.items():
+        schema = loaded[schema_name] if loaded and schema_name in loaded else load_json(REPO_ROOT / "schemas" / schema_name)
         require_schema_properties(errors, schema_name=schema_name, schema=schema, properties=properties)
         if check_required:
             missing_required = sorted(set(properties) - set(schema.get("required", [])))
@@ -1983,12 +1755,51 @@ def validate_no_uncovered_waiver_flags(
             )
 
 
+def _valid_waiver_roster_entry(path: str, spec: Any) -> bool:
+    if not re.fullmatch(r"scripts/[a-z0-9][a-z0-9_-]*\.py", path) or not isinstance(spec, dict):
+        return False
+    flags, terms = spec.get("flags"), spec.get("audit_terms", [])
+    return (
+        spec.keys() <= {"flags", "audit_fields", "audit_terms"}
+        and isinstance(flags, list) and bool(flags)
+        and all(isinstance(flag, str) and flag.startswith("--") and len(flag) > 2 for flag in flags)
+        and isinstance(spec.get("audit_fields", False), bool)
+        and isinstance(terms, list) and all(isinstance(term, str) and term for term in terms)
+    )
+
+
+def _load_waiver_conventions(errors: list[str], repo_root: Path) -> dict[str, dict[str, Any]]:
+    path = repo_root / "tools" / "ci" / "waiver-conventions.json"
+    try:
+        specs = load_json(path)
+    except (OSError, ValueError) as exc:
+        errors.append(f"Could not read waiver convention roster: {exc}")
+        return {}
+    if not isinstance(specs, dict) or not specs or not all(_valid_waiver_roster_entry(*entry) for entry in specs.items()):
+        errors.append(f"Invalid waiver convention roster: {path}")
+        return {}
+    return specs
+
+
+def _discover_waiver_scripts(errors: list[str], repo_root: Path, parsed_scripts: dict[str, ast.AST]) -> None:
+    for path in sorted((repo_root / "scripts").glob("*.py")):
+        relative_path = str(path.relative_to(repo_root))
+        if relative_path in parsed_scripts:
+            continue
+        try:
+            parsed_scripts[relative_path] = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError as exc:
+            errors.append(f"{relative_path} has invalid Python syntax: {exc}")
+
+
 def validate_waiver_conventions(
     errors: list[str],
     scripts: dict[str, dict[str, Any]] | None = None,
     repo_root: Path = REPO_ROOT,
 ) -> None:
-    script_specs = scripts or WAIVER_CONVENTION_SCRIPTS
+    script_specs = scripts or _load_waiver_conventions(errors, repo_root)
+    if not script_specs:
+        return
     parsed_scripts: dict[str, ast.AST] = {}
     for relative_path, spec in script_specs.items():
         path = repo_root / relative_path
@@ -2027,16 +1838,7 @@ def validate_waiver_conventions(
             if term not in content:
                 errors.append(f"{relative_path} is missing waiver audit term: {term}")
     if scripts is None:
-        for path in sorted((repo_root / "scripts").glob("*.py")):
-            relative_path = str(path.relative_to(repo_root))
-            if relative_path in parsed_scripts:
-                continue
-            try:
-                tree = ast.parse(path.read_text(encoding="utf-8"))
-            except SyntaxError as exc:
-                errors.append(f"{relative_path} has invalid Python syntax: {exc}")
-                continue
-            parsed_scripts[relative_path] = tree
+        _discover_waiver_scripts(errors, repo_root, parsed_scripts)
     validate_no_uncovered_waiver_flags(errors, parsed_scripts=parsed_scripts, scripts=script_specs)
 
 

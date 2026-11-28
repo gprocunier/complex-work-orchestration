@@ -80,6 +80,7 @@ def print_human(result: dict[str, object]) -> None:
     for title, key in (("Missing sections", "missing_sections"), ("Penalty reasons", "penalty_reasons"),
                        ("Hard disqualifiers", "hard_disqualifiers")):
         _print_bullets(title, result.get(key))
+    _print_research_rejections(result.get("research_evidence_rejections"))
     for title, key in (("Sabotage signals", "sabotage_signals"), ("Evidence quality signals", "evidence_quality_signals"),
                        ("Malpractice signals", "malpractice_signals")):
         _print_bullets(title, result.get(key), _format_signal)
@@ -96,6 +97,23 @@ def _print_bullets(title: str, items: Any, render=None) -> None:
 
 def _format_signal(signal: dict) -> str:
     return f"{signal.get('category')}: {signal.get('reason')} ({signal.get('weight')})"
+
+
+def _print_research_rejections(rejections: list[dict] | None) -> None:
+    if rejections:
+        _print_bullets("Research evidence rejections", rejections, _format_research_rejection)
+
+
+def _format_research_rejection(rejection: dict) -> str:
+    location = rejection["section"]
+    if "occurrence_index" in rejection:
+        location += f", occurrence {rejection['occurrence_index']}"
+    location += f", document {rejection['document_index']}"
+    if "item_index" in rejection:
+        location += f", item {rejection['item_index']}"
+    if "field" in rejection:
+        location += f", field {rejection['field']}"
+    return f"{location} ({rejection['code']})"
 
 
 def _as_str(value: Any) -> str | None:

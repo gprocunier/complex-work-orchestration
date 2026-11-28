@@ -833,9 +833,14 @@ Record the source or check that supports each material claim and state which
 checks were unavailable. The hold leaves the original return available as
 evidence for review.
 
+Write affirmative and negative observations in separate clauses. When reporting
+a validation result supplied in the packet, name the packet as the source of
+the result. A separate claim that you ran a check is evaluated on its own.
+
 The optional [local return check](local-inference.md#screen-a-received-return)
 can add holds to the exact received return. A passed peer review preserves
 these holds. Resolve them through architect adjudication against that return.
+Leave the advisory off by default. [Held-out results and configuration guidance](evaluation-evidence.md#optional-local-advisory)
 
 ### Expected Return Language Guard
 
@@ -883,6 +888,14 @@ and its matching inputs. [Archived calibration runner](https://github.com/gprocu
    bundle. Missing source locators, missing citation spans or excerpts,
    limited-access sources treated as full support, unresolved contradictions,
    and missing reflection lower the score before architect adjudication.
+   Use JSON objects or arrays for structured evidence. A JSON-bearing section
+   can contain at most 1,048,576 characters, 64 documents, and 64 nesting levels.
+   Reliability and relevance scores must be JSON integers from 0 to 100. The
+   evaluator rejects malformed structured evidence. Its JSON decision and the
+   normalized bundle report `research_evidence_rejections` with the section,
+   document number, error code, and item or field when applicable. For repeated
+   headings, any malformed occurrence is reported and the latest occurrence
+   supplies the evidence used for scoring.
    See `examples/sample-research-contractor-return.md` for the compact shape.
    Security-sensitive synthesis can also add explicit structured
    `zero_trust_claims` to accepted primary inputs. CWO compares those claims

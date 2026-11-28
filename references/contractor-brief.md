@@ -160,6 +160,9 @@ For research-style claims, add optional `Research evidence`, `Research
 contradictions`, and `Research reflection` sections after `Evidence`. Include
 source locators, citation spans or short excerpts, reliability and relevance
 scores, support type, access status, contradiction handling, and replan notes.
+Write reliability and relevance scores as JSON integers from 0 to 100. The
+evaluator rejects invalid structured evidence and reports which section or
+field needs correction.
 
 ## Beads Interaction
 

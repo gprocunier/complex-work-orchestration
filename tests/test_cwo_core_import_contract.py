@@ -119,7 +119,7 @@ ALLOWED_IMPORTS = {
     "return_language": {"errors", "policy", "return_common", "types"},
     "return_sections": {"errors", "policy"},
     "return_boundary": {"return_common", "return_sections"},
-    "return_evidence": {"return_common", "return_sections", "types"},
+    "return_evidence": {"policy_schema", "return_common", "return_sections", "types"},
     "return_risk": {"errors", "peer_review", "policy", "return_common", "return_evidence", "return_language", "return_sections", "types"},
     "peer_review": {"errors", "peer_review_identity"},
     "peer_review_identity": {"adjudication", "errors", "host_records", "model_identities", "peer_review", "policy"},

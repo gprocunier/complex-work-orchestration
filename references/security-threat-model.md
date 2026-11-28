@@ -137,8 +137,9 @@ unrelated holds in place.
 [Peer review source contract](peer-review-record.md).
 
 Return screening uses the structure of the review to flag directives and
-unsupported claims. The architect can inspect the exact evidence behind each
-hold. [Return screening](external-contracting.md#return-screening)
+unsupported claims. The evaluator rejects malformed structured research evidence
+and reports the location. The architect can inspect the exact evidence behind
+each hold. [Return screening](external-contracting.md#return-screening)
 
 Everyday delegation delivers the exact candidate for hand acceptance from a
 separate foreground session. The hand acceptance helper checks the live

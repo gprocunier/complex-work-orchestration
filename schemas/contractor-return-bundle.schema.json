@@ -3,6 +3,23 @@
   "title": "Contractor Return Bundle",
   "type": "object",
   "required": ["bundle_type", "version", "sections", "boundary_taint_status", "boundary_taint_findings", "required_sections_missing", "evidence_items", "sabotage_score", "sabotage_signals", "malpractice_score", "malpractice_signals", "quarantine_recommended", "bundle_sha256"],
+  "$defs": {
+    "researchEvidenceRejections": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["section", "document_index", "code"],
+        "properties": {
+          "section": {"enum": ["Research evidence", "Research contradictions", "Research reflection", "Evidence"]},
+          "document_index": {"type": "integer", "minimum": 1},
+          "occurrence_index": {"type": "integer", "minimum": 1},
+          "code": {"enum": ["section-too-large", "too-many-documents", "unterminated-fence", "nesting-too-deep", "invalid-json", "invalid-document-type", "invalid-score", "invalid-wrapper-type", "invalid-list-item"]},
+          "item_index": {"type": "integer", "minimum": 1},
+          "field": {"enum": ["source_reliability_score", "reliability_score", "relevance_score", "research_evidence_items", "evidence_items", "research_contradictions", "contradictions", "research_reflection", "reflection"]}
+        }
+      }
+    }
+  },
   "allOf": [
     {
       "if": {"properties": {"version": {"minimum": 2}}, "required": ["version"]},
@@ -65,6 +82,7 @@
     "research_evidence_score": {"type": "integer"},
     "research_evidence_signals": {"type": "array", "items": {"type": "object"}},
     "research_evidence_signal_categories": {"type": "array", "items": {"type": "string"}},
+    "research_evidence_rejections": {"$ref": "#/$defs/researchEvidenceRejections"},
     "research_unresolved_contradiction_count": {"type": "integer"},
     "research_replan_recommended": {"type": "boolean"},
     "sabotage_score": {"type": "integer"},

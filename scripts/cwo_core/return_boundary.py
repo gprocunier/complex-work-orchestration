@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import shlex
+from collections.abc import Iterator
 
 from .return_common import nonempty_work_field, strip_fenced_blocks
 from .return_sections import SectionReader, section_value
@@ -44,56 +45,66 @@ def redacted_packet_command_allowed(value: str) -> bool:
     return False
 
 
+_ACCESS_NEGATION = re.compile(
+    r"\b(?:no|not|never|without|cannot|can['’]t)\b.{0,80}\b(?:repo|repository|checkout|workspace|local file|"
+    r"file inspection|command execution|test execution|inspection|inspect|inspected|read|ran|run|executed|mutation|access|execute)\b",
+    re.I,
+)
+
+
 def negates_direct_access_claim(line: str) -> bool:
-    normalized = line.strip().lower()
-    if not normalized:
-        return False
-    return bool(
-        re.search(
-            r"\b(no|not|never|without|cannot|can't|did not|does not|do not|has no|have no)\b.{0,80}"
-            r"\b(repo|repository|checkout|workspace|local file|file inspection|command execution|test execution|"
-            r"inspection|inspect|read|ran|run|executed|mutation)\b",
-            normalized,
-        )
-        or re.search(
-            r"\b(no|not|never|without|cannot|can't|did not|does not|do not|has no|have no)\b.{0,80}"
-            r"\b(access|execute|executed|inspect|inspected|inspection|read|run|ran|mutation)\b",
-            normalized,
-        )
-    )
+    return bool(_ACCESS_NEGATION.search(line))
+
+
+_ACCESS_ACTOR = re.compile(r"\b(?:i|we)\s+")
+_ACCESS_PAST = r"(?:analyzed|analysed|inspected|viewed|opened|checked)"
+_ACCESS_PREDICATE = r"(?:analy[sz](?:e|ing|ed)|read(?:ing)?|(?:inspect|view|open|check)(?:ing|ed)?)"
+_ACCESS_DENIED_CLAIM = r"(?P<denial>\b(?:did\s+not|didn['’]t)\s+claim\s+(?:that\s+)?)?"
+_ACCESS_ASSERTION = (
+    rf"{_ACCESS_DENIED_CLAIM}{_ACCESS_ACTOR.pattern}(?:(?:am|are|was|were|will|did|have|had)\s+)?{_ACCESS_PREDICATE}\s+"
+)
+_ACCESS_REPO = re.compile(rf"{_ACCESS_ASSERTION}(?:the\s+)?(?:repo|repository|directory structure|workspace|checkout)\b")
+_ACCESS_FILE = re.compile(rf"{_ACCESS_ASSERTION}`?(?:scripts|docs|policy|tests|schemas|examples|/home/)")
+_ACCESS_URL = re.compile(r"\bfile:///")
+_ACCESS_PASSIVE_SUBJECT = r"(?:code paths|files|policy schemas|tests?)"
+_ACCESS_PASSIVE = re.compile(
+    rf"\b{_ACCESS_PASSIVE_SUBJECT}\b.{{0,80}}?\b(?P<predicate>analyzed|analysed|inspected|read|viewed)\b"
+    r".{0,80}\b(?:local workspace|active checkout|repository)\b"
+)
+_ACCESS_SENTENCE_BREAK = re.compile(r"[.!?](?=\s|$)|[;\n]")
+_ACCESS_CLAUSE_BREAK = re.compile(
+    r"(?:,\s*|(?<!\s)\s*)\b(?:but|however|then|whereas|before|after|while|because)\b[\s,]+"
+    rf"|(?:,\s*|\b(?:and|or|so)\s+)(?=(?:(?:and|or|so)\s+)?(?:i|we|they|he|she)\b|"
+    rf"(?:(?:all|no|the|some)\s+)?{_ACCESS_PASSIVE_SUBJECT}\s+(?:was|were|has|have|had)\b)"
+    rf"|(?:,\s*|\band\s+)(?={_ACCESS_PAST}\b)"
+)
+_ACCESS_IMPLIED_ACTOR = re.compile(rf"^\s*(?:{_ACCESS_PAST}|read)\b")
+
+
+def _access_clauses(text: str) -> Iterator[str]:
+    for sentence in _ACCESS_SENTENCE_BREAK.split(text):
+        first_person = False
+        for clause in _ACCESS_CLAUSE_BREAK.split(sentence):
+            if first_person and _ACCESS_IMPLIED_ACTOR.match(clause):
+                clause = f"i {clause}"
+            first_person = bool(_ACCESS_ACTOR.search(clause))
+            yield clause
 
 
 def redacted_packet_direct_access_findings(text: str) -> list[str]:
-    findings: list[str] = []
-    patterns = [
-        (
-            r"\b(i|we)\s+(?:am|are|was|were)?\s*(?:analyz(?:e|ing|ed)|analys(?:e|ing|ed)|inspect(?:ing|ed)?|"
-            r"read(?:ing)?|view(?:ing|ed)?|open(?:ing|ed)?|check(?:ing|ed)?)\s+"
-            r"(?:the\s+)?(?:repo|repository|directory structure|workspace|checkout)\b",
-            "redacted packet return claims direct repository or workspace inspection",
-        ),
-        (
-            r"\b(i|we)\s+(?:will|did|have)?\s*(?:view|inspect|read|open|analyz(?:e|ed)|analys(?:e|ed)|check(?:ed)?)\s+"
-            r"`?(?:scripts|docs|policy|tests|schemas|examples|/home/)[^`\n]*",
-            "redacted packet return claims direct local file inspection",
-        ),
-        (
-            r"\bfile:///",
-            "redacted packet return cites local file URL evidence",
-        ),
-        (
-            r"\b(all\s+)?(?:code paths|files|policy schemas|tests?)\b.{0,80}\b(analyzed|analysed|inspected|read|viewed)\b"
-            r".{0,80}\b(local workspace|active checkout|repository)\b",
-            "redacted packet return claims local workspace analysis",
-        ),
-    ]
-    for line in strip_fenced_blocks(text).splitlines():
-        if negates_direct_access_claim(line):
-            continue
-        for pattern, reason in patterns:
-            if re.search(pattern, line, re.I) and reason not in findings:
-                findings.append(reason)
-    return findings
+    findings: dict[str, None] = {}
+    for clause in _access_clauses(strip_fenced_blocks(text).lower()):
+        if any(not claim["denial"] for claim in _ACCESS_REPO.finditer(clause)):
+            findings["redacted packet return claims direct repository or workspace inspection"] = None
+        if any(not claim["denial"] for claim in _ACCESS_FILE.finditer(clause)):
+            findings["redacted packet return claims direct local file inspection"] = None
+        url = _ACCESS_URL.search(clause)
+        if url and not negates_direct_access_claim(clause[:url.start()]):
+            findings["redacted packet return cites local file URL evidence"] = None
+        passive = _ACCESS_PASSIVE.search(clause)
+        if passive and not negates_direct_access_claim(clause[:passive.end("predicate")]):
+            findings["redacted packet return claims local workspace analysis"] = None
+    return list(findings)
 
 
 _VALIDATION_ACTIVITY = r"(?:tests?|repository validation|validate_repository|install(?:ation)? dry[- ]run|compileall)"
@@ -102,9 +113,12 @@ _VALIDATION_RUN_VERB = (
     r"(?:ran|executed|did\s+(?:run|execute)|(?:have|has|had)\s+(?:already\s+)?(?:run|executed))"
 )
 _VALIDATION_ACTIVE_VERB = rf"(?:{_VALIDATION_RUN_VERB}|{_VALIDATION_PAST_VERB})"
+_VALIDATION_OBJECT = (
+    r"(?:(?:a|an|the|all|both|some|several|our|my|its|their|reported|unit|integration|regression|smoke|automated|local|full|\d+)\s+)*"
+    rf"`?{_VALIDATION_ACTIVITY}\b"
+)
 _VALIDATION_ASSERTION = re.compile(
-    rf"\b(?P<action>{_VALIDATION_ACTIVE_VERB})\s+(?:(?:a|an|the|all|both|some|several|our|my|unit|integration|"
-    rf"regression|smoke|automated|local|full|\d+)\s+)*`?{_VALIDATION_ACTIVITY}\b"
+    rf"\b(?P<action>{_VALIDATION_ACTIVE_VERB})\s+{_VALIDATION_OBJECT}"
     rf"|\b{_VALIDATION_ACTIVITY}\b`?(?:\s+(?:suite|suites|execution|results?))?"
     rf"(?:\s+(?:for|of)\s+[\w./-]+(?:\s+[\w./-]+){{0,3}})?(?::\s*\d+)?"
     rf"(?:\s+(?:will|shall|would|should|could|might|may|must|be|been|has|have|had|was|were|is|are|not|never|\w+ly))*"
@@ -113,14 +127,32 @@ _VALIDATION_ASSERTION = re.compile(
 _VALIDATION_CLAUSE_BREAK = re.compile(
     r";|\n[ \t]*\n|\n(?=[ \t]*(?:[-*+]|\d+\.)\s)|[.!?](?=\s|$)"
     r"|\b(?:but|however|whereas|before|after|while)\s+"
-    rf"|(?:,\s*|\b(?:and|or|then|so)\s+)(?=(?:(?:and|or|then|so)\s+)?"
+    rf"|(?:,\s*)?\b(?:and|or|then|so)\s+(?="
     rf"(?:i|we|they|reviewed|reviewing|(?:all|some|the|no|unit)\s+{_VALIDATION_ACTIVITY}|{_VALIDATION_ACTIVITY})\b)"
 )
-_VALIDATION_PACKET_ATTRIBUTION = re.compile(
-    r"\b(?:based on (?:the )?packet|packet validation evidence|reported validation|reported in (?:the )?packet|"
-    r"its reported tests?|packet['’]s reported|(?:provided|supplied) evidence|review(?:ed|ing) (?:the )?(?:provided|supplied)|"
-    r"share page parsed|local (?:chatgpt )?share reader|direct-to-chatgpt/local parser)\b"
+_VALIDATION_SOURCE = (
+    r"(?:(?:the|this|an?)\s+)?(?:(?:attached|provided|supplied)\s+)?"
+    r"(?:packet(?:['’]s)?(?:\s+(?:validation\s+)?(?:evidence|results?|report))?|"
+    r"evidence|summary|report|logs?|attachment|manifest|results?|share page|local (?:chatgpt )?share reader)\b"
 )
+_VALIDATION_REPORTS = r"(?:says?|states?|notes?|reports?|records?|lists?|shows?|indicates?|confirms?|documents?)"
+_VALIDATION_CITATION = (
+    rf"(?:according to|per|based on|against|(?:as\s+)?(?:reported|recorded|shown|noted)\s+(?:in|by))\s+{_VALIDATION_SOURCE}"
+    r"(?!\s+(?:instructions?|directions?|commands?)\b)"
+)
+_VALIDATION_REPORT_PREFIX = re.compile(
+    rf"^\W*(?:packet validation evidence\s*:|{_VALIDATION_CITATION})|\b(?:verified|checked|confirmed)\s*,?\s+{_VALIDATION_CITATION}"
+    rf"|\b{_VALIDATION_SOURCE}\s+{_VALIDATION_REPORTS}\b"
+    r"|\b(?:its|their|(?:packet|summary|report)['’]s)\s+(?:reported|recorded)\b"
+)
+_VALIDATION_REPORT_SUFFIX = re.compile(
+    rf"(?:\s+{_VALIDATION_PAST_VERB}\b)?\s*(?:,?\s*{_VALIDATION_CITATION}|,\s*{_VALIDATION_SOURCE}\s+{_VALIDATION_REPORTS}\s*$)"
+)
+_VALIDATION_EXECUTION = rf"(?:{_VALIDATION_RUN_VERB}|completed|compiled)"
+_VALIDATION_DIRECT_RUN = re.compile(
+    rf"^\W*(?:already\s+)?{_VALIDATION_EXECUTION}\b|\b(?:i|we)\s+(?:\w+ly\s+)?{_VALIDATION_EXECUTION}\s+{_VALIDATION_OBJECT}"
+)
+_VALIDATION_PERSONAL_AGENT = re.compile(r"\s+by\s+(?:me|us)\b")
 _VALIDATION_COORDINATED_ACTION = re.compile(rf"(?:,\s*|\b(?:and|then)\s+)(?={_VALIDATION_ACTIVE_VERB}\b)")
 _VALIDATION_BASE_FORM = re.compile(
     r"\b(?:did|do|does|will|shall|would|should|could|might|may|must)(?:n['’]t|\s+(?:not|never))?"
@@ -131,7 +163,6 @@ _VALIDATION_NON_ASSERTION = re.compile(
     r"plan(?:ned|ning)?|intend(?:ed)?|expect(?:ed|ing)?|scheduled|going to|(?:is|are) to be|yet to|"
     r"(?:ca|did|do|does|has|have|had|is|are|was|were|wo|should|could|would)n['’]t)\b"
 )
-_VALIDATION_DIRECT_RUN = re.compile(rf"^\W*(?:(?:i|we)\s+)?(?:already\s+)?{_VALIDATION_RUN_VERB}\b")
 _VALIDATION_RELATIVE_RUN = re.compile(
     rf"\b{_VALIDATION_ACTIVITY}\b(?:\s+(?:that|which))?\s+(?:i|we)\s+(?:already\s+)?{_VALIDATION_RUN_VERB}\b"
 )
@@ -147,7 +178,12 @@ def _claims_completed_validation(clause: str) -> bool:
     verb = "action" if assertion.group("action") else "result"
     if _VALIDATION_NON_ASSERTION.search(clause, 0, assertion.start(verb)):
         return False
-    return bool(not _VALIDATION_PACKET_ATTRIBUTION.search(clause) or _VALIDATION_DIRECT_RUN.match(clause))
+    if _VALIDATION_DIRECT_RUN.search(clause) or _VALIDATION_PERSONAL_AGENT.match(clause, assertion.end()):
+        return True
+    return not (
+        _VALIDATION_REPORT_PREFIX.search(clause, 0, assertion.end())
+        or _VALIDATION_REPORT_SUFFIX.match(clause, assertion.end())
+    )
 
 
 def redacted_packet_validation_claim_unsupported(value: str) -> bool:
@@ -156,7 +192,7 @@ def redacted_packet_validation_claim_unsupported(value: str) -> bool:
         # A separate past-tense action can share a subject with a packet review
         # or a verb in the base form. Perfect-tense verbs can share an auxiliary.
         claims = [clause]
-        if _VALIDATION_PACKET_ATTRIBUTION.search(clause) or _VALIDATION_BASE_FORM.search(clause):
+        if _VALIDATION_REPORT_PREFIX.search(clause) or _VALIDATION_BASE_FORM.search(clause):
             claims = _VALIDATION_COORDINATED_ACTION.split(clause)
         if any(_claims_completed_validation(claim) for claim in claims):
             return True

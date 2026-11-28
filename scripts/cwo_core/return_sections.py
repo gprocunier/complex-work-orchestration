@@ -124,11 +124,17 @@ def parse_return_header(line: str) -> tuple[str, str] | None:
     return None
 
 
-def parse_return_sections(text: str) -> dict[str, str]:
+def parse_return_sections(text: str, *, superseded: dict[str, list[str]] | None = None) -> dict[str, str]:
     sections: dict[str, str] = {}
     current: str | None = None
     buffer: list[str] = []
     in_fence = False
+
+    def store(section: str) -> None:
+        if superseded is not None and section in sections:
+            superseded.setdefault(section, []).append(sections[section])
+        sections[section] = "\n".join(buffer).strip()
+
     for line in text.splitlines():
         fence = re.match(r"^\s*(```|~~~)", line)
         if fence:
@@ -136,22 +142,32 @@ def parse_return_sections(text: str) -> dict[str, str]:
         parsed = None if fence or in_fence else parse_return_header(line)
         if parsed:
             if current:
-                sections[current] = "\n".join(buffer).strip()
+                store(current)
             current, value = parsed
             buffer = [value] if value else []
         elif current:
             buffer.append(line)
     if current:
-        sections[current] = "\n".join(buffer).strip()
+        store(current)
     return sections
 
 
 class SectionReader:
     """Cached normalized lookup for parsed contractor-return sections."""
 
-    def __init__(self, sections: dict[str, str]) -> None:
+    def __init__(self, sections: dict[str, str], *, superseded: dict[str, list[str]] | None = None) -> None:
         self.sections = sections
+        self._superseded = superseded or {}
         self.normalized = {section_lookup_key(key): value for key, value in sections.items()}
+
+    @classmethod
+    def from_text(cls, text: str) -> SectionReader:
+        superseded: dict[str, list[str]] = {}
+        return cls(parse_return_sections(text, superseded=superseded), superseded=superseded)
+
+    def occurrences(self, name: str) -> list[str]:
+        canonical = canonical_return_section(name) or name
+        return [*self._superseded.get(canonical, ()), self.value(canonical)]
 
     def value(self, *names: str) -> str:
         for name in names:

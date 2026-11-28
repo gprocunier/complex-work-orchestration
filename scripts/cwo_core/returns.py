@@ -396,8 +396,8 @@ def normalize_contractor_return(
     expected_return_language_source: str | None = None,
     workspace_mutation: dict[str, Any] | None = None,
 ) -> ContractorReturnBundle:
-    sections = parse_return_sections(text)
-    reader = SectionReader(sections)
+    reader = SectionReader.from_text(text)
+    sections = reader.sections
     required = load_policy("acceptance-policy").get("contractor_return_required_sections", [])
     missing = [section for section in required if not sections.get(section)]
     research_evidence = score_research_evidence(sections, reader=reader)
@@ -483,6 +483,10 @@ def unknown_delivery_readiness() -> dict[str, Any]:
     return {"state": "unknown", "checks": [], "observation_sha256": None}
 
 
+def _research_disqualifiers(research: ResearchEvidenceQuality) -> list[str]:
+    return ["invalid structured research evidence"] if research.get("research_evidence_rejections") else []
+
+
 def evaluation_report(evaluation: dict[str, Any]) -> dict[str, Any]:
     """Project an evaluator result for reporting without changing its bound payload."""
     return {**evaluation, "evidence_disposition": evaluation["recommended_disposition"],
@@ -546,15 +550,15 @@ def make_acceptance_decision(
         executor=executor, provider_key=provider_key, provider_trust_tier=provider_trust_tier,
         dispatch_mode=dispatch_mode, local_profile=local_profile, model_profile=model_profile,
     )
-    sections = parse_return_sections(text)
-    reader = SectionReader(sections)
+    reader = SectionReader.from_text(text)
+    sections = reader.sections
     required = policy.get("contractor_return_required_sections", [])
     missing = [section for section in required if not sections.get(section)]
     penalties = policy.get("score", {}).get("penalties", {})
     score = int(policy.get("score", {}).get("start", 100))
     penalty_reasons: list[str] = []
-    hard_disqualifiers: list[str] = []
     research_evidence = score_research_evidence(sections, reader=reader)
+    hard_disqualifiers = _research_disqualifiers(research_evidence)
     master_review_controls = parse_master_review_surface_controls(
         sections,
         reader=reader,
@@ -849,15 +853,7 @@ def make_acceptance_decision(
         "hard_disqualifiers": hard_disqualifiers,
         **sabotage,
         **evidence_quality,
-        "research_evidence_present": research_evidence["research_evidence_present"],
-        "research_evidence_items": research_evidence["research_evidence_items"],
-        "research_contradictions": research_evidence["research_contradictions"],
-        "research_reflection": research_evidence["research_reflection"],
-        "research_evidence_score": research_evidence["research_evidence_score"],
-        "research_evidence_signals": research_evidence["research_evidence_signals"],
-        "research_evidence_signal_categories": research_evidence["research_evidence_signal_categories"],
-        "research_unresolved_contradiction_count": research_evidence["research_unresolved_contradiction_count"],
-        "research_replan_recommended": research_evidence["research_replan_recommended"],
+        **research_evidence,
         **malpractice,
         "signal_categories": signal_categories,
         "peer_review_required": peer_required,

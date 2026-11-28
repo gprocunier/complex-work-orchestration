@@ -240,6 +240,9 @@ def _finite_float(token: str) -> float:
 
 
 def _finite_int(token: str) -> int:
+    # Bound the conversion even when Python's configurable integer guard is off.
+    if len(token.removeprefix("-")) > sys.float_info.max_10_exp + 1:
+        raise ValueError("integer is outside the finite number range")
     value = int(token)
     if abs(value) > sys.float_info.max:
         raise ValueError(f"integer of {len(token)} characters is outside the finite number range")
