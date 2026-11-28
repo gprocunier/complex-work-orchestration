@@ -183,7 +183,7 @@
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --mode</span><span class="shiki-style-fccf53bf0d08ec6a"> manual</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --workload</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$WORKLOAD_FILE</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-dispatch-prompt.md</span></span></code></pre>
-            <p>The demo guide prescribed a separate worktree or branch per contractor and repository commands running as the repo owner. Its CLI instructions named the intended directory, branch, allowed paths and command limits. The historical checklist also required workspace snapshots before and after the call. For new assignments, use the <a href="./external-contracting.html#return">current workspace guard procedure</a>.</p>
+            <p>The demo guide prescribed a separate worktree or branch per contractor and repository commands running as the repo owner. Its CLI instructions named the intended directory, branch, allowed paths and command limits. The historical checklist called for <code>workspace_mutation_guard.py</code> to snapshot the workspace before the call and compare it afterward. For new assignments, use the <a href="./external-contracting.html#return">current workspace guard procedure</a>.</p>
             <div class="callout">
               <strong>Ignored artifacts:</strong>
               Packet JSON, rendered prompts, and contractor returns are useful
@@ -194,6 +194,7 @@
 
           <section id="returns">
             <h2>How returned work was checked</h2>
+            <p>The demo guide called for saving the reply as <code>contractor-return.md</code>, then normalizing it with <code>normalize_contractor_return.py</code> and checking it with <code>evaluate_return.py</code>.</p>
             <p>
               Treat contractor output as evidence. For a new managed assignment,
               use the <a href="./external-contracting.html#return">current return procedure</a>
