@@ -170,6 +170,9 @@ approved, qualified environment.
 
 The workshop handoff comparison records decisions, elapsed time, and token
 use for CWO and plain Codex on six fixed cases. [Evaluation evidence](references/evaluation-evidence.md#workshop-handoff-comparison)
+Three paired print-preview runs also measured what a fresh session retained
+and how long both workflows took to recover a corrected proof.
+[Interrupted handoff comparison](references/evaluation-evidence.md#interrupted-print-preview-comparison)
 
 [![CWO delegation, fanout, live supervision and acceptance flow](docs/illustrations/supervised-delegation.svg)](https://gprocunier.github.io/complex-work-orchestration/#supervised-execution)
 
