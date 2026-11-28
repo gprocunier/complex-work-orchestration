@@ -12,6 +12,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "scripts"))
 from browser_request import prepare_browser_packet_request
 from cwo_core.outbound_screen import OutboundRefused
 from generate_manual_dispatch_prompt import render_packet_prompt
+from tests.dispatch_workload_fixture import write_workload
 from tests.test_outbound_screen import packet_with, with_provenance
 
 
@@ -23,8 +24,9 @@ class BrowserPacketRequestTests(unittest.TestCase):
             path = Path(tmp) / "packet.json"
             original = json.dumps(packet).encode("utf-8")
             path.write_bytes(original)
+            workload = write_workload(path.with_name("workload.json"), packet, browser=True)
             with patch("browser_request.secrets.token_hex", return_value=request_id) as nonce:
-                request = prepare_browser_packet_request(path)
+                request = prepare_browser_packet_request(path, workload_path=workload)
             nonce.assert_called_once_with(16)
 
             prompt = render_packet_prompt(packet)

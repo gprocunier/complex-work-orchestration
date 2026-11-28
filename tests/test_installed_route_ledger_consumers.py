@@ -167,7 +167,7 @@ boundary_calls = {
     ("cwo_core.beads", "run_bd_structured"): "beads-structured",
 }
 producer_calls = {
-    ("prepare_route_feasibility", "prepare"): "planner",
+    ("cwo_core.route_feasibility", "prepare"): "planner",
     ("cwo_core.invocation_ledger", "validate_ledger"): "validator",
     ("cwo_core.invocation_ledger", "derived_charge"): "charge",
 }
@@ -347,7 +347,8 @@ def bindings():
         found.append({"name": name, "package": hasattr(module, "__path__"),
                       **file_identity(path)})
     assert names | {"cwo_core", "cwo_core.invocation_ledger", "cwo_core.work_sizing",
-                    "cwo_core.native_authority", "cwo_core.local_invocation", "cwo_core.beads"} <= {item["name"] for item in found}
+                    "cwo_core.native_authority", "cwo_core.local_invocation", "cwo_core.beads",
+                    "cwo_core.route_feasibility"} <= {item["name"] for item in found}
     assert not any(name == "tests" or name.startswith("tests.") for name in sys.modules)
     return sorted(found, key=lambda item: item["name"])
 
@@ -543,6 +544,7 @@ class InstalledRouteLedgerConsumerTests(unittest.TestCase):
         self.assertTrue({
             "SECURITY.md", "policy/install-projection.yaml",
             "scripts/prepare_route_ledger_reconciliation.py", "scripts/prepare_route_feasibility.py",
+            "scripts/cwo_core/route_feasibility.py",
             "scripts/cwo_core/invocation_ledger.py", "scripts/cwo_core/work_sizing.py",
             "scripts/cwo_core/native_authority.py", "scripts/cwo_core/util.py",
         } <= paths, "EXAMPLE reliability runtime prerequisite is missing")
@@ -873,7 +875,7 @@ class InstalledRouteLedgerConsumerTests(unittest.TestCase):
             "tests/test_invocation_ledger.py", "tests/fixtures/route-feasibility-preparation.json",
             "scripts/prepare_route_ledger_reconciliation.py", "scripts/prepare_route_feasibility.py",
             "scripts/check_installed_skill.py", "scripts/cwo_core/invocation_ledger.py",
-            "scripts/cwo_core/work_sizing.py", "scripts/cwo_core/native_authority.py",
+            "scripts/cwo_core/work_sizing.py", "scripts/cwo_core/native_authority.py", "scripts/cwo_core/route_feasibility.py",
             "policy/native-worker-execution.yaml",
         )
         return [file_identity(fixture.ROOT / name) for name in sorted(paths)]
@@ -925,7 +927,8 @@ class InstalledRouteLedgerConsumerTests(unittest.TestCase):
         self.assertEqual(names, sorted(set(names)))
         required = {"prepare_route_ledger_reconciliation", "prepare_route_feasibility", "check_installed_skill",
                     "cwo_core", "cwo_core.invocation_ledger", "cwo_core.work_sizing",
-                    "cwo_core.native_authority", "cwo_core.local_invocation", "cwo_core.beads"}
+                    "cwo_core.native_authority", "cwo_core.local_invocation", "cwo_core.beads",
+                    "cwo_core.route_feasibility"}
         self.assertTrue(required <= set(names), "EXAMPLE reliability required origin is absent")
         files = {item["path"]: item["sha256"] for item in self.expected["files"]}
         for item in origins:

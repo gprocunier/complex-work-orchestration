@@ -175,11 +175,14 @@ class PreparedManualTests(unittest.TestCase):
                                 self.assertEqual(hashlib.sha256(output.getvalue().encode("utf-8")).hexdigest(), hashlib.sha256(scanned[-1]).hexdigest())
 
     def test_packet_file_changed_after_screen_refuses_at_both_consumers(self):
+        from tests.dispatch_workload_fixture import write_workload
+
         for module in (manual, dispatch_work):
             with self.subTest(route=module.__name__), tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "packet.json"
                 packet = helpers.packet_with("Review the plan.")
                 path.write_text(json.dumps(packet), encoding="utf-8")
+                workload = write_workload(path.with_name("workload.json"), packet)
                 target = "screen_export" if module is dispatch_work else "require_clean"
                 original = getattr(module, target)
 
@@ -189,7 +192,7 @@ class PreparedManualTests(unittest.TestCase):
                     return token
 
                 output = io.StringIO()
-                with patch.object(sys, "argv", [module.__name__, "--packet", str(path)]), \
+                with patch.object(sys, "argv", [module.__name__, "--packet", str(path), "--workload", workload]), \
                         contextlib.redirect_stdout(output), patch.object(module, target, side_effect=change), \
                         helpers.with_provenance(packet), contextlib.ExitStack() as stack:
                     if module is dispatch_work:
@@ -223,6 +226,8 @@ class PreparedManualTests(unittest.TestCase):
                     self.assertEqual(audit.call_count, 0, "refusal reached an effect")
 
     def _packet_run(self, module, mutation=None, *, as_json=False, callback="screen", packet=None):
+        from tests.dispatch_workload_fixture import write_workload
+
         packet = packet or helpers.packet_with("Review the retry plan.")
         output = io.StringIO()
         real_screen = module.screen_export if module is dispatch_work else module.require_clean
@@ -240,7 +245,8 @@ class PreparedManualTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "packet.json"
             path.write_text(json.dumps(packet), encoding="utf-8")
-            argv = [module.__name__, "--packet", str(path), *(["--json"] if as_json else [])]
+            workload = write_workload(path.with_name("workload.json"), packet)
+            argv = [module.__name__, "--packet", str(path), "--workload", workload, *(["--json"] if as_json else [])]
             with contextlib.ExitStack() as stack:
                 stack.enter_context(patch.object(sys, "argv", argv))
                 stack.enter_context(contextlib.redirect_stdout(output))

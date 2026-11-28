@@ -14,7 +14,7 @@ from cwo_core.packet_provenance import require_packet_export_approval, require_p
 from cwo_core.packets import contractor_packet_language_metadata
 from cwo_core.prepared_outbound import PreparedOutbound, PreparedSource
 from cwo_core.util import artifact_hash
-from generate_manual_dispatch_prompt import load_packet_file, render_packet_prompt
+from generate_manual_dispatch_prompt import load_packet_file, render_packet_prompt, require_packet_workload
 
 
 EXECUTOR_KEY = "chatgpt_pro_browser_master_reviewer"
@@ -123,12 +123,14 @@ class PreparedBrowserPacketRequest:
                 "request_id": self.request_id,
                 "outbound_prepared_sha256": self.outbound.sha256,
                 "submitted_user_sha256": artifact_hash(normalize_browser_request(submitted)),
+                "dispatch_workload": metadata["dispatch_workload"],
             },
         )
 
 
 def prepare_browser_packet_request(
     packet_path: str | Path, *, audit_file: Path | None = None, request_id: str | None = None,
+    workload_path: str | Path | None = None,
 ) -> PreparedBrowserPacketRequest:
     """Screen a production request, generating an ID unless resuming a recorded preparation."""
     path = str(packet_path)
@@ -139,5 +141,11 @@ def prepare_browser_packet_request(
     capture = PreparedSource.capture(source, packet_source.files)
     if request_id is None:
         request_id = secrets.token_hex(16)
-    outbound = prepare_browser_submission(bound_request(prompt, request_id), capture=capture, source=source)
+    submitted = bound_request(prompt, request_id)
+    screened = prepare_browser_submission(submitted, capture=capture, source=source).payload
+    files = list(packet_source.files)
+    metadata["dispatch_workload"] = require_packet_workload(
+        workload_path, packet_source.value()["packet"], prompt.rstrip(), files, wire_text=submitted,
+    )
+    outbound = PreparedSource.capture(source, files).bind(source, screened)
     return PreparedBrowserPacketRequest(request_id, packet_source, outbound)

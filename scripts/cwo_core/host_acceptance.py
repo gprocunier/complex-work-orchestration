@@ -130,6 +130,7 @@ class HostAcceptancePipeline:
 
 def _host_inputs(dispatch, bead_id, dispatch_id):
     metadata = _copy(dispatch.get("evaluation_metadata") or {})
+    metadata.pop("dispatch_workload", None)
     metadata.pop("source_context", None)
     metadata.pop("codex_reasoning", None)
     metadata.pop("codex_retry_evidence", None)

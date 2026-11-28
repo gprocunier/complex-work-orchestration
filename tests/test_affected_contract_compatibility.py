@@ -170,6 +170,9 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
         self.assertIn(preview, manifest["local_import_edges"][manifest["installed_child_probe"]["producer"]])
         self.assertIn("scripts/qualified_review_dispatch.py",
                       manifest["local_import_edges"]["scripts/dispatch_work.py"])
+        planner = "scripts/cwo_core/route_feasibility.py"
+        self.assertIn(planner, observed["loaded_python_files"]["loaded_local_paths"])
+        self.assertIn(planner, manifest["local_import_edges"]["scripts/prepare_route_feasibility.py"])
         self.assertEqual(
             set(manifest["local_import_edges"]["tests/test_local_admission_preparation.py"]),
             {"scripts/prepare_local_admission.py", "scripts/prepare_route_feasibility.py",
@@ -184,7 +187,8 @@ class AffectedContractCompatibilityTests(unittest.TestCase):
 
     def test_omitted_transition_module_refuses_the_actual_loaded_consumer_closure(self):
         manifest = json.loads((ROOT / checkpoint.MANIFEST).read_bytes())
-        for dependency in ("scripts/cwo_core/workspace_transition.py", "scripts/cwo_core/atomic_spawn.py"):
+        for dependency in ("scripts/cwo_core/workspace_transition.py", "scripts/cwo_core/atomic_spawn.py",
+                           "scripts/cwo_core/route_feasibility.py"):
             with self.subTest(dependency=dependency):
                 self.assertIn(dependency, manifest["files"])
                 self.assertIn(dependency, manifest["current_file_modes"])

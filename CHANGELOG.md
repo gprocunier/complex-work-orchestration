@@ -4,6 +4,7 @@
 
 - Add an optional architecture-design profile that gives the architect Bead a design package covering caller experience, interfaces, alternatives, validation and rollback.
 - Carry required inputs into managed expert reviews, report delivery readiness from checked obligations, and count corrective work and first acceptance attempts in convergence reports.
+- Require workload-derived sizing before managed contractor and desktop browser exports and internal Codex critic and peer-review preparation. Supply the original route plan for the exact request when preparing a new dispatch.
 - Archive historical campaign digest helpers and canary steering receipt verification and writing. Use the [pinned source revisions](references/native-live-route-holds.md#historical-campaign-verification) to inspect old records.
 - Keep routed risk from dropping when text is appended to a task under the same scope. Retain earlier expert and feature evidence, and start tasks without positive risk evidence at low risk.
 - Require host-owned approval for managed contractor exports. Rebuild existing packets before exporting them under the new approval check. Protected synthesis uses original records held by the separate host principal.

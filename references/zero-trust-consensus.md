@@ -83,7 +83,16 @@ records provides no protected observation.
 
 For a protected review, run the original preparation and capture as the host
 account. Invoke the helpers by path from the protected installation while
-working in the assigned target checkout. An embedding host uses
+working in the assigned target checkout. Prepare internal Codex critic and
+peer requests with the original workload plan before sending. Pass the exact
+critic prompt to `prepare_codex_critic_request(..., workload=...)`. For
+`prepare_codex_peer_review_request(..., workload=...)`, use the exact received
+return encoded as a JSON string with `ensure_ascii=False` as the selected
+node's prompt. Account for the generated review wrapper in that node's
+input allowance.
+[Dispatch readiness](run-readiness.md#dispatch-readiness)
+
+An embedding host uses
 `record_codex_critic_completion` or `record_gemini_critic_completion` with
 `configured_store()` to verify the process it launched, record the observed
 dispatch, and bind the exact reply to its receipt. Use `evaluate_return.py`

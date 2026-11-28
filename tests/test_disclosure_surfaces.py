@@ -199,6 +199,8 @@ class DisclosureSurfaceTests(helpers._OutboundHelpers, unittest.TestCase):
                     self._browser_case(row, clean_packet, "0" * 32, control=False, errors=[], rendered_packet=packet_for(row))
 
     def _browser_case(self, row, packet, request_id, *, control, errors, rendered_packet=None):
+        from tests.dispatch_workload_fixture import write_workload
+
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / "packet.json"
             path.write_text(json.dumps(packet), encoding="utf-8")
@@ -206,8 +208,11 @@ class DisclosureSurfaceTests(helpers._OutboundHelpers, unittest.TestCase):
                 browser_request, "render_packet_prompt", side_effect=lambda p: rendered(rendered_packet or p, row, control=control)
             ) as render:
                 if control:
-                    request = browser_request.prepare_browser_packet_request(path, request_id=request_id)
-                    expected = browser_request.bound_request(rendered(packet, row, control=True), request_id)
+                    prompt = rendered(packet, row, control=True)
+                    workload = write_workload(path.with_name("workload.json"), packet, browser=True, prompt=prompt)
+                    request = browser_request.prepare_browser_packet_request(path, request_id=request_id,
+                                                                             workload_path=workload)
+                    expected = browser_request.bound_request(prompt, request_id)
                     self.assertEqual(digest(request.require_unchanged()), digest(expected))
                 else:
                     with self.assertRaises(SystemExit) as caught:

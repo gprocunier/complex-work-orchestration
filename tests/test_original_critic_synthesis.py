@@ -13,6 +13,7 @@ sys.path.insert(0, str(ROOT / 'scripts'))
 
 from build_contractor_packet import main as build_main
 from cwo_core.codex_critic_capture import (
+    prepare_codex_critic_request,
     prepare_codex_peer_review_request,
     record_codex_critic_completion,
     record_codex_peer_review_completion,
@@ -27,8 +28,9 @@ from cwo_core.returns import make_acceptance_decision
 from dispatch_work import main as dispatch_main
 from evaluate_return import main as evaluate_main
 from evaluate_synthesis import main as synthesis_main
+from tests.dispatch_workload_fixture import write_workload
 from tests.outbound_approval_helpers import REFERENCE, approved_outbound, outbound_grant
-from tests.test_codex_critic_capture import OriginalCodexProcess, jsonl, sha
+from tests.test_codex_critic_capture import OriginalCodexProcess, jsonl, planned_critic, sha
 from tests.test_zero_trust_consensus import claim
 
 
@@ -69,12 +71,11 @@ class OriginalCriticSynthesisTests(unittest.TestCase):
 
     def _codex(self):
         request = (QUESTION + '\nUse the original contractor return template.\n').encode()
-        self.store.write_dispatch(dispatch_id='codex', dispatch_role='executor', provider='openai',
-            model_family=None, model_id=None, reasoning_effort=None, session_id=None,
-            request_sha256=sha(request), bead_id='retry-architecture', executor='codex_architecture_critic',
-            provider_key='internal_codex', evaluation_metadata=dict(dispatch_mode='main_thread_review',
-                share_boundary='redacted-packet', job_description_label=JOB, peer_review_required=False))
-        process = OriginalCodexProcess(self.root, request, self._return('3'))
+        prepared = prepare_codex_critic_request(self.store, 'codex', request=request, bead_id='retry-architecture',
+            workload=planned_critic(request.decode(), bead_id='retry-architecture'),
+            evaluation_metadata=dict(share_boundary='redacted-packet', job_description_label=JOB,
+                                     peer_review_required=False))
+        process = OriginalCodexProcess(self.root, prepared.request, self._return('3'))
         observed = record_codex_critic_completion(self.store, 'codex', request=request, **process.inputs())
         dispatch = self.store.require_dispatch('codex')
         report = observed.final.decode()
@@ -91,7 +92,9 @@ class OriginalCriticSynthesisTests(unittest.TestCase):
             '--epic', 'original-critic-synthesis', '--share-boundary', 'redacted-packet', '--format', 'json',
             '--dispatch-id', 'gemini')
         packet_path = self._write_json('gemini-packet.json', packet)
-        preparation = self._run_cli('dispatch_work.py', dispatch_main, '--packet', packet_path, '--json')
+        workload = write_workload(self.root / 'gemini-workload.json', packet)
+        preparation = self._run_cli('dispatch_work.py', dispatch_main, '--packet', packet_path,
+                                    '--workload', workload, '--json')
         return packet_path, preparation['manual_prompt']
 
     def _gemini(self, value):
@@ -115,7 +118,10 @@ class OriginalCriticSynthesisTests(unittest.TestCase):
         pending = self._run_cli('evaluate_return.py', evaluate_main, *evaluator, '--peer-review-status', 'pending')
         self.assertIn('peer-review-pending', pending['hold_reasons'])
         self.assertFalse(pending['accepted_for_use'])
-        request = prepare_codex_peer_review_request(self.store, 'peer', target_dispatch_id='gemini', target_return=raw)
+        workload = planned_critic(json.dumps(raw.decode(), ensure_ascii=False), bead_id='retry-architecture',
+                                 effort='high')
+        request = prepare_codex_peer_review_request(self.store, 'peer', target_dispatch_id='gemini',
+                                                    target_return=raw, workload=workload)
         self.assertEqual(request.command_effort_arguments, ('-c', 'model_reasoning_effort="high"'))
         reviewer = dict(provider='openai', model_family='gpt', model_id=resolve_model('sol'),
                         reasoning_effort='high', dispatch_id='peer')

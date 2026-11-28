@@ -687,6 +687,55 @@ def _aggregate_budget_covers(work_estimate: Mapping[str, Any], budget: Mapping[s
     )
 
 
+def _candidate_eligibility(
+    record: Mapping[str, Any], executor: Mapping[str, Any], model: str,
+    policy: Mapping[str, Any], evaluated_at: str, risk_level: str, data_sensitivity: str,
+) -> dict[str, bool]:
+    return {
+        "live_available": (
+            bool(record)
+            and record.get("available") is True
+            and _string(record.get("quota_status")) == "usable"
+            and _string(record.get("capacity_status")) == "available"
+        ),
+        "evidence_fresh": bool(record) and _fresh(record.get("observed_at"), evaluated_at, policy),
+        "exact_model": bool(record) and record.get("exact_model_available") is True and _string(record.get("model")) == model,
+        "control_eligible": bool(record) and _surface_controls_valid(record, policy),
+        "risk_eligible": _risk_allowed(risk_level, _string(executor.get("max_risk"))),
+        "data_sensitivity_eligible": _sensitivity_allowed(data_sensitivity, _string(executor.get("max_data_sensitivity"))),
+    }
+
+
+def _candidate_exclusions(
+    record: Mapping[str, Any], executor: Mapping[str, Any], classifications: Mapping[str, Any],
+    eligibility: Mapping[str, bool], *, trusted_source: bool,
+) -> list[str]:
+    if record:
+        exclusions = [reason for check, reason in (
+            (trusted_source, "model-evidence-source-untrusted"),
+            (eligibility["evidence_fresh"], "model-evidence-stale"),
+            (eligibility["exact_model"], "exact-model-evidence-mismatch"),
+            (record.get("available") is True, "model-not-live-available"),
+            (_string(record.get("quota_status")) == "usable", "model-quota-not-usable"),
+            (_string(record.get("capacity_status")) == "available", "model-capacity-not-available"),
+            (eligibility["control_eligible"], "required-operative-controls-missing"),
+        ) if not check]
+    else:
+        exclusions = ["trusted-live-model-evidence-missing"]
+    exclusions.extend(reason for check, reason in (
+        (executor.get("model_role") == "operative-worker" and executor.get("external") is False,
+         "executor-not-internal-operative-worker"),
+        (all(executor.get(key) is True for key in ("supports_repo_read", "supports_repo_write", "supports_shell")),
+         "executor-operative-io-capability-missing"),
+        (executor.get("explicit_opt_in_required") is True and executor.get("fallback_only") is True,
+         "executor-fallback-opt-in-policy-missing"),
+        (eligibility["risk_eligible"], "executor-risk-limit-exceeded"),
+        (eligibility["data_sensitivity_eligible"], "executor-data-sensitivity-limit-exceeded"),
+        (classifications.get("work_route_eligible") is True, "work-estimate-not-operative-route"),
+    ) if not check)
+    return exclusions
+
+
 def _candidate_fit(
     *,
     executor_key: str,
@@ -704,50 +753,13 @@ def _candidate_fit(
     data_sensitivity: str,
 ) -> dict[str, Any]:
     record = _model_record(evidence, executor_key, model)
-    exclusions: list[str] = []
     inclusions: list[str] = []
     trusted_sources = set(_string_list(policy.get("trusted_evidence_sources")))
     record_source = _string(record.get("source")) or _string(evidence.get("source"))
-    record_fresh = bool(record) and _fresh(record.get("observed_at"), evaluated_at, policy)
-    exact_model = bool(record) and record.get("exact_model_available") is True and _string(record.get("model")) == model
-    live_available = (
-        bool(record)
-        and record.get("available") is True
-        and _string(record.get("quota_status")) == "usable"
-        and _string(record.get("capacity_status")) == "available"
-    )
-    controls_valid = bool(record) and _surface_controls_valid(record, policy)
-    risk_allowed = _risk_allowed(risk_level, _string(executor.get("max_risk")))
-    sensitivity_allowed = _sensitivity_allowed(data_sensitivity, _string(executor.get("max_data_sensitivity")))
+    eligibility = _candidate_eligibility(record, executor, model, policy, evaluated_at, risk_level, data_sensitivity)
 
-    if not record:
-        exclusions.append("trusted-live-model-evidence-missing")
-    if record and record_source not in trusted_sources:
-        exclusions.append("model-evidence-source-untrusted")
-    if record and not record_fresh:
-        exclusions.append("model-evidence-stale")
-    if record and not exact_model:
-        exclusions.append("exact-model-evidence-mismatch")
-    if record and record.get("available") is not True:
-        exclusions.append("model-not-live-available")
-    if record and _string(record.get("quota_status")) != "usable":
-        exclusions.append("model-quota-not-usable")
-    if record and _string(record.get("capacity_status")) != "available":
-        exclusions.append("model-capacity-not-available")
-    if record and not controls_valid:
-        exclusions.append("required-operative-controls-missing")
-    if executor.get("model_role") != "operative-worker" or executor.get("external") is not False:
-        exclusions.append("executor-not-internal-operative-worker")
-    if executor.get("supports_repo_read") is not True or executor.get("supports_repo_write") is not True or executor.get("supports_shell") is not True:
-        exclusions.append("executor-operative-io-capability-missing")
-    if executor.get("explicit_opt_in_required") is not True or executor.get("fallback_only") is not True:
-        exclusions.append("executor-fallback-opt-in-policy-missing")
-    if not risk_allowed:
-        exclusions.append("executor-risk-limit-exceeded")
-    if not sensitivity_allowed:
-        exclusions.append("executor-data-sensitivity-limit-exceeded")
-    if classifications.get("work_route_eligible") is not True:
-        exclusions.append("work-estimate-not-operative-route")
+    exclusions = _candidate_exclusions(record, executor, classifications, eligibility,
+                                       trusted_source=record_source in trusted_sources)
 
     task_fit = "compatible"
     cache_strategy_valid = False
@@ -809,12 +821,7 @@ def _candidate_fit(
         "quota_domain": _string(record.get("quota_domain")) or None,
         "cached_input_metering_domain": _string(record.get("cached_input_metering_domain")) or None,
         "domain_independent": domain_independent,
-        "live_available": live_available,
-        "evidence_fresh": record_fresh,
-        "exact_model": exact_model,
-        "control_eligible": controls_valid,
-        "risk_eligible": risk_allowed,
-        "data_sensitivity_eligible": sensitivity_allowed,
+        **eligibility,
         "headroom_sufficient": headroom_sufficient,
         "aggregate_budget_sufficient": aggregate_budget_sufficient,
         "eligible": eligible,
@@ -1080,14 +1087,9 @@ def _task_selected_candidate_fit(
     """Build inert fit evidence for an exact model under its operative role."""
     find_record = _exact_model_record if version == TASK_SELECTED_VERSION else _model_record
     record = find_record(evidence, executor_key, model)
-    exclusions: list[str] = []
     trusted_sources = set(_string_list(policy.get("trusted_evidence_sources")))
     record_source = _string(record.get("source")) or _string(evidence.get("source"))
-    record_fresh = bool(record) and _fresh(record.get("observed_at"), evaluated_at, policy)
-    exact_model = bool(record) and record.get("exact_model_available") is True and _string(record.get("model")) == model
-    controls_valid = bool(record) and _surface_controls_valid(record, policy)
-    risk_allowed = _risk_allowed(risk_level, _string(executor.get("max_risk")))
-    sensitivity_allowed = _sensitivity_allowed(data_sensitivity, _string(executor.get("max_data_sensitivity")))
+    eligibility = _candidate_eligibility(record, executor, model, policy, evaluated_at, risk_level, data_sensitivity)
     required_headroom = int(_mapping(work_estimate.get("estimates")).get("context_tokens_p90", 0))
     maintenance = aggregate_budget.get("mode") == "maintenance-unbounded"
     if maintenance:
@@ -1105,41 +1107,9 @@ def _task_selected_candidate_fit(
             and "context_window_source" not in record
         )
     aggregate_budget_sufficient = _task_selected_budget_covers(work_estimate, aggregate_budget)
-    live_available = (
-        bool(record)
-        and record.get("available") is True
-        and _string(record.get("quota_status")) == "usable"
-        and _string(record.get("capacity_status")) == "available"
-    )
 
-    if not record:
-        exclusions.append("trusted-live-model-evidence-missing")
-    if record and record_source not in trusted_sources:
-        exclusions.append("model-evidence-source-untrusted")
-    if record and not record_fresh:
-        exclusions.append("model-evidence-stale")
-    if record and not exact_model:
-        exclusions.append("exact-model-evidence-mismatch")
-    if record and record.get("available") is not True:
-        exclusions.append("model-not-live-available")
-    if record and _string(record.get("quota_status")) != "usable":
-        exclusions.append("model-quota-not-usable")
-    if record and _string(record.get("capacity_status")) != "available":
-        exclusions.append("model-capacity-not-available")
-    if record and not controls_valid:
-        exclusions.append("required-operative-controls-missing")
-    if executor.get("model_role") != "operative-worker" or executor.get("external") is not False:
-        exclusions.append("executor-not-internal-operative-worker")
-    if executor.get("supports_repo_read") is not True or executor.get("supports_repo_write") is not True or executor.get("supports_shell") is not True:
-        exclusions.append("executor-operative-io-capability-missing")
-    if executor.get("explicit_opt_in_required") is not True or executor.get("fallback_only") is not True:
-        exclusions.append("executor-fallback-opt-in-policy-missing")
-    if not risk_allowed:
-        exclusions.append("executor-risk-limit-exceeded")
-    if not sensitivity_allowed:
-        exclusions.append("executor-data-sensitivity-limit-exceeded")
-    if classifications.get("work_route_eligible") is not True:
-        exclusions.append("work-estimate-not-operative-route")
+    exclusions = _candidate_exclusions(record, executor, classifications, eligibility,
+                                       trusted_source=record_source in trusted_sources)
     if not headroom_sufficient:
         exclusions.append("model-headroom-insufficient")
     if not aggregate_budget_sufficient:
@@ -1173,12 +1143,7 @@ def _task_selected_candidate_fit(
         "quota_domain": _string(record.get("quota_domain")) or None,
         "cached_input_metering_domain": _string(record.get("cached_input_metering_domain")) or None,
         "domain_independent": False,
-        "live_available": live_available,
-        "evidence_fresh": record_fresh,
-        "exact_model": exact_model,
-        "control_eligible": controls_valid,
-        "risk_eligible": risk_allowed,
-        "data_sensitivity_eligible": sensitivity_allowed,
+        **eligibility,
         "headroom_sufficient": headroom_sufficient,
         "aggregate_budget_sufficient": aggregate_budget_sufficient,
         "eligible": eligible,
