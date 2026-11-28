@@ -107,12 +107,12 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         return R.check(root, output, "EXAMPLE-review.json", R.digest(raw))
 
     def test_registered_pipe_keeps_actual_release_declarations_unambiguous(self):
-        path = "scripts/registered_n1_factory.py"
-        contents = {path: (ROOT / path).read_bytes()}
-        for symbol in ("_PipeChild", "_Containment.launch", "_RegisteredServer.request"):
-            with self.subTest(symbol=symbol):
-                point, text = R.body(contents, {"path": path, "symbol": symbol})
-                self.assertEqual(point["symbol"], symbol)
+        factory = "scripts/registered_n1_factory.py"
+        for path, symbol in (("scripts/registered_app_server_transport.py", "ProtocolPipeChild"),
+                             (factory, "_Containment.launch"), (factory, "_RegisteredServer.request")):
+            with self.subTest(path=path, symbol=symbol):
+                point, text = R.body({path: (ROOT / path).read_bytes()}, {"path": path, "symbol": symbol})
+                self.assertEqual((point["path"], point["symbol"]), (path, symbol))
                 self.assertTrue(text.strip())
 
     def test_example_positive_and_missing_review_refuse_without_effects(self):

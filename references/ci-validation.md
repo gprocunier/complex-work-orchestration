@@ -35,6 +35,10 @@ handlers, cross-module imports of private names, function complexity, function
 length and control nesting. It checks missing parameter and return annotations
 in registered and offline scripts and their pool qualification helpers.
 
+The maintenance runtime and `prepare_native_worker.py` use
+`cwo_core.native_worker_packet` for packet validation. The package import
+checks cover this dependency direction.
+
 New functions may span up to 100 lines and nest up to five control suites before
 the check reports new debt. Existing entries that exceed these limits cannot
 grow. Run `python scripts/check_code_health.py refresh` after reducing debt.

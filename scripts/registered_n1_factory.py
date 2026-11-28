@@ -19,7 +19,6 @@ import re
 import select
 import signal
 import stat
-import subprocess
 import threading
 import time
 import tomllib
@@ -35,7 +34,7 @@ import registered_provider_network as provider_network
 from registered_server_requests import RegisteredServerRequests
 from registered_finite_input import RegisteredFiniteInput
 import registered_finite_tool_calls as finite_calls
-from prepare_server_request_frames import _decode as decode_protocol_frame
+from prepare_server_request_frames import decode_protocol_frame
 from cwo_core.maintenance_authority import require_maintenance_operation, MaintenanceStateStore
 from cwo_core.native_control import build_control_turn_contract
 from cwo_core.native_pool_contracts import canonical_sha256
@@ -50,9 +49,12 @@ from cwo_core.supervision.transport.app_server import (
 )
 from cwo_core.supervision.transport.errors import AppServerRpcError
 from cwo_core.supervision.turn_observations import provider_policy_blocker
-from registered_app_server_transport import RegisteredAppServer
+import registered_app_server_transport as transport
 from registered_host_root_boundary import require_private_roots
 
+RegisteredAppServer = transport.RegisteredAppServer
+_argument_file, _DeadlineInput = transport.protocol_argument_file, transport.DeadlineProtocolInput
+_PipeBackend, _PipeChild = transport.ProtocolPipeBackend, transport.ProtocolPipeChild
 native = admitted.native
 admission = admitted.admission_api
 PRODUCTION_LIVE = 'production_live'
@@ -152,19 +154,6 @@ def _require_summary_primary(adapter):
         primary = adapter.server.transport_failure
     if primary is not None:
         raise primary
-
-
-def _argument_file():
-    """One Linux ABI on both interpreters; unsupported kernels/libcs refuse."""
-    library = owned.ctypes.CDLL(None, use_errno=True)
-    create = getattr(library, 'memfd_create', None)
-    _need(create is not None, "The registered Linux argument-file mechanism is unavailable.")
-    create.argtypes = (owned.ctypes.c_char_p, owned.ctypes.c_uint)
-    create.restype = owned.ctypes.c_int
-    descriptor = create(b'cwo-n1-arguments', 3)  # Linux MFD_CLOEXEC | MFD_ALLOW_SEALING.
-    if descriptor < 0:
-        raise OSError(owned.ctypes.get_errno(), 'The registered argument-file mechanism failed.')
-    return descriptor
 
 
 def _launcher_argv(launcher, arguments, command):
@@ -340,169 +329,6 @@ def _production_guard_owner(guard):
     _need(type(owner) is RegisteredN1Workflow and guard.__func__ is PRODUCTION_EXECUTION_GUARD
           and type(owner.config) is ControllerConfiguration, "The original registered workflow guard is required.")
     return owner
-
-
-class _DeadlineInput:
-    """One bounded nonblocking protocol writer, including lock acquisition."""
-
-    def __init__(self, stream, failure):
-        self.stream, self.failure_callback = stream, failure
-        self.descriptor = stream.fileno()
-        self.failure = None
-        self._lock = threading.Lock()
-        self._poison = os.open(os.devnull, os.O_RDONLY | os.O_CLOEXEC)
-        self._aborted = False
-        self._closing = False
-        os.set_blocking(self.descriptor, False)
-
-    def write(self, value):
-        deadline, acquired = time.monotonic() + 5, False
-        try:
-            _need(type(value) is str and len(value) <= 1048576, "A bounded protocol write is required.")
-            data = value.encode('utf-8')
-            _need(len(data) <= 1048576, "The protocol write byte bound was exceeded.")
-            acquired = self._lock.acquire(timeout=max(0, deadline - time.monotonic()))
-            if not acquired:
-                raise TimeoutError('registered-protocol-write-lock-timeout')
-            self.flush()
-            self._write_all(memoryview(data), deadline)
-            return len(value)
-        except BaseException as failure:
-            if self.failure is None:
-                self.failure = failure
-            self.failure_callback(self.failure)
-            raise
-        finally:
-            if acquired:
-                self._lock.release()
-                if self._closing:
-                    self.close()
-
-    def _write_all(self, data, deadline):
-        while data:
-            remaining = deadline - time.monotonic()
-            if remaining <= 0:
-                raise TimeoutError('registered-protocol-write-timeout')
-            try:
-                if not select.select([], [self.descriptor], [], remaining)[1]:
-                    continue
-                self.flush()
-                count = os.write(self.descriptor, data)
-                _need(count > 0, "Protocol write made no progress.")
-                data = data[count:]
-            except (BlockingIOError, InterruptedError):
-                continue
-
-    def flush(self):
-        if self.failure is not None or self.stream.closed or self._aborted or self._closing:
-            raise AppServerError('registered-protocol-writer-unavailable') from self.failure
-        # os.write has no Python-side pending buffer.
-
-    def abort(self):
-        """Fence a not-yet-entered write without waiting for its writer lock.
-
-        The stable read-only descriptor prevents a paused writer from sending
-        an old accepting frame after request authority has been revoked.
-        """
-        if not self._aborted and not self.stream.closed:
-            os.dup2(self._poison, self.descriptor)
-            self._aborted = True
-        if self._poison is not None:
-            os.close(self._poison)
-            self._poison = None
-
-    def close(self):
-        self._closing = True
-        if not self._lock.acquire(blocking=False):
-            return
-        try:
-            if not self.stream.closed:
-                self.stream.close()
-            if self._poison is not None:
-                os.close(self._poison)
-                self._poison = None
-        finally:
-            self._lock.release()
-
-
-class _PipeChild:
-    """Protocol streams with status operations delegated to original custody."""
-
-    def __init__(self, child, streams, argv):
-        self._child = child
-        self.stdin, self.stdout, self.stderr = streams
-        self.args = argv
-
-    def _get_pid(self):
-        return self._child.pid
-
-    def _set_pid(self, value):
-        self._child.pid = value
-
-    pid = property(_get_pid, _set_pid)
-
-    def _get_returncode(self):
-        return self._child.returncode
-
-    def _set_returncode(self, value):
-        self._child.returncode = value
-
-    returncode = property(_get_returncode, _set_returncode)
-
-    def poll(self):
-        if self.returncode is not None:
-            return self.returncode
-        return self._handle_backend.status(self._handle_birth)
-
-    def wait(self, timeout=None):
-        _need(type(timeout) in (int, float) and 0 <= timeout <= 30, "A finite retained-handle wait is required.")
-        if self.returncode is not None:
-            return self.returncode
-        if not self._handle_backend.wait_exit(self._handle_birth.descriptor, timeout):
-            raise subprocess.TimeoutExpired(self.args, timeout)
-        return self.poll()
-
-    def communicate(self, data, timeout):
-        return owned.atomic_spawn.communicate(self, data, timeout)
-
-
-class _PipeBackend(owned._LinuxBackend):
-    """Retain the exact direct-child handle, with private protocol pipes."""
-
-    def __init__(self, pass_fds):
-        super().__init__()
-        self.pass_fds = pass_fds
-
-    def _spawn_atomic(self, birth, argv, executable, workspace):
-        def retain(child, streams):
-            self._retain_atomic(birth, child)
-            birth.child = _PipeChild(child, streams, argv)
-            birth.child._handle_backend, birth.child._handle_birth = self, birth
-        self._operation("Atomic protocol child creation", owned.atomic_spawn.spawn_piped,
-                        executable, argv, workspace, tuple(self.pass_fds), retain)
-
-    def spawn(self, birth, argv, executable, workspace):
-        result = super().spawn(birth, argv, executable, workspace)
-        birth.child._handle_backend, birth.child._handle_birth = self, birth
-        return result
-
-    def status(self, birth):
-        with self._lifecycle_lock:
-            if birth.child.returncode is not None:
-                return birth.child.returncode
-            if birth.active_operation is not None or birth.releasing or birth.closed:
-                return None
-            self._start_operation(birth.descriptor, 'wait')
-            primary = None
-            try:
-                result = self._operation('Protocol child status', os.waitid, os.P_PIDFD,
-                                         birth.descriptor, os.WEXITED | os.WNOHANG | os.WNOWAIT)
-                return None if result is None else self._exit_code(birth, result)
-            except BaseException as failure:
-                primary = failure
-                raise
-            finally:
-                self._finish_operation(birth, primary)
 
 
 class CleanupObservation(NamedTuple):

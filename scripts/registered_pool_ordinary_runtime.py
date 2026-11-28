@@ -59,11 +59,12 @@ from registered_pool_qualification import (
     CALLBACK_OPPORTUNITY_FIELD as _OPPORTUNITY_FIELD,
     ORDINARY_POOL_MODE as _ORDINARY_MODE,
     ORDINARY_POOL_SCOPE as _ORDINARY_SCOPE,
-    _retain_transport_failures,
     build_pool_qualification_runtime,
+    original_calibration_parent,
     require_original_pool_admission as _check_admission,
+    retain_transport_failures,
 )
-from registered_pool_qualification_calibration import _measure_original_controls, _registered_parent
+from registered_pool_qualification_calibration import measure_original_controls
 from registered_pool_qualification_capability import (
     ConnectedPoolCallbackCapability,
     begin_ordinary_connected_callback_calibration,
@@ -320,7 +321,7 @@ def _seal_phase(approved, admission, packets, mode, *, capability=None, opportun
     build_readiness_record(plan, beads, **authority["release_artifacts"], now=datetime.now(timezone.utc))
     selection = stage.select_contained_pool_runtime(plan, build_pool_qualification_runtime, authority_path=Path(path),
                                                    admission=admission, capability=capability, ordinary=approved)
-    original = _registered_parent(selection.runtime)
+    original = original_calibration_parent(selection.runtime)
     run = stage.make_pool_qualification_run(plan, selection, journal_path=original.journal.path, fixture_root=original.fixture_root)
     policy = {child_id: ContainedPoolChildBinding(
         str(child.worktree), child.worktree_identity_sha256, child.write_path, child.prompt,
@@ -384,18 +385,18 @@ def _require_original_output(child: OrdinaryPoolChild) -> None:
 
 
 def _calibrate(approved, run, allowance, baseline):
-    parent = _registered_parent(run.runtime)
+    parent = original_calibration_parent(run.runtime)
     operation = ordinary_calibration_operation(approved, run.plan)
 
     def drive(plan, allocations, context, require_release_horizon):
         parent.bind_calibration_controls(plan, allocations, context)
         require_release_horizon()
-        return _measure_original_controls(parent, begin_ordinary_connected_callback_calibration(parent, operation))
+        return measure_original_controls(parent, begin_ordinary_connected_callback_calibration(parent, operation))
 
     def verify_workspaces():
         _require(_fresh_baselines(approved) == baseline, "ordinary-calibration-workspace-changed")
 
-    calibration = stage._QualificationCalibration(operation, drive, verify_workspaces)
+    calibration = stage.QualificationCalibration(operation, drive, verify_workspaces)
     result = _run_phase(run, run.runtime, replace(allowance, calibration=calibration), calibration_limits(approved))
     _require(type(calibration.result) is ConnectedPoolCallbackCapability
              and result["qualification_accounting"]["state"] == "terminal", "original-calibration-settlement-refused")
@@ -485,7 +486,7 @@ def _run_phase(run, runtime, allowance, limits):
     try:
         return stage._accounted_run(run, runtime, allowance, limits)
     finally:
-        _retain_transport_failures(run.runtime.start_worker_session)
+        retain_transport_failures(run.runtime.start_worker_session)
 
 
 def _current_beads(approved, admission):

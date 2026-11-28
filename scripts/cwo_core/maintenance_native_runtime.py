@@ -58,12 +58,12 @@ from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authori
 from cwo_core.native_tool_isolation import (
     default_tool_policy, require_prompt_preflight, require_unchanged_tool_surface,
 )
+from cwo_core.native_worker_packet import (
+    render_worker_packet_prompt as _render_prompt, validate_native_worker_packet, validate_native_worker_return,
+)
 from cwo_core.paths import is_cwo_temp_path
 from cwo_core.policy import load_policy
 from cwo_core.workspace import capture_workspace_baseline, compare_workspace_baseline
-from prepare_native_worker import (
-    render_worker_packet_prompt as _render_prompt, validate_native_worker_packet, validate_native_worker_return,
-)
 from cwo_core.supervision.callback_timing import pool_sleep
 from cwo_core.supervision.containment import contain_started_threads
 from cwo_core.supervision.live_thread import LiveThreadAdapter

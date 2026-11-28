@@ -24,7 +24,7 @@ import tempfile
 import time
 
 import linux_owned_children as owned
-from registered_n1_factory import _PipeBackend, _argument_file
+from registered_app_server_transport import ProtocolPipeBackend as _PipeBackend, protocol_argument_file as _argument_file
 from cwo_core.codex_protocol_capabilities import CapabilityError, check_codex_capabilities
 from cwo_core.process_identity import parse_proc_stat
 from cwo_core.qualification_target import selected_target

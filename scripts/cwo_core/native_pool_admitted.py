@@ -26,7 +26,7 @@ from .native_pool_capacity import (
     load_operative_pool_capacity,
     operative_pool_policy,
 )
-from .native_pool_deferred_context import DeferredAttestationError, _ContainedPoolAdmission
+from .native_pool_deferred_context import ContainedPoolAdmission, require_contained_pool_dispatch
 from .native_pool_leases import PoolLeaseError, PoolLeaseRegistry
 from .native_pool_preflight import (
     ADMITTED_PREFLIGHT_VERSION,
@@ -38,19 +38,6 @@ from .native_tool_activation import (
     VerifiedToolEnforcementActivation,
     consume_tool_enforcement_activation,
 )
-from .native_tool_isolation import _active_contained_tool_scope
-
-
-def _require_contained_dispatch(admission, activation, inputs, *, consume: bool = False) -> None:
-    scope = _active_contained_tool_scope()
-    if scope is None and admission is None:
-        return
-    if scope is None or type(admission) is not _ContainedPoolAdmission or activation is not None:
-        raise NativePoolAdmissionError("contained-pool-dispatch-authority-required")
-    try:
-        admission.require_dispatch(scope, inputs, consume=consume)
-    except DeferredAttestationError as failure:
-        raise NativePoolAdmissionError(str(failure)) from failure
 
 
 def run_admitted_native_pool(
@@ -76,13 +63,13 @@ def run_admitted_native_pool(
     recovery_authority_store: object | None = None,
     recovery_controller_root: object | None = None,
     recovery_action_resolver: Callable[..., object] | None = None,
-    _contained_admission: _ContainedPoolAdmission | None = None,
+    _contained_admission: ContainedPoolAdmission | None = None,
 ) -> dict[str, Any]:
     """Run one policy-authorized fixed cohort after consuming exact live authority."""
 
     contained_inputs = (reservation_receipt, admission_capability, contract, preflight_request, preflight_result,
                         child_contracts, task_inputs, child_callbacks, capability_receipt, claim_adapter, lease_registry)
-    _require_contained_dispatch(_contained_admission, activation_capability, contained_inputs)
+    require_contained_pool_dispatch(_contained_admission, activation_capability, contained_inputs)
     try:
         effective_policy = operative_pool_policy(policy_document)
         capacity_limits = load_operative_pool_capacity(effective_policy)
@@ -91,18 +78,13 @@ def run_admitted_native_pool(
 
     reservation_errors = validate_reservation_receipt(reservation_receipt)
     if reservation_errors:
-        raise NativePoolAdmissionError(
-            "admitted-launch-reservation-invalid:" + ";".join(reservation_errors)
-        )
+        raise NativePoolAdmissionError("admitted-launch-reservation-invalid:" + ";".join(reservation_errors))
     if reservation_receipt.get("status") != "admitted":
         raise NativePoolAdmissionError("admitted-launch-reservation-not-admitted")
     if type(admission_capability) is not FixedCohortAdmissionCapability:
         raise NativePoolAdmissionError("admitted-launch-capability-type-invalid")
     if admission_capability.state != "available":
-        raise NativePoolAdmissionError(
-            "admitted-launch-capability-not-available:"
-            + admission_capability.state
-        )
+        raise NativePoolAdmissionError("admitted-launch-capability-not-available:" + admission_capability.state)
     if contract.get("version") != ADMITTED_POOL_VERSION:
         raise NativePoolAdmissionError("admitted-launch-v2-contract-required")
     contract_errors = validate_pool_contract(
@@ -111,9 +93,7 @@ def run_admitted_native_pool(
         admission_reservation=reservation_receipt,
     )
     if contract_errors:
-        raise NativePoolAdmissionError(
-            "admitted-launch-contract-invalid:" + ";".join(contract_errors)
-        )
+        raise NativePoolAdmissionError("admitted-launch-contract-invalid:" + ";".join(contract_errors))
     if (
         preflight_request.get("version") != ADMITTED_PREFLIGHT_VERSION
         or preflight_request.get("stage") != "pre-dispatch"
@@ -125,15 +105,10 @@ def run_admitted_native_pool(
         preflight_result,
         expected_stage="pre-dispatch",
         expected_contract_sha256=contract["contract_sha256"],
-        expected_admission_reservation_sha256=reservation_receipt[
-            "reservation_sha256"
-        ],
+        expected_admission_reservation_sha256=reservation_receipt["reservation_sha256"],
     )
     if preflight_errors:
-        raise NativePoolAdmissionError(
-            "admitted-launch-preflight-result-invalid:"
-            + ";".join(preflight_errors)
-        )
+        raise NativePoolAdmissionError("admitted-launch-preflight-result-invalid:" + ";".join(preflight_errors))
     replayed_preflight = run_pool_preflight(
         preflight_request,
         activation_capability=activation_capability,
@@ -147,22 +122,15 @@ def run_admitted_native_pool(
         raise NativePoolAdmissionError("admitted-launch-preflight-not-exact-accept")
     if activation_capability is not None:
         try:
-            consume_tool_enforcement_activation(
-                activation_capability,
-                preflight_request,
-            )
+            consume_tool_enforcement_activation(activation_capability, preflight_request)
         except NativeToolEnforcementActivationError as error:
             raise NativePoolAdmissionError(
                 "admitted-launch-tool-enforcement-activation-invalid:" + str(error)
             ) from error
 
-    _require_contained_dispatch(_contained_admission, activation_capability, contained_inputs, consume=True)
+    require_contained_pool_dispatch(_contained_admission, activation_capability, contained_inputs, consume=True)
     child_ids = [str(child["child_id"]) for child in contract["children"]]
-    acquired = lease_registry.acquire_many(
-        contract,
-        child_ids,
-        capacity_limits=capacity_limits,
-    )
+    acquired = lease_registry.acquire_many(contract, child_ids, capacity_limits=capacity_limits)
     lease_ownership_transferred = False
     try:
         lease_set_sha256 = canonical_sha256({"leases": acquired})
@@ -177,7 +145,7 @@ def run_admitted_native_pool(
 
         def commit(dispatch_receipt: Mapping[str, Any]) -> None:
             nonlocal lease_ownership_transferred
-            _require_contained_dispatch(_contained_admission, activation_capability, contained_inputs)
+            require_contained_pool_dispatch(_contained_admission, activation_capability, contained_inputs)
             coordinator = _build_admitted_pool_coordinator(
                 contract,
                 child_contracts,

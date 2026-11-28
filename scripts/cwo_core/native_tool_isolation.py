@@ -7,14 +7,10 @@ not treat prompt instructions as an enforcement mechanism.
 
 from __future__ import annotations
 
-from collections.abc import Callable, Iterator
-from contextlib import contextmanager
-from contextvars import ContextVar
-from dataclasses import InitVar, dataclass
+from dataclasses import dataclass
 import hashlib
 import json
 import re
-from types import MappingProxyType
 import uuid
 from typing import Any, Mapping
 
@@ -92,7 +88,6 @@ UNPROVEN_PERMITTED_TOOLS = frozenset(
 CONTAINED_POOL_WRITER_NAME = "write_selected_fixture"
 CONTAINED_POOL_WRITER = "cwo_finite." + CONTAINED_POOL_WRITER_NAME
 CONTAINED_POOL_SURFACE_SOURCE = "contained-pool-registered-parent"
-_CONTAINED_POOL_TOKEN = object()
 KNOWN_TOOL_NAMES = frozenset(
     {
         "apply_patch",
@@ -147,34 +142,6 @@ class _ContainedPoolChild:
     prompt: str
 
 
-@dataclass(frozen=True, slots=True)
-class _ContainedPoolToolScope:
-    children: Mapping[str, _ContainedPoolChild]
-    model: str
-    check_active: Callable[[], None]
-    issuer: InitVar[object]
-
-    def __post_init__(self, issuer: object) -> None:
-        if issuer is not _CONTAINED_POOL_TOKEN:
-            raise NativeToolIsolationError("contained-pool-tool-scope-untrusted")
-        object.__setattr__(self, "children", MappingProxyType(dict(self.children)))
-
-
-_CONTAINED_POOL_SCOPE: ContextVar[_ContainedPoolToolScope | None] = ContextVar("contained_pool_tool_scope", default=None)
-
-
-@contextmanager
-def _contained_pool_tool_validation(scope: _ContainedPoolToolScope) -> Iterator[None]:
-    """Keep protected validation within the original synchronous transaction."""
-    if type(scope) is not _ContainedPoolToolScope or _CONTAINED_POOL_SCOPE.get() is not None:
-        raise NativeToolIsolationError("contained-pool-tool-scope-untrusted")
-    token = _CONTAINED_POOL_SCOPE.set(scope)
-    try:
-        yield
-    finally:
-        _CONTAINED_POOL_SCOPE.reset(token)
-
-
 def contained_pool_tool_policy() -> dict[str, Any]:
     """Render the fixed writer registration for a protected qualification artifact."""
     return {
@@ -199,63 +166,27 @@ def contained_pool_tool_surface() -> dict[str, Any]:
     return value
 
 
-def _is_contained_policy(value: Mapping[str, Any]) -> bool:
+def is_contained_pool_tool_policy(value: Mapping[str, Any]) -> bool:
     return (type(value.get("version")) is int and value.get("permitted_tools") == [CONTAINED_POOL_WRITER]
             and value == contained_pool_tool_policy())
 
 
-def _active_contained_tool_scope() -> _ContainedPoolToolScope | None:
-    scope = _CONTAINED_POOL_SCOPE.get()
-    if scope is not None:
-        scope.check_active()
-    return scope
-
-
 def _policy_permitted_tool_names(policy: Mapping[str, Any]) -> frozenset[str]:
-    if _is_contained_policy(policy) and _active_contained_tool_scope() is not None:
+    from .native_pool_deferred_context import contained_pool_tool_validation_active
+    if is_contained_pool_tool_policy(policy) and contained_pool_tool_validation_active():
         return frozenset({CONTAINED_POOL_WRITER})
     return UNPROVEN_PERMITTED_TOOLS
 
 
 def _validate_contained_tool_surface(policy, source, supported, parameter, effective) -> None:
-    if _is_contained_policy(policy) and (source != CONTAINED_POOL_SURFACE_SOURCE or supported is not False
+    if is_contained_pool_tool_policy(policy) and (source != CONTAINED_POOL_SURFACE_SOURCE or supported is not False
                                          or parameter is not None or effective is not None):
         raise NativeToolIsolationError("contained-pool-tool-surface-mismatch")
 
 
 def contained_pool_child_binding_errors(child: Mapping[str, Any], phase: str, prefix: str) -> list[str]:
-    scope = _active_contained_tool_scope()
-    if scope is None:
-        return []
-    child_id = child.get("child_id")
-    expected = scope.children.get(child_id) if type(child_id) is str else None
-    if expected is None or not _contained_pool_child_binding_matches(child, expected):
-        return [f"{prefix}-contained-child-binding-mismatch"]
-    if not _contained_pool_phase_matches(child, expected, scope.model, phase):
-        return [f"{prefix}-contained-{phase}-binding-mismatch"]
-    return []
-
-
-def _contained_pool_child_binding_matches(child: Mapping[str, Any], expected: _ContainedPoolChild) -> bool:
-    policy = child.get("tool_policy")
-    return (child.get("isolation_class") == "mutable-isolated"
-            and child.get("declared_write_paths") == child.get("integration_target_paths") == [expected.write_path]
-            and isinstance(policy, Mapping) and _is_contained_policy(policy))
-
-
-def _contained_pool_phase_matches(child: Mapping[str, Any], expected: _ContainedPoolChild, model: str, phase: str) -> bool:
-    if child.get("requested_model") != model:
-        return False
-    if phase == "contract":
-        return (isinstance(child.get("worktree_identity"), Mapping)
-                and canonical_sha256(child["worktree_identity"]) == expected.worktree_identity_sha256)
-    if (child.get("worktree") != expected.worktree
-            or child.get("worktree_identity_sha256") != expected.worktree_identity_sha256):
-        return False
-    if phase == "preflight":
-        return (child.get("prompt") == expected.prompt
-                and child.get("tool_surface") == contained_pool_tool_surface())
-    return phase == "render"
+    from .native_pool_deferred_context import contained_pool_child_binding_errors as scoped_errors
+    return scoped_errors(child, phase, prefix)
 
 
 def canonical_sha256(value: Any) -> str:

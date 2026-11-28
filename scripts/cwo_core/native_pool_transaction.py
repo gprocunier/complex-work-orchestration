@@ -22,7 +22,7 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .native_pool_admitted import run_admitted_native_pool
 from .native_pool_contracts import canonical_sha256
-from .native_pool_deferred_context import ProvisionalWorkerStartup, _ContainedPoolAdmission
+from .native_pool_deferred_context import ContainedPoolAdmission, ProvisionalWorkerStartup
 from .native_pool_deferred_context import require_deferred_attestation as _require
 from .policy_schema import json_equal
 from .util import atomic_write_text
@@ -1316,7 +1316,7 @@ def _launch_session(
     start_attempts: list[dict[str, Any]],
     now_utc: Callable[[], dt.datetime],
     before_first_start: Callable[[Mapping[str, Any]], str] | None = None,
-    contained_admission: _ContainedPoolAdmission | None = None,
+    contained_admission: ContainedPoolAdmission | None = None,
 ) -> dict[str, Any]:
     allocation_id = canonical_sha256(
         {
@@ -1438,7 +1438,7 @@ def _checked_worker_allocation(raw, plan, allocation_class, child, allocation_id
 def _require_contained_context(contained, plan, journal_path, runtime, run_pool):
     if contained is None:
         return
-    if type(contained) is not _ContainedPoolAdmission or run_pool is not run_admitted_native_pool:
+    if type(contained) is not ContainedPoolAdmission or run_pool is not run_admitted_native_pool:
         raise NativePoolProtectedError("transaction-contained-admission-authority-missing")
     _require(plan["version"] == PLAN_VERSION and plan["prelude_session_count"] == 0,
              "contained-transaction-binding-mismatch")
@@ -1580,7 +1580,7 @@ def _binding_readiness(plan, runtime, context, readiness, clock, baseline_sessio
     return readiness
 
 
-def _calibration_selected(admission: _ContainedPoolAdmission | None) -> bool:
+def _calibration_selected(admission: ContainedPoolAdmission | None) -> bool:
     return admission is not None and admission._calibration is not None
 
 
@@ -1617,7 +1617,7 @@ def execute_native_pool_transaction(
     journal_path: str | Path,
     now_utc: Callable[[], dt.datetime] | None = None,
     run_pool: Callable[..., Mapping[str, Any]] = run_admitted_native_pool,
-    contained_admission: _ContainedPoolAdmission | None = None,
+    contained_admission: ContainedPoolAdmission | None = None,
 ) -> dict[str, Any]:
     """Execute one bounded, effect-atomic admitted-pool transaction."""
 

@@ -105,6 +105,7 @@ __all__ = [
     "native_tool_activation",
     "native_tool_isolation",
     "native_worker_contracts",
+    "native_worker_packet",
     "operative_routing",
     "outbound_approval",
     "outbound_screen",

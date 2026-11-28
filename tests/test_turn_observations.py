@@ -397,6 +397,7 @@ class TurnObservationImportTests(unittest.TestCase):
 INSTALLED_PROBE = r'''
 def action():
     assert "run_native_pool_live_canaries" not in sys.modules
+    assert "prepare_native_worker" not in sys.modules
     owner = importlib.import_module("cwo_core.supervision.turn_observations")
     assert "run_native_pool_live_canaries" not in sys.modules
     item = {"type": "agentMessage", "text": "EXAMPLE installed observation"}
@@ -412,7 +413,12 @@ def action():
     adapter = sys.modules["cwo_core.supervision.live_thread"]
     assert runtime.LiveThreadAdapter is adapter.LiveThreadAdapter
     assert Path(adapter.__file__).resolve() == root / "scripts/cwo_core/supervision/live_thread.py"
-    assert Path(sys.modules["prepare_native_worker"].__file__).resolve() == root / "scripts/prepare_native_worker.py"
+    packet_owner = sys.modules["cwo_core.native_worker_packet"]
+    assert Path(packet_owner.__file__).resolve() == root / "scripts/cwo_core/native_worker_packet.py"
+    assert runtime.validate_native_worker_packet is packet_owner.validate_native_worker_packet
+    assert runtime.validate_native_worker_return is packet_owner.validate_native_worker_return
+    assert runtime._render_prompt is packet_owner.render_worker_packet_prompt
+    assert "prepare_native_worker" not in sys.modules
     for module in list(sys.modules.values()):
         filename = getattr(module, "__file__", None)
         if filename:

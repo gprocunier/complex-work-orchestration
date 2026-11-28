@@ -745,7 +745,14 @@ class InstalledServerFrameConsumerTests(unittest.TestCase):
             self.env.pop(key, None)
         self.expected = fixture.checker.build_manifest(self.source)
         self.source_bindings = self.bind_source()
-        self.assertEqual(identity(ROOT / "scripts/prepare_server_request_frames.py")["sha256"],
+        # Preserve the accepted source lineage. The installed manifest checks the current bytes separately.
+        historical = (ROOT / "scripts/prepare_server_request_frames.py").read_bytes()
+        for current, original in ((b"def decode_protocol_frame(", b"def _decode("),
+                                  (b"value = decode_protocol_frame(raw)", b"value = _decode(raw)"),
+                                  (b', "decode_protocol_frame",\n', b',\n')):
+            self.assertEqual(historical.count(current), 1)
+            historical = historical.replace(current, original)
+        self.assertEqual(hashlib.sha256(historical).hexdigest(),
                          "b2a31e4d03b9c838299c790c86e6c070972b52ee7b82c98f33ed822ef53f5c40")
         self.dispatch_names = {node.name for node in ast.parse(
             (ROOT / "scripts/cwo_core/native_turn_dispatch.py").read_text(encoding="utf-8")).body

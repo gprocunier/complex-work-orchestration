@@ -29,6 +29,7 @@ from cwo_core.native_pool_contracts import (
     validate_capability_receipt,
 )
 from cwo_core.native_pool_leases import capture_owner_identity
+from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits
 from cwo_core.native_pool_scheduler import select_earliest_deadline
 from cwo_core.supervision.callback_timing import (
     callback_certification_policy,
@@ -36,6 +37,8 @@ from cwo_core.supervision.callback_timing import (
     stats,
 )
 from cwo_core.workspace_capture import pin_private_directory, read_at
+from registered_pool_containment import PoolWorkerContainment
+from registered_pool_qualification import is_original_pool_control, is_original_pool_parent
 
 _SOURCE_PATHS = (
     "registered_pool_qualification_capability.py",
@@ -111,20 +114,11 @@ def _source_file_sha256(path: Path) -> str:
     return sha256(source).hexdigest()
 
 
-def _protected_types():
-    from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits
-    from registered_pool_containment import PoolWorkerContainment
-    from registered_pool_qualification import _PoolParent, _WorkerControl
-
-    return _PoolParent, _WorkerControl, PoolWorkerContainment, PoolQualificationRunLimits
-
-
 def callback_adapter_scope_sha256(parent: object) -> str:
     """Bind stock executable, adapter sources, containment selection and requested capacity."""
     from cwo_core.native_pool_deferred_context import QUALIFICATION_MODEL
 
-    parent_type, *_ = _protected_types()
-    _require(type(parent) is parent_type and parent.plan["selected_model"] == QUALIFICATION_MODEL,
+    _require(is_original_pool_parent(parent) and parent.plan["selected_model"] == QUALIFICATION_MODEL,
              "original-calibration-adapter-required")
     return canonical_sha256({
         "adapter_scope": _adapter_scope_sha256(parent.plan, parent.authority, len(parent.children)),
@@ -163,8 +157,7 @@ class _CalibrationOpportunity:
 
 
 def _require_calibration_scope(parent: object, opportunity: _CalibrationOpportunity) -> None:
-    parent_type, *_ = _protected_types()
-    _require(type(parent) is parent_type, "original-calibration-adapter-required")
+    _require(is_original_pool_parent(parent), "original-calibration-adapter-required")
     parent._verify_artifacts()
     _require(parent.plan["plan_sha256"] == opportunity.plan_sha256
              and parent.authority.get("mode") == "callback-calibration"
@@ -184,8 +177,7 @@ def _active_ordinary_start(parent: object) -> tuple[InvocationLedger, str]:
     from cwo_core.native_pool_deferred_context import is_claimed_contained_pool_admission
     from registered_pool_ordinary_runtime import calibration_limits, ordinary_budget_id, require_ordinary_custody
 
-    parent_type, _, _, limits_type = _protected_types()
-    _require(type(parent) is parent_type and type(parent.limits) is limits_type and parent.calibration_only,
+    _require(is_original_pool_parent(parent) and type(parent.limits) is PoolQualificationRunLimits and parent.calibration_only,
              "original-calibration-stage-required")
     approval = parent._ordinary
     require_ordinary_custody(approval)
@@ -205,8 +197,7 @@ def begin_ordinary_connected_callback_calibration(parent: object, operation: str
     """Measure the cohort retained by the original signed ordinary controller."""
     from registered_pool_ordinary_runtime import ordinary_calibration_operation, require_ordinary_custody
 
-    parent_type, *_ = _protected_types()
-    _require(type(parent) is parent_type and parent.calibration_only, "original-calibration-adapter-required")
+    _require(is_original_pool_parent(parent) and parent.calibration_only, "original-calibration-adapter-required")
     ordinary = parent._ordinary
     require_ordinary_custody(ordinary)
     _require(ordinary_calibration_operation(ordinary, parent.plan) == operation,
@@ -224,10 +215,10 @@ def _begin_calibration(parent, opportunity):
     return ConnectedCallbackCalibration(_TOKEN, parent, opportunity, (ledger, reservation))
 
 
-def _contained_owner(control: object, host_type: type) -> tuple[str, str, int]:
+def _contained_owner(control: object) -> tuple[str, str, int]:
     worker = control.worker
     host = worker.containment
-    _require(type(host) is host_type, "original-calibration-host-required")
+    _require(type(host) is PoolWorkerContainment, "original-calibration-host-required")
     receipt = host.receipt()
     observations = [row["observation"] for row in receipt["observations"] if row["stage"] == "appserver-contained"]
     _require(len(observations) == 1, "original-appserver-containment-required")
@@ -308,11 +299,10 @@ class ConnectedCallbackCalibration:
         _require(token is _TOKEN, "calibration-construction-refused")
         self._parent, self._opportunity, self._custody = parent, opportunity, custody
         self._controls = dict(parent.controls)
-        _, control_type, host_type, _ = _protected_types()
         _require(len(self._controls) in (2, 3) and self._controls.keys() == parent.children.keys()
-                 and all(type(control) is control_type and control.worker is parent.workers[key]
+                 and all(is_original_pool_control(control) and control.worker is parent.workers[key]
                          for key, control in self._controls.items()), "original-calibration-controls-required")
-        self._owners = {key: _contained_owner(control, host_type) for key, control in self._controls.items()}
+        self._owners = {key: _contained_owner(control) for key, control in self._controls.items()}
         for child, control in self._controls.items():
             _require_original_thread(control, self._owners[child][0])
         _require(len({owner[0] for owner in self._owners.values()}) == len(self._owners)
@@ -337,16 +327,15 @@ class ConnectedCallbackCalibration:
     def observe_callback(self, control: object, name: str, /, **arguments):
         """Invoke and time a known callback using its original bound control."""
         self._verify()
-        _, control_type, host_type, _ = _protected_types()
-        _require(type(control) is control_type and name in self._samples, "original-calibration-callback-required")
+        _require(is_original_pool_control(control) and name in self._samples, "original-calibration-callback-required")
         child = control.worker.child_id
         _require(self._controls.get(child) is control and self._parent.controls.get(child) is control
-                 and self._owners[child] == _contained_owner(control, host_type), "calibration-control-custody-changed")
+                 and self._owners[child] == _contained_owner(control), "calibration-control-custody-changed")
         _require_original_thread(control, self._owners[child][0])
         self._require_next_callback(child, name)
         bucket = self._samples[name].setdefault(child, [])
         _require(len(bucket) < _MAX_SAMPLES, "calibration-sample-bound-exceeded")
-        callback = vars(control_type)[name].__get__(control, control_type)
+        callback = vars(type(control))[name].__get__(control, type(control))
 
         def action():
             return callback(**arguments)
@@ -411,9 +400,8 @@ class ConnectedCallbackCalibration:
                  and all(by_child.keys() == self._controls.keys() for by_child in self._samples.values()),
                  "complete-original-callback-coverage-required")
         _require(_charged_start(self._parent, self._opportunity) == self._custody, "calibration-final-custody-changed")
-        _, _, host_type, _ = _protected_types()
         for child, control in self._controls.items():
-            _require(self._parent.controls.get(child) is control and self._owners[child] == _contained_owner(control, host_type),
+            _require(self._parent.controls.get(child) is control and self._owners[child] == _contained_owner(control),
                      "calibration-control-custody-changed")
             _terminal_evidence(control)
         self._finished = True

@@ -8,11 +8,15 @@ from __future__ import annotations
 import json
 import os
 from pathlib import Path
+import select
+import subprocess
 import threading
 import time
 from typing import Any, Mapping
 import uuid
 
+import linux_owned_children as owned
+from offline_n1_host import OfflineHostError
 from cwo_core.supervision.transport.app_server import (
     AppServer as RecordedAppServer,
     AppServerError,
@@ -26,6 +30,187 @@ from cwo_core.supervision.transport.app_server import (
     require_capture_binding,
     require_surface_proof,
 )
+
+
+def protocol_argument_file() -> int:
+    """One Linux ABI on both interpreters; unsupported kernels/libcs refuse."""
+    library = owned.ctypes.CDLL(None, use_errno=True)
+    create = getattr(library, 'memfd_create', None)
+    if create is None:
+        raise OfflineHostError("The registered Linux argument-file mechanism is unavailable.")
+    create.argtypes = (owned.ctypes.c_char_p, owned.ctypes.c_uint)
+    create.restype = owned.ctypes.c_int
+    descriptor = create(b'cwo-n1-arguments', 3)  # Linux MFD_CLOEXEC | MFD_ALLOW_SEALING.
+    if descriptor < 0:
+        raise OSError(owned.ctypes.get_errno(), 'The registered argument-file mechanism failed.')
+    return descriptor
+
+
+class DeadlineProtocolInput:
+    """One bounded nonblocking protocol writer, including lock acquisition."""
+
+    def __init__(self, stream, failure):
+        self.stream, self.failure_callback = stream, failure
+        self.descriptor = stream.fileno()
+        self.failure = None
+        self._lock = threading.Lock()
+        self._poison = os.open(os.devnull, os.O_RDONLY | os.O_CLOEXEC)
+        self._aborted = False
+        self._closing = False
+        os.set_blocking(self.descriptor, False)
+
+    def write(self, value: str) -> int:
+        deadline, acquired = time.monotonic() + 5, False
+        try:
+            if type(value) is not str or len(value) > 1048576:
+                raise OfflineHostError("A bounded protocol write is required.")
+            data = value.encode('utf-8')
+            if len(data) > 1048576:
+                raise OfflineHostError("The protocol write byte bound was exceeded.")
+            acquired = self._lock.acquire(timeout=max(0, deadline - time.monotonic()))
+            if not acquired:
+                raise TimeoutError('registered-protocol-write-lock-timeout')
+            self.flush()
+            self._write_all(memoryview(data), deadline)
+            return len(value)
+        except BaseException as failure:
+            if self.failure is None:
+                self.failure = failure
+            self.failure_callback(self.failure)
+            raise
+        finally:
+            if acquired:
+                self._lock.release()
+                if self._closing:
+                    self.close()
+
+    def _write_all(self, data: memoryview, deadline: float) -> None:
+        while data:
+            remaining = deadline - time.monotonic()
+            if remaining <= 0:
+                raise TimeoutError('registered-protocol-write-timeout')
+            try:
+                if not select.select([], [self.descriptor], [], remaining)[1]:
+                    continue
+                self.flush()
+                count = os.write(self.descriptor, data)
+                if count <= 0:
+                    raise OfflineHostError("Protocol write made no progress.")
+                data = data[count:]
+            except (BlockingIOError, InterruptedError):
+                continue
+
+    def flush(self) -> None:
+        if self.failure is not None or self.stream.closed or self._aborted or self._closing:
+            raise AppServerError('registered-protocol-writer-unavailable') from self.failure
+        # os.write has no Python-side pending buffer.
+
+    def abort(self) -> None:
+        """Fence a not-yet-entered write without waiting for its writer lock.
+
+        The stable read-only descriptor prevents a paused writer from sending
+        an old accepting frame after request authority has been revoked.
+        """
+        if not self._aborted and not self.stream.closed:
+            os.dup2(self._poison, self.descriptor)
+            self._aborted = True
+        if self._poison is not None:
+            os.close(self._poison)
+            self._poison = None
+
+    def close(self) -> None:
+        self._closing = True
+        if not self._lock.acquire(blocking=False):
+            return
+        try:
+            if not self.stream.closed:
+                self.stream.close()
+            if self._poison is not None:
+                os.close(self._poison)
+                self._poison = None
+        finally:
+            self._lock.release()
+
+
+class ProtocolPipeChild:
+    """Protocol streams with status operations delegated to original custody."""
+
+    def __init__(self, child, streams, argv):
+        self._child = child
+        self.stdin, self.stdout, self.stderr = streams
+        self.args = argv
+
+    def _get_pid(self):
+        return self._child.pid
+
+    def _set_pid(self, value):
+        self._child.pid = value
+
+    pid = property(_get_pid, _set_pid)
+
+    def _get_returncode(self):
+        return self._child.returncode
+
+    def _set_returncode(self, value):
+        self._child.returncode = value
+
+    returncode = property(_get_returncode, _set_returncode)
+
+    def poll(self) -> int | None:
+        if self.returncode is not None:
+            return self.returncode
+        return self._handle_backend.status(self._handle_birth)
+
+    def wait(self, timeout: float | None = None) -> int | None:
+        if not (type(timeout) in (int, float) and 0 <= timeout <= 30):
+            raise OfflineHostError("A finite retained-handle wait is required.")
+        if self.returncode is not None:
+            return self.returncode
+        if not self._handle_backend.wait_exit(self._handle_birth.descriptor, timeout):
+            raise subprocess.TimeoutExpired(self.args, timeout)
+        return self.poll()
+
+    def communicate(self, data: str, timeout: float) -> tuple[str, str]:
+        return owned.atomic_spawn.communicate(self, data, timeout)
+
+
+class ProtocolPipeBackend(owned._LinuxBackend):
+    """Retain the exact direct-child handle, with private protocol pipes."""
+
+    def __init__(self, pass_fds):
+        super().__init__()
+        self.pass_fds = pass_fds
+
+    def _spawn_atomic(self, birth, argv, executable, workspace):
+        def retain(child, streams):
+            self._retain_atomic(birth, child)
+            birth.child = ProtocolPipeChild(child, streams, argv)
+            birth.child._handle_backend, birth.child._handle_birth = self, birth
+        self._operation("Atomic protocol child creation", owned.atomic_spawn.spawn_piped,
+                        executable, argv, workspace, tuple(self.pass_fds), retain)
+
+    def spawn(self, birth, argv, executable, workspace) -> tuple[int, int]:
+        result = super().spawn(birth, argv, executable, workspace)
+        birth.child._handle_backend, birth.child._handle_birth = self, birth
+        return result
+
+    def status(self, birth) -> int | None:
+        with self._lifecycle_lock:
+            if birth.child.returncode is not None:
+                return birth.child.returncode
+            if birth.active_operation is not None or birth.releasing or birth.closed:
+                return None
+            self._start_operation(birth.descriptor, 'wait')
+            primary = None
+            try:
+                result = self._operation('Protocol child status', os.waitid, os.P_PIDFD,
+                                         birth.descriptor, os.WEXITED | os.WNOHANG | os.WNOWAIT)
+                return None if result is None else self._exit_code(birth, result)
+            except BaseException as failure:
+                primary = failure
+                raise
+            finally:
+                self._finish_operation(birth, primary)
 
 
 class RegisteredAppServer(RecordedAppServer):

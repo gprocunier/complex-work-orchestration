@@ -45,7 +45,7 @@ s._pid_reuse_entry(sys.argv[2:])
 
 # Current source and stack for the unchanged primitive cursor write. The archived
 # fixture retains the original hosted measurement and coordinates.
-_PRIVATE_CURSOR_SOURCE_SHA256 = 'd3d787064ff14c5bfcc3257c5b2435ea4ab41f4e6d4a362992b86dff6c29c916'
+_PRIVATE_CURSOR_SOURCE_SHA256 = '9d642d014d9d816b9458875bcfea9e74805d06a74697e5c94218a42f76438b03'
 _PRIVATE_CURSOR_LOCATIONS = [
     {'file': 'selected_native_containment.py', 'function': '_pid_reuse_entry', 'line': 1198},
     {'file': 'selected_native_containment.py', 'function': '_reuse_case', 'line': 1084},

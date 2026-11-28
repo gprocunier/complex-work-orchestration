@@ -1,39 +1,116 @@
-"""Shared startup evidence and scoped authority for contained pool qualification."""
+"""Own scoped authority for contained pool qualification."""
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Iterator, Mapping
+from contextlib import contextmanager
+from contextvars import ContextVar
 from dataclasses import InitVar, dataclass
-import math
 from pathlib import Path
 from threading import Lock, get_ident
 from time import monotonic
+from types import MappingProxyType
 from typing import Any, TypeGuard
 
+from .native_pool_admission import NativePoolAdmissionError
 from .native_pool_contracts import canonical_sha256
+from .native_pool_deferred_attestation import (
+    DeferredAttestationError as DeferredAttestationError,
+    DeferredWorkerTurnEvidence as DeferredWorkerTurnEvidence,
+    ObservedExchangeDigest as ObservedExchangeDigest,
+    ProvisionalWorkerStartup as ProvisionalWorkerStartup,
+    QUALIFICATION_TOOL as QUALIFICATION_TOOL,
+    require_deferred_attestation as require_deferred_attestation,
+    require_deferred_deadline as require_deferred_deadline,
+)
 from .native_tool_isolation import (
-    CONTAINED_POOL_WRITER,
-    _CONTAINED_POOL_TOKEN,
-    ContainedPoolChildBinding,
-    _ContainedPoolToolScope,
-    _contained_pool_tool_validation,
+    ContainedPoolChildBinding, NativeToolIsolationError, contained_pool_tool_surface, is_contained_pool_tool_policy,
 )
 
 QUALIFICATION_MODEL = "gpt-6.2-sol"
 QUALIFICATION_EFFORT = "xhigh"
 QUALIFICATION_TIER = "default"
-QUALIFICATION_TOOL = CONTAINED_POOL_WRITER
 QUALIFICATION_PROFILE = "cwo-pool-contained"
 QUALIFICATION_SURFACE = "connected-codex"
 QUALIFICATION_ADAPTER_VERSION = "pool-contained-v1"
 
-_EVIDENCE_TOKEN = object()
+_CONTAINED_POOL_TOKEN = object()
 _RUNTIME_TOKEN = object()
 _ADMISSION_TOKEN = object()
 
 
-class DeferredAttestationError(ValueError):
-    """Protected deferred worker evidence was missing or inconsistent."""
+@dataclass(frozen=True, slots=True)
+class _ContainedPoolToolScope:
+    children: Mapping[str, ContainedPoolChildBinding]
+    model: str
+    check_active: Callable[[], None]
+    issuer: InitVar[object]
+
+    def __post_init__(self, issuer: object) -> None:
+        if issuer is not _CONTAINED_POOL_TOKEN:
+            raise NativeToolIsolationError("contained-pool-tool-scope-untrusted")
+        object.__setattr__(self, "children", MappingProxyType(dict(self.children)))
+
+
+_CONTAINED_POOL_SCOPE: ContextVar[_ContainedPoolToolScope | None] = ContextVar("contained_pool_tool_scope", default=None)
+
+
+@contextmanager
+def _contained_pool_tool_validation(scope: _ContainedPoolToolScope) -> Iterator[None]:
+    """Keep protected validation within the original synchronous transaction."""
+    if type(scope) is not _ContainedPoolToolScope or _CONTAINED_POOL_SCOPE.get() is not None:
+        raise NativeToolIsolationError("contained-pool-tool-scope-untrusted")
+    token = _CONTAINED_POOL_SCOPE.set(scope)
+    try:
+        yield
+    finally:
+        _CONTAINED_POOL_SCOPE.reset(token)
+
+
+def _active_contained_tool_scope() -> _ContainedPoolToolScope | None:
+    scope = _CONTAINED_POOL_SCOPE.get()
+    if scope is not None:
+        scope.check_active()
+    return scope
+
+
+def contained_pool_tool_validation_active() -> bool:
+    return _active_contained_tool_scope() is not None
+
+
+def contained_pool_child_binding_errors(child: Mapping[str, Any], phase: str, prefix: str) -> list[str]:
+    scope = _active_contained_tool_scope()
+    if scope is None:
+        return []
+    child_id = child.get("child_id")
+    expected = scope.children.get(child_id) if type(child_id) is str else None
+    if expected is None or not _contained_pool_child_binding_matches(child, expected):
+        return [f"{prefix}-contained-child-binding-mismatch"]
+    if not _contained_pool_phase_matches(child, expected, scope.model, phase):
+        return [f"{prefix}-contained-{phase}-binding-mismatch"]
+    return []
+
+
+def _contained_pool_child_binding_matches(child: Mapping[str, Any], expected: ContainedPoolChildBinding) -> bool:
+    policy = child.get("tool_policy")
+    return (child.get("isolation_class") == "mutable-isolated"
+            and child.get("declared_write_paths") == child.get("integration_target_paths") == [expected.write_path]
+            and isinstance(policy, Mapping) and is_contained_pool_tool_policy(policy))
+
+
+def _contained_pool_phase_matches(child: Mapping[str, Any], expected: ContainedPoolChildBinding, model: str, phase: str) -> bool:
+    if child.get("requested_model") != model:
+        return False
+    if phase == "contract":
+        return (isinstance(child.get("worktree_identity"), Mapping)
+                and canonical_sha256(child["worktree_identity"]) == expected.worktree_identity_sha256)
+    if (child.get("worktree") != expected.worktree
+            or child.get("worktree_identity_sha256") != expected.worktree_identity_sha256):
+        return False
+    if phase == "preflight":
+        return (child.get("prompt") == expected.prompt
+                and child.get("tool_surface") == contained_pool_tool_surface())
+    return phase == "render"
 
 
 @dataclass(frozen=True, slots=True)
@@ -53,55 +130,9 @@ class ContainedPoolSelection:
         _require(issuer is _RUNTIME_TOKEN, "contained-runtime-construction-refused")
 
 
-@dataclass(frozen=True, slots=True)
-class ObservedExchangeDigest:
-    request_id: int
-    request_sha256: str
-    response_sha256: str
-
-
-@dataclass(frozen=True, slots=True)
-class ProvisionalWorkerStartup:
-    plan_sha256: str
-    allocation_id: str
-    allocation_intent_event_sha256: str
-    child_id: str
-    worktree_identity_sha256: str
-    session_id: str
-    session_path: str
-    connection_epoch_sha256: str
-    owner_identity_sha256: str
-    model: str
-    effort: str
-    profile: str
-    prompt_sha256: str
-    startup_exchange: ObservedExchangeDigest
-    startup_rollout_sha256: str | None
-    startup_source_identity_sha256: str | None
-    deadline: float
-    issuer: InitVar[object]
-
-    def __post_init__(self, issuer: object) -> None:
-        _require(issuer is _EVIDENCE_TOKEN, "startup-evidence-construction-refused")
-
-
-@dataclass(frozen=True, slots=True)
-class DeferredWorkerTurnEvidence:
-    startup: ProvisionalWorkerStartup
-    turn_id: str
-    turn_exchange: ObservedExchangeDigest
-    request_id: int | str
-    request_sha256: str
-    session_source_identity_sha256: str
-    boundary_sha256: str
-    issuer: InitVar[object]
-
-    def __post_init__(self, issuer: object) -> None:
-        _require(issuer is _EVIDENCE_TOKEN, "turn-evidence-construction-refused")
-
-
 @dataclass(slots=True)
-class _QualificationCalibration:
+class QualificationCalibration:
+    """Describe the operation used by the original calibration transaction."""
     operation_sha256: str
     drive: Callable[..., object]
     verify_fixture: Callable[[], None]
@@ -133,7 +164,7 @@ def contained_plan_binding(plan: Mapping[str, Any]) -> str:
     })
 
 
-class _ContainedPoolAdmission:
+class ContainedPoolAdmission:
     """Stage-minted custody for one runtime, transaction and cohort."""
 
     def __init__(
@@ -141,7 +172,7 @@ class _ContainedPoolAdmission:
         journal_path: Path, check_custody: Callable[[], None], check_source: Callable[[], None],
         check_availability: Callable[[], None],
         policy_children: Mapping[str, ContainedPoolChildBinding], deadline: float,
-        calibration: _QualificationCalibration | None = None,
+        calibration: QualificationCalibration | None = None,
     ) -> None:
         _require(issuer is _ADMISSION_TOKEN, "contained-admission-construction-refused")
         self._selection = selection
@@ -276,13 +307,21 @@ class _ContainedPoolAdmission:
                  "contained-provisional-workers-unresolved")
 
 
-def is_claimed_contained_pool_admission(value: object) -> TypeGuard[_ContainedPoolAdmission]:
-    return type(value) is _ContainedPoolAdmission and value._claimed
+def is_claimed_contained_pool_admission(value: object) -> TypeGuard[ContainedPoolAdmission]:
+    return type(value) is ContainedPoolAdmission and value._claimed
 
 
-def require_deferred_attestation(condition: bool, reason: str) -> None:
-    if not condition:
-        raise DeferredAttestationError("pool-deferred-" + reason)
+def require_contained_pool_dispatch(admission: object, activation: object, inputs: tuple[object, ...], *,
+                                    consume: bool = False) -> None:
+    scope = _active_contained_tool_scope()
+    if scope is None and admission is None:
+        return
+    if scope is None or type(admission) is not ContainedPoolAdmission or activation is not None:
+        raise NativePoolAdmissionError("contained-pool-dispatch-authority-required")
+    try:
+        admission.require_dispatch(scope, inputs, consume=consume)
+    except DeferredAttestationError as failure:
+        raise NativePoolAdmissionError(str(failure)) from failure
 
 
 def _dispatch_artifact_hash(inputs: tuple[object, ...]) -> str:
@@ -290,10 +329,6 @@ def _dispatch_artifact_hash(inputs: tuple[object, ...]) -> str:
     return canonical_sha256({"reservation": reservation, "contract": contract, "preflight_request": request,
                              "preflight_result": result, "child_contracts": controls, "task_inputs": prompts,
                              "capability_receipt": capability})
-
-
-def require_deferred_deadline(deadline: float, *, now: float) -> None:
-    _require(type(deadline) is float and math.isfinite(deadline) and now < deadline, "deadline-expired")
 
 
 _require = require_deferred_attestation
