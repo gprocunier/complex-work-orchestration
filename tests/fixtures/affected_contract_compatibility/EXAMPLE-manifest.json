@@ -579,7 +579,7 @@
     "scripts/registered_server_requests.py": "2b4e596c0d914c51f22386ea5eb23c4b2019a45aaaff114e524b0bc877dcb3bd",
     "scripts/registered_worker_login_config.py": "dcf89ebfd323b689639f6ec16747f574f2b464660e9ebf4b2340277031d26810",
     "scripts/render_execution_status_report.py": "e46dbf44101e51a17d127eebaeddbe7e3c6f3b7290e09e8aac899975d16cd615",
-    "scripts/route_work.py": "eca6fe4094299e6d9d8e90324766f049e9ed8cf6b136fc49248b5609dbef2ccd",
+    "scripts/route_work.py": "da58a7ec4f9b5a6d8ae47de8b0c97467b6b4b6005e10b46ef6ad4b5705e1bdba",
     "scripts/routing_cli_options.py": "d104bf9ba9fd603e783aa365ab00f8c940e682f0f575e6b16f7fddc1a62c1c24",
     "scripts/run_admitted_native_pool_transaction.py": "17effe6df9fc690897cedda87c848d63ea9e9c405c80068590d145b1954ab6bf",
     "scripts/run_native_pool_activation_preview.py": "33d6dfbf35ba77fa2fe205e70361fe949be1b8d5cf7f7b132e1539806eaef19e",

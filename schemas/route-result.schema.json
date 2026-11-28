@@ -178,6 +178,7 @@
     "architect_adjudication_required": {"type": "boolean"},
     "ranked_experts": {
       "type": "array",
+      "description": "Ranked matches. The CLI includes per-expert executor candidates with --include-catalog.",
       "items": {
         "type": "object",
         "properties": {
@@ -190,7 +191,7 @@
         }
       }
     },
-    "ranked_executors": {"type": "array", "items": {"type": "object"}},
+    "ranked_executors": {"type": "array", "items": {"type": "object"}, "description": "Ranked candidates. The CLI uses summaries by default and full records with --include-catalog."},
     "recommended_executor": {"type": "string"},
     "selected_executor": {"type": "object"},
     "provider_conflict_detected": {"type": "boolean"},

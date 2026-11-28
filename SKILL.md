@@ -43,14 +43,14 @@ protected approvals and review evidence. [Threat model](references/security-thre
 
 ## First Moves
 
-1. Decide the execution shape: in-thread, PM-only, tight-chain scaffold, or full harness.
-2. If sizing is unclear, use the prompt coach:
+1. Choose in-thread, PM-only, tight-chain scaffold, or full harness.
+2. Ask Prompt Coach when unsure.
 
 ```bash
 python3 scripts/coach_prompt.py "<task text>"
 ```
 
-3. [Classify work](references/prompt-coach.md#routing-risk). Appends cannot lower risk.
+3. [Classify work](references/prompt-coach.md#routing-risk). Appends cannot lower risk. JSON uses `ranked_experts`. Catalogs require `--include-catalog`.
 
 ```bash
 python3 scripts/route_work.py "<task text>"

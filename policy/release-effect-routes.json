@@ -1550,7 +1550,7 @@
 
 "h1":[209,56,"if any(grant[key] != actual.get(key) for key in _SCOPE):"],
 
-"h2":[215,"SynthesisWorkflowTests.test_operator_host_refuses_an_advisory_store_before_listening",301,"8B5ofx4T4fi_Ogtl0etObq3z4N6Gj9Exqe0i96_utaQ"],
+"h2":[215,"SynthesisWorkflowTests.test_operator_host_refuses_an_advisory_store_before_listening",302,"8B5ofx4T4fi_Ogtl0etObq3z4N6Gj9Exqe0i96_utaQ"],
 
 "h3":[2,69,"payload = record_audit_event(payload)"],
 
@@ -1584,7 +1584,7 @@
 
 "hI":[23,"create_bead",235,"hrYGKYvwsktuJBa0X32SqDLECK6k8q4NELPb1lJFsHk"],
 
-"hJ":[215,"SynthesisWorkflowTests.test_protected_cli_refuses_caller_context_and_does_not_fall_back",255,"npUGYUoPWpQlvs5kdgI2PQC3JJedJq6Pg08N6vgNiM0"],
+"hJ":[215,"SynthesisWorkflowTests.test_protected_cli_refuses_caller_context_and_does_not_fall_back",256,"npUGYUoPWpQlvs5kdgI2PQC3JJedJq6Pg08N6vgNiM0"],
 
 "hK":[43,"WorktreeCapture._git",1549,"lXu6_ArjpCYeUEmR_L2Xs7reKAgMAGXD542i66JeQZw"],
 
@@ -1612,7 +1612,7 @@
 
 "hW":[32,"_Runtime.prepare",429,"OBTLkV2Ew7wXiG0UzklCycWxMJJgCEHG4pY2W5jI93k"],
 
-"hX":[215,"SynthesisWorkflowTests.test_protected_review_uses_only_authorized_originals_and_preserves_disagreement",167,"Q1ogiSJ9bkrKLNS2nPc3jY0Q3Jluwj0LB_tC29qafSk"],
+"hX":[215,"SynthesisWorkflowTests.test_protected_review_uses_only_authorized_originals_and_preserves_disagreement",168,"Q1ogiSJ9bkrKLNS2nPc3jY0Q3Jluwj0LB_tC29qafSk"],
 
 "hY":[6,"main",550,"hFe9hh8YMTxX6dLGHFh6TtL5v8jrX3mo7pq1iigMpxE"],
 
@@ -1670,7 +1670,7 @@
 
 "hy":[60,"RegisteredReviewHost.dispatch",227,"tmvnxFJqo4sjDhhaKqyxHtSgW68A3QFmagwVhBT5ICM"],
 
-"hz":[215,"SynthesisWorkflowTests.test_operator_publication_validates_stdin_before_retaining_a_panel",279,"tNSi4ase1IXa2YesSEsZSwsZyWlc9brh2hPMiGE8u-s"],
+"hz":[215,"SynthesisWorkflowTests.test_operator_publication_validates_stdin_before_retaining_a_panel",280,"tNSi4ase1IXa2YesSEsZSwsZyWlc9brh2hPMiGE8u-s"],
 
 "i":[187,201,"discard_unretained(pending)"],
 
@@ -7050,7 +7050,7 @@
 
 "@214":["OGdtn2gSPEkEewsKXjXSXRf9IDQU9Og1ZGxTT9YqnVM",420,19720],
 
-"@215":["W5X1pTf2JQrJq0iCy9UwOJwBqxDF4orv9vZsBdBpLLA",420,46835],
+"@215":["V3qFibjvVrONibtKoqjaMhoQVHX2Eyn6xUT0wGcO4bA",420,46887],
 
 "@216":["P7TM8wW2ydw-0BXwug8Jpol3RrK59ZLvDMoSobSDmlM",420,2843],
 
@@ -7568,7 +7568,7 @@
 
 "scripts/replay_epic_convergence.py":["D-kUNO88cTxN5078dOErKgQZY_Ru3rbFesJsktGhMGY",420,16598],
 
-"scripts/route_work.py":["7Kb-QJQpnm2djpAyR2bwSentjPaxNvxJJItWCdvvLM0",493,10654],
+"scripts/route_work.py":["2lin7E-bWm2K5H3osMl0Z7a0tgBeELRu9q1LVwXhvbo",493,11720],
 
 "scripts/routing_cli_options.py":["0QS_m6n9YD54OqNlqwD4yUDmgvD1deaxb3_dwaYsHCQ",420,4944],
 
@@ -7606,7 +7606,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["pFdd_Ju5bA21ys61LSgMy5LNAumUOpaWHdA9TmiCuwo",420,143537],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["BMcAqjlasHNaqlVYRd1a5JDi9UWeo2bdN53agYrvx1s",420,143537],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
