@@ -116,7 +116,6 @@
     "scripts/cwo_core/native_activation_ledger.py": 420,
     "scripts/cwo_core/native_activation_preview.py": 420,
     "scripts/cwo_core/native_authority.py": 420,
-    "scripts/cwo_core/native_campaign_history.py": 420,
     "scripts/cwo_core/native_canary_contracts.py": 420,
     "scripts/cwo_core/native_capability.py": 420,
     "scripts/cwo_core/native_containment.py": 420,
@@ -337,7 +336,7 @@
     "policy/expert-registry.yaml": "91161757dfda43cd2fef0218a58f6f28e54a1dc014b4890ebc08f65af58849e5",
     "policy/harness-registry.yaml": "c6f55fdb4d97d39e522c2aedf7c362c446c4f152eca796b669f42e011674da2c",
     "policy/install-projection.yaml": "d17b014bffa51e2bd74465d0d5c91826f1b2f93eaa5633119ea5cca0d08d0cbe",
-    "policy/model-identity-scope.yaml": "da76761b1f80608ee36e62786fe1a7405a51f0fe6f33c3096fad634152053fe1",
+    "policy/model-identity-scope.yaml": "7c6cc3f600a7beeb30a858524bb953f5679a4e35406349e4ba75c941195d97c7",
     "policy/model-profiles.yaml": "3c7f592fbfb15e5cbafd6f50f7dd008116df1cbad60ea1b9c2a2e0f644f7d44f",
     "policy/native-worker-execution.yaml": "b57f578e64407d7780b8b0d256ccbc4ed7f88fdaf6c2c627e2a72fc3944cc461",
     "policy/outbound-screening.yaml": "94566e213284364be699123d155bb2a2d79d452482e4929f518b296ec31b5e33",
@@ -383,7 +382,7 @@
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "923e38988513324f5b5b69961816d49d5f0968b24b124ea5cf8d06f5704afc98",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
-    "scripts/cwo_core/__init__.py": "c7d4bf0a3cb9b1057284cefe017ad790d92dc57af902308cf6e56749d91789d5",
+    "scripts/cwo_core/__init__.py": "8a76a0a22f9fa59eba101545f5aff9001d0e9704a354093365b83ed3f788dd5e",
     "scripts/cwo_core/access_profiles.py": "da50b4c57dd92b752dd39340c84b8e0ea6f743bf13c3c0ee6a454ffb8a698aa4",
     "scripts/cwo_core/adjudication.py": "fa1661792c179819faf2a03382836326f04af919f8f95ebff6b9c70b2a18100d",
     "scripts/cwo_core/adjudication_binding.py": "187c16651357d8103bc018a5c521a8500a2ab77dbba598093f8002b057343fc3",
@@ -427,15 +426,14 @@
     "scripts/cwo_core/native_activation_ledger.py": "7a97c4edcdf0b5e3131581fe538fae848897c8271280cb1664ad8bf60eea7ab4",
     "scripts/cwo_core/native_activation_preview.py": "dfdb447bbc1b122202da9d1b4924408301ed9825c645aa1dff7d30700f6e26d3",
     "scripts/cwo_core/native_authority.py": "f1bf87d5da453835b1a23bd9c7b40420cfc423be28b9f480261cba3f9df1d4b8",
-    "scripts/cwo_core/native_campaign_history.py": "5746496b5e080a2899d62b225bd4618221537a71706cc67de23d773cc577a362",
-    "scripts/cwo_core/native_canary_contracts.py": "a6d8097db59e47cbc44d9f30d7b85d427c750544f197bb5d1ab8795c1fc7b52c",
+    "scripts/cwo_core/native_canary_contracts.py": "db15371fc5099160a46df181e4be6df9acb44f12204337dc8be0dc58df4e009e",
     "scripts/cwo_core/native_capability.py": "a906b4a71d86ee8d2d7ed151386a5cf61798d75324d6391a940ecb43148df8e1",
     "scripts/cwo_core/native_containment.py": "21928583920814a42e74bc7b6ba4e6d5e3cbfc9d189405d23656963585ff3071",
     "scripts/cwo_core/native_control.py": "292a6292ddc1e2c26c1c8c1ce1ec5075467a07c51a2e4463c50922b3c4859c95",
     "scripts/cwo_core/native_disposition.py": "e9d23c2d5afb74cec11e74a52e327867ac65ac6ddce9d33af82e87219782a012",
     "scripts/cwo_core/native_live_allocation_ledger.py": "503c274ff75ab385878d8663eb243e7e7c1d3c51d32555a9cf3bed0e4a39bef0",
     "scripts/cwo_core/native_live_availability.py": "5cead6dd99427dbff89bf253795cc6a5264920f86d9b9843556ad2e9cd7df17a",
-    "scripts/cwo_core/native_live_campaign_contracts.py": "8c6b596d9b44d85365e03018327ad301ec446cac2c7e6910ea13772b20827beb",
+    "scripts/cwo_core/native_live_campaign_contracts.py": "ac1c54cfa34bb31f4ff5c8ad1f658d9fa0fd7cef889d2132650c5da83b405cd8",
     "scripts/cwo_core/native_pool.py": "85f96d2be8cc31f1b48be905a97f02333832949fac63cdc9ef1ea63a3afbceea",
     "scripts/cwo_core/native_pool_admission.py": "f4f29487bcd26ecda0cf4cd361db5d3b78ad72880b003b5b19b9e1386d189cce",
     "scripts/cwo_core/native_pool_admitted.py": "4351cd67d57db3f9f3d7ed0df457a0b93d305287d6d297291981234097b8e61d",
@@ -583,8 +581,8 @@
     "tests/fixtures/route-feasibility-preparation.json": "b3f153e8fe9ee01a74974514a7a582dffa2f15f2dc4f335bbe3ddec323ca1b05",
     "tests/fixtures/w20_affected_contract_w13/golden-b8f6251.json": "30e5c8c25946135c84d636b75cad81091395d006448f8b2e2e4f7b41858259af",
     "tests/fixtures/w20_affected_contract_w13/source-pins-2026-10-23.json": "0f2576ba8ed904551de6508ce98f639d445abe68c5d3261f3acb5d21536ecbe8",
-    "tests/historical_campaign_launcher.py": "62702b02ffd2c404c32f2eace4c73f618cfcaffc2ee1eed58e577352688dc528",
-    "tests/historical_policy_fixtures.py": "5a809bd26a65b6e7f818b7e8b79c3c9bb0bd3dc3de5e4d855a39f8c2210436ce",
+    "tests/historical_campaign_launcher.py": "4ff44a370132da3244a577fd75da50ffedae91ea817c98a1be09962868b8ecb1",
+    "tests/historical_policy_fixtures.py": "8419f9bb4bbca4f030630eaee21d6f40e5605bf014de2e8f63ab9653e6005040",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
     "tests/test_affected_contract_compatibility.py": "14e2c7a5fe06a2054c288b69b88c79e9e988b6afdb5bd54c0ea05d97421ddb0c",
@@ -595,7 +593,7 @@
     "tests/test_linux_owned_children.py": "95c50998fb7e5cbc961ca6c7bbc53af6b703d5dfc39fff9df9106722db2b9e92",
     "tests/test_local_admission_preparation.py": "e57e952c8e0f908b535e18971f0dbefc7606648f2b87c910bbd47e9290547551",
     "tests/test_maintenance_authority.py": "aa834050333ec749804ce51dc2cf51b343ae4cfb6348d95a02a98995c870641d",
-    "tests/test_native_canary_contracts.py": "6030522a8e283d8cd038352069bcd382451ea15bd106dea27dfe2b5bd104719c",
+    "tests/test_native_canary_contracts.py": "432c40f4192fcf5f745ae5f8e36e0ffd0c87ac47e22b3f0e614a59a889de5fa7",
     "tests/test_native_live_allocation_ledger.py": "cc8c7c74dd44e63425c31b7f72af6a130a77f5b595aa2b02c9b06b91d350bf60",
     "tests/test_native_live_campaign_generation12.py": "d4f4617302bab1ebeafdbf1a3fc59ffe3c88eae3898569999056b2d64ed673f5",
     "tests/test_native_outbound_screen.py": "9705196b620941fd8f33979cff4020c6d00d4a723fc012a125dc3ce60233596f",
@@ -634,8 +632,8 @@
     "tests/test_run_admitted_native_pool_transaction.py": "64f8894fa8d1e6de82ea71c6a7abe06edb097058102056c2cca09a186fda984c",
     "tests/test_run_native_pool_live_canaries.py": "40e744c33c03272c71954cb8daa57f2439c8afc46295b2fe3198b238b4ed3f4f",
     "tests/test_run_readiness_plan.py": "e6e91c1894e4ce096eba5e5e92501ea05a9f60804c0425552ae4f5a7f9ffb8b7",
-    "tests/test_selected_native_containment.py": "8228c514ddbfe1078c23b6b703941dd20b5346860af9d4f978946a1b6f688c2e",
-    "tests/test_w20_affected_contract_w13.py": "a1bd46df54f633cae584a19006d07978bf1062d600a4ff5bebb3466c5e528d9b",
+    "tests/test_selected_native_containment.py": "c4b80f460eb3dd71cf6a9c504121cdd119a359b3526f0fb17a9f8d386d76663d",
+    "tests/test_w20_affected_contract_w13.py": "768feef114600afd2652a79ecd2a16e4396ffbb742eb49f689fe180f1c1b5e74",
     "tests/test_workflow_adjudication.py": "d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5"
   },
   "historical_files": {
@@ -1068,14 +1066,8 @@
       "scripts/cwo_core/workspace_capture.py"
     ],
     "scripts/cwo_core/native_authority.py": [],
-    "scripts/cwo_core/native_campaign_history.py": [
-      "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/workspace_capture.py"
-    ],
     "scripts/cwo_core/native_canary_contracts.py": [
-      "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/native_stop_scope.py",
-      "scripts/cwo_core/util.py"
+      "scripts/cwo_core/__init__.py"
     ],
     "scripts/cwo_core/native_capability.py": [
       "scripts/cwo_core/__init__.py",
@@ -1096,8 +1088,7 @@
     ],
     "scripts/cwo_core/native_live_availability.py": [],
     "scripts/cwo_core/native_live_campaign_contracts.py": [
-      "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/native_campaign_history.py"
+      "scripts/cwo_core/__init__.py"
     ],
     "scripts/cwo_core/native_pool.py": [
       "scripts/cwo_core/__init__.py",
@@ -2071,7 +2062,6 @@
     ],
     "tests/historical_policy_fixtures.py": [
       "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/native_live_campaign_contracts.py",
       "scripts/cwo_core/policy.py",
       "tests/real_beads_fixture.py"
     ],
@@ -2445,7 +2435,6 @@
       "scripts/cwo_core/__init__.py",
       "scripts/cwo_core/maintenance_native_runtime.py",
       "scripts/cwo_core/maintenance_qualification.py",
-      "scripts/cwo_core/native_live_campaign_contracts.py",
       "scripts/cwo_core/native_pool_contracts.py",
       "scripts/cwo_core/supervision/__init__.py",
       "scripts/cwo_core/supervision/callback_timing.py",

@@ -28,6 +28,7 @@ from cwo_core.workspace import (  # noqa: E402
     path_allowed,
 )
 from cwo_core.workspace_capture import PathReplacedError, read_beneath  # noqa: E402
+from tests.historical_campaign_launcher import REVIEWED_CAMPAIGN_SOURCE, run_archived_cases  # noqa: E402
 from tests.real_beads_fixture import configure_git_fixture
 
 
@@ -1197,7 +1198,6 @@ class RoundThreeTests(unittest.TestCase):
 
     def test_other_modules_use_the_trusted_git(self) -> None:
         import cwo_core.native_activation_preview as preview
-        import cwo_core.native_live_campaign_contracts as campaign
 
         with tempfile.TemporaryDirectory() as tmpdir:
             base = Path(tmpdir)
@@ -1209,10 +1209,14 @@ class RoundThreeTests(unittest.TestCase):
             fake.chmod(0o755)
             with mock.patch.dict(os.environ, {"PATH": f"{fake.parent}:{os.environ.get('PATH', '')}"}):
                 head = preview._git(repo, "rev-parse", "HEAD")
-                tree = campaign._run_git(repo, "rev-parse", "HEAD^{tree}")
             self.assertFalse(marker.exists(), "a git earlier on PATH is never run")
         self.assertEqual(len(head), 40)
-        self.assertEqual(len(tree), 40)
+
+    def test_archived_campaign_contract_uses_the_trusted_git(self) -> None:
+        run_archived_cases(
+            self, REVIEWED_CAMPAIGN_SOURCE,
+            "tests.test_workspace_inert_inspection.RoundThreeTests.test_other_modules_use_the_trusted_git",
+        )
 
     def test_calibration_digest_covers_metadata_and_head(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
