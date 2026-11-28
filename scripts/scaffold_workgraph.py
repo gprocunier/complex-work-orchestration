@@ -86,37 +86,21 @@ SPARK_DISPATCH_METADATA_FIELDS = (
 
 
 def body(purpose: str, expected: str) -> str:
-    return f"""Purpose:
-{purpose}
-
-Scope:
-Bounded to this Bead and parent epic.
-
-Inputs:
-- Parent epic
-- Route result
-- Current repository state
-
-Allowed changes:
-Only changes required by this lane.
-
-Do not touch:
-Secrets, production systems, release tags, destructive commands, or unrelated files.
-
-Expected output:
-{expected}
-
-Validation required:
-Report commands, evidence, and residual risk.
-
-Escalation triggers:
-Architecture change, scope change, security risk, missing context, destructive action, or conflicting evidence.
-
-Handoff format:
-Beads comment with findings, validation, and next action.
-Before meaningful closure, add a final closure-memory comment with disposition,
-who was involved, what changed, why closed, how validated, when closed, where
-executed, key decisions, evidence, residual risk, and follow-up."""
+    return "\n\n".join((
+        f"Purpose:\n{purpose}",
+        "Scope:\nBounded to this Bead and parent epic.",
+        "Inputs:\n- Parent epic\n- Route result\n- Current repository state",
+        "Allowed changes:\nOnly changes required by this lane.",
+        "Do not touch:\nSecrets, production systems, release tags, destructive commands, or unrelated files.",
+        f"Expected output:\n{expected}",
+        "Validation required:\nReport commands, evidence, and residual risk.",
+        "Escalation triggers:\nArchitecture change, scope change, security risk, missing context, "
+        "destructive action, or conflicting evidence.",
+        "Handoff format:\nBeads comment with findings, validation, and next action.\n"
+        "Before meaningful closure, add a final closure-memory comment with disposition,\n"
+        "who was involved, what changed, why closed, how validated, when closed, where\n"
+        "executed, key decisions, evidence, residual risk, and follow-up.",
+    ))
 
 
 def unique_strings(items: list[object]) -> list[str]:
@@ -675,8 +659,31 @@ def selected_source_experts(route: dict[str, Any], scaffold_size: str) -> list[d
     return selected
 
 
+def _with_architecture_design(item: dict[str, Any], enabled: bool) -> dict[str, Any]:
+    if not enabled:
+        return item
+    profile = {
+        "profile": "architecture-design",
+        "persona_file": "experts/architecture-design.md",
+        "template": "templates/architecture-design-package.md",
+        "reference": "references/architecture-design.md",
+    }
+    item["metadata"]["architecture_design"] = profile
+    completion = "Record the accepted architecture design package and its version on this Bead before closing it."
+    item["description"] = body(
+        f"Trace the existing system and caller workflow using {profile['persona_file']}.",
+        f"{completion} Use {profile['template']} and follow the decision and reframe guidance in {profile['reference']}.",
+    )
+    item["acceptance"] += (
+        f" {completion} The package identifies verified current behavior, the proposed workflow and boundaries, "
+        "the selection, validation, rollout and rollback, and how to record material deviations."
+    )
+    return item
+
+
 def planned_graph(
-    title: str, route: dict[str, Any], scaffold_size: str = "full", *, review_context: str = "",
+    title: str, route: dict[str, Any], scaffold_size: str = "full", *,
+    review_context: str = "", architecture_design: bool = False,
 ) -> list[dict[str, Any]]:
     if scaffold_size not in {"full", "tight"}:
         raise ValueError("scaffold_size must be 'full' or 'tight'")
@@ -803,7 +810,7 @@ def planned_graph(
             "design": "Policy-routed epic that coordinates architect, PM, workerbee, review, validation, and handoff lanes through Beads.",
             "notes": route_notes(route),
         },
-        task("architect", "Architect frame", ["architect", "framing"]),
+        _with_architecture_design(task("architect", "Architect frame", ["architect", "framing"]), architecture_design),
         task("pm", "PM coordinate", ["pm", "coordination"]),
         task(
             "implementation", "Implement", _lane_labels(route, "implementation", ["workerbee", "implementation"]),
@@ -1244,6 +1251,10 @@ def main() -> None:
     parser.add_argument("--title", required=True)
     parser.add_argument("--description", default="")
     parser.add_argument("--file")
+    parser.add_argument(
+        "--architecture-design", action="store_true",
+        help="Require a design package in the existing architect Bead before implementation.",
+    )
     parser.add_argument("--external-ok", action="store_true")
     parser.add_argument(
         "--allow-disclosure-escalation",
@@ -1329,7 +1340,10 @@ def main() -> None:
         "closure_pressure": closure_pressure,
     }
     try:
-        plan = planned_graph(args.title, route, scaffold_size=args.scaffold_size, review_context=context)
+        plan = planned_graph(
+            args.title, route, scaffold_size=args.scaffold_size,
+            review_context=context, architecture_design=args.architecture_design,
+        )
         relationships = validate_workgraph_plan(plan, for_creation=True)
     except ValueError as exc:
         raise SystemExit(str(exc))
