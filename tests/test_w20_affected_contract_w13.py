@@ -98,18 +98,14 @@ RETIRED_PREVIEW_IMPORTS = {"CONTROL_TURN_ID", "calibration", "capture_server_too
                            "contain_started_threads", "pool_sleep"}
 CURRENT_CALIBRATION_PATH = "scripts/registered_pool_qualification_calibration.py"
 
-# Names each runtime consumer imported at the baseline, by old module path.
+# Retained imports of the moved objects, by the baseline's module path.
 BASELINE_IMPORTS = {
     "check_codex_worker_surface": {
         "codex_tool_surface": [
-            "CodexToolSurfaceError", "EXACT_READ_ONLY_TOOLS",
+            "EXACT_READ_ONLY_TOOLS",
             "EXACT_CORE_RESOURCE_OPERATIVE_TOOLS", "EXACT_CORE_RESOURCE_READ_ONLY_TOOLS",
-            "tools_are_mutable", "normalized_tools", "prepare_capture_binding",
-            "require_capture_binding", "bind_capture_process", "canonical_sha256",
-            "prepare_read_only_catalog", "build_surface_proof", "probe_thread_config",
-            "validate_surface_proof",
+            "tools_are_mutable", "normalized_tools",
         ],
-        "run_native_pool_live_canaries": ["AppServer", "AppServerError"],
     },
     "run_native_pool_activation_preview": {
         "run_native_pool_live_canaries": [
@@ -1100,18 +1096,13 @@ class ConsumerCompatibilityTests(unittest.TestCase):
         observed = compute(["lazy_imports"])["lazy_imports"]
         unresolved = [binding for binding in observed["bindings"] if "=UNRESOLVED:" in binding]
         self.assertEqual(unresolved, [])
-        self.assertEqual(observed, load_golden()["sections"]["lazy_imports"])
+        historical = load_golden()["sections"]["lazy_imports"]
+        retired = "cwo_core.maintenance_qualification:observe_qualification:"
+        retained = [binding for binding in historical["bindings"] if not binding.startswith(retired)]
+        self.assertEqual(observed, {"consumers": historical["consumers"], "bindings": retained})
         self.assertIn("cwo_core.maintenance_qualification", observed["consumers"])
-        resolved = {binding.split("=", 1)[1] for binding in observed["bindings"]}
-        for consumer_name, sources in BASELINE_LAZY_IMPORTS.items():
-            for source_name, names in sources.items():
-                for name in names:
-                    with self.subTest(consumer=consumer_name, source=source_name, name=name):
-                        self.assertTrue({f"{source_name}.{name}", f"run_native_pool_live_canaries.{name}"} & resolved)
 
-    def test_lazy_imports_execute_in_the_changed_function(self) -> None:
-        # observe_qualification runs its lazy imports first, then refuses the
-        # non-capability operation before any effect.
+    def test_retired_observer_refuses_non_capability_before_effects(self) -> None:
         with mock.patch("subprocess.Popen", side_effect=_EffectReached) as popen, \
                 mock.patch.object(LIVE.AppServer, "request", side_effect=_EffectReached) as request:
             with self.assertRaisesRegex(Exception, "opaque-operation-required"):
@@ -1162,7 +1153,9 @@ print(json.dumps({
     "outside": outside,
     "pins_outside": sorted(p for p in pins if p != executable and not p.startswith(str(root) + "/")),
     "app_server_file_inside": inspect.getsourcefile(LIVE.AppServer).startswith(str(root) + "/"),
-    "one_app_server": CHECK.AppServer is LIVE.AppServer is PREVIEW.AppServer is RUNTIME.AppServer,
+    "one_app_server": LIVE.AppServer is PREVIEW.AppServer is RUNTIME.AppServer,
+    "probe_validates_shared_tools": CHECK.normalized_tools is SURFACE.normalized_tools,
+    "test_only_host_absent": not (root / "scripts/qualified_n1_host.py").exists(),
     "app_server_source_sha256": source(LIVE.AppServer),
     "surface_source_sha256": source(SURFACE),
 }, sort_keys=True))
@@ -1197,6 +1190,8 @@ class InstalledProjectionTests(unittest.TestCase):
         self.assertEqual(observed["pins_outside"], [])
         self.assertTrue(observed["app_server_file_inside"])
         self.assertTrue(observed["one_app_server"])
+        self.assertTrue(observed["probe_validates_shared_tools"])
+        self.assertTrue(observed["test_only_host_absent"])
         self.assertEqual(observed["app_server_source_sha256"], identities["AppServer"])
         self.assertEqual(observed["surface_source_sha256"], identities["codex_tool_surface-module"])
 

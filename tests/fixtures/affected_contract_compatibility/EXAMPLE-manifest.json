@@ -379,7 +379,7 @@
     "schemas/synthesis-policy.schema.json": "5187cd9bd68a8fdb877a0847be6696ff7f0c2102d0c3707d1d2614ba922055b6",
     "schemas/zero-trust-consensus-policy.schema.json": "75b2cb1a3927a973008ac60e2739f6b92ea0fdb96d368a0e97b33bf9625fca85",
     "scripts/build_contractor_packet.py": "4beb2e5c6e2aed20f7751d43ee3afd5882c5b339653d065bfadff191b4145240",
-    "scripts/check_codex_worker_surface.py": "f671552a2397a72c19eca29c7af043cf96fccf06a85e00dfdd4c0ff8db35c903",
+    "scripts/check_codex_worker_surface.py": "6b099b1f800d21dd06b75d1fcbc404153af204e89a8dd4de01cf7d8527ec8d35",
     "scripts/check_installed_skill.py": "a9e54dc32768a304dc41e9d0e2c3b5079e63a5114ac5ceef0ff3a5cab02db13e",
     "scripts/cleanup_stale_agents.py": "923e38988513324f5b5b69961816d49d5f0968b24b124ea5cf8d06f5704afc98",
     "scripts/codex_tool_surface.py": "36ed2a9791cea119ec16dd022e1053f209605cea2068ae04cf1bdc10619fdf45",
@@ -419,7 +419,7 @@
     "scripts/cwo_core/maintenance_authority.py": "6149f3cae3fc268a1e16dad46664323a893b76586f5ed74d2d4e4e30fcae77e4",
     "scripts/cwo_core/maintenance_image.py": "a0dec8f85ac3267eac07409ba860ce14d584998462df839114f7dcbf5267bf66",
     "scripts/cwo_core/maintenance_native_runtime.py": "ce76a7e335412133be2d51a7ec85ca1cb43cf267dc21a66208e2b7991313702a",
-    "scripts/cwo_core/maintenance_qualification.py": "0f2e746050aec1de10108be5b5c310cc7360428d31295df7aa0a2b72cfce11c2",
+    "scripts/cwo_core/maintenance_qualification.py": "782d0d1de82691f20c6480fa3856b4337d6aadebbd8ec4e25f9a2e4a6d2f1531",
     "scripts/cwo_core/maintenance_release.py": "78d1b1f05f39f4000e85ee561c88696e76656d2bf94dbbdf8cd6f9cdd1c7c03c",
     "scripts/cwo_core/maintenance_runtime_support.py": "6b97d5eaecd1f4cac4ec859af6b659082d9ab1a5c650c824c152df782a01eed8",
     "scripts/cwo_core/model_catalog_startup.py": "0eab2e78e670d470619c4709d18fc14cc548a0d9ed96233b923229484e30c6f2",
@@ -583,7 +583,7 @@
     "tests/fixtures/route-feasibility-preparation.json": "b3f153e8fe9ee01a74974514a7a582dffa2f15f2dc4f335bbe3ddec323ca1b05",
     "tests/fixtures/w20_affected_contract_w13/golden-b8f6251.json": "30e5c8c25946135c84d636b75cad81091395d006448f8b2e2e4f7b41858259af",
     "tests/fixtures/w20_affected_contract_w13/source-pins-2026-10-23.json": "0f2576ba8ed904551de6508ce98f639d445abe68c5d3261f3acb5d21536ecbe8",
-    "tests/historical_campaign_launcher.py": "fe6a40a9cdba4126143893b332d642bdaf17531ec3f95b23efff2845573ccbdb",
+    "tests/historical_campaign_launcher.py": "62702b02ffd2c404c32f2eace4c73f618cfcaffc2ee1eed58e577352688dc528",
     "tests/historical_policy_fixtures.py": "5a809bd26a65b6e7f818b7e8b79c3c9bb0bd3dc3de5e4d855a39f8c2210436ce",
     "tests/native_precommit_fixtures.py": "28221028c68294b88337fe9d16173a85468e82575098dc6afe5e298e174403dd",
     "tests/real_beads_fixture.py": "2a511efad89d9ddb9a5c8dfea76e45eb440d9d5c5bf27405e228ca93c3a46275",
@@ -622,7 +622,7 @@
     "tests/test_registered_finite_tool_calls.py": "6e9212f48f5dac8b186bee0bef176594c408baddc01cfb51aa288b4ed4913624",
     "tests/test_registered_finite_tool_wiring.py": "631e71ecf38debc5b951db609e7cf364d4fcafc2d98e70c7772081fac771c3d1",
     "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
-    "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
+    "tests/test_registered_n1_qualification.py": "67d0be4b236ce65aac06f95e62ec464ed11bbc8fe6164005cf024b2b1fa51d92",
     "tests/test_registered_n1_workflow.py": "f59f71d049575f7ca366c736a776901d420b4341d4090823a47dde5849e22b23",
     "tests/test_registered_native_pool_host.py": "4cd0bc00dce22022f1754f6defa17adb93759f749fcb7a67634e33eb35a27c4a",
     "tests/test_registered_native_pool_profiles.py": "d2be1853a7672e84c7f3cdcc5e460baf0758af549dad295c1c76b2d4dc893889",
@@ -635,7 +635,7 @@
     "tests/test_run_native_pool_live_canaries.py": "40e744c33c03272c71954cb8daa57f2439c8afc46295b2fe3198b238b4ed3f4f",
     "tests/test_run_readiness_plan.py": "e6e91c1894e4ce096eba5e5e92501ea05a9f60804c0425552ae4f5a7f9ffb8b7",
     "tests/test_selected_native_containment.py": "8228c514ddbfe1078c23b6b703941dd20b5346860af9d4f978946a1b6f688c2e",
-    "tests/test_w20_affected_contract_w13.py": "52aa43a6990695595e3ef548c99688f6cc34a26a1fe4f6631d3425c4334abc83",
+    "tests/test_w20_affected_contract_w13.py": "a1bd46df54f633cae584a19006d07978bf1062d600a4ff5bebb3466c5e528d9b",
     "tests/test_workflow_adjudication.py": "d2507c963f9decc2debe4e91368526041507a63a4348ea6f2c3958b5bed888c5"
   },
   "historical_files": {
@@ -768,7 +768,7 @@
       "scripts/run_native_pool_activation_preview.py",
       "scripts/run_native_pool_live_canaries.py"
     ],
-    "source_sha256": "be2779428ed4d942f5c02d737bf30ded6ad698849e73857e67ca40c7da3cb263"
+    "source_sha256": "a52635153e88b5486ef9e22427239199813e7e63fe04adcd1e875ca164c19fa5"
   },
   "limits": "Static conservative local import closure plus explicit runtime resources. Finite preserved verifier cases only; no arbitrary history execution. Runtime fixture binary/config/catalog are generated in disposable directories. No real installed or production operation. Fixed disposable no-model diagnostics and their actual local dependencies extend this conservative source/mode envelope. They are separate from registered named-profile consumers and grant no native admission, accepted output or historical semantic equivalence.",
   "local_import_edges": {
@@ -787,15 +787,9 @@
       "scripts/cwo_core/waivers.py"
     ],
     "scripts/check_codex_worker_surface.py": [
-      "scripts/codex_tool_surface.py",
       "scripts/cwo_core/__init__.py",
-      "scripts/cwo_core/model_identities.py",
-      "scripts/cwo_core/native_live_availability.py",
-      "scripts/cwo_core/supervision/__init__.py",
-      "scripts/cwo_core/supervision/transport/__init__.py",
-      "scripts/cwo_core/supervision/transport/app_server.py",
-      "scripts/cwo_core/supervision/transport/errors.py",
-      "scripts/model_catalog_startup.py"
+      "scripts/cwo_core/codex_tool_surface.py",
+      "scripts/cwo_core/native_live_availability.py"
     ],
     "scripts/check_installed_skill.py": [
       "scripts/cwo_core/__init__.py",
@@ -1024,18 +1018,12 @@
       "scripts/cwo_core/codex_tool_surface.py",
       "scripts/cwo_core/maintenance_authority.py",
       "scripts/cwo_core/maintenance_image.py",
-      "scripts/cwo_core/maintenance_runtime_support.py",
       "scripts/cwo_core/native_authority.py",
       "scripts/cwo_core/native_canary_contracts.py",
       "scripts/cwo_core/native_live_availability.py",
       "scripts/cwo_core/native_pool_contracts.py",
       "scripts/cwo_core/native_tool_isolation.py",
-      "scripts/cwo_core/native_turn_dispatch.py",
-      "scripts/cwo_core/supervision/__init__.py",
-      "scripts/cwo_core/supervision/containment.py",
-      "scripts/cwo_core/supervision/transport/__init__.py",
-      "scripts/cwo_core/supervision/transport/app_server.py",
-      "scripts/cwo_core/supervision/transport/errors.py"
+      "scripts/cwo_core/native_turn_dispatch.py"
     ],
     "scripts/cwo_core/maintenance_release.py": [
       "scripts/cwo_core/__init__.py",
@@ -2381,6 +2369,7 @@
       "scripts/cwo_core/supervision/transport/app_server.py",
       "scripts/registered_n1_qualification.py",
       "scripts/selected_native_containment.py",
+      "tests/historical_campaign_launcher.py",
       "tests/test_registered_n1_factory.py"
     ],
     "tests/test_registered_n1_workflow.py": [
@@ -2598,7 +2587,7 @@
   "registered_source_callers": {
     "references/registered-effect-contract.md": "aa1512a2bee9b4b2f7a01837003ce7fb8b97e7f1f9cc8ae18d47b3c222c64648",
     "tests/test_registered_n1_factory.py": "c0a45a279acbb038ae249328df7dd776be97913c74005148035e206095140ab2",
-    "tests/test_registered_n1_qualification.py": "b13ca48f5e4c405094a2231560b9b655e0c9fde7174411c40b74e83c98b7bbd8",
+    "tests/test_registered_n1_qualification.py": "67d0be4b236ce65aac06f95e62ec464ed11bbc8fe6164005cf024b2b1fa51d92",
     "tests/test_registered_provider_network.py": "dcad39f3aa3e9c8aeccc6ab5f800ff2cc322baa8b8cc9dc4e388d7c965fc9c78",
     "tests/test_registered_server_requests.py": "c06a550e63d423b15841ef01fb6f7a93e4c4bc30b7e7d1aa8b4891fd1835c024"
   },

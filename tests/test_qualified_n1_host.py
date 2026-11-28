@@ -16,7 +16,7 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[1]
 sys.path[:0] = [str(ROOT / "scripts"), str(ROOT / "tests")]
 
-import qualified_n1_host as lifecycle  # noqa: E402
+from tests import qualified_n1_host_fixture as lifecycle  # noqa: E402
 import test_linux_owned_children as children  # noqa: E402
 import test_offline_effect_profile as fixtures  # noqa: E402
 from test_offline_host_crash_matrix import cleanup_helper  # noqa: E402

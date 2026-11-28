@@ -134,30 +134,59 @@ class F5NativeLiveHoldTests(unittest.TestCase):
         runtime = M._Runtime.__new__(M._Runtime)
         runtime.prepared, runtime.plan = False, {}
         runtime._guard = mock.Mock(side_effect=FakeLaunchReached)
-        capability = SimpleNamespace(evidence=mock.Mock(side_effect=FakeLaunchReached))
-        with mock.patch.object(S, 'prepare_capture_binding', side_effect=FakeLaunchReached) as capture, \
-             mock.patch.object(Q, 'require_maintenance_operation', return_value=capability), \
-             mock.patch.object(S, 'ThreadingHTTPServer', side_effect=AssertionError) as listener, \
-             mock.patch.object(Q, 'private_write', side_effect=AssertionError) as write:
-            entries = ((workflow.run, workflow._locked), (lambda: runtime.prepare({}), runtime._guard),
-                (lambda: S.capture_tool_request(codex_home=Path('/EXAMPLE'), requested_model='EXAMPLE', timeout_seconds=1), capture),
-                (lambda: Q.observe_qualification(operation=None, verifier=None, plan=None, workspace=Path('/EXAMPLE'),
-                    output=Path('/EXAMPLE/output'), session_ledger=None, tool_surface_proof={},
-                    control_image_sha256='', fit_prompt=''), capability.evidence))
-            for entry, guard in entries:
-                with self.subTest(entry=entry), self.assertRaises(A.NativeLiveUnavailable):
-                    entry()
-                self.assertEqual(guard.call_count, 0)
-                with mock.patch.object(A, 'N1_LIVE_AVAILABLE', True), self.assertRaises(FakeLaunchReached):
-                    entry()
-                self.assertEqual(guard.call_count, 1)
-            self.assertEqual((listener.call_count, write.call_count), (0, 0))
-        args = SimpleNamespace(timeout_seconds=1, profile='mutating', catalog_projection=None)
-        with mock.patch.object(S.argparse.ArgumentParser, 'parse_args', return_value=args), \
-             mock.patch.object(S, '_write_private_json', side_effect=AssertionError) as write, \
-             self.assertRaises(A.NativeLiveUnavailable):
-            S.main()
-        self.assertEqual(write.call_count, 0)
+        for entry, guard in ((workflow.run, workflow._locked), (lambda: runtime.prepare({}), runtime._guard)):
+            with self.subTest(entry=entry), self.assertRaises(A.NativeLiveUnavailable):
+                entry()
+            self.assertEqual(guard.call_count, 0)
+            with mock.patch.object(A, 'N1_LIVE_AVAILABLE', True), self.assertRaises(FakeLaunchReached):
+                entry()
+            guard.assert_called_once()
+
+    def test_retired_surface_probe_refuses_even_when_generic_n1_is_enabled(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            argv = ["probe", "--codex-home", str(root / "missing-home"),
+                    "--output", str(root / "proof.json"), "--capture", str(root / "capture.json"),
+                    "--host-evidence", str(root / "host.json")]
+            for available in (False, True):
+                with self.subTest(available=available), mock.patch.object(A, "N1_LIVE_AVAILABLE", available), \
+                     mock.patch("cwo_core.codex_tool_surface.prepare_capture_binding",
+                                side_effect=FakeLaunchReached) as bind, \
+                     mock.patch("model_catalog_startup.configure_cli_model_catalog",
+                                side_effect=FakeLaunchReached) as catalog, \
+                     mock.patch("http.server.ThreadingHTTPServer", side_effect=FakeLaunchReached) as listener, \
+                     mock.patch.object(T.subprocess, "Popen", side_effect=FakeLaunchReached) as launch, \
+                     mock.patch.object(sys, "argv", argv):
+                    with self.assertRaisesRegex(A.NativeLiveUnavailable, "^native-n1-live-unavailable$"):
+                        S.capture_tool_request(codex_home=root / "missing-home", requested_model="EXAMPLE",
+                                               timeout_seconds=1)
+                    with self.assertRaisesRegex(A.NativeLiveUnavailable, "^native-n1-live-unavailable$"):
+                        S.main()
+                for effect in (bind, catalog, listener, launch):
+                    effect.assert_not_called()
+            self.assertEqual(list(root.iterdir()), [])
+
+    def test_retired_maintenance_observer_validates_operation_before_unconditional_refusal(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            inputs = {"operation": None, "verifier": None, "plan": None, "workspace": root / "missing",
+                      "output": root / "observation", "session_ledger": None, "tool_surface_proof": {},
+                      "control_image_sha256": "", "fit_prompt": ""}
+            operation = SimpleNamespace(evidence=mock.Mock(side_effect=FakeLaunchReached))
+            for available in (False, True):
+                with self.subTest(available=available), mock.patch.object(A, "N1_LIVE_AVAILABLE", available):
+                    with self.assertRaisesRegex(ValueError, "opaque-operation-required"):
+                        Q.observe_qualification(**inputs)
+                    with mock.patch.object(Q, "require_maintenance_operation", return_value=operation) as verify, \
+                         mock.patch.object(Q, "private_write", side_effect=FakeLaunchReached) as write, \
+                         mock.patch.object(T, "AppServer", side_effect=FakeLaunchReached) as launch, \
+                         self.assertRaisesRegex(A.NativeLiveUnavailable, "^native-n1-live-unavailable$"):
+                        Q.observe_qualification(**inputs)
+                    verify.assert_called_once_with(None, verifier=None, plan=None)
+                    write.assert_not_called()
+                    launch.assert_not_called()
+            operation.evidence.assert_not_called()
+            self.assertEqual(list(root.iterdir()), [])
 
     def test_f5_legacy_pool_holds_and_retirement_precede_effects(self):
         legacy = object.__new__(P.RegisteredNativePoolHost)

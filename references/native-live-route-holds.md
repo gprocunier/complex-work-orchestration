@@ -11,7 +11,7 @@ for live requests and continues to support offline preparation and validation.
 | Registered single-worker production | `REGISTERED_N1_LIVE_AVAILABLE` | Original signed workflow, exact finite profile, current provider disclosure adoption and configured dedicated worker login before the first claim. The original factory and transport recheck authority at launch and model request writes. |
 | Raw native or generic maintenance launch | `N1_LIVE_AVAILABLE` | Raw `AppServer` construction and its adjacent `Popen`, unbound model RPCs, maintenance runtime `prepare` and the admitted v8 loader. |
 | N1 host qualification | Signed version 2 qualification permit | The protected controller binds one exact operation, its expiry and the fixed 20-start campaign limit. The factory charges the launch to a private campaign journal before releasing the app-server command. |
-| Native surface probe and qualification | `N1_LIVE_AVAILABLE` | `capture_tool_request` refuses before capture binding or listener startup; its CLI refuses before catalog/evidence writes. `observe_qualification` verifies the original opaque operation, then refuses before qualification output/intent creation. |
+| Native tool-surface capture and maintenance observation | Retired | `capture_tool_request` refuses before capture binding or listener startup. Its CLI refuses before catalog or evidence writes. `observe_qualification` verifies the original opaque operation before refusing, without recording intent or writing output. |
 | Registered contained pool | `REGISTERED_CONTAINED_POOL_LIVE_AVAILABLE` and `REGISTERED_N1_LIVE_AVAILABLE` | The original host checks the approved cohort, exact model and limits, and distinct configured login custody before admission. Execution uses the same host's fresh callback capability and original registered writer. |
 | Fixed contained-pool qualification | Retired | The preparation command and protected controller are archived in [v1.45.0](https://github.com/gprocunier/complex-work-orchestration/blob/v1.45.0/references/native-supervision-pools.md#contained-qualification-on-stock-codex). |
 | Legacy serial pool and retry | Retired | The serial host refuses execution before recording intent, claiming work or reserving budget. Signed status readers check the original configuration and source image. See the [v1.46.0 serial integration record](https://github.com/gprocunier/complex-work-orchestration/blob/v1.46.0/references/codex-protocol-capability-matrix.md#protected-serial-pool-integration). |
@@ -39,6 +39,26 @@ switches on.
 The historical transport extraction and archived source fixtures remain
 historical records. Raw transport retains its source hold. Additional live
 routes require their own qualification and operator decision.
+
+### Archived tool-surface and maintenance observation producers
+
+The producer implementations and their offline fixtures are in
+[v1.48.0](https://github.com/gprocunier/complex-work-orchestration/tree/7b2f3db802d7b1d1c4c555960d65d2502220f93b).
+Current setup and registered routes use the shared tool-surface checks. The signed
+N1 host qualification permit remains available under its own launch rules. The
+signed N1 host campaign has its own
+[evaluation record](evaluation-evidence.md#registered-native-single-worker).
+
+`scripts/check_maintenance_qualification.py` verifies successful, unexpired
+version 3 observations. Use the recorded observation SHA-256, the exact issuing
+control image at its original absolute install path, and the original session
+file. The reader checks the image's file paths, bytes and executable modes and
+the session file's recorded filesystem identity and bytes.
+
+To verify an expired version 3 observation as historical evidence, call the
+issuing image's `cwo_core.maintenance_qualification.inspect_observation` with
+the bundle root, recorded `observation_sha256`, and a trusted, recorded `now`
+within the original validity window. This verdict carries no launch authority.
 
 ## Historical campaign verification
 
