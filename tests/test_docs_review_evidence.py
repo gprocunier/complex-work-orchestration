@@ -33,20 +33,32 @@ class ReviewEvidenceDocumentationTests(unittest.TestCase):
             "https://code.claude.com/docs/en/agent-teams",
             "https://docs.opencode.ai/docs/providers/",
             "https://docs.opencode.ai/docs/permissions/",
-            "https://docs.langchain.com/oss/python/langgraph/persistence",
-            "https://docs.langchain.com/oss/python/langgraph/interrupts",
+            "https://docs.langchain.com/oss/python/deepagents/overview",
+            "https://learn.microsoft.com/en-us/agent-framework/overview/",
             "https://docs.crewai.com/en/concepts/flows",
             "https://openai.github.io/openai-agents-python/models/",
             "https://openai.github.io/openai-agents-python/guardrails/",
-            "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html",
+            "https://github.com/microsoft/autogen",
+            "https://docs.openhands.dev/sdk",
         ]
         for url in urls:
             with self.subTest(url=url):
                 self.assertEqual(self.link_errors(url), [])
                 self.assertEqual(self.link_errors(url + "#section"), [])
-                self.assertTrue(self.link_errors(url + "extra"))
+                self.assertTrue(self.link_errors(url.rstrip("/") + "extra"))
+                self.assertTrue(self.link_errors(url.rstrip("/") + "/extra"))
                 self.assertTrue(self.link_errors(url.replace("https://", "https://lookalike.invalid/")))
                 self.assertTrue(self.link_errors(url + "?redirect=elsewhere"))
+
+        retired_urls = [
+            "https://docs.langchain.com/oss/python/langgraph/persistence",
+            "https://docs.langchain.com/oss/python/langgraph/interrupts",
+            "https://microsoft.github.io/autogen/stable/user-guide/agentchat-user-guide/tutorial/teams.html",
+        ]
+        for url in retired_urls:
+            with self.subTest(retired_url=url):
+                self.assertTrue(self.link_errors(url))
+                self.assertTrue(self.link_errors(url + "#section"))
 
     def test_component_source_links_are_pinned_to_exact_test_files(self):
         base = "https://github.com/gprocunier/complex-work-orchestration/blob/8e05b6cce4c4cf89325112f019fdd8c69a28ecff/"
