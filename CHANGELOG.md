@@ -14,6 +14,10 @@
 - Tighten the code-health baseline and consolidate repeated checks in native worker and pool validators. Renew registered delegation and pool approvals bound to earlier source digests after upgrading.
 - Reject malformed structured research evidence with specific errors and evaluate each inspection or validation claim in its own clause. Use JSON integers for research scores in place of strings or decimals. See the [held-out advisory comparison](references/evaluation-evidence.md#optional-local-advisory).
 
+### Tests
+
+- Make the hosted pool calibration and signed writer cutoff fixtures deterministic.
+
 ## 1.49.0 - 2026-11-28
 
 - Add optional local run records to `cwo continue` and a read-only `cwo analyze` report for saved plan artifacts.
