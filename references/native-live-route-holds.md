@@ -69,10 +69,22 @@ record witnesses at commit `a559a0bb2b9fc4e83b8acbef7b13b48172a47983`
 (`v1.37.0`). The Generation 11 source digests are read from
 `e7f540654e0ed605e4720bd4d3b670a11cb8f701`.
 
-The tagged source also retains the authorization latch, campaign proof validators and
-`build_live_canary_pool_contract` for historical manifests. Current source
-retains the read-only validator-contract digests and private JSON snapshot
-type. The read-only Git checks live in `cwo_core.native_campaign_history`. The ordinary `build_pool_contract` uses the released capacity policy.
+The v1.37.0 source also retains the authorization latch, campaign proof
+validators and `build_live_canary_pool_contract` for historical manifests.
+Recompute a historical validator-contract digest over the recorded Git tree
+with the archived read-only helpers. They read the original paths and raw blob
+bytes from Git. The history module in v1.48.0
+(`7b2f3db802d7b1d1c4c555960d65d2502220f93b`) is byte-identical to the one used by
+the post-Stage-2 replay. [Archived digest source](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/cwo_core/native_campaign_history.py).
+
+Use the post-Stage-2 source at `bd458b84e9ab1ef7161fe43f555c11f6ebac8c41` for
+historical v1 steering receipt reads and v2 verifier and writer examples. The
+offline replay uses its matching campaign facade and steering tests.
+[Archived steering source](https://github.com/gprocunier/complex-work-orchestration/blob/bd458b84e9ab1ef7161fe43f555c11f6ebac8c41/scripts/cwo_core/native_canary_contracts.py).
+
+Current transport retains the private JSON snapshot type and readback. Current
+allocation ledger readers retain steering receipt digest fields. The ordinary
+`build_pool_contract` uses the released capacity policy.
 
 The native runner keeps compatibility imports for its shared adapter, timing
 and containment. The registered contained pool binds its writer-held callback

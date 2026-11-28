@@ -202,9 +202,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "workspace_capture",
     },
     "native_capability": {"native_authority"},
-    "native_canary_contracts": {"native_stop_scope", "util"},
-    "native_campaign_history": {"workspace_capture"},
-    "native_live_campaign_contracts": {"native_campaign_history"},
+    "native_canary_contracts": set(),
+    "native_live_campaign_contracts": set(),
     "native_live_allocation_ledger": {
         "audit",
         "native_canary_contracts",
@@ -957,6 +956,14 @@ def validate_repository() -> list[str]:
             "version-2 admitted contract passed directly",
             "admitted-pool-launcher-required",
             "capability_receipt=capability_receipt",
+            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41",
+            "Generation8FiniteDagContractTests",
+            "test_neutral_steering_is_strict_write_with_compatible_v1_read",
+        ]),
+        ("references/native-live-route-holds.md", [
+            "Historical campaign verification",
+            "7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/cwo_core/native_campaign_history.py",
+            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41/scripts/cwo_core/native_canary_contracts.py",
         ]),
         ("references/execution-environments.md", [
             "--tool-enforcement-override",
