@@ -14,6 +14,12 @@ sys.path.insert(0, str(ROOT / "scripts"))
 from close_bead_with_summary import closure_memory_missing_fields, execute, render_closure_summary  # noqa: E402
 
 
+def setUpModule() -> None:
+    binding = patch("close_bead_with_summary.bind_project_beads")
+    binding.start()
+    unittest.addModuleCleanup(binding.stop)
+
+
 def args(**overrides: object) -> argparse.Namespace:
     values: dict[str, object] = {
         "bead": "complex-work-orchestration-abc",
@@ -126,7 +132,7 @@ class CloseBeadWithSummaryTests(unittest.TestCase):
     def test_close_posts_comment_then_closes(self) -> None:
         calls: list[list[str]] = []
 
-        def fake_run_bd(command: list[str]) -> str:
+        def fake_run_bd(command: list[str], *, binding) -> str:
             calls.append(command)
             return "ok"
 
@@ -146,7 +152,7 @@ class CloseBeadWithSummaryTests(unittest.TestCase):
     def test_comment_only_posts_summary(self) -> None:
         calls: list[list[str]] = []
 
-        def fake_run_bd(command: list[str]) -> str:
+        def fake_run_bd(command: list[str], *, binding) -> str:
             calls.append(command)
             return "ok"
 
@@ -201,7 +207,7 @@ class SuccessfulClosureUnavailableTests(unittest.TestCase):
                     execute(args(disposition=disposition, close=True))
                 run_bd.assert_not_called()
             calls: list[list[str]] = []
-            with patch("close_bead_with_summary.run_bd", side_effect=lambda command: calls.append(command) or "ok"):
+            with patch("close_bead_with_summary.run_bd", side_effect=lambda command, **_: calls.append(command) or "ok"):
                 result = execute(args(disposition=disposition))
             self.assertEqual([call[0] for call in calls], ["comment"])
             self.assertIn(f"- Disposition: {disposition}", calls[0][3])
@@ -211,7 +217,7 @@ class SuccessfulClosureUnavailableTests(unittest.TestCase):
         for disposition in ("superseded", "split", "rejected", "abandoned", "Superseded"):
             calls: list[list[str]] = []
             with self.subTest(disposition=disposition), \
-                    patch("close_bead_with_summary.run_bd", side_effect=lambda command: calls.append(command) or "ok"):
+                    patch("close_bead_with_summary.run_bd", side_effect=lambda command, **_: calls.append(command) or "ok"):
                 result = execute(args(disposition=disposition, close=True))
             recorded = disposition.lower()
             self.assertEqual([call[0] for call in calls], ["comment", "close"])
@@ -389,7 +395,7 @@ class ReviewRoundTwoTests(unittest.TestCase):
 
         from close_bead_with_summary import main
 
-        def fake_run_bd(command: list[str]) -> str:
+        def fake_run_bd(command: list[str], *, binding) -> str:
             if command[0] == "close":
                 raise SystemExit("bd close failed: database locked")
             return "ok"

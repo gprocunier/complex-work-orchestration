@@ -15,6 +15,11 @@ from cwo_core.beads import create_bead  # noqa: E402
 
 
 class BeadsCreateFieldsTests(unittest.TestCase):
+    def test_option_like_title_is_passed_as_an_operand(self) -> None:
+        with patch("cwo_core.beads.run_bd", return_value="Created issue: example-1") as run:
+            create_bead("--option-like title")
+        self.assertEqual(run.call_args.args[0][-2:], ["--", "--option-like title"])
+
     def test_create_bead_passes_native_fields_and_normalizes_literal_newlines(self) -> None:
         captured: list[list[str]] = []
 

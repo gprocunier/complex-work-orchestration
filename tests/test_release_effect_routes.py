@@ -1433,6 +1433,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
         for label, selected, dry, refused in (("admitted", route, False, False), ("missing", missing, False, True),
                                              ("dry-admitted", route, True, False), ("dry-missing", missing, True, True)):
             with self.subTest(experts=label), mock.patch.object(experts, "classify_work", return_value=selected), \
+                 mock.patch.object(experts, "bind_project_beads"), \
                  mock.patch.object(experts, "create_bead", side_effect=lambda title, **kw: {"id": "EXAMPLE", "title": title}) as creates, \
                  mock.patch.object(sys, "argv", ["spawn_expert_reviews.py", text, *(["--dry-run"] if dry else [])]), \
                  mock.patch("sys.stdout", io.StringIO()):

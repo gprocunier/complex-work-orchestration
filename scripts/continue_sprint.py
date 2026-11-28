@@ -5,10 +5,11 @@ import argparse
 import json
 import re
 import shlex
+from collections import deque
 from pathlib import Path
 from typing import Any
 
-from cwo_core.beads import bead_id_operand, run_bd
+from cwo_core.beads import ProjectBeads, bead_id_operand, bind_project_beads, run_bd
 from cwo_core.beads_ready_set import (
     CONTAINER_LABELS,
     CONTAINER_TYPES,
@@ -28,24 +29,25 @@ FOLLOWUP_LABELS = {"follow-up", "followup", "carry-forward", "carried-forward"}
 HARD_BLOCKING_DEPENDENCY_TYPES = {"blocks", "until"}
 
 
-def bd_json(args: list[str]) -> Any:
-    return json.loads(run_bd(args))
+def bd_json(args: list[str], *, binding: ProjectBeads | None = None) -> Any:
+    return json.loads(run_bd(args) if binding is None else run_bd(args, binding=binding))
 
 
-def _parent_query(parent_id: str, *, ready: bool) -> Any:
+def _parent_operand(parent_id: str) -> str:
     # Beads accepts option-like parent values as literal filters. Reject them
     # before either query rather than treating an empty result as valid work.
     try:
-        parent = bead_id_operand(parent_id)
+        return bead_id_operand(parent_id)
     except ValueError as exc:
         raise SystemExit(str(exc)) from exc
-    args = ["ready" if ready else "list", "--json"]
-    if not ready:
-        args.append("--all")
-    args.extend(["--parent", parent])
+
+
+def _parent_query(parent_id: str, *, ready: bool, binding: ProjectBeads | None = None) -> Any:
+    args = ["ready", "--json"] if ready else ["list", "--json", "--all"]
+    args.extend(["--parent", _parent_operand(parent_id)])
     if ready:
         args.append("--unassigned")
-    return bd_json([*args, "--limit", "0"])
+    return bd_json([*args, "--limit", "0"], binding=binding)
 
 
 def as_list(value: Any) -> list[Any]:
@@ -67,8 +69,6 @@ def normalized_dependency_type(value: Any) -> str:
 
 
 def dependency_entry_ids(value: Any) -> list[str]:
-    if isinstance(value, str):
-        return [item.strip() for item in value.split(",") if item.strip()]
     if not isinstance(value, dict):
         return string_list(value)
     dependency_type = normalized_dependency_type(
@@ -154,56 +154,41 @@ def normalize_item(item: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def load_beads_items(epic_id: str) -> list[dict[str, Any]]:
+def load_beads_items(epic_id: str, *, binding: ProjectBeads | None = None) -> list[dict[str, Any]]:
     """Load exact issue projections while taking readiness only from ``bd ready``."""
 
-    ready_payload = _parent_query(epic_id, ready=True)
-    ready_items = coerce_items(ready_payload)
-    ready_order: list[str] = []
-    for item in ready_items:
-        item_id = issue_id(item)
-        if item_id and item_id not in ready_order:
-            ready_order.append(item_id)
-    ready_ids = set(ready_order)
+    _parent_operand(epic_id)
+    binding = binding or bind_project_beads()
+    ready_items = coerce_items(_parent_query(epic_id, ready=True, binding=binding))
+    ready_order = dict.fromkeys(filter(None, map(issue_id, ready_items)))
     ready_rank = {item_id: rank for rank, item_id in enumerate(ready_order)}
 
-    discovered_ids = {epic_id, *ready_ids}
-    pending_parents = [epic_id]
-    queried_parents: set[str] = set()
+    known_parents = {epic_id}
+    pending_parents = deque([epic_id])
     while pending_parents:
-        parent_id = pending_parents.pop(0)
-        if parent_id in queried_parents:
-            continue
-        queried_parents.add(parent_id)
-        children = coerce_items(_parent_query(parent_id, ready=False))
-        for child in children:
-            child_id = issue_id(child)
-            if child_id:
-                discovered_ids.add(child_id)
-                if child_id not in queried_parents and child_id not in pending_parents:
-                    pending_parents.append(child_id)
+        parent_id = pending_parents.popleft()
+        children = coerce_items(_parent_query(parent_id, ready=False, binding=binding))
+        for child_id in filter(None, map(issue_id, children)):
+            if child_id not in known_parents:
+                known_parents.add(child_id)
+                pending_parents.append(child_id)
 
+    discovered_ids = known_parents | ready_rank.keys()
     exact_items: list[dict[str, Any]] = []
     exact_ids = sorted(discovered_ids)
     for start in range(0, len(exact_ids), 50):
         chunk = exact_ids[start : start + 50]
-        exact_items.extend(coerce_items(bd_json(["show", "--json", "--", *chunk])))
+        exact_items.extend(coerce_items(bd_json(["show", "--json", "--", *chunk], binding=binding)))
     exact_by_id = {issue_id(item): item for item in exact_items if issue_id(item)}
     missing = sorted(discovered_ids - set(exact_by_id))
     if missing:
-        raise SystemExit(
-            "Beads exact-show enrichment omitted issue(s): " + ", ".join(missing)
-        )
+        raise SystemExit("Beads exact-show enrichment omitted issue(s): " + ", ".join(missing))
 
-    parent_ids = {
-        str(field(item, "parent", "parent_id") or "").strip()
-        for item in exact_items
-        if str(field(item, "parent", "parent_id") or "").strip()
-    }
+    parent_ids = {str(field(item, "parent", "parent_id") or "").strip() for item in exact_items}
     result: list[dict[str, Any]] = []
     for item_id in exact_ids:
         enriched = dict(exact_by_id[item_id])
-        enriched["_cwo_canonical_ready"] = item_id in ready_ids
+        enriched["_cwo_canonical_ready"] = item_id in ready_order
         enriched["_cwo_canonical_ready_rank"] = ready_rank.get(item_id)
         enriched["_cwo_executable_leaf"] = item_id not in parent_ids
         result.append(enriched)

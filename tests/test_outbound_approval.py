@@ -88,7 +88,7 @@ class OutboundApprovalTests(unittest.TestCase):
     def test_one_skill_keeps_target_checkout_approvals_separate(self):
         from tests.dispatch_workload_fixture import write_workload
 
-        with current_policy() as home:
+        with current_policy() as home, mock.patch.dict("os.environ", {"BEADS_DIR": ""}):
             first, second = home / "first-project", home / "second-project"
             for project in (first, second):
                 project.mkdir()
@@ -96,14 +96,28 @@ class OutboundApprovalTests(unittest.TestCase):
             nested = first / "nested"
             nested.mkdir()
             grant = outbound_grant(BEAD, EPIC, EXECUTOR, project=first.resolve())
-            command = ["bd", "show", "--json", "--", BEAD]
-            completed = subprocess.CompletedProcess(command, 0, stdout=json.dumps(ASSIGNMENT), stderr="")
+            database = first.resolve() / ".beads"
+            database.mkdir()
+            storage = database / "fixture.db"
+            storage.touch()
+            location = {"path": str(database), "database_path": str(storage)}
+            pinned = ["bd", "--db", str(database)]
+            command = [*pinned, "show", "--json", "--", BEAD]
+            commands = [["bd", "where", "--json"], [*pinned, "where", "--json"], command]
+            completed = [
+                subprocess.CompletedProcess(argv, 0, stdout=json.dumps(payload), stderr="")
+                for argv, payload in zip(commands, (location, location, ASSIGNMENT), strict=True)
+            ]
             wrong_git = {"GIT_DIR": str(second / ".git"), "GIT_WORK_TREE": str(second)}
             with approved_outbound(grant), chdir(nested):
                 with mock.patch.dict("os.environ", wrong_git), mock.patch.object(beads, "require_bd"), \
-                        mock.patch.object(beads.subprocess, "run", return_value=completed) as show:
+                        mock.patch.object(beads.subprocess, "run", side_effect=completed) as show:
                     packet, _, failure = self.build(first, "--opt-in-record", REFERENCE, saved_bead=False)
                 self.assertIsNone(failure, str(failure))
+                self.assertEqual([call.args[0] for call in show.call_args_list], commands)
+                for probe in show.call_args_list[:-1]:
+                    self.assertEqual(probe.kwargs["cwd"], first.resolve())
+                    self.assertTrue(wrong_git.keys().isdisjoint(probe.kwargs["env"]))
                 self.assertEqual(show.call_args.args, (command,))
                 self.assertEqual(show.call_args.kwargs["cwd"], first.resolve())
                 self.assertTrue(wrong_git.keys().isdisjoint(show.call_args.kwargs["env"]))

@@ -47,6 +47,7 @@ class SpawnExpertReviewsTests(unittest.TestCase):
             (scaffold_workgraph, ["--title", title, "--description", task]),
         ):
             with patch.object(sys, "argv", [cli.__file__, *argv]), \
+                    patch.object(cli, "bind_project_beads"), \
                     patch.object(cli, "create_bead", return_value={"id": "bd-test", "title": "review"}) as create, \
                     patch.object(scaffold_workgraph, "try_dep"), patch("builtins.print"):
                 cli.main()

@@ -135,7 +135,7 @@ def discover_review_issue(bead_id: str | None, *, directory: Path | None = None)
         issue = _one_issue(show_bead_json(bead_id, directory=cwd))
     except SystemExit as exc:
         message = str(exc).casefold()
-        if ("no issue" in message or "no beads database found" in message
+        if ("no issue" in message or "no beads database found" in message or "no active beads workspace found" in message
                 or ("issue" in message and "not found" in message)):
             return {}
         raise

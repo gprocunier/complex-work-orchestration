@@ -3,10 +3,10 @@ from __future__ import annotations
 
 import argparse
 import json
-import subprocess
 import sys
 
 from cwo_core.audit import record_audit_event
+from cwo_core.beads import run_bd
 from cwo_core.util import make_dispatch_id
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason, waiver_audit_fields
 
@@ -62,10 +62,7 @@ def main() -> None:
             f"waiver_reason={payload['waiver_reason']}; swimlane_violation=true; "
             "automatic_selection_forbidden=true."
         )
-        subprocess.run(
-            ["bd", "update", "--add-label", "sol-breakfix-approved", "--append-notes", note, "--", args.bead],
-            check=True,
-        )
+        run_bd(["update", "--add-label", "sol-breakfix-approved", "--append-notes", note, "--", args.bead])
         payload = record_audit_event(payload)
     print(json.dumps(payload, indent=2, sort_keys=True))
 

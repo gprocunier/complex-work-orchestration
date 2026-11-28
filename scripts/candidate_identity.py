@@ -5,8 +5,8 @@
 version of a requirement baseline and writes the candidate identity record to a new file. It prints the reference
 line to post on the Bead; it does not post it. ``verify`` checks a recorded candidate against the working tree, the
 baseline chain and the Bead, and refuses on any mismatch, drift or absence. Both read the working tree and the
-repository inertly, with no Git command run against either; the only Beads command either runs is ``bd show``
-(``verify --read-beads``). Neither makes successful closure available.
+repository inertly, with no Git command run against either. With ``verify --read-beads``, the CLI identifies
+the calling project's Beads database and reads the issue using ``bd show``. Neither makes successful closure available.
 """
 from __future__ import annotations
 

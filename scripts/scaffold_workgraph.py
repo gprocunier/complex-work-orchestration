@@ -8,7 +8,9 @@ import sys
 from typing import Any
 
 from cwo_core.beads import (
+    ProjectBeads,
     add_dependency,
+    bind_project_beads,
     create_bead,
     normalize_dependency_type,
 )
@@ -1210,12 +1212,15 @@ def try_dep(
     blocked: str,
     blocker: str,
     dependency_type: str = "blocks",
+    *,
+    binding: ProjectBeads | None = None,
 ) -> None:
     try:
         add_dependency(
             blocked,
             blocker,
             dependency_type=dependency_type,
+            binding=binding,
         )
     except (SystemExit, Exception) as exc:
         raise SystemExit(
@@ -1356,44 +1361,37 @@ def main() -> None:
             "--format beads-graph or markdown-workgraph requires --dry-run; "
             "normal execution creates Beads directly."
         )
+    create_graph(plan, relationships, args.description)
 
+
+def create_graph(
+    plan: list[dict[str, Any]], relationships: list[tuple[str, str, str]], description: str,
+) -> None:
+    binding = bind_project_beads()
     created: dict[str, str] = {}
     failed_step = "create epic"
     try:
-        epic_plan = plan[0]
-        epic = create_bead(
-            epic_plan["title"],
-            issue_type="epic",
-            priority=1,
-            labels=epic_plan["labels"],
-            skills=epic_plan["skills"],
-            description=args.description or "Policy-routed complex work epic.",
-            acceptance=str(epic_plan["acceptance"]),
-            design=str(epic_plan["design"]),
-            notes=str(epic_plan["notes"]),
-            metadata=epic_plan["metadata"],
-        )
-        created["epic"] = epic["id"]
-        print(f"Created epic: {epic['id']}")
-
-        for index, item in enumerate(plan[1:], start=1):
-            key = item_key(item, index)
+        for index, item in enumerate(plan):
+            epic = index == 0
+            key = "epic" if epic else item_key(item, index)
             failed_step = f"create {key}"
             bead = create_bead(
                 item["title"],
-                parent=epic["id"],
+                binding=binding,
+                issue_type="epic" if epic else "task",
+                parent=created.get("epic"),
                 # One priority rule for direct creation and the Beads graph plan.
-                priority=item_priority(item, index),
+                priority=1 if epic else item_priority(item, index),
                 labels=item["labels"],
                 skills=item["skills"],
-                description=planned_description(item, key),
+                description=(description or "Policy-routed complex work epic.") if epic else planned_description(item, key),
                 acceptance=str(item["acceptance"]),
                 design=str(item["design"]),
                 notes=str(item["notes"]),
                 metadata=item.get("metadata"),
             )
             created[key] = bead["id"]
-            print(f"Created task: {bead['id']} {bead['title']}")
+            print(f"Created epic: {bead['id']}" if epic else f"Created task: {bead['id']} {bead['title']}")
 
         for key, blocker_key, dependency_type in relationships:
             blocked = created.get(key)
@@ -1403,7 +1401,7 @@ def main() -> None:
                     f"add dependency {key} -> {blocker_key} "
                     f"({dependency_type})"
                 )
-                try_dep(blocked, blocker, dependency_type)
+                try_dep(blocked, blocker, dependency_type, binding=binding)
     except SystemExit as exc:
         if created:
             print(recovery_summary(created, failed_step, exc), file=sys.stderr)

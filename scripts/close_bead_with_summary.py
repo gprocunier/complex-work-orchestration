@@ -10,7 +10,7 @@ import unicodedata
 from typing import Any
 
 from cwo_core import manual_delivery
-from cwo_core.beads import run_bd
+from cwo_core.beads import ProjectBeads, bind_project_beads, run_bd
 
 NO_VALUE = "None recorded."
 # Narrative dispositions grant no completion authority. Verified completion
@@ -321,13 +321,16 @@ def checked_narrative(args: argparse.Namespace) -> None:
                 )
 
 
-def write_summary(args: argparse.Namespace, disposition: str, summary: str) -> str:
+def write_summary(
+    args: argparse.Namespace, disposition: str, summary: str,
+) -> tuple[str, ProjectBeads | None]:
     if any(getattr(args, field, None) for field in ("baseline", "candidate", "amendment", "repo")):
         if disposition != "pending-acceptance":
             raise ValueError("delivery records require the pending-acceptance disposition")
-        return manual_delivery.record_delivery(args, summary)
-    run_bd(["comment", "--", clean_text(args.bead), summary])
-    return summary
+        return manual_delivery.record_delivery(args, summary), None
+    binding = bind_project_beads()
+    run_bd(["comment", "--", clean_text(args.bead), summary], binding=binding)
+    return summary, binding
 
 
 def execute(args: argparse.Namespace) -> dict[str, Any]:
@@ -386,12 +389,12 @@ def execute(args: argparse.Namespace) -> dict[str, Any]:
     if args.dry_run:
         return result
 
-    result["summary"] = write_summary(args, disposition, summary)
+    result["summary"], binding = write_summary(args, disposition, summary)
     result["comment_posted"] = True
 
     if args.close:
         try:
-            run_bd(["close", "--reason", close_reason, "--", clean_text(args.bead)])
+            run_bd(["close", "--reason", close_reason, "--", clean_text(args.bead)], binding=binding)
         except (Exception, SystemExit) as exc:
             # The comment is already in Beads; say so and leave the closure unconfirmed.
             result["partial_persistence"] = True

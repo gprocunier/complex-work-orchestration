@@ -19,14 +19,14 @@ class RunBdTests(unittest.TestCase):
         with patch("shutil.which", return_value="/usr/bin/bd"):
             with patch.dict(os.environ, {"CWO_BEADS_TIMEOUT_SECONDS": "17"}):
                 with patch("subprocess.run", return_value=completed) as mocked_run:
-                    self.assertEqual(lib.run_bd(["ready"]), "[]\n")
+                    self.assertEqual(lib.run_bd_explicit(["ready"]), "[]\n")
         self.assertEqual(mocked_run.call_args.kwargs["timeout"], 17)
 
     def test_run_bd_timeout_fails_cleanly(self) -> None:
         with patch("shutil.which", return_value="/usr/bin/bd"):
             with patch("subprocess.run", side_effect=subprocess.TimeoutExpired(["bd", "ready"], 3)):
                 with self.assertRaises(SystemExit) as exc:
-                    lib.run_bd(["ready"], timeout=3)
+                    lib.run_bd_explicit(["ready"], timeout=3)
         self.assertIn("bd command timed out after 3s: bd ready", str(exc.exception))
 
     def test_add_dependency_preserves_explicit_nonblocking_type(self) -> None:
@@ -42,7 +42,8 @@ class RunBdTests(unittest.TestCase):
                 "--",
                 "publication",
                 "implementation",
-            ]
+            ],
+            binding=None,
         )
 
     def test_add_dependency_rejects_unknown_type_before_bd_call(self) -> None:

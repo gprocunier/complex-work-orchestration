@@ -19,7 +19,7 @@ from cwo_core.routing import (
     unmet_required_experts,
     unmet_required_experts_message,
 )
-from cwo_core.beads import create_bead
+from cwo_core.beads import bind_project_beads, create_bead
 from cwo_core.util import read_text_segments
 from routing_cli_options import add_route_access_arguments
 from scaffold_workgraph import expert_fields, route_notes, unique_strings
@@ -202,9 +202,11 @@ def main() -> None:
     if not reviews:
         print("No expert triggers matched; no review Beads created.")
         return
+    binding = bind_project_beads()
     for review in reviews:
         bead = create_bead(
             review["title"],
+            binding=binding,
             parent=args.parent,
             priority=1,
             labels=review["labels"],

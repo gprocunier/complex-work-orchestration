@@ -1037,7 +1037,8 @@ class ContentBeforeFinalChecksTests(unittest.TestCase):
             return {"id": f"bd-{len(created)}", "title": title}
 
         argv = ["scaffold_workgraph.py", "--title", title, "--external-ok", "--share-boundary", "redacted-packet"]
-        with patch.object(scaffold_workgraph, "create_bead", side_effect=fake_create), \
+        with patch.object(scaffold_workgraph, "bind_project_beads"), \
+                patch.object(scaffold_workgraph, "create_bead", side_effect=fake_create), \
                 patch.object(scaffold_workgraph, "try_dep"), patch.object(sys, "argv", argv), \
                 contextlib.redirect_stdout(io.StringIO()):
             try:
@@ -1055,7 +1056,8 @@ class ContentBeforeFinalChecksTests(unittest.TestCase):
             return {"id": title.split(":", 1)[0], "title": title}
 
         argv = ["scaffold_workgraph.py", "--title", "Add an output format", "--architecture-design"]
-        with patch.object(scaffold_workgraph, "create_bead", side_effect=fake_create) as create, \
+        with patch.object(scaffold_workgraph, "bind_project_beads") as bind, \
+                patch.object(scaffold_workgraph, "create_bead", side_effect=fake_create) as create, \
                 patch.object(scaffold_workgraph, "try_dep") as dependency, patch.object(sys, "argv", argv), \
                 contextlib.redirect_stdout(io.StringIO()):
             scaffold_workgraph.main()
@@ -1064,7 +1066,7 @@ class ContentBeforeFinalChecksTests(unittest.TestCase):
         self.assertEqual(architect[0]["metadata"]["architecture_design"]["profile"], "architecture-design")
         self.assertIn("accepted architecture design package", architect[0]["acceptance"])
         self.assertIn("templates/architecture-design-package.md", architect[0]["description"])
-        dependency.assert_any_call("Implement", "Architect frame", "blocks")
+        dependency.assert_any_call("Implement", "Architect frame", "blocks", binding=bind.return_value)
 
     def test_final_inspection_and_reporting_change_no_content(self) -> None:
         route = classify_work(

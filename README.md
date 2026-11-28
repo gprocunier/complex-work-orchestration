@@ -227,6 +227,11 @@ tasks and dependencies; CWO uses task notes and linked records for accepted
 decisions, open questions and the permitted next action. Code, tests, saved
 reports and the handoff remain in project files.
 
+Run project-facing commands from your target project, using the installed CWO
+script path when needed. CWO binds task lookups, work-graph changes and
+continuation to the project's Beads database. If it cannot resolve the
+database, the command stops and reports the problem.
+
 [![How CWO saves project state and recovers after compaction](docs/diagrams/durable-recovery.svg)](https://gprocunier.github.io/complex-work-orchestration/#durable-memory)
 
 After compaction or a restart, CWO reads the relevant records, checks the current

@@ -65,7 +65,7 @@ def observed_main(
         writes.append((identifier, title, fields))
         return {"id": identifier, "title": title}
 
-    def link(blocked: str, blocker: str, *, dependency_type: str = "blocks") -> None:
+    def link(blocked: str, blocker: str, *, dependency_type: str = "blocks", binding=None) -> None:
         links.append((blocked, blocker, dependency_type))
         if dependency_error is not None:
             raise dependency_error
@@ -75,6 +75,7 @@ def observed_main(
         stack.enter_context(patch.object(graph, "prompt_coach_level", return_value="EXAMPLE_LEVEL"))
         stack.enter_context(patch.object(graph, "prompt_coach_parallel_workerbee_signal", return_value={}))
         stack.enter_context(patch.object(graph, "planned_graph", return_value=plan))
+        stack.enter_context(patch.object(graph, "bind_project_beads"))
         stack.enter_context(patch.object(graph, "create_bead", side_effect=create))
         stack.enter_context(patch.object(graph, "add_dependency", side_effect=link))
         stack.enter_context(patch.object(sys, "argv", ["scaffold_workgraph.py", "--title", "EXAMPLE_GRAPH", *options]))
@@ -112,6 +113,7 @@ def observed_render(plan: object, options: tuple[str, ...], stream: io.StringIO)
         stack.enter_context(patch.object(graph, "prompt_coach_level", return_value="EXAMPLE_LEVEL"))
         stack.enter_context(patch.object(graph, "prompt_coach_parallel_workerbee_signal", return_value={}))
         stack.enter_context(patch.object(graph, "planned_graph", return_value=plan))
+        stack.enter_context(patch.object(graph, "bind_project_beads"))
         created = stack.enter_context(
             patch.object(graph, "create_bead", return_value={"id": "EXAMPLE_NODE", "title": "EXAMPLE_RELIABLE_TITLE"})
         )
