@@ -12,7 +12,7 @@ from tests.structural_assertions import Check, assert_checks
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
 
-from validate_site import validate_html, ONBOARDING_STEPS, ONBOARDING_PAGE_STEPS, validate_onboarding, validate_semantic_routes, SEMANTIC_ROUTES  # noqa: E402
+from validate_site import validate_html, ONBOARDING_PAGE_STEPS, validate_onboarding, validate_semantic_routes, SEMANTIC_ROUTES  # noqa: E402
 
 
 def internal_copy_errors(errors: list[str]) -> list[str]:

@@ -7,6 +7,9 @@ this route and post its exact candidate for separate hand acceptance. The
 lead-run supervision checks in this reference are advisory. See the
 [registered production requirements](native-live-route-holds.md#standing-approved-delegation).
 
+Registered workflow approvals bind the installed Python source image. Renew
+the approval against the installed sources when an upgrade changes that image.
+
 Single-worker execution is the default. A trusted controller can admit a fixed
 group of two or three workers through the [registered contained pool](native-supervision-pools.md).
 The controller requires exact approval and fresh callback calibration on the

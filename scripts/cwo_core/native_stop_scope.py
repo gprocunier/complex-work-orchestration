@@ -12,12 +12,12 @@ from copy import deepcopy
 from typing import Any, Iterable, Mapping
 
 from .native_authority import (
-    ACTOR_SCOPE_CAPS,
+    ACTOR_SCOPE_CAPS as ACTOR_SCOPE_CAPS,
     AUTHORITY_PROVENANCE_FIELDS,
     AUTHORITY_PROVENANCE_VERSION,
-    AUTHORITY_SOURCE_TYPES,
+    AUTHORITY_SOURCE_TYPES as AUTHORITY_SOURCE_TYPES,
     AUTHORIZED_SCOPES,
-    SOURCE_ROLE_BINDINGS,
+    SOURCE_ROLE_BINDINGS as SOURCE_ROLE_BINDINGS,
     AuthorityProvenanceError,
     VerifiedAuthority,
     canonical_authority_sha256,

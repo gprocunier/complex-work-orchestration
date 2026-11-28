@@ -17,7 +17,7 @@ ROOT = Path(__file__).resolve().parents[1]
 import sys
 
 sys.path.insert(0, str(ROOT / "scripts"))
-from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
+from tests.historical_policy_fixtures import historical_v2_policy
 
 from cwo_core.native_precommit import (  # noqa: E402
     arm_precommit,

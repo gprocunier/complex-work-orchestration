@@ -1,7 +1,4 @@
 from __future__ import annotations
-import json
-import re
-from html import unescape
 from html.parser import HTMLParser
 from pathlib import Path
 import sys

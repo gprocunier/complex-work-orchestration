@@ -16,7 +16,7 @@ import stat
 from . import return_advisory
 from .dispatch_workload import WorkloadRefused, validate_export_workload
 from .errors import CWOPolicyError
-from .host_acceptance import _host_inputs
+from .host_acceptance import host_evaluation_inputs as _host_inputs
 from .host_return_intake import MAX_RETURN_BYTES, record_received_return
 from .model_identities import model_family_role, resolve_model
 from .native_session_boundary import (

@@ -4,7 +4,7 @@ import datetime as dt
 import json
 import shlex
 from pathlib import Path
-from typing import Any
+from typing import Any, NoReturn
 import sys
 
 from cwo_core.native_disposition import derive_disposition
@@ -21,21 +21,21 @@ TOKEN_FIELDS = {
 }
 
 
-def _error(message: str, code: int = 1) -> None:
+def exit_with_session_error(message: str, code: int = 1) -> NoReturn:
     print(f"error: {message}", file=sys.stderr)
     raise SystemExit(code)
 
 
-def _parse_iso_timestamp(raw: Any) -> dt.datetime:
+def parse_session_timestamp(raw: Any) -> dt.datetime:
     if raw is None:
-        _error("missing timestamp")
+        exit_with_session_error("missing timestamp")
     if isinstance(raw, (int, float)):
         return dt.datetime.fromtimestamp(raw, tz=dt.timezone.utc)
     if not isinstance(raw, str):
-        _error(f"invalid timestamp type {type(raw)!r}")
+        exit_with_session_error(f"invalid timestamp type {type(raw)!r}")
     timestamp = raw.strip()
     if not timestamp:
-        _error("empty timestamp")
+        exit_with_session_error("empty timestamp")
     candidates = [
         "%Y-%m-%dT%H:%M:%S.%f%z",
         "%Y-%m-%dT%H:%M:%S%z",
@@ -60,7 +60,7 @@ def _parse_iso_timestamp(raw: Any) -> dt.datetime:
             return dt.datetime.strptime(timestamp, template).replace(tzinfo=dt.timezone.utc)
         except ValueError:
             continue
-    _error(f"unparseable timestamp {raw!r}")
+    exit_with_session_error(f"unparseable timestamp {raw!r}")
 
 
 def _coerce_model(value: Any) -> str | None:
@@ -150,7 +150,7 @@ def _normalize_record_payload(record: Any) -> dict[str, Any] | None:
     return None
 
 
-def _normalize_turn_context(record: dict[str, Any]) -> dict[str, Any] | None:
+def normalize_session_turn_context(record: dict[str, Any]) -> dict[str, Any] | None:
     if _coerce_model(record.get("type")) == "turn_context":
         return _normalize_record_payload(record)
     turn_context = record.get("turn_context")
@@ -159,7 +159,7 @@ def _normalize_turn_context(record: dict[str, Any]) -> dict[str, Any] | None:
     return None
 
 
-def _normalize_event_msg(record: dict[str, Any]) -> str | None:
+def normalize_session_event_message(record: dict[str, Any]) -> str | None:
     if _coerce_model(record.get("type")) == "event_msg":
         payload = _normalize_record_payload(record)
         if payload is not None:
@@ -180,7 +180,7 @@ def _normalize_event_msg(record: dict[str, Any]) -> str | None:
     return None
 
 
-def _normalize_response_items(record: Any) -> list[dict[str, Any]]:
+def normalize_session_response_items(record: Any) -> list[dict[str, Any]]:
     if not isinstance(record, dict):
         return []
     items = None
@@ -207,7 +207,7 @@ def _extract_string_field(payload: Any, keys: tuple[str, ...]) -> str | None:
     return None
 
 
-def _extract_command(payload: Any) -> str | None:
+def extract_session_command(payload: Any) -> str | None:
     if not isinstance(payload, dict):
         return None
     candidates: list[Any] = []
@@ -295,7 +295,7 @@ def _count_full_suite_commands(command: str) -> int:
     return sum(_is_full_suite_args(segment) for segment in segments if segment)
 
 
-def _record_token_snapshot(record: dict[str, Any]) -> dict[str, int] | None:
+def session_record_token_snapshot(record: dict[str, Any]) -> dict[str, int] | None:
     record_type = _coerce_model(record.get("type"))
     if record_type == "event_msg":
         event_payload = _normalize_record_payload(record)
@@ -303,7 +303,7 @@ def _record_token_snapshot(record: dict[str, Any]) -> dict[str, int] | None:
             token_snapshot = _parse_token_count(event_payload)
             if token_snapshot is not None:
                 return token_snapshot
-    turn_context = _normalize_turn_context(record)
+    turn_context = normalize_session_turn_context(record)
     if isinstance(turn_context, dict):
         token_snapshot = _parse_token_count(turn_context)
         if token_snapshot is not None:
@@ -314,10 +314,10 @@ def _record_token_snapshot(record: dict[str, Any]) -> dict[str, int] | None:
     return None
 
 
-def _is_user_boundary_record(record: dict[str, Any]) -> bool:
+def is_user_boundary_record(record: dict[str, Any]) -> bool:
     if not isinstance(record, dict):
         return False
-    response_items = _normalize_response_items(record)
+    response_items = normalize_session_response_items(record)
     if not response_items:
         return False
     boundary_payload = response_items[0]
@@ -393,7 +393,7 @@ def _close_segment(
 def _normalize_segment_model(
     record: dict[str, Any], segment: dict[str, Any]
 ) -> tuple[str | None, bool]:
-    turn_context = _normalize_turn_context(record)
+    turn_context = normalize_session_turn_context(record)
     model = None
     from_turn_context = False
     if isinstance(turn_context, dict):
@@ -490,7 +490,7 @@ def _finalize_segment(
     return segment
 
 
-def _status_to_return_code(status: str) -> int:
+def session_status_exit_code(status: str) -> int:
     if status in {"model-mismatch", "budget-exhausted", "needs-architect-realignment"}:
         return 2
     if status in {"within-budget", "soft-limit", "unknown"}:
@@ -498,11 +498,11 @@ def _status_to_return_code(status: str) -> int:
     return 0
 
 
-def _session_id_matches(path: Path, session_id: str, *, strict: bool = True) -> bool:
+def session_file_matches_id(path: Path, session_id: str, *, strict: bool = True) -> bool:
     try:
         raw_lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
-        _error(f"unable to read {path}: {exc}", 1)
+        exit_with_session_error(f"unable to read {path}: {exc}", 1)
     for lineno, line in enumerate(raw_lines, start=1):
         line = line.strip()
         if not line:
@@ -512,7 +512,7 @@ def _session_id_matches(path: Path, session_id: str, *, strict: bool = True) -> 
         except json.JSONDecodeError as exc:
             if not strict:
                 continue
-            _error(f"{path}:{lineno} contains invalid JSON ({exc})", 1)
+            exit_with_session_error(f"{path}:{lineno} contains invalid JSON ({exc})", 1)
         if not isinstance(record, dict):
             continue
         current = record.get("session_id")
@@ -525,18 +525,18 @@ def _session_id_matches(path: Path, session_id: str, *, strict: bool = True) -> 
     return False
 
 
-def _evaluate_records(
+def evaluate_session_records(
     records: list[dict[str, Any]],
     budget: dict[str, Any],
     requested_model: str,
     now: dt.datetime | None,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], str, dict[str, Any]]:
     if not records:
-        _error("session has no records")
+        exit_with_session_error("session has no records")
     segments: list[dict[str, Any]] = []
     has_explicit_segments = any(
         isinstance(record, dict)
-        and _normalize_event_msg(record) == SEGMENT_START_EVENT
+        and normalize_session_event_message(record) == SEGMENT_START_EVENT
         for record in records
     )
     open_segment: dict[str, Any] | None = None
@@ -548,17 +548,17 @@ def _evaluate_records(
     for record in records:
         if not isinstance(record, dict):
             continue
-        event_msg = _normalize_event_msg(record) or ""
-        ts = _parse_iso_timestamp(record.get("timestamp"))
-        token_snapshot = _record_token_snapshot(record)
+        event_msg = normalize_session_event_message(record) or ""
+        ts = parse_session_timestamp(record.get("timestamp"))
+        token_snapshot = session_record_token_snapshot(record)
         if token_snapshot is not None:
             last_tokens = token_snapshot
 
-        is_user_boundary = not has_explicit_segments and _is_user_boundary_record(record)
+        is_user_boundary = not has_explicit_segments and is_user_boundary_record(record)
         if is_user_boundary:
             if open_segment is not None:
                 if previous_ts is None:
-                    _error("user boundary encountered without previous record to close previous segment")
+                    exit_with_session_error("user boundary encountered without previous record to close previous segment")
                 open_segment = _close_segment(
                     open_segment,
                     budget,
@@ -577,7 +577,7 @@ def _evaluate_records(
             if model and from_turn_context:
                 open_segment["attestation_source"] = "turn_context"
             attestation_source = None
-            turn_context = _normalize_turn_context(record)
+            turn_context = normalize_session_turn_context(record)
             if isinstance(turn_context, dict):
                 attestation_source = (
                     _coerce_model(turn_context.get("attestation_source"))
@@ -611,7 +611,7 @@ def _evaluate_records(
                 if model and from_turn_context:
                     open_segment["attestation_source"] = "turn_context"
             attestation_source = None
-            turn_context = _normalize_turn_context(record)
+            turn_context = normalize_session_turn_context(record)
             if isinstance(turn_context, dict):
                 attestation_source = _coerce_model(turn_context.get("attestation_source")) or _coerce_model(
                     turn_context.get("attestationSource")
@@ -631,7 +631,7 @@ def _evaluate_records(
         if model is not None and from_turn_context:
             open_segment["attestation_source"] = "turn_context"
 
-        turn_context = _normalize_turn_context(record)
+        turn_context = normalize_session_turn_context(record)
         if isinstance(turn_context, dict):
             turn_source = _coerce_model(turn_context.get("attestation_source")) or _coerce_model(
                 turn_context.get("attestationSource")
@@ -639,18 +639,18 @@ def _evaluate_records(
             if turn_source and not from_turn_context:
                 open_segment["attestation_source"] = turn_source
 
-        for response_item in _normalize_response_items(record):
+        for response_item in normalize_session_response_items(record):
             rtype = response_item.get("type") or response_item.get("name")
             if isinstance(rtype, str) and rtype in {"function_call", "custom_tool_call"}:
                 open_segment["tool_calls"] += 1
-                command = _extract_command(response_item) or ""
+                command = extract_session_command(response_item) or ""
                 open_segment["full_suite_runs"] += _count_full_suite_commands(command)
             elif event_msg == "response_event":
                 if (
                     isinstance(response_item.get("name"), str)
                     and response_item.get("name") == "Shell"
                 ):
-                    command = _extract_command(response_item)
+                    command = extract_session_command(response_item)
                     open_segment["full_suite_runs"] += _count_full_suite_commands(command or "")
 
         if event_msg == COMPACTION_EVENT:
@@ -681,7 +681,7 @@ def _evaluate_records(
         if now is None:
             now = dt.datetime.now(dt.timezone.utc)
         if segment_start is None:
-            _error("segment_start missing for incomplete segment")
+            exit_with_session_error("segment_start missing for incomplete segment")
         open_segment = _close_segment(
             open_segment,
             budget,
@@ -694,7 +694,7 @@ def _evaluate_records(
         segments.append(open_segment)
 
     if not segments:
-        _error("session has no task boundary records")
+        exit_with_session_error("session has no task boundary records")
 
     aggregate = {
         "tool_calls": sum(segment["tool_calls"] for segment in segments),
@@ -735,3 +735,7 @@ def _evaluate_records(
 
     overall_status = selected_segment["status"]
     return segments, aggregate, overall_status, selected_segment
+
+
+# Older callers exercise the same evidence evaluator through this name.
+_evaluate_records = evaluate_session_records

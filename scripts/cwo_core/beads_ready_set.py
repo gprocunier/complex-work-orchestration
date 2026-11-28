@@ -214,6 +214,9 @@ def _admission_metadata(item: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return None
 
 
+read_ready_set_admission_metadata = _admission_metadata
+
+
 def _sha256_hex(value: Any) -> bool:
     return (
         isinstance(value, str)

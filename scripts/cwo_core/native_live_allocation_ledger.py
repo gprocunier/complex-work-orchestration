@@ -3041,3 +3041,8 @@ class NativeLiveAllocationLedgerStore:
                     state,
                     ledger_file_sha256=hashlib.sha256(payload).hexdigest(),
                 )
+
+
+# Shared storage and observation shapes for the two transport implementations.
+IdentityCapabilityRegistry = _IdentityCapabilityRegistry
+TurnNegativeResponseObserverBinding = _TurnNegativeResponseObserverBinding

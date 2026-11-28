@@ -47,8 +47,8 @@ from cwo_core.supervision.containment import (
     StagedThreadArchive,
 )
 from cwo_core.supervision.session_evidence import (
-    _normalize_expected_tool_trace,
-    _normalize_read_only_command_authority,
+    normalize_expected_tool_trace,
+    normalize_read_only_command_authority,
     capture_server_tool_surface,
     final_message_hash_and_match,
     session_boundary_summary,
@@ -59,7 +59,7 @@ from cwo_core.supervision.transport.app_server import (
     AppServer,
     CONTROL_TURN_ID,
     EXACT_MODEL,
-    _canonical_controller_workdir,
+    canonical_controller_workdir as _canonical_controller_workdir,
     sha256_text,
 )
 from cwo_core.supervision.transport.errors import (
@@ -154,7 +154,7 @@ class LiveThreadAdapter:
             raise AppServerError("operative-tool-transport-invalid")
         if expected_tool_trace is not None and read_only_command_authority is not None:
             raise AppServerError("tool-authority-contract-ambiguous")
-        self.expected_tool_trace = _normalize_expected_tool_trace(
+        self.expected_tool_trace = normalize_expected_tool_trace(
             expected_tool_trace
         )
         self.expected_tool_trace_sha256 = (
@@ -163,7 +163,7 @@ class LiveThreadAdapter:
             else None
         )
         self.read_only_command_authority = (
-            _normalize_read_only_command_authority(
+            normalize_read_only_command_authority(
                 read_only_command_authority,
                 worktree=self.worktree,
                 tool_transport=self.tool_transport,

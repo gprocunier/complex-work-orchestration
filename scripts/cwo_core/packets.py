@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import datetime as dt
-import fnmatch
 import hashlib
 import json
 import re
@@ -639,12 +638,6 @@ def _assignment_spans(
         candidate = _structural_value_span(value, leading.end(), limit)
         raw_value = value[leading.end() : limit].strip()
         quoted_value = bool(raw_value) and raw_value[0] in "\"'"
-        single_value = (
-            bool(raw_value)
-            and not any(character.isspace() for character in raw_value)
-            and leading.group("key") == leading.group("key").lower()
-            and raw_value[-1] not in ".!?"
-        )
         unambiguous = (
             bool(leading.group("quote"))
             or leading.group("key").startswith("_")

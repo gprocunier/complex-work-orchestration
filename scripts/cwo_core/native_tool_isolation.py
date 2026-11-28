@@ -223,7 +223,7 @@ def _validate_contained_tool_surface(policy, source, supported, parameter, effec
         raise NativeToolIsolationError("contained-pool-tool-surface-mismatch")
 
 
-def _contained_pool_child_errors(child: Mapping[str, Any], phase: str, prefix: str) -> list[str]:
+def contained_pool_child_binding_errors(child: Mapping[str, Any], phase: str, prefix: str) -> list[str]:
     scope = _active_contained_tool_scope()
     if scope is None:
         return []
@@ -658,7 +658,9 @@ def prompt_preflight(prompt: str, tool_policy: Mapping[str, Any]) -> dict[str, A
     return _scan_prompt(prompt, normalize_tool_policy(tool_policy))
 
 
-def _scan_prompt(prompt: str, policy: Mapping[str, Any]) -> dict[str, Any]:
+def scan_prompt_against_policy(prompt: str, policy: Mapping[str, Any]) -> dict[str, Any]:
+    """Report prompt findings against the caller's already bound tool policy."""
+
     findings: list[dict[str, Any]] = []
     permitted = set(policy["permitted_tools"])
     forbidden = set(policy["forbidden_tools"])
@@ -709,6 +711,11 @@ def _scan_prompt(prompt: str, policy: Mapping[str, Any]) -> dict[str, Any]:
     }
     result["preflight_sha256"] = canonical_sha256(result)
     return result
+
+
+ContainedPoolChildBinding = _ContainedPoolChild
+_contained_pool_child_errors = contained_pool_child_binding_errors
+_scan_prompt = scan_prompt_against_policy
 
 
 def require_prompt_preflight(

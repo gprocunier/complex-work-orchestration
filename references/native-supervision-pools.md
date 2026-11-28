@@ -142,7 +142,8 @@ work starts after successful calibration and original cohort admission.
 If an upgrade changes the runtime factory or callback implementation, execution
 rejects an earlier signed approval before recording an execution intent or
 claiming any Bead. Use `authorize_pool` to approve the cohort against the
-installed sources.
+installed sources. The callback digest also changes when bound source is
+refactored with the same validation rules.
 
 ## Readiness-first transaction launcher
 

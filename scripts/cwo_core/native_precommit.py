@@ -19,10 +19,10 @@ from .native_session import (
     COMPACTION_EVENT,
     SEGMENT_END_EVENT,
     SEGMENT_START_EVENT,
-    _is_user_boundary_record,
-    _normalize_event_msg,
-    _normalize_response_items,
-    _normalize_turn_context,
+    is_user_boundary_record,
+    normalize_session_event_message,
+    normalize_session_response_items,
+    normalize_session_turn_context,
 )
 from .native_session_boundary import (
     assert_prefix_intact as _prefix_is_intact,
@@ -506,7 +506,7 @@ def _trusted_models(records: list[dict[str, Any]]) -> tuple[set[str], list[str]]
     models: set[str] = set()
     errors: list[str] = []
     for record in records:
-        context = _normalize_turn_context(record)
+        context = normalize_session_turn_context(record)
         if not isinstance(context, dict):
             continue
         model = context.get("model")
@@ -1039,7 +1039,7 @@ def _response_text(item: Mapping[str, Any]) -> str | None:
 def _final_response(records: list[dict[str, Any]]) -> str | None:
     result = None
     for record in records:
-        for item in _normalize_response_items(record):
+        for item in normalize_session_response_items(record):
             text = _response_text(item)
             if text is not None:
                 result = text
@@ -1081,8 +1081,8 @@ def _activity(records: list[dict[str, Any]]) -> dict[str, Any]:
     task_boundary = False
     task_complete = False
     for index, record in enumerate(records):
-        event = _normalize_event_msg(record)
-        if event == SEGMENT_START_EVENT or _is_user_boundary_record(record):
+        event = normalize_session_event_message(record)
+        if event == SEGMENT_START_EVENT or is_user_boundary_record(record):
             task_boundary = True
         if event == SEGMENT_END_EVENT:
             task_complete = True
@@ -1090,7 +1090,7 @@ def _activity(records: list[dict[str, Any]]) -> dict[str, Any]:
             compactions += 1
             forbidden.append("context-compaction")
             first = first or {"kind": "context-compaction", "record_index": index}
-        for item in _normalize_response_items(record):
+        for item in normalize_session_response_items(record):
             item_type = item.get("type")
             if item_type == "function_call":
                 function_calls += 1

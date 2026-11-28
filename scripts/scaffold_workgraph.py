@@ -13,7 +13,7 @@ from cwo_core.beads import (
     normalize_dependency_type,
 )
 from cwo_core.coach import (
-    _normalize_workerbee_planned_delegation,
+    normalize_workerbee_planned_delegation as _normalize_workerbee_planned_delegation,
     prompt_coach_level,
     prompt_coach_parallel_workerbee_signal,
 )

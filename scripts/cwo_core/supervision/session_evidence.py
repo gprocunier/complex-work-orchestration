@@ -12,7 +12,7 @@ import shlex
 import stat
 import time
 from pathlib import Path
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from cwo_core.codex_tool_surface import (
     DIRECT_TOOL_TRANSPORT,
@@ -23,7 +23,7 @@ from cwo_core.native_pool_contracts import (
     canonical_sha256,
     seal_artifact,
 )
-from cwo_core.native_session import _record_token_snapshot
+from cwo_core.native_session import session_record_token_snapshot
 from cwo_core.native_session_boundary import (
     LocatedSession,
     NativeSessionBoundaryError,
@@ -38,10 +38,10 @@ from cwo_core.native_tool_isolation import (
     normalize_tool_policy,
 )
 from cwo_core.native_worker_contracts import (
-    _argument_value,
-    _event_items,
-    _output_text,
-    _paired_namespaced_exec_result,
+    tool_argument_value,
+    session_event_items,
+    tool_output_text,
+    paired_namespaced_exec_result,
     canonical_argument_hash,
     decode_namespaced_exec_source,
     is_tool_call_item,
@@ -50,7 +50,7 @@ from cwo_core.native_worker_contracts import (
     trusted_tool_name,
 )
 from cwo_core.supervision.transport.app_server import (
-    _canonical_controller_workdir,
+    canonical_controller_workdir as _canonical_controller_workdir,
     sha256_bytes,
     sha256_text,
 )
@@ -181,7 +181,7 @@ def privacy_safe_notification_shape(
     return body
 
 
-def _strict_json_object_pairs(
+def strict_session_json_object_pairs(
     pairs: list[tuple[str, Any]],
 ) -> dict[str, Any]:
     """Reject duplicate JSON names at every nesting level."""
@@ -194,11 +194,11 @@ def _strict_json_object_pairs(
     return value
 
 
-def _strict_session_json_record(line: bytes, number: int) -> dict[str, Any]:
+def parse_strict_session_json_record(line: bytes, number: int) -> dict[str, Any]:
     try:
         value = json.loads(
             line.decode("utf-8"),
-            object_pairs_hook=_strict_json_object_pairs,
+            object_pairs_hook=strict_session_json_object_pairs,
         )
     except NativeSessionBoundaryError:
         raise
@@ -301,7 +301,7 @@ def validate_startup_scaffold_records(
                 raise NativeSessionBoundaryError(
                     "startup scaffold workspace identity changed"
                 )
-    if _record_token_snapshot(dict(session_record)) is not None or _record_token_snapshot(
+    if session_record_token_snapshot(dict(session_record)) is not None or session_record_token_snapshot(
         dict(started_record)
     ) is not None:
         raise NativeSessionBoundaryError("startup scaffold token telemetry invalid")
@@ -543,7 +543,7 @@ class PreAttestationSessionBoundaryTracker:
                 raise NativeSessionBoundaryError(
                     f"session record {number} is blank"
                 )
-            value = _strict_session_json_record(line, number)
+            value = parse_strict_session_json_record(line, number)
             explicit = value.get("session_id")
             if (
                 isinstance(explicit, str)
@@ -591,7 +591,7 @@ class PreAttestationSessionBoundaryTracker:
             )
         token_snapshot: dict[str, int] | None = None
         for record in records:
-            snapshot = _record_token_snapshot(record)
+            snapshot = session_record_token_snapshot(record)
             if snapshot is not None:
                 token_snapshot = {
                     key: int(value) for key, value in snapshot.items()
@@ -1191,17 +1191,17 @@ READ_ONLY_COMMAND_AUTHORITY_STEP_FIELDS = frozenset(
     }
 )
 PENDING_EXEC_SESSION = "__CWO_PENDING_EXEC_SESSION__"
-_DIRECT_PENDING_EXEC_RESULT = re.compile(
+DIRECT_PENDING_EXEC_RESULT_PATTERN = re.compile(
     r"Chunk ID: [0-9A-Za-z_-]+\n"
     r"Wall time: [0-9]+(?:\.[0-9]+)? seconds\n"
     r"Process running with session ID (?P<session_id>[1-9][0-9]*)\n"
     r"Original token count: [0-9]+\n"
     r"Output:\n[\s\S]*\Z"
 )
-_READ_ONLY_SHELL_META = frozenset({";", "&", "|", ">", "<"})
+READ_ONLY_SHELL_META = frozenset({";", "&", "|", ">", "<"})
 
 
-def _read_only_command_tokens(command: Any) -> list[str]:
+def parse_read_only_command_tokens(command: Any) -> list[str]:
     """Parse one deliberately narrow command without authorizing shell syntax."""
 
     if (
@@ -1225,16 +1225,16 @@ def _read_only_command_tokens(command: Any) -> list[str]:
             "read-only-command-authority-command-invalid"
         ) from exc
     if not tokens or any(
-        token and set(token) <= _READ_ONLY_SHELL_META for token in tokens
+        token and set(token) <= READ_ONLY_SHELL_META for token in tokens
     ):
         raise AppServerError("read-only-command-authority-shell-syntax-forbidden")
     return tokens
 
 
-def _require_positive_read_only_command(command: Any) -> None:
+def require_positive_read_only_command(command: Any) -> None:
     """Accept only reviewed read/test command families, never a generic shell."""
 
-    tokens = _read_only_command_tokens(command)
+    tokens = parse_read_only_command_tokens(command)
     executable = tokens[0]
     arguments = tokens[1:]
     if executable == "git":
@@ -1313,7 +1313,7 @@ def _require_positive_read_only_command(command: Any) -> None:
     raise AppServerError("read-only-command-authority-executable-forbidden")
 
 
-def _normalize_read_only_command_authority(
+def normalize_read_only_command_authority(
     value: list[Mapping[str, Any]] | None,
     *,
     worktree: Path,
@@ -1373,7 +1373,7 @@ def _normalize_read_only_command_authority(
                         raise AppServerError(
                             "read-only-command-authority-exec-arguments-invalid"
                         )
-                _require_positive_read_only_command(arguments["cmd"])
+                require_positive_read_only_command(arguments["cmd"])
             else:
                 if (
                     isinstance(continuation, bool)
@@ -1415,12 +1415,12 @@ def _normalize_read_only_command_authority(
     return normalized
 
 
-def _direct_pending_operation_session_id(output_item: Mapping[str, Any]) -> int | None:
-    match = _DIRECT_PENDING_EXEC_RESULT.fullmatch(_output_text(output_item))
+def direct_pending_operation_session_id(output_item: Mapping[str, Any]) -> int | None:
+    match = DIRECT_PENDING_EXEC_RESULT_PATTERN.fullmatch(tool_output_text(output_item))
     return int(match.group("session_id")) if match is not None else None
 
 
-def _trusted_tool_authority_receipts(
+def trusted_tool_authority_receipts(
     records: list[Mapping[str, Any]],
     receipts: list[dict[str, Any]],
     *,
@@ -1430,7 +1430,7 @@ def _trusted_tool_authority_receipts(
 
     events: list[tuple[int, str, Mapping[str, Any]]] = []
     for record_index, record in enumerate(records):
-        for item_index, item in enumerate(_event_items(record)):
+        for item_index, item in enumerate(session_event_items(record)):
             order = record_index * 1000 + item_index
             if is_tool_call_item(item):
                 events.append((order, "call", item))
@@ -1452,7 +1452,7 @@ def _trusted_tool_authority_receipts(
         ).strip()
         call_ids[call_id] = call_ids.get(call_id, 0) + 1
         tool = trusted_tool_name(item)
-        arguments = _argument_value(item)
+        arguments = tool_argument_value(item)
         namespaced = False
         if (
             tool_transport == NAMESPACED_EXEC_TOOL_TRANSPORT
@@ -1475,7 +1475,7 @@ def _trusted_tool_authority_receipts(
         if isinstance(output_item, Mapping):
             if namespaced:
                 _kind, _exit, conflict, operation_session_id = (
-                    _paired_namespaced_exec_result(
+                    paired_namespaced_exec_result(
                         tool=str(tool),
                         output_item=output_item,
                     )
@@ -1483,7 +1483,7 @@ def _trusted_tool_authority_receipts(
                 if conflict:
                     operation_session_id = None
             elif tool in {"exec_command", "write_stdin"}:
-                operation_session_id = _direct_pending_operation_session_id(
+                operation_session_id = direct_pending_operation_session_id(
                     output_item
                 )
         if tool == "write_stdin" and isinstance(arguments, Mapping):
@@ -1609,7 +1609,7 @@ def _trusted_tool_authority_receipts(
     return projected
 
 
-def _tool_receipt_projection(receipt: Mapping[str, Any]) -> dict[str, Any]:
+def project_tool_receipt(receipt: Mapping[str, Any]) -> dict[str, Any]:
     typed_result = receipt.get("typed_result")
     return {
         "sequence": receipt.get("sequence"),
@@ -1629,7 +1629,7 @@ def _tool_receipt_projection(receipt: Mapping[str, Any]) -> dict[str, Any]:
     }
 
 
-def _trusted_session_workdir_binding(
+def require_trusted_session_workdir(
     records: list[Mapping[str, Any]],
     expected_workdir: Path,
 ) -> None:
@@ -1646,7 +1646,7 @@ def _trusted_session_workdir_binding(
         raise AppServerError("session-controller-workdir-mismatch")
 
 
-def _nonexistent_canonical_nonsymlink_path(value: str) -> bool:
+def is_nonexistent_canonical_nonsymlink_path(value: str) -> bool:
     """Prove a lexical absolute path is absent without trusting symlink aliases."""
 
     candidate = Path(value)
@@ -1670,7 +1670,7 @@ def _nonexistent_canonical_nonsymlink_path(value: str) -> bool:
     return False
 
 
-def _exec_workdir_binding(
+def exec_workdir_binding(
     receipt: Mapping[str, Any],
     expected_workdir: Path | None,
 ) -> dict[str, Any] | None:
@@ -1704,13 +1704,13 @@ def _exec_workdir_binding(
     result_kind = result.get("kind") if isinstance(result, Mapping) else None
     if (
         result_kind == "paired-input-error"
-        and _nonexistent_canonical_nonsymlink_path(supplied)
+        and is_nonexistent_canonical_nonsymlink_path(supplied)
     ):
         return {**base, "disposition": "recoverable-nonexistent-workdir"}
     return {**base, "disposition": "security-violation-workdir-mismatch"}
 
 
-def _normalize_expected_tool_trace(
+def normalize_expected_tool_trace(
     value: list[Mapping[str, Any]] | None,
 ) -> list[dict[str, Any]] | None:
     if value is None:
@@ -1765,9 +1765,11 @@ def _normalize_expected_tool_trace(
     return normalized
 
 
-def _bind_receipt_workdirs(receipts, workdir):
+def bind_tool_receipt_workdirs(
+    receipts: Iterable[dict[str, Any]], workdir: Path | None
+) -> None:
     for receipt in receipts:
-        binding = _exec_workdir_binding(receipt, workdir)
+        binding = exec_workdir_binding(receipt, workdir)
         receipt["_workdir_binding"] = binding
         typed_result = receipt.get("typed_result")
         if (
@@ -1848,7 +1850,7 @@ def trusted_tool_evidence_summary(
     calls = list(receipts)
     if registered_tool_projector is not None:
         registered_tool_projector(turn_id, tool_records, calls, terminal_event is not None)
-    authority_receipts = _trusted_tool_authority_receipts(
+    authority_receipts = trusted_tool_authority_receipts(
         tool_records,
         calls,
         tool_transport=tool_transport,
@@ -1891,12 +1893,12 @@ def trusted_tool_evidence_summary(
             )
             if resolved:
                 typed_result["kind"] = "paired-deferred"
-        authority_receipts = _trusted_tool_authority_receipts(
+        authority_receipts = trusted_tool_authority_receipts(
             records[start_index + 1 : end_index],
             calls,
             tool_transport=tool_transport,
         )
-    _bind_receipt_workdirs(calls, controller_workdir)
+    bind_tool_receipt_workdirs(calls, controller_workdir)
     completed = [
         receipt
         for receipt in calls
@@ -1909,7 +1911,7 @@ def trusted_tool_evidence_summary(
              or receipt["typed_result"]["kind"] == "paired-success")
     ]
     trusted_receipts = [
-        _tool_receipt_projection(receipt) for receipt in calls
+        project_tool_receipt(receipt) for receipt in calls
     ]
     trusted_activity = []
     for receipt in calls:
@@ -2066,7 +2068,7 @@ def session_boundary_summary(
         else None
     )
     if controller_workdir is not None:
-        _trusted_session_workdir_binding(records, controller_workdir)
+        require_trusted_session_workdir(records, controller_workdir)
     models: list[str] = []
     efforts: list[str] = []
     compactions = 0
@@ -2135,7 +2137,7 @@ def captured_session_boundary_summary(
         else None
     )
     if controller_workdir is not None:
-        _trusted_session_workdir_binding(records, controller_workdir)
+        require_trusted_session_workdir(records, controller_workdir)
     models: list[str] = []
     efforts: list[str] = []
     compactions = 0

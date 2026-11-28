@@ -11,7 +11,7 @@ from typing import Callable, NamedTuple
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
+from tests.historical_policy_fixtures import historical_v2_policy
 
 from prepare_native_worker import (
     _render_prompt,

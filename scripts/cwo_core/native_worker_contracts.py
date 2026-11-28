@@ -384,7 +384,7 @@ def _redact(value: Any) -> Any:
     return value
 
 
-def _argument_value(payload: Mapping[str, Any]) -> Any:
+def tool_argument_value(payload: Mapping[str, Any]) -> Any:
     for key in ("arguments", "input", "args", "command", "cmd"):
         if key not in payload:
             continue
@@ -555,7 +555,7 @@ def _target_paths(command: str, arguments: Any) -> list[str]:
     return sorted(result)
 
 
-def _event_items(record: Any) -> list[dict[str, Any]]:
+def session_event_items(record: Any) -> list[dict[str, Any]]:
     if not isinstance(record, Mapping):
         return []
     candidates: list[Any] = []
@@ -618,7 +618,7 @@ def trusted_tool_name(item: Mapping[str, Any]) -> str:
     )
 
 
-def _output_text(item: Mapping[str, Any] | None) -> str:
+def tool_output_text(item: Mapping[str, Any] | None) -> str:
     if not isinstance(item, Mapping):
         return ""
     output = item.get("output")
@@ -635,14 +635,14 @@ def _output_text(item: Mapping[str, Any] | None) -> str:
     return ""
 
 
-def _paired_namespaced_exec_result(
+def paired_namespaced_exec_result(
     *,
     tool: str,
     output_item: Mapping[str, Any],
 ) -> tuple[str, int | None, bool, int | None]:
     """Classify an exact JSON-projected result from the exec wrapper."""
 
-    rendered = _output_text(output_item)
+    rendered = tool_output_text(output_item)
     if (tool == "apply_patch"
             and _NAMESPACED_EXEC_PATCH_VERIFICATION_FAILED.fullmatch(rendered)):
         explicit_code, conflict = _explicit_output_exit_code(output_item)
@@ -711,7 +711,7 @@ def _explicit_output_exit_code(
     explicit = item.get("exit_code")
     if isinstance(explicit, int) and not isinstance(explicit, bool):
         observed.append(explicit)
-    text = _output_text(item)
+    text = tool_output_text(item)
     observed.extend(
         int(match.group(1))
         for pattern in _TOOL_EXIT_CODE_PATTERNS
@@ -767,7 +767,7 @@ def _paired_tool_result(
     exit_code, transport_conflict = _explicit_output_exit_code(output_item)
     if transport_conflict:
         return "paired-unknown", None, True
-    text = _output_text(output_item)
+    text = tool_output_text(output_item)
     if tool == "exec_command" and _EXEC_COMMAND_INTERRUPTED_PATTERN.fullmatch(text):
         if exit_code is not None:
             return "paired-unknown", None, True
@@ -846,7 +846,7 @@ def normalize_action_receipts(
     patch_events = _patch_apply_events(records)
     events: list[tuple[int, Mapping[str, Any], dict[str, Any]]] = []
     for record_index, record in enumerate(records):
-        for item_index, item in enumerate(_event_items(record)):
+        for item_index, item in enumerate(session_event_items(record)):
             if is_tool_call_item(item):
                 events.append((record_index * 1000 + item_index, record, item))
             elif is_tool_output_item(item):
@@ -861,7 +861,7 @@ def normalize_action_receipts(
                 outputs.setdefault(f"__unpaired_{order}", []).append({"order": order, "record": record, "item": item})
             continue
         tool = trusted_tool_name(item)
-        arguments = _argument_value(item)
+        arguments = tool_argument_value(item)
         command = _command_from_arguments(arguments)
         namespaced = False
         if (
@@ -1054,7 +1054,7 @@ def normalize_action_receipts(
         elif isinstance(output_item, Mapping):
             if call["namespaced"]:
                 result_kind, exit_code, result_conflict, operation_session_id = (
-                    _paired_namespaced_exec_result(
+                    paired_namespaced_exec_result(
                         tool=str(call["tool"]),
                         output_item=output_item,
                     )
@@ -1063,7 +1063,7 @@ def normalize_action_receipts(
                     verification_rejection = (
                         result_kind == "paired-failure" and exit_code is None
                         and operation_session_id is None
-                        and _NAMESPACED_EXEC_PATCH_VERIFICATION_FAILED.fullmatch(_output_text(output_item)) is not None
+                        and _NAMESPACED_EXEC_PATCH_VERIFICATION_FAILED.fullmatch(tool_output_text(output_item)) is not None
                     )
                     nested_success = (
                         len(valid_patch_events) == 1

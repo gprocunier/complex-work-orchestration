@@ -42,26 +42,26 @@ from cwo_core.native_pool_transaction import (
 from cwo_core.native_pool_workspace import capture_workspace_snapshot
 from cwo_core.native_stop_scope import build_stop_metadata, policy_scope_authority
 from cwo_core.native_tool_isolation import (
-    _ContainedPoolChild,
-    _scan_prompt,
+    ContainedPoolChildBinding,
+    scan_prompt_against_policy,
     contained_pool_tool_policy,
     contained_pool_tool_surface,
 )
 from cwo_core.outbound_screen import OutboundRefused
 from cwo_core.private_artifact import PrivateDirectory
-from cwo_core.supervision.transport.app_server import _prepare_native_frame
-from cwo_core.workspace_capture import _pin_directory, read_at
+from cwo_core.supervision.transport.app_server import prepare_native_request_frame as _prepare_native_frame
+from cwo_core.workspace_capture import pin_private_directory, read_at
 from registered_n1_qualification import EFFORT, MODEL, TIER
 from registered_pool_configuration import PoolContainmentError, thread_start_selectors
 from registered_pool_containment import read_pool_patch_file
 from registered_pool_qualification import (
-    _CALIBRATION_MODE,
-    _OPPORTUNITY_FIELD,
-    _ORDINARY_MODE,
-    _ORDINARY_SCOPE,
-    _check_admission,
+    CALIBRATION_POOL_MODE as _CALIBRATION_MODE,
+    CALLBACK_OPPORTUNITY_FIELD as _OPPORTUNITY_FIELD,
+    ORDINARY_POOL_MODE as _ORDINARY_MODE,
+    ORDINARY_POOL_SCOPE as _ORDINARY_SCOPE,
     _retain_transport_failures,
     build_pool_qualification_runtime,
+    require_original_pool_admission as _check_admission,
 )
 from registered_pool_qualification_calibration import _measure_original_controls, _registered_parent
 from registered_pool_qualification_capability import (
@@ -125,7 +125,7 @@ def build_registered_contained_pool_packet(child_id, child, work_estimate):
     """Bind the original ordinary task and one-file scope before claiming the cohort."""
     prospective = f"{child_id}-prospective"
     policy = contained_pool_tool_policy()
-    prompt_preflight = _scan_prompt(child.prompt, policy)
+    prompt_preflight = scan_prompt_against_policy(child.prompt, policy)
     _require(prompt_preflight["accepted"], "ordinary-prompt-refused")
     _screen_worker_start(child.worktree, patch_mode=child.patch_preimage_sha256 is not None)
     packet = {
@@ -322,8 +322,9 @@ def _seal_phase(approved, admission, packets, mode, *, capability=None, opportun
                                                    admission=admission, capability=capability, ordinary=approved)
     original = _registered_parent(selection.runtime)
     run = stage.make_pool_qualification_run(plan, selection, journal_path=original.journal.path, fixture_root=original.fixture_root)
-    policy = {child_id: _ContainedPoolChild(str(child.worktree), child.worktree_identity_sha256, child.write_path, child.prompt)
-              for child_id, child in approved.children.items()}
+    policy = {child_id: ContainedPoolChildBinding(
+        str(child.worktree), child.worktree_identity_sha256, child.write_path, child.prompt,
+    ) for child_id, child in approved.children.items()}
     return replace(run, ordinary_policy_children=policy)
 
 
@@ -402,7 +403,7 @@ def _calibrate(approved, run, allowance, baseline):
 
 
 def _read_output(child):
-    pinned = _pin_directory(str(child.worktree))
+    pinned = pin_private_directory(str(child.worktree))
     _require(pinned is not None, "ordinary-output-custody-lost")
     directory, _ = pinned
     expected = child.expected_utf8.encode("utf-8")

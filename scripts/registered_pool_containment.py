@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from base64 import b64encode
-from collections.abc import Callable, Iterator
+from collections.abc import Callable, Iterator, Mapping
 from contextlib import ExitStack, contextmanager
 from contextvars import ContextVar
 from copy import deepcopy
@@ -21,8 +21,8 @@ from types import MappingProxyType, MethodType, SimpleNamespace, TracebackType
 from typing import TYPE_CHECKING
 
 from cwo_core import native_live_availability as availability
-from cwo_core.host_records import _directory, configured_store
-from cwo_core.maintenance_authority import _state_descriptor
+from cwo_core.host_records import configured_store, open_owner_private_directory
+from cwo_core.maintenance_authority import maintenance_state_descriptor
 from cwo_core.native_tool_isolation import CONTAINED_POOL_WRITER
 from cwo_core.worker_patch import MAX_WORKER_PATCH_BYTES, WorkerPatchError, apply_worker_patch
 from cwo_core.workspace_capture import BudgetExhausted, pin_private_directory, read_at
@@ -164,7 +164,7 @@ print({_WRITTEN!r}, end="")
 
 
 @contextmanager
-def _calibration_close_phase(phase):
+def _calibration_close_phase(phase: str | None) -> Iterator[None]:
     timings = _CALIBRATION_CLOSE_TIMES.get()
     if timings is None or phase is None:
         yield
@@ -175,6 +175,19 @@ def _calibration_close_phase(phase):
     finally:
         elapsed_us = max(0, (monotonic_ns() - started + 999) // 1000)
         timings[phase] = min(_CALIBRATION_CLOSE_MAX_US, (timings[phase] or 0) + elapsed_us)
+
+
+measure_calibration_close_phase = _calibration_close_phase
+
+
+@contextmanager
+def collect_calibration_close_timings() -> Iterator[tuple[int, Mapping[str, int | None]]]:
+    timings: dict[str, int | None] = dict.fromkeys(_CALIBRATION_CLOSE_PHASES)
+    token = _CALIBRATION_CLOSE_TIMES.set(timings)
+    try:
+        yield _CALIBRATION_CLOSE_MAX_US, MappingProxyType(timings)
+    finally:
+        _CALIBRATION_CLOSE_TIMES.reset(token)
 
 
 def _route_available():
@@ -219,12 +232,15 @@ def _confirm_view(root, source, *, readonly):
     require(observed is readonly, 'The contained filesystem access differs from its required mode.')
 
 
-def _writer_bytes(path, text):
+def _writer_bytes(path: str, text: str) -> bytes:
     require(type(path) is str and _FILE.fullmatch(path) is not None and type(text) is str,
             'The fixed writer requires one ordinary worktree file and exact text.')
     data = text.encode('utf-8')
     require(0 < len(data) <= _MAX_WRITE_BYTES, 'The fixed writer text exceeds its allowance.')
     return data
+
+
+encode_pool_writer_text = _writer_bytes
 
 
 def pool_patch_path(path: object) -> bool:
@@ -367,7 +383,7 @@ class _PoolLoginMount(qualification.ManagedLoginMount):
         return existing
 
     def compatible(self, spool):
-        with _state_descriptor(_directory(self.home, private=True)) as directory:
+        with maintenance_state_descriptor(open_owner_private_directory(self.home)) as directory:
             self._planned = self._layout(spool, directory)
         return self._planned is not None
 
@@ -377,11 +393,11 @@ class _PoolLoginMount(qualification.ManagedLoginMount):
         return self._RUNTIME / source.relative_to(spool.parent / 'managed-runtime')
 
     def _pin(self, name):
-        return self._pins.enter_context(_state_descriptor(os.open(
+        return self._pins.enter_context(maintenance_state_descriptor(os.open(
             name, os.O_PATH | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=self._directory_fd)))
 
     def _check_home(self):
-        with _state_descriptor(_directory(self.home, private=True)) as directory:
+        with maintenance_state_descriptor(open_owner_private_directory(self.home)) as directory:
             info = os.fstat(directory)
             require((info.st_dev, info.st_ino) == self.identity
                     and os.path.samestat(info, os.fstat(self._directory_fd)),
@@ -393,7 +409,7 @@ class _PoolLoginMount(qualification.ManagedLoginMount):
         return {'owned': owned, 'preserved': preserved}
 
     def prepare(self, spool):
-        self._directory_fd = self._pins.enter_context(_state_descriptor(_directory(self.home, private=True)))
+        self._directory_fd = self._pins.enter_context(maintenance_state_descriptor(open_owner_private_directory(self.home)))
         self._check_home()
         require(self._layout(spool, self._directory_fd) == self._planned,
                 'The original pool login projection layout changed.')

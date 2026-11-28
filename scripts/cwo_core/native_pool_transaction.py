@@ -22,7 +22,8 @@ from typing import Any, Callable, Mapping, Sequence
 
 from .native_pool_admitted import run_admitted_native_pool
 from .native_pool_contracts import canonical_sha256
-from .native_pool_deferred_context import ProvisionalWorkerStartup, _ContainedPoolAdmission, _require
+from .native_pool_deferred_context import ProvisionalWorkerStartup, _ContainedPoolAdmission
+from .native_pool_deferred_context import require_deferred_attestation as _require
 from .policy_schema import json_equal
 from .util import atomic_write_text
 
@@ -1402,8 +1403,10 @@ def _launch_session(
     return allocation
 
 
-def _allocation_intent(plan: Mapping[str, Any], journal: TransactionJournal,
-                       child_id: str) -> tuple[dict[str, Any], dict[str, Any]]:
+def require_current_worker_allocation_intent(
+    plan: Mapping[str, Any], journal: TransactionJournal, child_id: str,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Read the current journal intent bound to the approved worker."""
     _require(type(journal) is TransactionJournal and journal.transaction_id == plan["transaction_id"],
              "allocation-journal-mismatch")
     events = journal.read()
@@ -1420,6 +1423,9 @@ def _allocation_intent(plan: Mapping[str, Any], journal: TransactionJournal,
     expected = {**scope, "allocation_id": allocation_id, "requested_model": plan["selected_model"]}
     _require(json_equal(head["details"], expected), "allocation-intent-mismatch")
     return child, head
+
+
+_allocation_intent = require_current_worker_allocation_intent
 
 
 def _checked_worker_allocation(raw, plan, allocation_class, child, allocation_id, contained, journal):

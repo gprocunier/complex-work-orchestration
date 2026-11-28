@@ -11,7 +11,7 @@ import re
 from types import MappingProxyType
 
 from cwo_core import manual_delivery, native_live_availability, workspace_capture
-from cwo_core.beads_ready_set import build_ready_set_evidence, _admission_metadata
+from cwo_core.beads_ready_set import build_ready_set_evidence, read_ready_set_admission_metadata as _admission_metadata
 from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.native_authority import canonical_authority_sha256, verify_operator_directive
 from cwo_core.native_pool_admission import AdmissionCandidate, BeadsClaimAdapter, build_admission_child_binding, reserve_pool_cohort
@@ -21,7 +21,7 @@ from cwo_core.native_pool_transaction import execution_authoritative_bead_sha256
 from cwo_core.native_pool_workspace import capture_workspace_snapshot
 from cwo_core.private_artifact import PrivateDirectory
 from delegate_internal_work import PROJECT_CONTROLLER_IDENTITY
-from registered_delegation_entry import _protected_store, _read_key
+from registered_delegation_entry import _read_key, protected_controller_store as _protected_store
 from registered_n1_qualification import EFFORT, MODEL, TIER, pool_worker_login_mount, worker_login_state
 from registered_native_pool_client import CONTAINED_EXECUTION_ROUTE, validate_structure
 from registered_worker_login_config import read_pool_worker_login_homes

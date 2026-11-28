@@ -48,9 +48,9 @@ from .native_pool_transaction import (
     execute_native_pool_transaction,
     validate_transaction_plan,
 )
-from .native_tool_isolation import _ContainedPoolChild
+from .native_tool_isolation import ContainedPoolChildBinding
 from .policy_schema import strict_json_loads
-from .workspace_capture import Budget, BudgetExhausted, _pin_directory, read_at
+from .workspace_capture import Budget, BudgetExhausted, pin_private_directory, read_at
 
 _POOL_LIMITS = ("tool_calls", "runtime_seconds")
 _LIMITS = ("sessions", *_POOL_LIMITS)
@@ -70,7 +70,7 @@ class PoolQualificationRun:
     bind_limits: Callable[[PoolQualificationRunLimits], None] | None = None
     cleanup: Callable[[float], bool] | None = None
     contained_selection: ContainedPoolSelection | None = None
-    ordinary_policy_children: Mapping[str, _ContainedPoolChild] | None = None
+    ordinary_policy_children: Mapping[str, ContainedPoolChildBinding] | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -113,7 +113,7 @@ def _registered_factory_source(path: str, digest: str) -> bytes:
 
 
 def _read_registered_source(source_path: Path) -> bytes:
-    pinned = _pin_directory(str(source_path.parent))
+    pinned = pin_private_directory(str(source_path.parent))
     _require(pinned is not None, "registered-factory-directory-refused")
     directory, _ = pinned
     try:
@@ -190,7 +190,7 @@ class _RunSettlement:
 
 
 def _custody(path: Path, reason: str) -> tuple[int, list[tuple[int, int]]]:
-    pinned = _pin_directory(str(path.parent))
+    pinned = pin_private_directory(str(path.parent))
     _require(pinned is not None, reason)
     directory, _ = pinned
     info = os.fstat(directory)

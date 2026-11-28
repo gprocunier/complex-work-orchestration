@@ -146,10 +146,10 @@ def _plan(state, directory, strays, limits):
 
 
 def _event(state, manifest, raw, limits, events):
-    from .audit import _prepare_private_audit_event
+    from .audit import prepare_host_audit_event
     event = {'event_type': EVENT, 'quarantine_transaction_id': manifest['transaction'],
              'quarantine_manifest_sha256': _digest(raw), 'quarantine_file_count': len(manifest['files'])}
-    enriched, _ = _prepare_private_audit_event(event, state, limits, events)
+    enriched, _ = prepare_host_audit_event(event, state, limits, events)
     return enriched
 
 
@@ -340,7 +340,7 @@ def _recover_rotation(state, directory, manifest, journal, limits, moved):
 
 
 def _restore_tail(state, head, before, current, journal, limits):
-    from .audit import _restore_private_audit, _verify_uncommitted_append
+    from .audit import _restore_private_audit, require_uncommitted_audit_append
     from .audit_segments import layout, read_head, segment_name
     if journal['phase'] != 'appending':
         h._need(current == before, 'quarantine has an unexplained audit suffix')
@@ -349,7 +349,7 @@ def _restore_tail(state, head, before, current, journal, limits):
         h._need(head is None and read_head(state) is None and before == current == b'',
                 'quarantine old audit disappeared')
         return
-    _verify_uncommitted_append(state, before if head is not None else None, head,
+    require_uncommitted_audit_append(state, before if head is not None else None, head,
                               (json.dumps(journal['event'], sort_keys=True) + '\n').encode(), limits)
     fd = _open_verified_file(state, name, current, limits.max_audit_bytes, writable=True)
     try:

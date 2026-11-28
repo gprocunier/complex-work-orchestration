@@ -1,11 +1,10 @@
 """Private evidence input is not an operation grant."""
-from copy import deepcopy
 import hashlib,json,os
 from pathlib import Path
 import sys,tempfile,unittest
 from unittest import mock
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'scripts'))
-from cwo_core.private_authority_input import load_private_current_authority,private_authority_arguments,PrivateAuthorityInputError
+from cwo_core.private_authority_input import load_private_current_authority,private_authority_arguments
 from cwo_core.native_precommit import canonical_sha256
 import supervise_native_worker as worker_cli
 import supervise_native_precommit as precommit_cli

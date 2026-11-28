@@ -81,6 +81,9 @@ def _normalize_workerbee_planned_delegation(workerbee_parallelism: dict[str, Any
     }
 
 
+normalize_workerbee_planned_delegation = _normalize_workerbee_planned_delegation
+
+
 def text_has_any(text: str, terms: list[str]) -> bool:
     return bool(term_hits(text, terms))
 

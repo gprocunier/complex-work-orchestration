@@ -9,7 +9,6 @@ import hashlib
 import json
 from pathlib import Path
 from dataclasses import dataclass
-from threading import RLock
 from typing import Any
 
 class StageEvidenceError(ValueError):

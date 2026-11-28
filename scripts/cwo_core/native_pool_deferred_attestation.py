@@ -23,10 +23,12 @@ from .native_pool_deferred_context import (
     QUALIFICATION_TIER,
     QUALIFICATION_TOOL,
     _EVIDENCE_TOKEN,
-    _require,
-    _require_deadline,
+    require_deferred_attestation as _require,
+    require_deferred_deadline,
 )
-from .native_pool_transaction import PLAN_VERSION, TransactionJournal, _allocation_intent, validate_transaction_plan
+from .native_pool_transaction import (
+    PLAN_VERSION, TransactionJournal, require_current_worker_allocation_intent, validate_transaction_plan,
+)
 from .worker_patch import MAX_WORKER_DIFF_BYTES
 
 
@@ -36,7 +38,7 @@ def _digest(value: Any, reason: str) -> str:
 
 
 def _deadline(deadline: float) -> None:
-    _require_deadline(deadline, now=monotonic())
+    require_deferred_deadline(deadline, now=monotonic())
 
 
 def _record(value: Any, reason: str) -> dict[str, Any]:
@@ -84,7 +86,7 @@ def verify_deferred_startup(
              and profile == QUALIFICATION_PROFILE,
              "qualification-model-selection-mismatch")
     _require(trusted_factories.get(plan["runtime_adapter_path"]) == plan["runtime_adapter_sha256"], "factory-unapproved")
-    child, intent = _allocation_intent(plan, journal, child_id)
+    child, intent = require_current_worker_allocation_intent(plan, journal, child_id)
     _require(worktree.is_absolute() and session_path.is_absolute() and session_path.suffix == ".jsonl",
              "startup-path-invalid")
     selections = {"model": QUALIFICATION_MODEL, "effort": QUALIFICATION_EFFORT, "service_tier": QUALIFICATION_TIER,

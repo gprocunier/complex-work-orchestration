@@ -53,12 +53,12 @@ DESKTOP_BROWSER_HANDOFF = 'desktop_chrome'
 DESKTOP_BROWSER_CAPTURE = 'desktop-browser-v1'
 
 
-def _need(condition: bool, reason: str) -> None:
+def require_host_record(condition: bool, reason: str) -> None:
     if not condition:
         raise HostRecordError(reason)
 
 
-def _json(value: Any) -> bytes:
+def encode_host_record_json(value: Any) -> bytes:
     try:
         return (json.dumps(value, sort_keys=True, separators=(',', ':'), ensure_ascii=True,
                            allow_nan=False) + '\n').encode('ascii')
@@ -66,7 +66,7 @@ def _json(value: Any) -> bytes:
         raise HostRecordError('host record requires bounded JSON data') from exc
 
 
-def _parse(raw: bytes) -> dict[str, Any]:
+def decode_host_record_json(raw: bytes) -> dict[str, Any]:
     def unique(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
         result: dict[str, Any] = {}
         for key, value in pairs:
@@ -82,9 +82,16 @@ def _parse(raw: bytes) -> dict[str, Any]:
     return value
 
 
-def _sha(value: object) -> str:
+def require_host_record_sha256(value: object) -> str:
     _need(type(value) is str and _DIGEST.fullmatch(value) is not None, 'host record requires a SHA-256 id')
     return value
+
+
+# Keep the legacy spellings for existing host-record clients.
+_need = require_host_record
+_json = encode_host_record_json
+_parse = decode_host_record_json
+_sha = require_host_record_sha256
 
 
 def _token(value: object) -> str:
@@ -222,6 +229,11 @@ def _directory(path: Path, *, create: bool = False, private: bool = False) -> in
         raise
 
 
+def open_owner_private_directory(path: Path) -> int:
+    """Open an existing owner-private directory without following symlinks."""
+    return _directory(path, private=True)
+
+
 def _read_at(directory: int, name: str, maximum: int) -> bytes:
     fd = os.open(name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC, dir_fd=directory)
     try:
@@ -243,6 +255,11 @@ def _read_at(directory: int, name: str, maximum: int) -> bytes:
         return data
     finally:
         os.close(fd)
+
+
+def read_host_audit_bytes(directory: int, name: str, maximum: int) -> bytes:
+    """Read bounded private audit data from an open host-state directory."""
+    return _read_at(directory, name, maximum)
 
 
 def _rename_new_at(directory, temporary, name):
@@ -293,6 +310,11 @@ def _write_at(directory: int, name: str, raw: bytes, *, replace: bool = False,
                 pass
 
 
+def replace_host_audit_checkpoint(directory: int, raw: bytes) -> None:
+    """Replace the audit checkpoint while the caller holds its exclusive lock."""
+    _write_at(directory, 'audit.jsonl.head.json', raw, replace=True)
+
+
 def _audit_lock(directory: int, *, create: bool, exclusive: bool) -> int:
     flags = (os.O_RDWR | os.O_CREAT if create else os.O_RDONLY) | os.O_NOFOLLOW | os.O_NONBLOCK | os.O_CLOEXEC
     lock = os.open('audit.jsonl.lock', flags, 0o600, dir_fd=directory)
@@ -312,6 +334,17 @@ def _audit_snapshot(directory: int, limits: RecordLimits) -> list[dict[str, Any]
     """Check all bounded segments through the current global checkpoint."""
     from .audit_segments import audit_snapshot
     return audit_snapshot(directory, limits)
+
+
+# Audit segments bind the storage callables when their module loads.
+acquire_host_audit_lock = _audit_lock
+read_private_host_file_at = _read_at
+write_private_host_file_at = _write_at
+
+
+def read_verified_host_audit(directory: int, limits: RecordLimits) -> list[dict[str, Any]]:
+    """Verify bounded audit history through its current checkpoint."""
+    return _audit_snapshot(directory, limits)
 
 
 def _verified_record_at(record_id, record_type, anchors, directory, limits):
@@ -590,8 +623,8 @@ class HostRecordStore:
             for key in ('dispatch_id', 'bead_id', 'return_sha256', 'evaluation_sha256'):
                 if key in value:
                     event[key] = value[key]
-            from .audit import _prepare_private_audit_event
-            _prepare_private_audit_event(event, state, self.limits, events)
+            from .audit import prepare_host_audit_event
+            prepare_host_audit_event(event, state, self.limits, events)
             self._commit_record(directory, state, lock, record_id, raw, event, already_exists)
         finally:
             os.close(directory)

@@ -3,7 +3,7 @@ from __future__ import annotations
 import hashlib,json,os,stat
 from pathlib import Path
 from typing import Any
-from .operative_routing import _normalize_current_authority
+from .operative_routing import normalize_current_authority_claim as _normalize_current_authority
 from .native_precommit import canonical_sha256
 
 class PrivateAuthorityInputError(ValueError):pass

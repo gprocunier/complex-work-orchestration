@@ -7,7 +7,6 @@ import unittest
 ROOT=Path(__file__).resolve().parents[1];sys.path.insert(0,str(ROOT/'scripts'))
 from tests import test_maintenance_authority as authority_fixture
 from cwo_core import native_precommit as n
-from cwo_core.native_pool_contracts import canonical_sha256
 
 class MaintenancePrecommitIsolation(unittest.TestCase):
  def setUp(self):

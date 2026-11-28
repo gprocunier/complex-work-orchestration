@@ -23,7 +23,7 @@ import stat
 import subprocess
 import time
 import uuid
-from typing import Any, Mapping, Sequence
+from typing import Any, Mapping
 from cwo_core import native_live_availability as live_availability
 
 from cwo_core.maintenance_runtime_support import (
@@ -62,7 +62,7 @@ from cwo_core.paths import is_cwo_temp_path
 from cwo_core.policy import load_policy
 from cwo_core.workspace import capture_workspace_baseline, compare_workspace_baseline
 from prepare_native_worker import (
-    _render_prompt, validate_native_worker_packet, validate_native_worker_return,
+    render_worker_packet_prompt as _render_prompt, validate_native_worker_packet, validate_native_worker_return,
 )
 from cwo_core.supervision.callback_timing import pool_sleep
 from cwo_core.supervision.containment import contain_started_threads

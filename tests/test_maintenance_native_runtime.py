@@ -23,7 +23,6 @@ sys.path.insert(0, str(ROOT / "scripts"))
 
 import cwo_core.maintenance_native_runtime as module
 from cwo_core.maintenance_image import capture_control_image
-from cwo_core.native_tool_isolation import default_tool_policy
 from cwo_core.maintenance_authority import (
     MaintenanceAuthorityError, MaintenanceAuthorityVerifier, MaintenanceStateStore,
     mission_sha256, sign_controller_directive,
@@ -198,8 +197,8 @@ class RuntimeFixture:
             action_sha256=digest, directive_id=identity, parent_receipt_sha256=parent)
 
     def release(self, **kwargs):
-        evidence = {"version": 2, "evidence_sha256": "d" * 64, "issued_at": "2026-10-13T00:00:00Z", "expires_at": self.qualification_record["origin_expires_at"],
-                    "issued_at": self.qualification_record["origin_issued_at"], "canary_receipt_sha256": self.qualification_record["canary_sha256"]}
+        evidence = {"version": 2, "evidence_sha256": "d" * 64, "issued_at": self.qualification_record["origin_issued_at"],
+                    "expires_at": self.qualification_record["origin_expires_at"], "canary_receipt_sha256": self.qualification_record["canary_sha256"]}
         packet = {"packet_id": self.task.packet_id, "bead_id": self.bead_id, "requested_model": self.model,
             "work_plan": deepcopy(self.work_plan), "precommit_receipt_sha256": kwargs["precommit_receipt"]["receipt_sha256"],
             "tool_policy": default_tool_policy(mutable=self.task.role == "product"), "release_evidence": evidence,

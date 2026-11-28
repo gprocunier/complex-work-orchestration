@@ -192,6 +192,13 @@ def _validate_spec(expected: ExpectedSpawn) -> None:
         raise ValueError("Controller uid must be a bounded integer.")
 
 
+# Shared checks used by the offline producer and the OS-owned child controller.
+OwnershipRefusal = _Refusal
+integer_in_range = _integer
+is_bounded_duration = _duration
+validate_expected_spawn = _validate_spec
+
+
 def _registration(identity: ProcessIdentity, expected: ExpectedSpawn, name: str) -> TrustedRegistration:
     return TrustedRegistration(
         pid=identity.pid, boot_id=expected.boot_id, pid_namespace=expected.pid_namespace,
