@@ -107,7 +107,7 @@
           <section id="packet">
             <h2>Build and check the brief before sending it</h2><p>The lead is usually the coordinating Codex agent. It may accept routine results only within your granted authority. Decisions reserved to you, or requiring human adjudication under the task or policy, stay with a human. The agent can prepare evidence and record that decision; it cannot approve it for you.</p>
             <p>A <strong>contractor packet</strong> is the brief CWO prepares for an outside model: the assigned question, allowed material, selected snippets, provider identity and discipline-specific instructions.</p>
-            <p>Build it with the helper, then inspect the result. The helper checks sharing approval, permitted artifacts, snippets, provider identity and packet integrity before rendering a prompt. These checks do not replace your review for sensitive material.</p>
+            <p>The builder removes recognizable credentials and personal details, then checks the packet independently for sensitive content left after redaction. The helpers check allowed artifacts, snippets, provider identity and packet integrity. Before releasing a manual prompt, the export helper rechecks the protected approval, verifies sizing for the exact rendered request and screens the bytes it will print. A screening finding stops export before dispatch quota or audit is recorded. Inspect the prepared material before sending it.</p>
             <p>
               For <code>repo-readonly</code> and <code>patch-branch</code> modes,
               the packet only projects each first-level bead dependency to
@@ -118,9 +118,10 @@
               (32,768 UTF-8 bytes), and malformed or oversized summaries fail
               before quota reservation, audit output, or packet output.
               Packet validation rechecks both this projected shape and the size cap
-              independently; redacted packets are unchanged.
+              independently.
             </p>
             <p>For an outside assignment, complete the packet-building and dispatch steps below before handing a prompt to a CLI. Use the <a href="./workflows.html#optional-lanes">specialist guide</a> if you have not yet chosen between native, internal and outside review.</p>
+            <p>For a managed expert review, put concrete shareable evidence for each required input in the redacted assignment or selected snippets. Use the expert’s declared input name, as in <code>Review input [responsive targets]: 390px viewport with one column</code>. Include the relevant fact or excerpt with any source locator. The builder refuses a packet if a required input is missing after redaction.</p>
             <p>
               The two named architecture critics, Claude and Gemini, are
               configured with their model and effort under
@@ -159,20 +160,21 @@
 
             <details>
               <summary><strong>Operator Reference: Building Packets</strong></summary>
-              <p>
-                Use these commands to build packets for specific review lanes.
-                This operator reference intentionally shows executor IDs and
-                job-description labels.
-              </p>
+              <p>Use the configured protected host to publish one approval for each assignment. The operator’s decision names the absolute, resolved target checkout (<code>project</code>), <code>bead_id</code>, <code>epic_id</code> (an exact ID or JSON <code>null</code>), the canonical <code>executor</code>, <code>provider_key</code> and <code>maximum_share_boundary</code>.</p>
+              <p>From the protected installation, the operator runs <code>python3 -E -s -B scripts/lead_authority_host.py publish outbound-approval &lt; approved-disclosure.json</code>. See the sections “Operator-authorized comparison” and “Dispatch Flow” in the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/zero-trust-consensus.md">consensus reference</a> and <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/external-contracting.md">contracting reference</a>.</p>
+              <p>Run the examples from the target checkout. Set <code>CWO_SCRIPTS</code> to the absolute path of the CWO installation’s <code>scripts</code> directory. Set the Bead variables to the assigned IDs and the approval variables to the corresponding references printed by the host. Rebuild previously prepared packets so the build record carries the approval reference. The packet build prepares the material for sizing.</p>
+              <p>After building the packet, measure the complete prompt with <code>python3 "$CWO_SCRIPTS/cwo.py" manual-prompt --packet PACKET --rehearsal --json</code>. Use the JSON <code>prompt</code> value after removing its leading <code>Local rehearsal only.</code> line and the following blank line. Use that exact text as the selected primary node’s <code>prompt</code>. Plain-text export adds a framing newline after the measured text. Keep the rehearsal output local.</p>
+              <p>Size the whole route using the selected executor, provider, model and effort, the request’s context and output limits, and any dependent work. Check the original input with <code>python3 "$CWO_SCRIPTS/prepare_route_feasibility.py" &lt; route-input.json</code>. Set <code>CLAUDE_WORKLOAD</code> to the path of a JSON file with two fields, <code>route_input</code> containing that original input and <code>node_id</code> naming the selected primary node. Use the corresponding workload file for each managed export.</p>
+              <p>The export checks the planned bounds and renders the screened request. The sender applies those bounds when making the approved call and records what actually happened. <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/run-readiness.md">Dispatch readiness reference</a>.</p>
               <p>
                 <strong>Security review packet:</strong>
               </p>
-              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/build_contractor_packet.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --contractor-packet</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-packet.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> external_security_reviewer</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/build_contractor_packet.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$SECURITY_BEAD</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> claude_code_manual</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --share-boundary</span><span class="shiki-style-fccf53bf0d08ec6a"> redacted-packet</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --external-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --attest-packet</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --opt-in-record</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$SECURITY_OUTBOUND_APPROVAL</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --job-description</span><span class="shiki-style-fccf53bf0d08ec6a"> contract-jd-security-reasoning</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --format</span><span class="shiki-style-fccf53bf0d08ec6a"> json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-packet.json</span></span></code></pre>
               <p>
@@ -198,41 +200,41 @@
                 proposal. Treat returns as critique evidence for Codex
                 architect adjudication.
               </p>
-              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/build_contractor_packet.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-a694eb0da6a49aaf"> &lt;</span><span class="shiki-style-fccf53bf0d08ec6a">claude-critic-bea</span><span class="shiki-style-d6f50f15d04b4a1d">d</span><span class="shiki-style-a694eb0da6a49aaf">></span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/build_contractor_packet.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CLAUDE_CRITIC_BEAD</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> claude_architecture_critic</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --share-boundary</span><span class="shiki-style-fccf53bf0d08ec6a"> redacted-packet</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --external-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --opt-in-record</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CLAUDE_OUTBOUND_APPROVAL</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --job-description</span><span class="shiki-style-fccf53bf0d08ec6a"> contract-jd-architecture-reasoning</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --attest-packet</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --format</span><span class="shiki-style-fccf53bf0d08ec6a"> json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> claude-architect-critique-packet.json</span></span>
 <span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/dispatch_work.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/dispatch_work.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --packet</span><span class="shiki-style-fccf53bf0d08ec6a"> claude-architect-critique-packet.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --mode</span><span class="shiki-style-fccf53bf0d08ec6a"> manual</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --workload</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CLAUDE_WORKLOAD</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> claude-architect-critique-dispatch-prompt.md</span></span></code></pre>
-              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/build_contractor_packet.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-a694eb0da6a49aaf"> &lt;</span><span class="shiki-style-fccf53bf0d08ec6a">gemini-critic-bea</span><span class="shiki-style-d6f50f15d04b4a1d">d</span><span class="shiki-style-a694eb0da6a49aaf">></span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/build_contractor_packet.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$GEMINI_CRITIC_BEAD</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> gemini_architecture_critic</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --share-boundary</span><span class="shiki-style-fccf53bf0d08ec6a"> redacted-packet</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --external-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --opt-in-record</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$GEMINI_OUTBOUND_APPROVAL</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --job-description</span><span class="shiki-style-fccf53bf0d08ec6a"> contract-jd-architecture-reasoning</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --attest-packet</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --format</span><span class="shiki-style-fccf53bf0d08ec6a"> json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> architect-critique-packet.json</span></span></code></pre>
               <p>
                 <strong>Web-design packet (patch-branch):</strong>
-                Repo-readonly and patch-branch handoff packets require an
-                explicit disclosure escalation flag in addition to external
-                opt-in.
+                For repo-readonly and patch-branch packets, add the explicit
+                escalation flag and set <code>DISCLOSURE_REASON</code> to the
+                operator’s reason for approving the wider boundary.
               </p>
-              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/build_contractor_packet.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --contractor-packet</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-packet.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+              <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/build_contractor_packet.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$WEB_DESIGN_BEAD</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --executor</span><span class="shiki-style-fccf53bf0d08ec6a"> gemini_manual_reviewer</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --share-boundary</span><span class="shiki-style-fccf53bf0d08ec6a"> patch-branch</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --allow-disclosure-escalation</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --external-ok</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --waiver-reason</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$DISCLOSURE_REASON</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --opt-in-record</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$WEB_OUTBOUND_APPROVAL</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --job-description</span><span class="shiki-style-fccf53bf0d08ec6a"> contract-jd-domain-web-design</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --allowed-file</span><span class="shiki-style-fccf53bf0d08ec6a"> docs/index.html</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --allowed-file</span><span class="shiki-style-fccf53bf0d08ec6a"> docs/styles.css</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
@@ -276,10 +278,16 @@
             <h2>Get a ChatGPT Pro review from the ChatGPT desktop app</h2>
             <p>ChatGPT Pro review runs from the ChatGPT desktop app. Run the architect's Codex thread in the desktop app; the thread uses <code>@Chrome</code> in the Chrome profile paired through the ChatGPT extension. The operator must be present and the review must be authorized. Browser access belongs to the desktop app session, so keep its browser connection inside the app.</p>
             <ol class="check-list">
-              <li>Build an approved browser reviewer packet within the assignment's sharing boundary. From the CWO directory, create a private run directory (with <code>umask 077</code>) and run <code>python3 scripts/cwo.py prepare-browser --packet "$packet"</code> to write the screened request into it.</li>
-              <li>Use <code>@Chrome</code> to open a fresh ChatGPT chat in the paired profile. Select Pro and record the exact label shown in the model picker. With the operator present, send the screened request once, including its CWO request ID line, and read <code>request_id</code> from the posted message.</li>
-              <li>When the reply is complete, use <code>@Chrome</code> to read its visible text and save it as UTF-8 in the run directory.</li>
-              <li>Evaluate the saved reply with <code>python3 scripts/cwo.py evaluate</code>, passing the original packet, <code>--browser-reply</code>, the posted <code>--request-id</code> and the confirmed <code>--model-label</code>. Save the evaluation in the same run directory. CWO records the model picker label confirmed by the sender.</li>
+              <li><p>Build the browser reviewer packet with the protected approval reference and within the assignment’s sharing boundary. Render the full prompt with the <a href="#packet">packet rehearsal</a>. Remove the rehearsal label, its following blank line and trailing whitespace before entering the prompt in the sizing plan. In the original sizing plan, select the <code>Pro</code> model and reserve at least <code>50 * tokens_per_utf8_byte_upper</code> in <code>additional_input_tokens_upper</code> for the 50 UTF-8 bytes in the generated request ID line.</p><p>From the target checkout, use the same host audit store as the packet build. Set <code>packet</code> to the packet path, <code>workload</code> to the JSON file containing the original <code>route_input</code> and selected <code>node_id</code>, and <code>run_dir</code> to a private run directory created with <code>umask 077</code>. Run <code>python3 "$CWO_SCRIPTS/cwo.py" prepare-browser --packet "$packet" --workload "$workload" &gt; "$run_dir/request.txt"</code> and inspect the screened request there.</p><p>To prepare a new browser request from a dispatch recorded before sizing was required, build a packet with a fresh dispatch ID.</p></li>
+              <li>Use <code>@Chrome</code> to open a fresh ChatGPT chat in the paired profile. Select Pro and record the exact label shown in the model picker as <code>model_label</code>. With the operator present, send the screened request once, including its CWO request ID line, and read <code>request_id</code> from the posted message.</li>
+              <li>When the reply is complete, use <code>@Chrome</code> to read its visible text and save it as UTF-8 in <code>$run_dir/reply.txt</code>.</li>
+              <li>
+                <p>From the target checkout, evaluate the saved reply with the original packet, the posted request ID and the model picker label confirmed by the sender. Save the evaluation in the same private run directory.</p>
+                <pre data-language="bash" tabindex="0" role="region" aria-label="Code example" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/cwo.py"</span><span class="shiki-style-fccf53bf0d08ec6a"> evaluate</span><span class="shiki-style-ab138001542cb31f"> --contractor-packet</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$packet</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --browser-reply</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$run_dir</span><span class="shiki-style-fccf53bf0d08ec6a">/reply.txt"</span><span class="shiki-style-ab138001542cb31f"> --request-id</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$request_id</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --model-label</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$model_label</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-ab138001542cb31f"> --json</span><span class="shiki-style-a694eb0da6a49aaf"> ></span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$run_dir</span><span class="shiki-style-fccf53bf0d08ec6a">/evaluation.json"</span></span></code></pre>
+                <p>For a candidate-bound packet, also pass <code>--candidate</code> and <code>--candidate-root</code>.</p>
+              </li>
               <li>Complete any required peer review and the lead's adjudication before using the findings.</li>
             </ol>
             <p>CWO links the dispatch, the private reply and the evaluator record in the host audit; the reply text stays in the private run directory. The legacy CDP browser transport and share URL or HTML intake are retired. If an assignment requires this reviewer and the route or evidence is unavailable, record the missing prerequisite and get the operator's decision before dependent implementation. Exact commands and flags are in the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/chatgpt-pro-browser.md">ChatGPT Pro desktop workflow reference</a>.</p>
@@ -287,27 +295,29 @@
 
           <section id="return">
             <h2>Check the return before using its findings</h2>
-            <p>A return is the reviewer’s answer and supporting evidence. Normalize it into the required record format, evaluate its evidence and whether it stayed within the allowed material and actions, and record the lead’s decision. The reviewer must use the exact answer template, without narrating internal actions. The workspace mutation guard compares files before and after the call; it checks tracked files by default. Add <code>--include-untracked</code> to both guard commands when new files must also be checked.</p>
-            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+            <p>For a managed manual return, use the same host audit store that prepared the dispatch. Set <code>packet</code> to the exact packet used for that dispatch and <code>RETURN_RUN_DIR</code> to a private directory outside the target checkout.</p>
+            <p>Capture the workspace from the target checkout before the approved call. The guard checks tracked files by default. Add <code>--include-untracked</code> to both guard commands when new files must also be checked.</p>
+            <pre data-language="bash" tabindex="0" role="region" aria-label="Code example" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/workspace_mutation_guard.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
 <span class="line"><span class="shiki-style-ab138001542cb31f">  --snapshot</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/before.json"</span></span></code></pre>
+            <p>Use the CLI and sharing boundary approved for the assignment. For Antigravity, give <code>--add-dir</code> the absolute path to the approved packet directory containing the screened prompt. Use <code>agy --print</code> or its short form <code>agy -p</code> with a short inline instruction such as <code>Read contractor-dispatch-prompt.md and output only the contractor return template.</code> See “Dispatch Flow” in the <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/external-contracting.md">contracting reference</a>.</p>
+            <p>Save the reviewer’s original reply as <code>contractor-return.md</code> in <code>RETURN_RUN_DIR</code> and record the assignment identity and confirmed model. Compare the workspace from the target checkout after the call.</p>
+            <pre data-language="bash" tabindex="0" role="region" aria-label="Code example" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/workspace_mutation_guard.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --compare</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/before.json"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/mutation-report.json"</span></span></code></pre>
+            <p>The reviewer uses the required contractor return template. Normalize the reply before evaluating it. Normalization records the exact reply bytes against the recorded dispatch. Evaluation uses the original packet and the same unedited reply to check the answer format, evidence and sharing boundary.</p>
+            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/normalize_contractor_return.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --contractor-packet</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$packet</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/contractor-return.md"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/mutation-report.json"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/contractor-return-bundle.json"</span></span>
 <span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">agy</span><span class="shiki-style-ab138001542cb31f"> -p</span><span class="shiki-style-fccf53bf0d08ec6a"> "$(</span><span class="shiki-style-3655fcaf5376929f">cat</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-dispatch-prompt.md)"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-a694eb0da6a49aaf">  ></span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return.md</span></span>
-<span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/workspace_mutation_guard.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --compare</span><span class="shiki-style-fccf53bf0d08ec6a"> before.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span></span></code></pre>
-            <pre data-language="bash" class="shiki github-dark-default shiki-style-8930c6a81784fc59" data-theme="github-dark-default" tabindex="0" role="region" aria-label="Code example"><code><span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/normalize_contractor_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-a694eb0da6a49aaf"> &lt;</span><span class="shiki-style-fccf53bf0d08ec6a">i</span><span class="shiki-style-d6f50f15d04b4a1d">d</span><span class="shiki-style-a694eb0da6a49aaf">></span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return.md</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --output</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return-bundle.json</span></span>
-<span class="line"></span>
-<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> scripts/evaluate_return.py</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --bead</span><span class="shiki-style-a694eb0da6a49aaf"> &lt;</span><span class="shiki-style-fccf53bf0d08ec6a">i</span><span class="shiki-style-d6f50f15d04b4a1d">d</span><span class="shiki-style-a694eb0da6a49aaf">></span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> contractor-return.md</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
-<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> mutation-report.json</span></span></code></pre>
+<span class="line"><span class="shiki-style-3655fcaf5376929f">python3</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$CWO_SCRIPTS</span><span class="shiki-style-fccf53bf0d08ec6a">/evaluate_return.py"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --contractor-packet</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$packet</span><span class="shiki-style-fccf53bf0d08ec6a">"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --file</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/contractor-return.md"</span><span class="shiki-style-a694eb0da6a49aaf"> \</span></span>
+<span class="line"><span class="shiki-style-ab138001542cb31f">  --workspace-mutation-report</span><span class="shiki-style-fccf53bf0d08ec6a"> "</span><span class="shiki-style-d6f50f15d04b4a1d">$RETURN_RUN_DIR</span><span class="shiki-style-fccf53bf0d08ec6a">/mutation-report.json"</span></span></code></pre>
+            <p>A useful report of a failed check can be accepted as evidence. The evaluator reports delivery readiness as <code>unknown</code> without an issued observation tied to the independent requirement baseline and exact candidate. Use <code>--report-json</code> with the evaluation command to inspect both decisions. Use <code>--json</code> for the hash-bound evaluator payload used in file-based peer review and synthesis.</p>
+            <p id="return-screening"><strong>Return screening.</strong> The evaluator checks the structure of the answer alongside its existing risk checks. It flags instructions aimed at the lead or its tools, directives to change the assignment or skip review or validation, and unsupported completion claims. Record the source or check behind each material claim and identify any checks that were unavailable. Preserve a held return for <a href="./malpractice-sabotage.html#quarantine">architect adjudication</a> and keep its findings out of implementation until the hold is resolved. Refresh earlier evaluations before reusing them in synthesis.</p>
             <div class="callout">
               <strong>Expected return language:</strong>
               new packets bind an English return contract into the packet hash.
@@ -319,9 +329,11 @@
             </div>
             <div class="callout">
               <strong>Quarantine rule:</strong>
-              High sabotage scores (boundary-risk patterns) or malpractice scores (evidence-quality problems) isolate the return for review. No
-              implementation dependency should be created until adjudication is
-              complete. Use the canonical
+              A return that reaches the production sabotage quarantine
+              threshold is isolated. Evidence-quality problems have separate
+              malpractice review and rejection thresholds. Keep affected
+              findings out of implementation until the architect adjudicates
+              them. Use the canonical
               <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/incident-response-playbook.md">incident-response playbook</a>
               for suspected sabotage, malpractice, or quarantine handling.
               The <a href="./malpractice-sabotage.html">Guardrails deep dive</a>
@@ -329,12 +341,19 @@
             </div>
             <div class="callout">
               <strong>Peer-review rule:</strong>
-              If route policy or provider conflict requires peer review, a
-              contractor cannot dismiss that gate. Unexpected tracked-file
-              mutation also blocks direct implementation use. Provider-policy
+              Managed manual dispatch requires peer review. For other routes,
+              follow the recorded requirement, including provider-conflict flags.
+              Complete any required peer review and obtain architect adjudication
+              before the findings can influence the implementation plan. Unexpected tracked-file
+              mutation blocks direct implementation use. Provider-policy
               limitations and opaque intervention risks stay in the evidence
               gate until the architect adjudicates them.
             </div>
+            <p>
+              The provider registry classifies host Codex as
+              <code>host-internal</code>. The classification describes access.
+              Evaluate its output before using it.
+            </p>
             <div class="callout">
               <strong>Research evidence rule:</strong>
               Research-style returns may add optional
@@ -376,7 +395,7 @@
               Claude Code GitHub Pages work, then treated both returns as
               evidence for Codex review rather than direct authority.
             </p>
-            <p>Preparing the packet with <code>dispatch_work.py</code> rendered a prompt for a separate operator-run CLI call. The demo used <code>agy -p</code> for the Antigravity assignment and showed why returned work needs editing and validation before publication. Keep packet and return artifacts private by default; check public files for local paths, broken links, incorrect attribution and claims of tests that did not run.</p>
+            <p>Preparing the packet with <code>dispatch_work.py</code> rendered a prompt for a separate operator-run CLI call. The demo used Antigravity for the documentation assignment and showed why returned work needs editing and validation before publication. Keep packet and return artifacts private by default; check public files for local paths, broken links, incorrect attribution and claims of tests that did not run.</p>
           </section>
         </article></div></div>
     </main>

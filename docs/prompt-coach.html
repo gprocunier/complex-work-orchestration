@@ -71,7 +71,7 @@
 <ol class="action-list">
 <li><strong>Define and size.</strong> State the result, permitted changes and completion checks. Estimate preparation, implementation, reviews, integration, validation and handoff, not just model calls. Planning-only work estimates those later stages without starting them.</li>
 <li><strong>Draft the plan.</strong> The lead identifies options, assumptions, dependencies and tests. A small task may stay in one thread with one Beads record. Larger work can use a work graph: a saved set of tasks and dependencies.</li>
-<li><strong>Get second opinions when useful.</strong> Give each approved reviewer the same starting design and a focused question. Save its findings before showing it the other reviews.</li>
+<li><strong>Get second opinions when useful.</strong> Give each approved reviewer the same starting design and a focused question. For a managed expert review, supply evidence for each input named by the selected expert, such as <code>Review input [target audience]: First-time queue operators</code>. The plan records missing inputs. The managed handoff requires the evidence. Save each reviewer’s findings before sharing the other reviews.</li>
 <li><strong>Synthesize and revise.</strong> Check evidence, resolve important disagreements and record which findings change the plan. Save unresolved questions and required tests with the work.</li>
 <li><strong>Execute only when permitted.</strong> A reviewed plan supplies the next tasks; it does not grant new model calls, file changes or publication rights.</li>
 </ol>
@@ -105,6 +105,7 @@
 <span class="line"><span class="shiki-style-fccf53bf0d08ec6a">  "Plan retry handling for a job-submission client without duplicate jobs."</span></span></code></pre>
             <p>This is an example request, not evidence of a dispatch. Replace the reviewers and sharing approval with choices you actually intend. If a required route is unavailable, keep that review blocked; do not treat the prompt as proof that the model can be called.</p>
             <p>Read the recommended coordination level, proposed reviewer or worker route, missing decisions and warnings. The output also reports whether model dispatch is available after every gate, and names any stop that blocks it; a stop blocks dispatching workers, not planning. The output also includes a launch prompt you can give Codex after resolving those decisions.</p>
+            <p>With the same scope and routing settings, adding text to a task can keep or raise its risk level. The router keeps earlier risk evidence even when the added context changes its expert recommendations. Tasks without positive risk evidence start at low risk.</p>
             <p>
               Explicit coach requests also carry
               <code>requires_user_selection_before_plan</code> and
@@ -118,6 +119,7 @@
             <h2>Choose how much coordination the task needs</h2>
             <p>The coach may recommend one tracked task in the current thread, a set of linked tasks, or a larger graph with implementation, review and validation. Outside review, local models and publication add their own permission and validation requirements.</p>
             <p>Graph size is a separate choice: <code>--scaffold-size tight</code> keeps the required stages while omitting optional specialist branches. A full graph is appropriate when broad work has independent responsibilities to coordinate.</p>
+            <p>When an interface, migration or ownership change needs a durable design before implementation, scaffold the work graph with <code>--architecture-design</code>. The option adds a design lens and package template to the existing architect Bead. See <a href="./workflows.html#beads-graph">where to record the design</a>.</p>
             <p>Use the smallest arrangement that can deliver the result, check it and save a useful handoff. Add review or other stages when the task’s risk or acceptance requirements justify them.</p>
             <div class="tile-grid">
               <article>
