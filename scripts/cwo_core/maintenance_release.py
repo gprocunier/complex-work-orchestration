@@ -137,7 +137,7 @@ def authorize_maintenance_packet(*,candidate_packet,qualification,current_author
     packet.update(stage='operative-authorized',operative_dispatch_authorized=True,
         release_requires=evidence['release_requires'],release_evidence=evidence,
         release_evidence_sha256=evidence['evidence_sha256'])
-    from prepare_native_worker import validate_native_worker_packet
+    from .native_worker_packet import validate_native_worker_packet
     errors=validate_native_worker_packet(packet,dispatchable=True,current_authority=current_authority,
         maintenance_operation=maintenance_operation,maintenance_verifier=maintenance_verifier)
     need(errors==[],'released-packet-invalid:'+ ';'.join(errors))

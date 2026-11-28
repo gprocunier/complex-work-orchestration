@@ -2,11 +2,10 @@
 
 from __future__ import annotations
 
-from types import MethodType
 from typing import TYPE_CHECKING, Mapping
 
 from cwo_core.native_pool_contracts import POOL_POLL_INTERVAL_MS
-from cwo_core.native_pool_transaction import TransactionRuntime
+from registered_pool_qualification import is_original_pool_parent
 from registered_pool_qualification_capability import CallbackCalibrationError, ConnectedCallbackCalibration, ConnectedPoolCallbackCapability
 
 if TYPE_CHECKING:
@@ -19,21 +18,11 @@ def _require(condition: bool, reason: str) -> None:
         raise CallbackCalibrationError(reason)
 
 
-def _registered_parent(runtime: TransactionRuntime) -> qualification._PoolParent:
-    from registered_pool_qualification import _PoolParent
-
-    starter = runtime.start_worker_session
-    _require(type(starter) is MethodType and type(runtime.prepare) is MethodType, "original-calibration-parent-required")
-    owner = starter.__self__
-    _require(type(owner) is _PoolParent and starter.__func__ is _PoolParent.start_worker
-             and runtime.prepare.__self__ is owner and runtime.prepare.__func__ is _PoolParent.prepare,
-             "original-calibration-parent-required")
-    return owner
-
-
-def _measure_original_controls(
+def measure_original_controls(
     parent: qualification._PoolParent, observer: ConnectedCallbackCalibration,
 ) -> ConnectedPoolCallbackCapability:
+    _require(is_original_pool_parent(parent) and type(observer) is ConnectedCallbackCalibration,
+             "original-writer-held-controls-required")
     controls = parent.controls
     _require(parent.limits.calibration_only and controls.keys() == parent.children.keys(),
              "original-writer-held-controls-required")

@@ -17,8 +17,7 @@ import secrets
 import stat
 from threading import Lock, RLock, get_ident
 from time import monotonic, monotonic_ns
-from types import MappingProxyType, MethodType, SimpleNamespace, TracebackType
-from typing import TYPE_CHECKING
+from types import MappingProxyType, SimpleNamespace, TracebackType
 
 from cwo_core import native_live_availability as availability
 from cwo_core.host_records import configured_store, open_owner_private_directory
@@ -29,9 +28,10 @@ from cwo_core.workspace_capture import BudgetExhausted, pin_private_directory, r
 import registered_n1_factory as n1
 import registered_n1_qualification as qualification
 import registered_pool_configuration as config
-
-if TYPE_CHECKING:
-    from registered_pool_qualification import _PoolWriterAuthorization
+from registered_pool_qualification import (
+    original_worker_login as _require_original_worker,
+    require_original_writer as _require_original_writer,
+)
 
 native = n1.native
 require = config.require
@@ -164,7 +164,7 @@ print({_WRITTEN!r}, end="")
 
 
 @contextmanager
-def _calibration_close_phase(phase: str | None) -> Iterator[None]:
+def measure_calibration_close_phase(phase: str | None) -> Iterator[None]:
     timings = _CALIBRATION_CLOSE_TIMES.get()
     if timings is None or phase is None:
         yield
@@ -175,9 +175,6 @@ def _calibration_close_phase(phase: str | None) -> Iterator[None]:
     finally:
         elapsed_us = max(0, (monotonic_ns() - started + 999) // 1000)
         timings[phase] = min(_CALIBRATION_CLOSE_MAX_US, (timings[phase] or 0) + elapsed_us)
-
-
-measure_calibration_close_phase = _calibration_close_phase
 
 
 @contextmanager
@@ -193,28 +190,6 @@ def collect_calibration_close_timings() -> Iterator[tuple[int, Mapping[str, int 
 def _route_available():
     availability.require_registered_contained_pool_live()
     availability.require_registered_n1_live()
-
-
-def _require_original_worker(effect, worker_id, worktree, spool, login_slot, containment=None):
-    from registered_pool_qualification import _POOL_WORKER_EFFECT, _PoolWorker
-
-    require(type(effect) is MethodType and effect.__func__ is _POOL_WORKER_EFFECT
-            and type(effect.__self__) is _PoolWorker, 'Original retained pool worker required.')
-    worker = effect.__self__
-    require((worker.child_id, worker.worktree, worker.spool, worker.login_slot)
-            == (worker_id, worktree, spool, login_slot) and worker.containment is containment,
-            'Original retained pool worker required.')
-    effect()
-    return worker.production_login_home, worker.parent._ordinary.login_homes
-
-
-def _require_original_writer(effect, authorize, call_id, deadline):
-    from registered_pool_qualification import _PoolWriterAuthorization
-
-    worker = effect.__self__
-    require(type(authorize) is _PoolWriterAuthorization and authorize.worker is worker
-            and worker._writer_authorization is authorize and authorize.pending.params['callId'] == call_id
-            and worker.limits.deadline == deadline, 'Original retained pool writer required.')
 
 
 def _directory_identity(path):
@@ -517,15 +492,15 @@ class _PoolLifetime(n1._Containment):
         self.gate_released = False
 
     def _terminate_monitor(self):
-        with _calibration_close_phase('monitor_exit_reap_us'):
+        with measure_calibration_close_phase('monitor_exit_reap_us'):
             return super()._terminate_monitor()
 
     def _stop_namespace(self):
-        with _calibration_close_phase('namespace_exit_us'):
+        with measure_calibration_close_phase('namespace_exit_us'):
             super()._stop_namespace()
 
     def _close_provider_network(self, primary=None):
-        with _calibration_close_phase('broker_close_us'):
+        with measure_calibration_close_phase('broker_close_us'):
             super()._close_provider_network(primary)
 
     def _managed_mount(self):
@@ -860,17 +835,16 @@ class PoolWorkerContainment:
             try:
                 if self._patch_preimage_sha256 is None:
                     return self._run_writer(deadline)
-                return self._run_writer(deadline, self._prepare_patch(authorize, deadline))
+                self._remaining(deadline)
+                pending = authorize.pending
+                return self._run_writer(deadline, self._prepare_patch(
+                    pending.params['arguments'], pending.request_sha256, deadline))
             except BaseException as error:
                 self._failed = True
                 self._close_preserving(error)
                 raise
 
-    def _prepare_patch(self, authorize: _PoolWriterAuthorization, deadline: float) -> _PreparedPatch:
-        self._remaining(deadline)
-        pending = authorize.pending
-        arguments = pending.params['arguments']
-        request_sha256 = pending.request_sha256
+    def _prepare_patch(self, arguments: object, request_sha256: object, deadline: float) -> _PreparedPatch:
         require(type(arguments) is dict and set(arguments) == {'diff'}
                 and type(request_sha256) is str and _SHA256.fullmatch(request_sha256) is not None,
                 'The checked patch requires the original bounded callback.')
@@ -979,7 +953,7 @@ class PoolWorkerContainment:
 
     def record(self, stage, observation):
         phase = 'termination_receipt_us' if stage == 'appserver-terminated' else None
-        with self._record_lock, _calibration_close_phase(phase):
+        with self._record_lock, measure_calibration_close_phase(phase):
             require(_directory_identity(self._receipt_root) == self._receipt_identity,
                     'The original containment receipt directory changed.')
             index = len(self._records)
@@ -1004,7 +978,7 @@ class PoolWorkerContainment:
         lifetime = self._managed_lifetime
         require(lifetime is None or not lifetime._managed_mount_started or lifetime.termination_recorded,
                 'The original managed-login namespace cleanup is unresolved.')
-        with _calibration_close_phase('lease_release_us'):
+        with measure_calibration_close_phase('lease_release_us'):
             self._worker_login._require_original_home()
             if self._managed_login is not None:
                 self._managed_login.retire()

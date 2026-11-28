@@ -184,6 +184,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_session_boundary": {"native_session", "policy_schema"},
     "native_live_availability": set(),
     "native_worker_contracts": {"native_disposition"},
+    "native_worker_packet": {"checked_command_sequence", "model_identities", "native_containment", "native_disposition", "native_precommit", "native_release", "native_replanning", "native_tool_isolation", "native_worker_contracts", "operative_routing", "paths", "policy", "work_sizing"},
     "native_authority": set(),
     "native_activation_ledger": set(),
     "native_activation_preview": {
@@ -229,7 +230,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "native_recovery_policy": set(),
     "native_retry": {"native_authority"},
     "native_control": set(),
-    "native_tool_isolation": set(),
+    "native_tool_isolation": {"native_pool_deferred_context"},
     "native_tool_activation": {
         "native_authority",
         "native_pool_admission",
@@ -261,13 +262,13 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_tool_isolation",
     },
     "native_pool_scheduler": {"native_pool_contracts"},
-    "maintenance_native_runtime": {'native_live_availability', 'maintenance_qualification', 'maintenance_image', 'native_precommit', 'native_pool_config', 'native_pool_contracts', 'native_pool_preflight', 'workspace', 'native_control', 'native_tool_isolation', 'native_pool_transaction', 'maintenance_runtime_support', 'native_pool_leases', 'paths', 'policy', 'native_pool_workspace', 'native_pool_admission', 'native_stop_scope', 'supervision.transport.app_server', 'supervision.transport.errors', 'supervision.turn_observations', 'supervision.callback_timing', 'supervision.containment', 'supervision.live_thread', 'supervision.session_evidence'},
+    "maintenance_native_runtime": {'native_live_availability', 'maintenance_qualification', 'maintenance_image', 'native_precommit', 'native_pool_config', 'native_pool_contracts', 'native_pool_preflight', 'workspace', 'native_control', 'native_tool_isolation', 'native_pool_transaction', 'maintenance_runtime_support', 'native_pool_leases', 'paths', 'policy', 'native_pool_workspace', 'native_pool_admission', 'native_stop_scope', 'supervision.transport.app_server', 'supervision.transport.errors', 'supervision.turn_observations', 'supervision.callback_timing', 'supervision.containment', 'supervision.live_thread', 'supervision.session_evidence', 'native_worker_packet'},
     "maintenance_runtime_support": {'maintenance_authority', 'native_pool_admission', 'native_pool_contracts'},
     "maintenance_authority": {"native_authority", "native_pool_contracts"},
     "maintenance_image": {"native_pool_contracts", "paths"},
     "maintenance_readiness": {"model_identities", "maintenance_authority", "native_pool_contracts", "native_pool_transaction", "native_precommit", "work_sizing"},
     'maintenance_qualification': {'native_live_availability', 'maintenance_image', 'native_tool_isolation', 'native_pool_contracts', 'maintenance_runtime_support', 'maintenance_authority', 'native_authority', 'native_canary_contracts', 'checked_command', 'native_turn_dispatch', 'codex_tool_surface', 'supervision.transport.app_server', 'supervision.transport.errors', 'supervision.containment'},
-    'maintenance_release': {'native_precommit', 'native_pool_contracts', 'maintenance_authority', 'maintenance_qualification', 'operative_routing', 'work_sizing'},
+    'maintenance_release': {'native_precommit', 'native_pool_contracts', 'maintenance_authority', 'maintenance_qualification', 'operative_routing', 'work_sizing', 'native_worker_packet'},
     'private_authority_input': {'native_precommit', 'operative_routing'},
 
     "requirement_baseline": set(),
@@ -278,8 +279,8 @@ CWO_CORE_ALLOWED_IMPORTS = {
                         "process_identity", "requirement_baseline", "util"},
     "stage_evidence": set(),
     "stage_completion": {"stage_evidence", "checked_command", "native_pool_transaction"},
-    "native_pool_deferred_context": {"native_pool_contracts", "native_tool_isolation"},
-    "native_pool_deferred_attestation": {"native_pool_deferred_context", "native_pool_transaction", "worker_patch"},
+    "native_pool_deferred_context": {"native_pool_admission", "native_pool_contracts", "native_pool_deferred_attestation", "native_tool_isolation"},
+    "native_pool_deferred_attestation": {"native_pool_deferred_context", "native_pool_transaction", "native_tool_isolation", "worker_patch"},
     "worker_patch": {"path_contract"},
     "native_pool_qualification_evidence": {
         "native_pool_deferred_context", "native_session_boundary",
@@ -328,7 +329,6 @@ CWO_CORE_ALLOWED_IMPORTS = {
         "native_pool_leases",
         "native_pool_preflight",
         "native_tool_activation",
-        "native_tool_isolation",
     },
     "native_pool_config": {
         "native_control",

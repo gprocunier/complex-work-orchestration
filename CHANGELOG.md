@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Share native worker packet validation between maintenance and the CLI, and reduce private imports in native supervision. Renew registered approvals bound to earlier source digests after upgrading.
 - Include the approved file's screened source in registered pool patch turns. Refuse changed files and reduce the starting-file limit from 64 KiB to 8 KiB to bound disclosure.
 - Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result. A three-worker qualification can use the existing dedicated logins as a complete roster.
 - Bind project task lookups, work-graph changes, and continuation to the calling project's Beads database. If Beads cannot identify that database, stop before reading or changing tasks.

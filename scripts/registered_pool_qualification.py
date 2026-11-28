@@ -15,7 +15,7 @@ import stat
 from threading import Event, Lock, Thread, current_thread
 from time import monotonic, monotonic_ns, sleep
 from types import MethodType
-from typing import Any
+from typing import TYPE_CHECKING, Any, TypeGuard
 
 from cwo_core import native_live_availability, server_request_preparation as protocol
 from cwo_core.beads import run_bd_structured
@@ -67,16 +67,16 @@ from cwo_core.supervision.transport.app_server import (
 )
 from cwo_core.supervision.transport.private_io import load_private_bytes
 from cwo_core.policy_schema import strict_json_loads
-from prepare_server_request_frames import _decode as decode_protocol_frame
-from registered_app_server_transport import RegisteredAppServer
+from prepare_server_request_frames import decode_protocol_frame
+from registered_app_server_transport import DeadlineProtocolInput, RegisteredAppServer
 from registered_finite_tool_calls import FiniteToolError, QualifiedToolEvidence, RegisteredFiniteToolCalls
-from registered_n1_factory import _DeadlineInput
 from registered_n1_qualification import EFFORT, FINITE_TOOL_NAMESPACE, LOGIN_MOUNT, MODEL, TIER
 from registered_host_root_boundary import require_private_roots
-from registered_pool_configuration import PoolContainmentError, WRITER_TOOL
-from registered_pool_containment import measure_calibration_close_phase as _calibration_close_phase
+from registered_pool_configuration import PoolContainmentError, WRITER_TOOL, require
 from registered_server_requests import RegisteredServerRequests
 
+if TYPE_CHECKING:
+    from registered_pool_containment import PoolWorkerContainment
 
 _START_RPCS = frozenset({"thread/start", "turn/start"})
 _CONTROL_RPCS = frozenset({"turn/interrupt", "thread/archive"})
@@ -174,7 +174,7 @@ class _PendingWriter:
         return json.loads(self.params_json)
 
 
-class _ObservedInput(_DeadlineInput):
+class _ObservedInput(DeadlineProtocolInput):
     def fileno(self):
         return self.descriptor
 
@@ -535,6 +535,8 @@ class _WorkerWire(RegisteredAppServer):
 
     def close(self, cutoff=None):
         """Close the original containment and check every local reader has stopped."""
+        from registered_pool_containment import measure_calibration_close_phase as _calibration_close_phase
+
         if cutoff is None:
             cutoff = monotonic() + 1
         with self._close_lock:
@@ -980,6 +982,27 @@ class _PoolWriterAuthorization:
         self.worker._authorize_writer(self.pending, self.proof, release)
 
 
+def original_worker_login(
+    effect: object, worker_id: str, worktree: Path | None, spool: Path | None, login_slot: int,
+    containment: PoolWorkerContainment | None = None,
+) -> tuple[Path, tuple[Path, ...]]:
+    require(type(effect) is MethodType and effect.__func__ is _POOL_WORKER_EFFECT
+            and type(effect.__self__) is _PoolWorker, 'Original retained pool worker required.')
+    worker = effect.__self__
+    require((worker.child_id, worker.worktree, worker.spool, worker.login_slot)
+            == (worker_id, worktree, spool, login_slot) and worker.containment is containment,
+            'Original retained pool worker required.')
+    effect()
+    return worker.production_login_home, worker.parent._ordinary.login_homes
+
+
+def require_original_writer(effect: MethodType, authorize: object, call_id: str, deadline: float) -> None:
+    worker = effect.__self__
+    require(type(authorize) is _PoolWriterAuthorization and authorize.worker is worker
+            and worker._writer_authorization is authorize and authorize.pending.params['callId'] == call_id
+            and worker.limits.deadline == deadline, 'Original retained pool writer required.')
+
+
 class _WorkerControl:
     """Coordinator callbacks backed by one original worker and state file."""
 
@@ -1022,6 +1045,8 @@ class _WorkerControl:
             _require(result is not None and result["task_completed"], "control-finalize-without-completion")
 
     def close(self, **_binding):
+        from registered_pool_containment import measure_calibration_close_phase as _calibration_close_phase
+
         worker = self.worker
         try:
             if worker._result is not None and worker._archived is None:
@@ -1471,7 +1496,26 @@ class _PoolParent:
             self.release, self.release, self.start_worker, self.bind_admitted_launch, self.contain, self.validate)
 
 
-def _retain_transport_failures(start_worker):
+def is_original_pool_parent(parent: object) -> TypeGuard[_PoolParent]:
+    return type(parent) is _PoolParent
+
+
+def is_original_pool_control(control: object) -> TypeGuard[_WorkerControl]:
+    return type(control) is _WorkerControl
+
+
+def original_calibration_parent(runtime: TransactionRuntime) -> _PoolParent:
+    from registered_pool_qualification_capability import CallbackCalibrationError
+
+    starter, prepare = runtime.start_worker_session, runtime.prepare
+    if (type(starter) is not MethodType or type(prepare) is not MethodType
+            or type(starter.__self__) is not _PoolParent or starter.__func__ is not _PoolParent.start_worker
+            or prepare.__self__ is not starter.__self__ or prepare.__func__ is not _PoolParent.prepare):
+        raise CallbackCalibrationError("original-calibration-parent-required")
+    return starter.__self__
+
+
+def retain_transport_failures(start_worker: object) -> None:
     """Append private diagnostics after the protected controller settles a stopped run."""
     if (type(start_worker) is not MethodType or type(start_worker.__self__) is not _PoolParent
             or start_worker.__func__ is not _PoolParent.start_worker):

@@ -117,6 +117,8 @@ Hosted CI runs the full unit suite on Python 3.12 and 3.14. It also checks
 types and enforces a measured coverage floor for selected modules. The
 code-health check prevents maintainability regressions and records reductions
 in unused names, private imports and validator complexity.
+The maintenance runtime and native worker CLI share packet validation in the
+core package.
 See [CI validation](references/ci-validation.md) for the check scope and local commands.
 
 ## Example: one project across two fresh sessions

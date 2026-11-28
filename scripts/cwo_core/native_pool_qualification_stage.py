@@ -28,14 +28,14 @@ from .native_pool_contracts import (
 )
 from .native_pool_leases import PoolLeaseRegistry, decode_lease_registry
 from .native_pool_deferred_context import (
+    ContainedPoolAdmission,
     ContainedPoolSelection,
     DeferredAttestationError,
     DeferredWorkerTurnEvidence,
     ProvisionalWorkerStartup,
     QUALIFICATION_MODEL,
+    QualificationCalibration,
     _ADMISSION_TOKEN,
-    _ContainedPoolAdmission,
-    _QualificationCalibration,
     _RUNTIME_TOKEN,
     contained_selection_binding,
 )
@@ -321,7 +321,7 @@ class _StageAllowance:
     ancestry: list[tuple[int, int]]
     stage_sha256: str
     budget_id: str
-    calibration: _QualificationCalibration | None = None
+    calibration: QualificationCalibration | None = None
     ordinary: object | None = None
 
     def check_custody(self) -> None:
@@ -355,7 +355,7 @@ class PoolQualificationRunLimits:
         self._record_failed = False
         self._allocating_child: str | None = None
         self._dispatching: tuple[str, int] | None = None
-        self._contained_admission: _ContainedPoolAdmission | None = None
+        self._contained_admission: ContainedPoolAdmission | None = None
         self._provisional_arrivals: set[str] = set()
         self._writer_releases: set[tuple[str, int | str]] = set()
 
@@ -935,7 +935,7 @@ def _bind_active_admission(run, allowance, limits):
     _require(type(selection) is ContainedPoolSelection and allowance.ordinary is not None
              and selection.ordinary is allowance.ordinary and run.ordinary_policy_children is not None,
              "contained-route-scope-mismatch")
-    limits._contained_admission = _ContainedPoolAdmission(
+    limits._contained_admission = ContainedPoolAdmission(
         _ADMISSION_TOKEN, selection=selection, plan=run.plan, journal_path=run.journal_path,
         check_custody=limits._require_intent, check_source=lambda: _check_active_source(selection, limits),
         check_availability=require_registered_contained_pool_live, policy_children=dict(run.ordinary_policy_children),

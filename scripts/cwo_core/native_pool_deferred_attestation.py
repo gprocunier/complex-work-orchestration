@@ -7,29 +7,83 @@ authority to dispatch, release an effect, or assert an effective tool catalog.
 
 from __future__ import annotations
 
+from dataclasses import InitVar, dataclass
+import math
 from pathlib import Path
 import re
 from time import monotonic
-from typing import Any, Mapping
+from typing import TYPE_CHECKING, Any, Mapping
 
-from .native_pool_deferred_context import (
-    DeferredAttestationError as DeferredAttestationError,
-    DeferredWorkerTurnEvidence,
-    ObservedExchangeDigest,
-    ProvisionalWorkerStartup,
-    QUALIFICATION_EFFORT,
-    QUALIFICATION_MODEL,
-    QUALIFICATION_PROFILE,
-    QUALIFICATION_TIER,
-    QUALIFICATION_TOOL,
-    _EVIDENCE_TOKEN,
-    require_deferred_attestation as _require,
-    require_deferred_deadline,
-)
-from .native_pool_transaction import (
-    PLAN_VERSION, TransactionJournal, require_current_worker_allocation_intent, validate_transaction_plan,
-)
+from .native_tool_isolation import CONTAINED_POOL_WRITER as QUALIFICATION_TOOL
 from .worker_patch import MAX_WORKER_DIFF_BYTES
+
+if TYPE_CHECKING:
+    from .native_pool_transaction import TransactionJournal
+
+_EVIDENCE_TOKEN = object()
+
+
+class DeferredAttestationError(ValueError):
+    """Protected deferred worker evidence was missing or inconsistent."""
+
+
+@dataclass(frozen=True, slots=True)
+class ObservedExchangeDigest:
+    request_id: int
+    request_sha256: str
+    response_sha256: str
+
+
+@dataclass(frozen=True, slots=True)
+class ProvisionalWorkerStartup:
+    plan_sha256: str
+    allocation_id: str
+    allocation_intent_event_sha256: str
+    child_id: str
+    worktree_identity_sha256: str
+    session_id: str
+    session_path: str
+    connection_epoch_sha256: str
+    owner_identity_sha256: str
+    model: str
+    effort: str
+    profile: str
+    prompt_sha256: str
+    startup_exchange: ObservedExchangeDigest
+    startup_rollout_sha256: str | None
+    startup_source_identity_sha256: str | None
+    deadline: float
+    issuer: InitVar[object]
+
+    def __post_init__(self, issuer: object) -> None:
+        _require(issuer is _EVIDENCE_TOKEN, "startup-evidence-construction-refused")
+
+
+@dataclass(frozen=True, slots=True)
+class DeferredWorkerTurnEvidence:
+    startup: ProvisionalWorkerStartup
+    turn_id: str
+    turn_exchange: ObservedExchangeDigest
+    request_id: int | str
+    request_sha256: str
+    session_source_identity_sha256: str
+    boundary_sha256: str
+    issuer: InitVar[object]
+
+    def __post_init__(self, issuer: object) -> None:
+        _require(issuer is _EVIDENCE_TOKEN, "turn-evidence-construction-refused")
+
+
+def require_deferred_attestation(condition: bool, reason: str) -> None:
+    if not condition:
+        raise DeferredAttestationError("pool-deferred-" + reason)
+
+
+def require_deferred_deadline(deadline: float, *, now: float) -> None:
+    _require(type(deadline) is float and math.isfinite(deadline) and now < deadline, "deadline-expired")
+
+
+_require = require_deferred_attestation
 
 
 def _digest(value: Any, reason: str) -> str:
@@ -78,6 +132,9 @@ def verify_deferred_startup(
     The caller supplies the registry and observation from its protected Python
     context. The factory loader still owns source verification and execution.
     """
+    from .native_pool_deferred_context import QUALIFICATION_EFFORT, QUALIFICATION_MODEL, QUALIFICATION_PROFILE, QUALIFICATION_TIER
+    from .native_pool_transaction import PLAN_VERSION, require_current_worker_allocation_intent, validate_transaction_plan
+
     _deadline(deadline)
     _require(not validate_transaction_plan(plan) and plan["version"] == PLAN_VERSION
              and plan["prelude_session_count"] == 0, "ordinary-plan-required")

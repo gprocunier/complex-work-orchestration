@@ -106,7 +106,7 @@ def _check_depth(text: str) -> None:
             depth -= 1
 
 
-def _decode(raw: bytes) -> Any:
+def decode_protocol_frame(raw: bytes) -> Any:
     try:
         text = raw.decode("utf-8", errors="strict")
         _check_depth(text)
@@ -192,7 +192,7 @@ class FakeFrameReader:
             raw = raw[:-1]
         if not raw.strip(b" \t\r"):
             raise prep.PreparationError("blank-frame")
-        value = _decode(raw)
+        value = decode_protocol_frame(raw)
         self._delivering = True
         try:
             message = self._consumer.receive(value, epoch=self._epoch, now=self._last_now)
@@ -260,5 +260,5 @@ class FakeFrameReader:
 
 
 __all__ = [
-    "FramePreparationError", "FrameStatus", "FrameBatch", "FakeFrameReader",
+    "FramePreparationError", "FrameStatus", "FrameBatch", "FakeFrameReader", "decode_protocol_frame",
 ]
