@@ -6,6 +6,7 @@
 - Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result. A three-worker qualification can use the existing dedicated logins as a complete roster.
 - Bind project task lookups, work-graph changes, and continuation to the calling project's Beads database. If Beads cannot identify that database, stop before reading or changing tasks.
 - Publish the [six-case workshop handoff comparison](references/evaluation-evidence.md#workshop-handoff-comparison) with check outcomes, elapsed time, and token use for CWO and plain Codex.
+- Publish a [three-pair interrupted handoff comparison](references/evaluation-evidence.md#interrupted-print-preview-comparison) with accepted previews, retained requirements, recovery time, operator interventions, and token use.
 - Update the public guides for protected review approvals and sizing, return screening, delivery readiness, saved runs and plan analysis, architecture design, and retired native controls.
 - Explain how approved workers in a registered contained pool propose one-file patches and how the host verifies the writer’s result.
 - Summarize the measured workshop handoff comparison and explain the code-health check and required documentation terms. [Examples](docs/use-cases.html#workshop-handoff-comparison) · [Reference](docs/reference.html#maintain)
