@@ -80,8 +80,8 @@ reduced. Do not claim local Beads state is synced without a Dolt remote.
 
 ## Scaffold Choices
 
-Use one manual Bead for narrow work; no smaller scaffold tier exists. Use a tight
-chain (architecture, implementation and docs, validation, wrap-up) without optional fan-out:
+Use one manual Bead for narrow work because no smaller scaffold tier exists. A tight chain keeps architecture,
+implementation, docs, validation and wrap-up.
 
 ```bash
 python3 scripts/scaffold_workgraph.py \
@@ -90,7 +90,7 @@ python3 scripts/scaffold_workgraph.py \
   --scaffold-size tight
 ```
 
-Use the full graph for broad, risky, multi-lane, reviewed, synthesized, or release-sensitive work:
+Use the full graph for broad, risky, multi-lane, reviewed, synthesized, or release-sensitive work. Add `--architecture-design` for the [design package](references/architecture-design.md).
 
 ```bash
 python3 scripts/scaffold_workgraph.py --title "<goal>" --description "<scope>"

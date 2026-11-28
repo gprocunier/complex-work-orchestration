@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add an optional architecture-design profile that gives the architect Bead a design package covering caller experience, interfaces, alternatives, validation and rollback.
 - Carry required inputs into managed expert reviews, report delivery readiness from checked obligations, and count corrective work and first acceptance attempts in convergence reports.
 - Archive historical campaign digest helpers and canary steering receipt verification and writing. Use the [pinned source revisions](references/native-live-route-holds.md#historical-campaign-verification) to inspect old records.
 - Keep routed risk from dropping when text is appended to a task under the same scope. Retain earlier expert and feature evidence, and start tasks without positive risk evidence at low risk.

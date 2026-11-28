@@ -834,7 +834,7 @@
 
 "ar":[64,"_RegisteredServer.request",1583,"F7qUf87ct4grQA3qqyu0PPu8grnCDj62kKmQ705-mW4"],
 
-"as":[76,1392,"try_dep(blocked, blocker, dependency_type)",16,1392,58],
+"as":[76,1406,"try_dep(blocked, blocker, dependency_type)",16,1406,58],
 
 "at":[63,953,{"$":148}],
 
@@ -864,7 +864,7 @@
 
 "b6":[30,358,"response = opener.open(frozen, timeout=self.workload_timeout(timeout))"],
 
-"b8":[76,1350,"epic = create_bead("],
+"b8":[76,1364,"epic = create_bead("],
 
 "b9":[15,"main",588,"1PO0mATJmFLdBYd-7ok34HnjQifkGRsznraNrjwB4Ic"],
 
@@ -966,7 +966,7 @@
 
 "bs":[84,"AuthorizeSolBreakfixTests.assert_non_dry_refusal",31,"SqIvrxj-V1kV8QMiPpGB97JBAoCtGl-XsPfwYThzRcU"],
 
-"bt":[76,"try_dep",1202,"Ht0_g_gmd-1btvmtNb_hqR4pBPTqMRSRSXY9vbINkRs"],
+"bt":[76,"try_dep",1209,"Ht0_g_gmd-1btvmtNb_hqR4pBPTqMRSRSXY9vbINkRs"],
 
 "bu":[64,749,"self._preflight_tool_launch(tool_call, deadline, tool_decision)"],
 
@@ -1152,7 +1152,7 @@
 
 "dd":[99,"F5NativeLiveHoldTests.test_f5_campaign_server_refuses_without_a_launch",261,"AR_oS5gNMAjDzT-KwgcTZH4fGdj6a6JCthpbwv1gVuU"],
 
-"de":[76,1322,"if not closure_pressure[\"allowed\"]:"],
+"de":[76,1333,"if not closure_pressure[\"allowed\"]:"],
 
 "df":[41,1530,"need(review_path is not None and review_sha256 is not None, \"explicit independent review path and digest required\")"],
 
@@ -1274,7 +1274,7 @@
 
 "ep":[15,113,"output = subprocess.check_output("],
 
-"eq":[76,1333,"relationships = validate_workgraph_plan(plan, for_creation=True)"],
+"eq":[76,1347,"relationships = validate_workgraph_plan(plan, for_creation=True)"],
 
 "es":[42,978,{"$":333}],
 
@@ -1484,7 +1484,7 @@
 
 "ge":[108,"RouteAccountingTests.test_one_dispatch_sends_exactly_the_reserved_request_once_after_durable_intent",511,"3Rjzq8CLOPcRTQ-cOZ_5vHHWg9MmjHGKD2webEzXUDc"],
 
-"gf":[76,"main",1240,"zXK-EvgqQqjqA74148DgyeYbowiBLLncgC0RLM6YeC0"],
+"gf":[76,"main",1247,"nBwmv7LXeInd1Sl4USVM68A-FzfK0j03CqGARzlj4VE"],
 
 "gg":[43,1545,"self._run(args, work_tree=work_tree)",17,1545,53],
 
@@ -1940,7 +1940,7 @@
 
 "km":[9,230,"subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)",13,230,95],
 
-"kn":[76,1368,"create_bead(\n                item[\"title\"],\n                parent=epic[\"id\"],\n                # One priority rule for direct creation and the Beads graph plan.\n                priority=item_priority(item, index),\n                labels=item[\"labels\"],\n                skills=item[\"skills\"],\n                description=planned_description(item, key),\n                acceptance=str(item[\"acceptance\"]),\n                design=str(item[\"design\"]),\n                notes=str(item[\"notes\"]),\n                metadata=item.get(\"metadata\"),\n            )",19,1380,13],
+"kn":[76,1382,"create_bead(\n                item[\"title\"],\n                parent=epic[\"id\"],\n                # One priority rule for direct creation and the Beads graph plan.\n                priority=item_priority(item, index),\n                labels=item[\"labels\"],\n                skills=item[\"skills\"],\n                description=planned_description(item, key),\n                acceptance=str(item[\"acceptance\"]),\n                design=str(item[\"design\"]),\n                notes=str(item[\"notes\"]),\n                metadata=item.get(\"metadata\"),\n            )",19,1394,13],
 
 "kq":[77,1038,"os.waitid(os.P_PIDFD, birth.descriptor, os.WEXITED | os.WNOHANG)",13,1038,77],
 
@@ -2048,7 +2048,7 @@
 
 "ls":[2,65,"subprocess.run(\n            [\"bd\", \"update\", \"--add-label\", \"sol-breakfix-approved\", \"--append-notes\", note, \"--\", args.bead],\n            check=True,\n        )",8,68,9],
 
-"lt":[76,1350,"create_bead(\n            epic_plan[\"title\"],\n            issue_type=\"epic\",\n            priority=1,\n            labels=epic_plan[\"labels\"],\n            skills=epic_plan[\"skills\"],\n            description=args.description or \"Policy-routed complex work epic.\",\n            acceptance=str(epic_plan[\"acceptance\"]),\n            design=str(epic_plan[\"design\"]),\n            notes=str(epic_plan[\"notes\"]),\n            metadata=epic_plan[\"metadata\"],\n        )",15,1361,9],
+"lt":[76,1364,"create_bead(\n            epic_plan[\"title\"],\n            issue_type=\"epic\",\n            priority=1,\n            labels=epic_plan[\"labels\"],\n            skills=epic_plan[\"skills\"],\n            description=args.description or \"Policy-routed complex work epic.\",\n            acceptance=str(epic_plan[\"acceptance\"]),\n            design=str(epic_plan[\"design\"]),\n            notes=str(epic_plan[\"notes\"]),\n            metadata=epic_plan[\"metadata\"],\n        )",15,1375,9],
 
 "lv":[64,1996,"_need(boundary['adapter']['registered_task'] == binding\n              and boundary['control_contract']['task_sha256'] == binding['model_task_sha256'],\n              'The original admission, actual model task and native control binding differ.')",8,1998,93],
 
@@ -3008,7 +3008,7 @@
 
 "vN":[17,309,"atomic_write_text(path, json.dumps(payload, indent=2, sort_keys=True) + \"\\n\")"],
 
-"vO":[76,1336,{"$":95}],
+"vO":[76,1350,{"$":95}],
 
 "vP":[43,463,{"$":256}],
 
@@ -3074,7 +3074,7 @@
 
 "w":[116,{"$":56},260,{"$":49}],
 
-"x":[76,1208,{"$":217},8,1212,9],
+"x":[76,1215,{"$":217},8,1219,9],
 
 "x0":[149,"claim_managed_login",470,"uWJepFXiItQQNClCipDn_Ehq0-Y80G1Hf6OJ8xd_2xM"],
 
@@ -5389,11 +5389,11 @@
 
 [71,408,18,412,9,"process","oXS_ERA9oU90iYO6ZIAy5BxbDI_UKRezBbSFPe169mo",["route","X6.4","ld"]],
 
-[72,1208,8,1212,9,"beads","kWsGB2edrugNRfu-CSihGM1sK4fqLY_2kHClBhXQidI",["route","B1.1","x"]],
+[72,1215,8,1219,9,"beads","kWsGB2edrugNRfu-CSihGM1sK4fqLY_2kHClBhXQidI",["route","B1.1","x"]],
 
-[72,1350,15,1361,9,"beads","5wSsqzOvrgeC3zcbMtGfMVqSfSpTeQyA-n1ATdJYioE",["route","B1.1","lt"]],
+[72,1364,15,1375,9,"beads","5wSsqzOvrgeC3zcbMtGfMVqSfSpTeQyA-n1ATdJYioE",["route","B1.1","lt"]],
 
-[72,1368,19,1380,13,"beads","BRWzcWL1nZLgeeR349McDjk8jNfhcq9Ca1_E0Ccm5ak",["route","B1.1","kn"]],
+[72,1382,19,1394,13,"beads","BRWzcWL1nZLgeeR349McDjk8jNfhcq9Ca1_E0Ccm5ak",["route","B1.1","kn"]],
 
 [73,152,16,152,37,"dynamic","wi8-DVGrCSCQT8sAVS6rRHwg1dOpCGp2Z87neYRrNsc",[{"$":9},"j"]],
 
@@ -7136,7 +7136,7 @@
 
 "@75":["-NEAsrJPwNpnutlc0PYoa-V5UsidJnEFkny33KsgXmE",493,27087],
 
-"@76":["diACxZmAuYVB3E7vqqCuEDcDU5qT7nBWo-J41tP6Sxo",493,64207],
+"@76":["X6M2g_NjVpeANCZzZhwodH2uY-FQcQ907ikmLFv4zzs",493,65775],
 
 "@77":["09eHBk_xTFv8wyV8WyQ16kq0H05tSjYpkrht_2wpyRY",420,76952],
 
@@ -7560,7 +7560,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["4ua0PcEUHDBcqWvlTIPej4ovH4ia8cJ3W-uJTD5OefE",420,141551],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["F0h7wqQbI5IW9ttx7HTDmMSHPP2mpesCRu7haO-6Yg0",420,141551],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
