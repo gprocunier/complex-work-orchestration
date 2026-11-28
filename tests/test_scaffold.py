@@ -1048,6 +1048,24 @@ class ContentBeforeFinalChecksTests(unittest.TestCase):
         self.assertEqual({lane: created[lane] for lane in created}, {lane: expected[lane] for lane in created})
         self.assertEqual(created.get("final-adjudication"), 1)
 
+    def test_direct_architect_bead_retains_design_profile_and_implementation_gate(self) -> None:
+        import scaffold_workgraph
+
+        def fake_create(title: str, **fields: object) -> dict[str, str]:
+            return {"id": title.split(":", 1)[0], "title": title}
+
+        argv = ["scaffold_workgraph.py", "--title", "Add an output format", "--architecture-design"]
+        with patch.object(scaffold_workgraph, "create_bead", side_effect=fake_create) as create, \
+                patch.object(scaffold_workgraph, "try_dep") as dependency, patch.object(sys, "argv", argv), \
+                contextlib.redirect_stdout(io.StringIO()):
+            scaffold_workgraph.main()
+        architect = [call.kwargs for call in create.call_args_list if call.args[0].startswith("Architect frame:")]
+        self.assertEqual(len(architect), 1)
+        self.assertEqual(architect[0]["metadata"]["architecture_design"]["profile"], "architecture-design")
+        self.assertIn("accepted architecture design package", architect[0]["acceptance"])
+        self.assertIn("templates/architecture-design-package.md", architect[0]["description"])
+        dependency.assert_any_call("Implement", "Architect frame", "blocks")
+
     def test_final_inspection_and_reporting_change_no_content(self) -> None:
         route = classify_work(
             "Create documentation plus GitHub Pages for a project using Diataxis and Red Hat UX.",

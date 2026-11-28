@@ -247,6 +247,11 @@ records, specialist calls and repeated checks consume time and model quota.
 - **Full graph:** the same command without `--scaffold-size`, for broad, risky,
   multi-lane, reviewed or release-sensitive work.
 
+Add `--architecture-design` when the architect should record a design package
+before implementation. The package starts with the current system and caller
+experience, then records alternatives and rollout decisions.
+[Architecture design](references/architecture-design.md)
+
 Both graph sizes put implementation and docs before validation and the other
 final checks, and the wrap-up report and handoff after the last of them. No
 smaller scaffold tier is available: `--scaffold-size` accepts only `full` and

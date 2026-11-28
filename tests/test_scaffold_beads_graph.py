@@ -51,6 +51,32 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertIn({"from_key": "wrap-up-report", "to_key": "validation", "type": "blocks"}, edges)
         self.assertNotIn({"from_key": "docs", "to_key": "validation", "type": "blocks"}, edges)
 
+    def test_architecture_design_opt_in_enriches_existing_beads_graph(self) -> None:
+        command = [sys.executable, str(ROOT / "scripts" / "scaffold_workgraph.py"), "--title",
+                   "Add a configurable output format", "--dry-run", "--format", "beads-graph"]
+        baseline, opted_in = [
+            json.loads(subprocess.run([*command, *flag], cwd=ROOT, check=True, capture_output=True, text=True).stdout)
+            for flag in ([], ["--architecture-design"])
+        ]
+        self.assertEqual(baseline["edges"], opted_in["edges"])
+        self.assertEqual([node["key"] for node in baseline["nodes"]], [node["key"] for node in opted_in["nodes"]])
+        self.assertEqual(baseline["nodes"][0]["metadata"]["cwo_metadata_orchestration_route"],
+                         opted_in["nodes"][0]["metadata"]["cwo_metadata_orchestration_route"])
+        self.assertIn({"from_key": "implementation", "to_key": "architect", "type": "blocks"}, opted_in["edges"])
+        default_architect, architect = [
+            next(node for node in graph["nodes"] if node["key"] == "architect")
+            for graph in (baseline, opted_in)
+        ]
+        self.assertNotIn("cwo_metadata_architecture_design", default_architect["metadata"])
+        profile = json.loads(architect["metadata"]["cwo_metadata_architecture_design"])
+        self.assertEqual(profile["persona_file"], "experts/architecture-design.md")
+        self.assertEqual(profile["template"], "templates/architecture-design-package.md")
+        self.assertIn("accepted architecture design package", architect["metadata"]["cwo_acceptance"])
+        self.assertIn(profile["template"], architect["description"])
+        self.assertIn("accepted architecture design package", architect["description"])
+        for target in (profile["persona_file"], profile["template"], profile["reference"]):
+            self.assertTrue((ROOT / target).is_file(), target)
+
     def test_beads_graph_plan_preserves_cwo_fields_in_metadata(self) -> None:
         route = classify_work("Document Beads graph import behavior.")
         cwo_graph = planned_graph("Metadata Example", route)
