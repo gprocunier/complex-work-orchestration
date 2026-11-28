@@ -198,6 +198,8 @@ shows a retry plan revised after two illustrative reviews. Use the
 [offline synthesis report](references/zero-trust-consensus.md#invocation-boundary)
 to combine your own evaluated critic returns and compare explicit claims. The
 lead still adjudicates each return and resolves material disagreement.
+[Return screening](references/external-contracting.md#return-screening) flags
+instructions and unsupported claims that need adjudication before use.
 
 ## Keep project memory beyond the conversation
 

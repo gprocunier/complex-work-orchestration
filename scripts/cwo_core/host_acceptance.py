@@ -12,6 +12,7 @@ import json
 import re
 from typing import Any, Callable
 
+from . import policy, return_advisory
 from .browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS
 from .errors import CWOPolicyError
 from .host_records import configured_store
@@ -19,7 +20,6 @@ from .peer_review import PEER_REVIEW_HOLDS, pending_evaluation_sha256
 from .peer_review_identity import (_recorded_dispatch, _registered_model, validate_separation,
                                    review_identity, identity_token, separation_level, IDENTITY_FIELDS)
 from .returns import make_acceptance_decision
-from . import policy
 from .policy import load_policy
 from .policy_schema import strict_json_loads
 
@@ -83,7 +83,8 @@ class HostAcceptancePipeline:
         _need(dispatch.get("bead_id") == bead_id, "dispatch task does not match")
         _need(receipt["dispatch_record_sha256"] == dispatch["_record_sha256"], "return dispatch differs")
         policy_sha = _policy_sha256()
-        inputs = _host_inputs(dispatch, bead_id, dispatch_id)
+        advisory = return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+        inputs = _host_inputs(dispatch, bead_id, dispatch_id, advisory=advisory)
         pending, evaluation = _evaluate(text, inputs, peer_review_record)
         required = list(pending["hold_reasons"])
         _eligible(evaluation)
@@ -100,6 +101,8 @@ class HostAcceptancePipeline:
         _need(policy_sha == _policy_sha256(), "evaluation policy changed during adjudication")
         _need(dispatch == store.require_dispatch(dispatch_id)
               and receipt == store.require_return(dispatch_id, returned), "dispatch or receipt changed")
+        _need(advisory == return_advisory.advisory_hold_reasons(store, dispatch, receipt),
+              "return advisory holds changed during adjudication")
         if peer_review_record is not None:
             _need(evaluation == make_acceptance_decision(text, peer_review_status="passed",
                 peer_review_record=peer_review_record,
@@ -128,7 +131,7 @@ class HostAcceptancePipeline:
         return acceptance_id
 
 
-def _host_inputs(dispatch, bead_id, dispatch_id):
+def _host_inputs(dispatch, bead_id, dispatch_id, *, advisory=()):
     metadata = _copy(dispatch.get("evaluation_metadata") or {})
     metadata.pop("source_context", None)
     metadata.pop("codex_reasoning", None)
@@ -142,10 +145,11 @@ def _host_inputs(dispatch, bead_id, dispatch_id):
                     "outbound_screen_version"):
             metadata.pop(key, None)
     forbidden = {"text", "bead_id", "dispatch_id", "packet_sha256", "executor", "provider_key", "peer_review_status",
-                 "peer_review_record", "peer_review_reviewer"}
+                 "peer_review_record", "peer_review_reviewer", "_advisory_hold_reasons"}
     _need(not forbidden.intersection(metadata), "dispatch metadata overrides host identity or review state")
     return {**metadata, "bead_id": bead_id, "dispatch_id": dispatch_id,
-            "packet_sha256": dispatch.get("packet_sha256"), "executor": dispatch.get("executor"), "provider_key": dispatch.get("provider_key")}
+            "packet_sha256": dispatch.get("packet_sha256"), "executor": dispatch.get("executor"),
+            "provider_key": dispatch.get("provider_key"), "_advisory_hold_reasons": advisory}
 
 
 def _source_context(dispatch):
@@ -255,7 +259,9 @@ def _verified_evaluation(store, accepted, expected):
     _need(type(text) is str and hashlib.sha256(text.encode("utf-8")).hexdigest() == expected["return_sha256"],
           "received return snapshot differs")
     dispatch = store.require_dispatch(expected["dispatch_id"])
-    inputs = _host_inputs(dispatch, expected["bead_id"], expected["dispatch_id"])
+    receipt = store.require_return(expected["dispatch_id"], expected["return_sha256"])
+    advisory = return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+    inputs = _host_inputs(dispatch, expected["bead_id"], expected["dispatch_id"], advisory=advisory)
     actual_pending, actual_evaluation = _evaluate(text, inputs, evaluation.get("peer_review_record"))
     _need(actual_pending == pending and actual_evaluation == evaluation,
           "recorded evaluation differs from current host-metadata evaluation")
@@ -315,6 +321,20 @@ def _verify_review_dispatch(store, reviewer, record, separation, expected):
           "verified peer separation differs")
 
 
+def require_current_advisory_holds(store, dispatch, receipt, evaluation) -> None:
+    """Reject a recorded projection that omits any currently bound advisory hold."""
+    advisory = return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+    if not advisory:
+        return
+    reasons = evaluation.get("hold_reasons")
+    _need(type(reasons) is list and all(reason in reasons for reason in advisory)
+          and evaluation.get("implementation_blocked") is True and evaluation.get("evidence_use_hold") is True
+          and evaluation.get("adjudication_required") is True and evaluation.get("human_adjudication_required") is True
+          and evaluation.get("accepted_for_use") is False and evaluation.get("screening_eligible") is False
+          and evaluation.get("execution_permitted") is False and evaluation.get("verdict") in ("escalate", "reject", "quarantine"),
+          "evaluation does not preserve current return advisory holds")
+
+
 def record_received_evaluation(text: str, evaluation: dict) -> str | None:
     """The CLI may report legacy evidence; only received host evidence is recorded.
 
@@ -330,6 +350,7 @@ def record_received_evaluation(text: str, evaluation: dict) -> str | None:
     receipt = store.require_return(dispatch_id, digest)
     _need(dispatch.get("bead_id") == evaluation.get("bead_id"), "evaluated task differs from host dispatch")
     _need(dispatch.get("executor") == evaluation.get("executor"), "evaluated executor differs from host dispatch")
+    require_current_advisory_holds(store, dispatch, receipt, evaluation)
     return store.write_record("evaluation", dispatch_id=dispatch_id, bead_id=evaluation.get("bead_id"),
         return_sha256=digest, evaluation_sha256=pending_evaluation_sha256(evaluation),
         evaluation=_copy(evaluation), policy_sha256=_policy_sha256(),

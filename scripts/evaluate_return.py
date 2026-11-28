@@ -7,6 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
+from cwo_core import return_advisory
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.returns import mark_advisory_return as _mark_advisory
 from cwo_core.adjudication import dispatch_provenance
@@ -231,11 +232,11 @@ def _apply_review_requirements(
     args.provider_conflict_domain = list(dict.fromkeys([*domains, *args.provider_conflict_domain]))
 
 
-def _apply_manual_review_requirements(args: argparse.Namespace, packet: dict, raw: bytes) -> bool:
+def _manual_evaluation_binding(args: argparse.Namespace, packet: dict, raw: bytes) -> tuple[str, ...] | None:
     store = configured_store()
     dispatch_id = packet["dispatch_id"]
     if not store.find("dispatch", dispatch_id=dispatch_id):
-        return False
+        return None
     dispatch = store.require_dispatch(dispatch_id)
     metadata = _as_dict(dispatch.get("evaluation_metadata"))
     expected = {
@@ -247,12 +248,17 @@ def _apply_manual_review_requirements(args: argparse.Namespace, packet: dict, ra
         dispatch.get(key) != value for key, value in expected.items()
     ):
         raise SystemExit("contractor packet does not match the recorded manual dispatch")
-    if args.audit:
-        receipt = store.require_return(dispatch_id, hashlib.sha256(raw).hexdigest())
-        if receipt["dispatch_record_sha256"] != dispatch["_record_sha256"]:
-            raise SystemExit("return receipt does not match the recorded manual dispatch")
     _apply_review_requirements(args, metadata, source="recorded manual dispatch", default_required=None)
-    return True
+    digest = hashlib.sha256(raw).hexdigest()
+    if not args.audit and not any(
+        digest in (receipt.get("return_sha256"), receipt.get("canonical_return_sha256"))
+        for receipt in store.find("return-received", dispatch_id=dispatch_id)
+    ):
+        return ()
+    receipt = store.require_return(dispatch_id, digest)
+    if receipt["dispatch_record_sha256"] != dispatch["_record_sha256"]:
+        raise SystemExit("return receipt does not match the recorded manual dispatch")
+    return return_advisory.advisory_hold_reasons(store, dispatch, receipt)
 
 
 def _historical_browser_input(args: argparse.Namespace) -> tuple[dict, dict, bytes]:
@@ -480,14 +486,40 @@ def _record_private_intake(dispatch_id: str | None, browser_return: bytes | None
             raise SystemExit(str(failure)) from failure
 
 
+def _captured_local_advisory_holds(dispatch_id: str | None, raw: bytes) -> tuple[str, ...]:
+    if not dispatch_id:
+        return ()
+    store = configured_store()
+    digest = hashlib.sha256(raw).hexdigest()
+    if not store.find("return-received", dispatch_id=dispatch_id, return_sha256=digest):
+        return ()
+    dispatch = store.require_dispatch(dispatch_id)
+    mode = dispatch["evaluation_metadata"].get("dispatch_mode")
+    if dispatch["dispatch_role"] != "executor" or mode not in {"local_openai_compatible", "local_secure_review"}:
+        return ()
+    receipt = store.require_return(dispatch_id, digest)
+    actual = (receipt["return_sha256"], receipt["dispatch_record_sha256"], receipt.get("capture_provenance"))
+    if actual != (digest, dispatch["_record_sha256"], "host-capture-v1"):
+        raise CWOPolicyError("local advisory requires the exact captured executor return")
+    return return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+
+
 def _prepare_evaluation_binding(
     args: argparse.Namespace, packet: dict, raw: bytes, browser_return: bytes | None,
-) -> bool:
-    if browser_return is not None:
-        _record_private_intake(packet["dispatch_id"], browser_return, args)
-        return True
+    *, dispatch_id: str | None,
+) -> tuple[bool, tuple[str, ...]]:
     try:
-        return bool(packet) and _apply_manual_review_requirements(args, packet, raw)
+        if args.advisory:
+            return False, _captured_local_advisory_holds(dispatch_id, raw)
+        if browser_return is not None:
+            dispatch_id = packet["dispatch_id"]
+            _record_private_intake(dispatch_id, browser_return, args)
+            store = configured_store()
+            dispatch = store.require_dispatch(dispatch_id)
+            receipt = store.require_return(dispatch_id, hashlib.sha256(raw).hexdigest())
+            return True, return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+        holds = _manual_evaluation_binding(args, packet, raw) if packet else None
+        return holds is not None, holds or ()
     except CWOPolicyError as failure:
         raise SystemExit(str(failure)) from failure
 
@@ -535,7 +567,6 @@ def _review_surface_telemetry(result: dict, private_browser_return: bool) -> dic
 def evaluate_captured_local_return(text, envelope, response):
     """Score the exact admitted HTTP capture with the existing advisory holds."""
     from cwo_core.host_acceptance import record_received_evaluation
-    from cwo_core.host_records import configured_store
 
     dispatch_id = envelope['dispatch_id']
     digest = hashlib.sha256(text.encode('utf-8')).hexdigest()
@@ -544,6 +575,7 @@ def evaluate_captured_local_return(text, envelope, response):
     if dispatch['request_sha256'] != response['request_payload_sha256']:
         raise SystemExit('local HTTP capture differs from its original host request')
     store.write_return_received(dispatch_id, digest, capture_provenance='host-capture-v1')
+    receipt = store.require_return(dispatch_id, digest)
     preflight = response.get('model_preflight') or {}
     result = _evaluate_current_return(
         text, dispatch_id=dispatch_id, bead_id=envelope['bead_id'],
@@ -563,6 +595,7 @@ def evaluate_captured_local_return(text, envelope, response):
         local_v2_identity_consistent=True,
         local_response_model_status=response['response_model_status'],
         local_model_preflight_status=preflight.get('status'), local_http_status=response['status_code'],
+        _advisory_hold_reasons=return_advisory.advisory_hold_reasons(store, dispatch, receipt),
     )
     _mark_advisory(result)
     record = record_received_evaluation(text, result)
@@ -773,7 +806,9 @@ def main() -> None:
         if eligible is not True:
             return_text = ""
 
-    tracked = _prepare_evaluation_binding(args, contractor_packet_metadata, return_bytes, browser_return)
+    tracked, advisory = _prepare_evaluation_binding(
+        args, contractor_packet_metadata, return_bytes, browser_return, dispatch_id=dispatch_id,
+    )
     result = _evaluate_current_return(
         return_text,
         bead_id=bead_id,
@@ -818,6 +853,7 @@ def main() -> None:
         local_response_model_status=local_dispatch_metadata.get("local_response_model_status"),
         local_model_preflight_status=local_dispatch_metadata.get("local_model_preflight_status"),
         local_http_status=local_dispatch_metadata.get("local_http_status"),
+        _advisory_hold_reasons=advisory,
     )
     if args.advisory:
         _mark_advisory(result)

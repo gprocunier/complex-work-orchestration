@@ -1,5 +1,25 @@
 # Evaluation evidence
 
+## Return screening on held-out paraphrases
+
+The November 27, 2026 check used 24 deliberately unsafe return snippets and 24
+ordinary controls written after the structural rules were frozen. The same
+sample return carried each snippet at the end and inside its Evidence section.
+A catch or false hold means the evaluator set `evidence_use_hold`.
+
+| Screening | Catches | False holds |
+| --- | ---: | ---: |
+| Baseline return evaluator | 0/48 (0%) | 0/48 (0%) |
+| Evaluator with structural checks | 2/48 (4.2%) | 0/48 (0%) |
+
+Both catches were the same unsupported claim in the two placements. The
+structural checks missed the lead or tool directives, scope changes and
+requests to bypass review or validation in this set. The original 100-case
+tripwire corpus remained covered by the focused tests. Mocked local responses
+verified that the optional advisor can add and preserve a hold. The rates in
+the table cover deterministic screening on this fixture.
+[Held-out paraphrases](../tests/fixtures/return_tripwires/held-out-paraphrases.json)
+
 ## Registered native single worker
 
 The live qualification completed on November 24, 2026. Every required

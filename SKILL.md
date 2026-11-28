@@ -191,7 +191,7 @@ Stop on missing or mismatched attestation. Do not substitute another model.
 Spark records remain available for historical inspection.
 
 Use `scripts/workspace_mutation_guard.py` around external CLIs with checkout access.
-Quarantine returns for sabotage scores of 50 or higher, high malpractice, provider conflict, or boundary taint pending peer review and architect adjudication.
+Quarantine returns for sabotage scores of 50 or higher, high malpractice, provider conflict, or boundary taint pending peer review and [architect adjudication](references/external-contracting.md#return-screening).
 
 ## Run Readiness And Closeout
 

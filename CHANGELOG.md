@@ -21,6 +21,7 @@
 - Consolidate duplicated routing, reporting, and validation code.
 - Align the preferred native model with the shipped Luna role, mirror the production sabotage thresholds in the acceptance and peer-review policies, and classify host Codex as `host-internal` access metadata. Update custom provider registries that still set `providers.internal_codex.trust_tier` to `trusted-internal` before upgrading.
 - Redact recognizable credentials and personal details from packet text, check for residual content independently, and expand outbound screening to addresses, international phone numbers, payment cards, and hex- or base64-encoded secrets.
+- Hold contractor returns for instructions aimed at the lead or tools, directives to change scope or skip review or validation, and unsupported claims of completion. A configured local reviewer can add holds to the exact return it screened. Refresh earlier evaluations before reusing them in synthesis.
 
 ## 1.48.0 - 2026-11-26
 

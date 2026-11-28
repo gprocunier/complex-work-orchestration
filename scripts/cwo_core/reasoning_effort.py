@@ -6,6 +6,7 @@ import json
 import re
 from typing import Any
 
+from . import return_advisory
 from .policy import load_policy
 from .risk_features import assess_risk_features, assessed_texts, normalized_tokens
 from .routing_signals import architecture_review_complexity
@@ -112,6 +113,8 @@ def _failed_evaluation(store: Any, dispatch: dict[str, Any], evaluation: dict[st
     if (receipt.get("capture_provenance") != "host-capture-v1"
             or receipt["dispatch_record_sha256"] != dispatch["_record_sha256"]
             or receipt["_record_sha256"] != evaluation["return_record_sha256"]):
+        return None
+    if return_advisory.advisory_hold_reasons(store, dispatch, receipt):
         return None
     return evaluation["_record_sha256"]
 

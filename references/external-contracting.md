@@ -804,6 +804,20 @@ python3 scripts/build_contractor_packet.py \
    as CLI flags, without `--contractor-packet`, is not packet provenance: it
    is recorded as given and authenticates nothing.
 
+### Return screening
+
+The evaluator reads return structure alongside the existing tripwires. It looks
+for instructions addressed to the lead or tools, directives that change the
+assigned scope or skip review or validation, and claims of completion without
+matching evidence. A finding holds the return for architect adjudication.
+Record the source or check that supports each material claim and state which
+checks were unavailable. The hold leaves the original return available as
+evidence for review.
+
+The optional [local return check](local-inference.md#screen-a-received-return)
+can add holds to the exact received return. A passed peer review preserves
+these holds. Resolve them through architect adjudication against that return.
+
 ### Expected Return Language Guard
 
 New contractor packets use `packet_version: 2` and carry

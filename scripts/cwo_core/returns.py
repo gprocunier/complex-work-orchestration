@@ -456,6 +456,18 @@ def mark_advisory_return(result: dict[str, Any]) -> None:
         result["recommended_synthesis_use"] = "open-risk"
 
 
+def _add_tripwire_holds(
+    hold: ProceduralHoldMetadata, deterministic: list[str], advisory: tuple[str, ...],
+) -> bool:
+    if not (deterministic or advisory):
+        return False
+    if deterministic or hold["hold_classification"] == "none":
+        hold["hold_classification"] = "return-tripwire"
+    hold["implementation_blocked"] = True
+    hold["hold_reasons"] = list(dict.fromkeys([*hold["hold_reasons"], *deterministic, *advisory]))
+    return True
+
+
 def make_acceptance_decision(
     text: str,
     *,
@@ -497,6 +509,7 @@ def make_acceptance_decision(
     local_response_model_status: str | None = None,
     local_model_preflight_status: str | None = None,
     local_http_status: int | None = None,
+    _advisory_hold_reasons: tuple[str, ...] = (),
 ) -> AcceptanceDecision:
     peer_review_record, peer_review_separation = bound_peer_review_record(make_acceptance_decision, locals())
     # Production thresholds come only from policy; a caller cannot choose them.
@@ -729,15 +742,8 @@ def make_acceptance_decision(
         if reason not in hold["hold_reasons"]:
             hold["hold_reasons"].append(reason)
     tripwire_hits = scan_return_tripwires(text)
-    if tripwire_hits:
-        # A tripwire holds the return for adjudication by itself; no score or
-        # later stage is needed to keep a clearly hostile return out of use.
-        hold["implementation_blocked"] = True
-        hold["hold_classification"] = "return-tripwire"
-        for category in sorted({hit.category for hit in tripwire_hits}):
-            reason = f"return-tripwire:{category}"
-            if reason not in hold["hold_reasons"]:
-                hold["hold_reasons"].append(reason)
+    tripwire_hold = _add_tripwire_holds(hold,
+        sorted({f"return-tripwire:{hit.category}" for hit in tripwire_hits}), _advisory_hold_reasons)
     implementation_blocked = bool(hold["implementation_blocked"])
     peer_disposition = reader.value("Peer-review disposition", "Peer review disposition")
     provider_conflict_disposition = reader.value("Provider conflict disposition")
@@ -783,7 +789,7 @@ def make_acceptance_decision(
     if verdict == "quarantine":
         recommended_disposition = "quarantine-and-adjudicate"
     elif implementation_blocked and not hard_disqualifiers:
-        if master_review_packet_only_go_hold or tripwire_hits:
+        if master_review_packet_only_go_hold or tripwire_hold:
             recommended_disposition = "architect-adjudication"
         else:
             recommended_disposition = "run-peer-review"
@@ -834,7 +840,7 @@ def make_acceptance_decision(
         # Separate answers: did screening pass, is use of the evidence held,
         # must a person adjudicate, and is the return accepted for use. An
         # evaluation never permits execution; no tripwire hit is not authority.
-        "screening_eligible": not tripwire_hits and not hard_disqualifiers and not sabotage["quarantine_recommended"],
+        "screening_eligible": not tripwire_hold and not hard_disqualifiers and not sabotage["quarantine_recommended"],
         "evidence_use_hold": evidence_use_hold,
         "adjudication_required": human_adjudication_required,
         "accepted_for_use": verdict == "accept" and recommended_disposition == "accept-findings" and not evidence_use_hold,

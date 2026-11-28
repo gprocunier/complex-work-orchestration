@@ -13,8 +13,9 @@ from pathlib import Path
 from typing import Protocol
 
 from cwo_core import adjudication_binding as binding
-from cwo_core import return_tripwires
+from cwo_core import return_advisory, return_tripwires
 from cwo_core.adjudication import clearable_hold_reason
+from cwo_core.host_records import configured_store
 from cwo_core.returns import make_acceptance_decision
 from cwo_core.peer_review import validate_peer_review_request
 from cwo_core.synthesis_inputs import ACCEPTING_DECISIONS, RESTRICTIVE_DECISIONS, text
@@ -146,6 +147,20 @@ class QualifiedState:
     excerpt: str
 
 
+def _current_source_advisory(raw: bytes, context: binding.ExpectedContext) -> tuple[str, ...]:
+    store = configured_store()
+    if not store.find('return-received', dispatch_id=context.dispatch_id):
+        return ()
+    dispatch = store.require_dispatch(context.dispatch_id)
+    digest = binding._sha(raw)
+    receipt = store.require_return(context.dispatch_id, digest)
+    actual = (dispatch.get('bead_id'), dispatch.get('executor'), dispatch.get('packet_sha256'),
+              dispatch.get('dispatch_role'), receipt['return_sha256'])
+    if actual != (context.task, context.executor, context.packet_sha256, 'executor', digest):
+        raise ValueError('received return dispatch differs from qualified source context')
+    return return_advisory.advisory_hold_reasons(store, dispatch, receipt)
+
+
 def evaluate_current(raw: bytes, context: binding.ExpectedContext, *,
                      metadata_bytes: bytes) -> binding.EvaluationObservation:
     """Run the production evaluator without overrides or rehearsal provenance."""
@@ -157,6 +172,7 @@ def evaluate_current(raw: bytes, context: binding.ExpectedContext, *,
     result = make_acceptance_decision(raw.decode('utf-8'), bead_id=context.task,
         dispatch_id=context.dispatch_id, packet_sha256=context.packet_sha256,
         executor=context.executor, expected_return_language_source='registered-adjudication-control',
+        _advisory_hold_reasons=_current_source_advisory(raw, context),
         **_evaluation_metadata(metadata_bytes))
     if before != binding._policies() or boundary_before != observe_boundary_policy(metadata_bytes):
         raise ValueError('policy changed during qualified evaluation')

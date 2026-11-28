@@ -28,6 +28,17 @@
       "type": "string",
       "minLength": 1
     },
+    "structural_findings": {
+      "type": "object",
+      "description": "Optional display descriptions for the built-in structural findings. An omitted description uses the built-in value.",
+      "additionalProperties": false,
+      "properties": {
+        "structural_directive": {"type": "string", "minLength": 1},
+        "structural_scope_change": {"type": "string", "minLength": 1},
+        "structural_gate_bypass": {"type": "string", "minLength": 1},
+        "structural_unsupported_claim": {"type": "string", "minLength": 1}
+      }
+    },
     "confusables": {
       "type": "object",
       "additionalProperties": {
