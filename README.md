@@ -228,6 +228,10 @@ is retained; a stopped attempt is not silently restarted. Missing or stale
 records need investigation. The diagram illustrates the workflow, not a new
 compaction trial.
 
+Use `cwo continue --record-run` to save the current gate and resume hint for an
+epic. Use `cwo analyze` to check saved plan artifacts for disagreements before
+implementation or handoff. [Commands and examples](references/run-readiness.md#saved-continuation-and-plan-analysis)
+
 [What to save and how to recover](https://gprocunier.github.io/complex-work-orchestration/beads-memory.html#compaction).
 Local records are not remote backup; shared recovery needs separately configured
 and verified synchronization.

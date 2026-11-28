@@ -331,6 +331,49 @@ existing `operator_handoff_packet`. The work graph provides tracker status.
 Use closeout evidence to establish delivery and verification. The execution
 status report projects audit, evaluator, and readiness telemetry.
 
+### Saved continuation and plan analysis
+
+Run `continue` from the project directory, using the installed script path if
+the project is separate from the CWO checkout.
+
+```bash
+python3 scripts/cwo.py continue --epic project-epic --record-run --format json
+python3 scripts/cwo.py continue --epic project-epic --markdown-workgraph graph.md \
+  --record-run --coach coach.json
+```
+
+`--record-run` atomically refreshes one advisory record under the ignored
+`.orchestration-audit/active-runs/` directory. Its ID is stable for the current
+directory, epic, optional sprint and Markdown source path. The record gives the
+current step, gate, unresolved coach decision IDs and exact resume hint. The
+handoff includes the run ID and the hint. The gate reflects the current Beads
+or Markdown input. An optional current `coach --json` result can pause the
+recommended next action until its operator selections are resolved.
+
+After accepting a coach decision, update the coach artifact at the supplied
+path and rerun the recorded `continue` command. The command reads the current
+inputs again and refreshes the record. It never reads the saved record as an
+input or executes commands from it. Beads remains the shared tracker. A
+Markdown fallback has reduced durability and candidate evidence still carries
+no dispatch authority.
+
+```bash
+python3 scripts/cwo.py analyze --workgraph graph.json --coach coach.json \
+  --route route.json --readiness-plan readiness.json --handoff handoff.md \
+  --convergence-ledger convergence.jsonl
+```
+
+Supply a scaffold dry-run JSON export or a Markdown fallback as `--workgraph`.
+Add only the companion artifacts available for this plan. The JSON report lists
+the inspected artifacts and stable findings for open coach selections, route
+and workgraph disagreements, missing validation lanes or evidence references,
+readiness scope and invalid handoffs. A dry-run graph may lack a concrete
+epic ID. The report then warns that readiness scope could not be compared.
+Errors exit 1, warnings alone exit 0, and unreadable or malformed inputs exit 2.
+Analysis reads the supplied files without changing them or contacting Beads.
+When supplied, the convergence ledger is checked using the existing append-only
+chain validator. [Replay convergence](#projection-rules) for execution evidence.
+
 ## Authority Model
 
 ```mermaid

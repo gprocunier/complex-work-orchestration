@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Add optional local run records to `cwo continue` and a read-only `cwo analyze` report for saved plan artifacts.
 - Extend the code-health checks to cover function size and nesting, broad catches, private imports, and missing annotations in registered and offline modules. Split large validators and simplify offline reports.
 - Add an optional architecture-design profile that gives the architect Bead a design package covering caller experience, interfaces, alternatives, validation and rollback.
 - Carry required inputs into managed expert reviews, report delivery readiness from checked obligations, and count corrective work and first acceptance attempts in convergence reports.

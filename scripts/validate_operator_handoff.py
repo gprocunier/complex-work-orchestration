@@ -7,7 +7,6 @@ import argparse
 import json
 import re
 import sys
-import tempfile
 from pathlib import Path
 from typing import Any
 
@@ -290,34 +289,15 @@ def self_test() -> int:
 
 - Commit/push status: pushed
 """
-    placeholder = """# Operator Handoff Packet
-
-- Next executable Bead: `<bead-id>`
-- Why it is next: `<why>`
-- Exact command/resume: `<copy-paste command>`
-- Execution prompt: `<prompt>`
-- What must NOT run yet: `<blocked>`
-- Commit/push status: `<status>`
-- Validation status: `<status>`
-- Escalation rule: `<rule>`
-"""
-    with tempfile.TemporaryDirectory() as tmp:
-        good_path = Path(tmp) / "good.md"
-        missing_path = Path(tmp) / "missing.md"
-        placeholder_path = Path(tmp) / "placeholder.md"
-        good_path.write_text(good, encoding="utf-8")
-        missing_path.write_text(missing, encoding="utf-8")
-        placeholder_path.write_text(placeholder, encoding="utf-8")
-        good_errors = validate_text(good_path.read_text(encoding="utf-8"))
-        missing_errors = validate_text(missing_path.read_text(encoding="utf-8"))
-        placeholder_errors = validate_text(placeholder_path.read_text(encoding="utf-8"))
+    placeholder = "\n".join(f"- {field}: `<fill in>`" for field in FIELD_ALIASES)
+    good_errors = validate_text(good)
     if good_errors:
         print("good fixture failed:", good_errors, file=sys.stderr)
         return 1
-    if not missing_errors:
+    if not validate_text(missing):
         print("missing fixture unexpectedly passed", file=sys.stderr)
         return 1
-    if not placeholder_errors:
+    if not validate_text(placeholder):
         print("placeholder fixture unexpectedly passed", file=sys.stderr)
         return 1
     return 0
