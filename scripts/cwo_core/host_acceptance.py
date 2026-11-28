@@ -15,7 +15,7 @@ from typing import Any, Callable
 from . import policy, return_advisory
 from .browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS
 from .errors import CWOPolicyError
-from .host_records import configured_store
+from .host_records import HostRecordStore, configured_store
 from .peer_review import PEER_REVIEW_HOLDS, pending_evaluation_sha256
 from .peer_review_identity import (_recorded_dispatch, _registered_model, validate_separation,
                                    review_identity, identity_token, separation_level, IDENTITY_FIELDS)
@@ -33,13 +33,15 @@ def _copy(value: Any) -> Any:
     return json.loads(json.dumps(value, sort_keys=True, allow_nan=False))
 
 
-def _policy_sha256() -> str:
+def evaluation_policy_sha256() -> str:
+    """Digest the current policies bound to a recorded evaluation."""
     names = ("acceptance-policy", "contracting-controls", "provider-registry", "executor-registry",
              "return-tripwires", "return-structure-rules", "synthesis-policy", "share-boundaries", "peer-review-policy")
-    return pending_evaluation_sha256({name: _current_policy(name) for name in names})
+    return pending_evaluation_sha256({name: load_current_evaluation_policy(name) for name in names})
 
 
-def _current_policy(name):
+def load_current_evaluation_policy(name: str) -> dict[str, Any]:
+    """Load the policy and verify its source agrees with the cached copy."""
     try:
         current = strict_json_loads((policy.POLICY_DIR / (name + ".yaml")).read_text(encoding="utf-8"))
         cached = load_policy(name)
@@ -82,7 +84,7 @@ class HostAcceptancePipeline:
         _need(dispatch.get("dispatch_role") == "executor", "an executor dispatch is required")
         _need(dispatch.get("bead_id") == bead_id, "dispatch task does not match")
         _need(receipt["dispatch_record_sha256"] == dispatch["_record_sha256"], "return dispatch differs")
-        policy_sha = _policy_sha256()
+        policy_sha = evaluation_policy_sha256()
         advisory = return_advisory.advisory_hold_reasons(store, dispatch, receipt)
         inputs = _host_inputs(dispatch, bead_id, dispatch_id, advisory=advisory)
         pending, evaluation = _evaluate(text, inputs, peer_review_record)
@@ -97,8 +99,8 @@ class HostAcceptancePipeline:
               "adjudication rationale is missing or over bound")
         _need(type(decision.control_id) is str and 0 < len(decision.control_id) <= 128,
               "host adjudication control id is missing or over bound")
-        _adjudication_separation(dispatch, self._adjudication_identity, _source_context(dispatch) is not None)
-        _need(policy_sha == _policy_sha256(), "evaluation policy changed during adjudication")
+        _adjudication_separation(dispatch, self._adjudication_identity, dispatch_source_context(dispatch) is not None)
+        _need(policy_sha == evaluation_policy_sha256(), "evaluation policy changed during adjudication")
         _need(dispatch == store.require_dispatch(dispatch_id)
               and receipt == store.require_return(dispatch_id, returned), "dispatch or receipt changed")
         _need(advisory == return_advisory.advisory_hold_reasons(store, dispatch, receipt),
@@ -110,7 +112,7 @@ class HostAcceptancePipeline:
                 "review evidence changed during adjudication")
         digest = pending_evaluation_sha256(frozen)
         context = dict(bead_id=bead_id, dispatch_id=dispatch_id, return_sha256=returned,
-                       evaluation_sha256=digest, source_context=_source_context(dispatch))
+                       evaluation_sha256=digest, source_context=dispatch_source_context(dispatch))
         evaluation_record = store.write_record("evaluation", **context, evaluation=frozen,
             pending_evaluation=pending, return_text=text, policy_sha256=policy_sha,
             dispatch_record_sha256=dispatch["_record_sha256"], return_record_sha256=receipt["_record_sha256"])
@@ -153,7 +155,7 @@ def _host_inputs(dispatch, bead_id, dispatch_id, *, advisory=()):
             "provider_key": dispatch.get("provider_key"), "_advisory_hold_reasons": advisory}
 
 
-def _source_context(dispatch):
+def dispatch_source_context(dispatch: dict[str, Any]) -> dict[str, Any] | None:
     """The original host dispatch binds scope, never labels from the returned text."""
     context = dispatch.get("evaluation_metadata", {}).get("source_context")
     if context is None:
@@ -238,7 +240,7 @@ def _adjudication_separation(dispatch, identity, required):
 
 def _require_source_context(store, accepted, expected, delivery_context):
     dispatch = store.require_dispatch(expected["dispatch_id"])
-    source_context = _source_context(dispatch)
+    source_context = dispatch_source_context(dispatch)
     _need(accepted.get("source_context") == source_context, "accepted source context differs from dispatch")
     if delivery_context is not None:
         _need(type(source_context) is dict
@@ -254,7 +256,7 @@ def _verified_evaluation(store, accepted, expected):
     evaluation, pending = recorded.get("evaluation"), recorded.get("pending_evaluation")
     _need(type(evaluation) is dict and type(pending) is dict, "evaluation snapshots are missing")
     _need(pending_evaluation_sha256(evaluation) == expected["evaluation_sha256"], "evaluation digest does not match")
-    _need(recorded.get("policy_sha256") == _policy_sha256(), "evaluation policy is stale")
+    _need(recorded.get("policy_sha256") == evaluation_policy_sha256(), "evaluation policy is stale")
     _eligible(evaluation)
     text = recorded.get("return_text")
     _need(type(text) is str and hashlib.sha256(text.encode("utf-8")).hexdigest() == expected["return_sha256"],
@@ -301,10 +303,14 @@ def _verified_peer_clearance(store, clearance, evaluation, pending, expected):
           and record.get("evaluation_sha256") == pending_evaluation_sha256(pending), "hold review target differs")
     reviewer = record["reviewer_identity"]
     validate_separation(reviewer, separation)
-    _verify_review_dispatch(store, reviewer, record, separation, expected)
+    verify_review_dispatch(store, reviewer, record, separation, expected)
 
 
-def _verify_review_dispatch(store, reviewer, record, separation, expected):
+def verify_review_dispatch(
+    store: HostRecordStore, reviewer: dict[str, Any], record: dict[str, Any],
+    separation: dict[str, Any], expected: dict[str, Any],
+) -> None:
+    """Verify the recorded peer review target and the dispatch identities behind its separation."""
     from .peer_review_identity import separation_level
     own = store.require_dispatch(expected["dispatch_id"])
     review = store.require_dispatch(reviewer["dispatch_id"])
@@ -354,5 +360,12 @@ def record_received_evaluation(text: str, evaluation: dict) -> str | None:
     require_current_advisory_holds(store, dispatch, receipt, evaluation)
     return store.write_record("evaluation", dispatch_id=dispatch_id, bead_id=evaluation.get("bead_id"),
         return_sha256=digest, evaluation_sha256=pending_evaluation_sha256(evaluation),
-        evaluation=_copy(evaluation), policy_sha256=_policy_sha256(),
+        evaluation=_copy(evaluation), policy_sha256=evaluation_policy_sha256(),
         dispatch_record_sha256=dispatch["_record_sha256"], return_record_sha256=receipt["_record_sha256"])
+
+
+# Retain the previous names for read-only evidence consumers.
+_current_policy = load_current_evaluation_policy
+_policy_sha256 = evaluation_policy_sha256
+_source_context = dispatch_source_context
+_verify_review_dispatch = verify_review_dispatch

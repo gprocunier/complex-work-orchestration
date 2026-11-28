@@ -8,10 +8,14 @@ import json
 from pathlib import Path
 import re
 
-from cwo_core.adjudication_binding import _evaluation_disposition
+from cwo_core.adjudication_binding import evaluation_disposition
 from cwo_core.errors import CWOPolicyError
 from cwo_core.host_acceptance import (
-    _current_policy, _policy_sha256, _source_context, _verify_review_dispatch, require_current_advisory_holds,
+    dispatch_source_context,
+    evaluation_policy_sha256,
+    load_current_evaluation_policy,
+    require_current_advisory_holds,
+    verify_review_dispatch,
 )
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import MAX_RETURN_BYTES
@@ -93,7 +97,7 @@ def _verify_passed_review(store, dispatch, evaluation, return_sha256):
     record = validate_peer_review_request("passed", reviewer, evaluation.get("peer_review_record"))
     if record["return_sha256"] != return_sha256:
         raise ValueError("peer review does not bind the selected return")
-    _verify_review_dispatch(store, reviewer, record, evaluation["peer_review_separation"],
+    verify_review_dispatch(store, reviewer, record, evaluation["peer_review_separation"],
         dict(dispatch_id=dispatch["dispatch_id"], return_sha256=return_sha256))
 
 
@@ -124,7 +128,7 @@ def _preserve_peer_requirement(store, dispatch, evaluation, return_sha256):
 def _lane_input(item, evaluation, lane):
     # Carry the evaluator's holds and provider metadata through to the existing
     # synthesis policy alongside the operator's local claims.
-    disposition = _evaluation_disposition(evaluation)
+    disposition = evaluation_disposition(evaluation)
     if evaluation["verdict"] == "partial-accept" and not evaluation["evidence_use_hold"]:
         disposition = "salvage-only"
     entry = dict(evaluation, lane=lane, disposition=disposition, external=evaluation.get("provider_external"))
@@ -173,7 +177,7 @@ def _project_recorded_lane(store, item, evaluation, selected_record, return_sha2
     if selected_record is not None and receipt["return_sha256"] != return_sha256:
         raise ValueError("selected return does not match the exact host return receipt")
     evaluation_digest = _recorded_evaluation(store, dispatch, receipt, evaluation, policy_sha256, selected_record)
-    context = _source_context(dispatch)
+    context = dispatch_source_context(dispatch)
     if protected:
         _require_protected_capture(dispatch, receipt, context)
     if context is not None and (context["candidate"], context["scope"]) != (candidate, scope):
@@ -256,7 +260,7 @@ def _synthesize(args):
     adjudications = _list(_read_json(args.adjudications), "adjudications") if args.adjudications else None
     required, flags = _route_signals(args.route)
     store = configured_store()
-    policy_sha256 = _policy_sha256()
+    policy_sha256 = evaluation_policy_sha256()
     lanes = [_input_lane(store, item, args.inputs.parent, candidate, scope, policy_sha256) for item in items]
     capture_ids = [origin["capture_id"] for _, binding, origin in lanes if binding is None]
     capture_names = set(capture_ids)
@@ -312,9 +316,9 @@ def validate_synthesis_approval(payload):
 def evaluate_protected_synthesis(store, payload):
     """Host handler for an operator-authorized panel resolved by the authority broker."""
     candidate, scope, inputs, adjudications = validate_synthesis_approval(payload)
-    policy_sha256 = _policy_sha256()
+    policy_sha256 = evaluation_policy_sha256()
     lanes = [_protected_lane(store, value, candidate, scope, policy_sha256) for value in inputs]
-    _current_policy("zero-trust-consensus-policy")
+    load_current_evaluation_policy("zero-trust-consensus-policy")
     return _synthesis_result(lanes, adjudications, candidate, scope, True, [], provenance_basis="operator-authorized")
 
 

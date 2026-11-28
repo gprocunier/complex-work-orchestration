@@ -14,7 +14,10 @@ import subprocess
 import sys
 import threading
 import weakref
+from collections.abc import Iterator, Mapping
 from contextlib import contextmanager
+from pathlib import Path
+from typing import Any, NoReturn, TypeVar
 
 import offline_admitted_n1 as admitted
 import prepare_delivery_closure as closure
@@ -25,8 +28,8 @@ from cwo_core import server_request_preparation as requests
 _CAPABILITIES = {"EXAMPLE_FINITE": "finite", "EXAMPLE_STDIN": "authorized-stdin"}
 _FALSE = dict.fromkeys(("effect_authority", "production_ready", "qualified", "accepted_for_use"), False)
 _lock = threading.RLock()
-_selections = weakref.WeakKeyDictionary()
-_grants = weakref.WeakKeyDictionary()
+_selections: weakref.WeakKeyDictionary[InputSelection, _Selection] = weakref.WeakKeyDictionary()
+_grants: weakref.WeakKeyDictionary[InputGrant, _Grant] = weakref.WeakKeyDictionary()
 _history = {}
 _server_history = weakref.WeakKeyDictionary()
 _server_selections = weakref.WeakKeyDictionary()
@@ -35,6 +38,7 @@ _SERVER_TYPE = None
 _SERVER_START = None
 _CLOCK_TYPE = None
 _OWNER_TYPE = None
+_Issued = TypeVar("_Issued")
 _CHILD = """import hashlib,json,sys
 raw=sys.stdin.buffer.read(65537)
 assert len(raw)<=65536
@@ -58,7 +62,7 @@ def _encode(value: object) -> bytes:
     return closure.validation._snapshot(value, 65536)
 
 
-def _issued(registry, kind, token):
+def _issued(registry: weakref.WeakKeyDictionary[Any, _Issued], kind: type[object], token: object) -> _Issued:
     _need(type(token) is kind and token in registry, "An original issued input token is required.")
     return registry[token]
 
@@ -66,7 +70,7 @@ def _issued(registry, kind, token):
 class OfflineProfileAdapter(admitted.native.LiveThreadAdapter):
     """Original native driver with an explicit fake named-profile start validator."""
 
-    def _validate_effective_boundary(self, boundary):
+    def _validate_effective_boundary(self, boundary: Mapping[str, Any]) -> None:
         _profile_start(boundary, self.worktree)
         # Validate the remaining original invariants without changing the actual
         # issued request, captured boundary, response, or dispatched server.
@@ -93,7 +97,7 @@ def require_original_adapter(adapter: object) -> None:
               "Original native adapter methods and the exact offline profile validator are required.")
 
 
-def _profile_start(boundary, worker):
+def _profile_start(boundary: Mapping[str, Any], worker: Path) -> str:
     request = boundary["thread_start"]["request"]
     response = boundary["thread_start"]["response"]
     _need(_encode(response) == _encode(boundary["thread_response"])
@@ -155,7 +159,7 @@ def _example_server_type():
 
 
 @contextmanager
-def _server_entry(server, thread_id, message):
+def _server_entry(server: object, thread_id: str, message: str) -> Iterator[None]:
     with _lock:
         reference = _server_selections.get(server)
         selection = reference() if reference is not None else None
@@ -176,10 +180,10 @@ def _server_entry(server, thread_id, message):
 class _Token:
     __slots__ = ("__weakref__",)
 
-    def __new__(cls):
+    def __new__(cls) -> NoReturn:
         raise InputError("Input tokens must be issued, never constructed.")
 
-    def __reduce_ex__(self, protocol):
+    def __reduce_ex__(self, protocol: int) -> NoReturn:
         raise InputError("Input tokens cannot be copied or serialized.")
 
 
@@ -200,27 +204,27 @@ class InputGrant(_Token):
 
 @dataclasses.dataclass(frozen=True)
 class _Selection:
-    declaration: object
-    admission: object
+    declaration: closure.FrozenPolicy
+    admission: admitted.admission_api.PreparedAdmission
     route: object
     node: str
-    ledger: object
-    host: object
-    adapter: object
+    ledger: admitted.InvocationLedger
+    host: admitted.native.OfflineN1Host
+    adapter: OfflineProfileAdapter
     server: object
-    control: object
+    control: dict[str, Any]
     pins: object
-    preparation: object
-    process: object
-    handles: tuple
+    preparation: dict[str, Any]
+    process: ExampleInputProcess
+    handles: tuple[Path, object, object, object]
     context: bytes
-    item: object
+    item: requests.FakeItemContext
     timestamp: int
 
 
 @dataclasses.dataclass
 class _Grant:
-    selection: object
+    selection: InputSelection
     chars: bytes
     context: bytes
     used: bool = False
@@ -229,11 +233,11 @@ class _Grant:
 class ExampleInputProcess:
     """One fixed cooperative child, not a command executor or isolation backend."""
 
-    def __init__(self, worker):
+    def __init__(self, worker: str | os.PathLike[str]) -> None:
         self.worker = admitted.native._path(worker)
         self.exchanges = []
 
-    def _exchange(self, chars, context, worker):
+    def _exchange(self, chars: bytes, context: Mapping[str, Any], worker: Path) -> dict[str, Any]:
         _need(os.environ.get("CWO_PY") in ("312", "314"), "The fixed offline runner is required.")
         _need(not self.exchanges, "The EXAMPLE input process is one-shot; retry is forbidden.")
         record = {"chars": chars, "context": json.loads(_encode(context))}
@@ -259,7 +263,9 @@ class ExampleInputProcess:
 _EXCHANGE = ExampleInputProcess._exchange
 
 
-def _configuration(preparation, adapter, worker, thread_id):
+def _configuration(
+    preparation: dict[str, Any], adapter: OfflineProfileAdapter, worker: Path, thread_id: str,
+) -> dict[str, Any]:
     server = adapter.server
     report = profiles.diagnose(preparation)
     _need(report["preparation_accepted"], "The original fake profile preparation refused configuration.")
@@ -284,7 +290,7 @@ def _configuration(preparation, adapter, worker, thread_id):
     return expected
 
 
-def _no_effect(*args):
+def _no_effect(*args: object) -> NoReturn:
     raise InputError("Selection validation cannot invoke an effect.")
 
 
@@ -321,7 +327,7 @@ def _scope_binding(declaration, admission, host, adapter, contract, configuratio
             "declaration": declaration.report, "configuration_pins": admitted.native._pins(configuration_pins)}
 
 
-def _item(server, adapter: OfflineProfileAdapter) -> tuple[requests.FakeItemContext, int]:
+def _item(server: object, adapter: OfflineProfileAdapter) -> tuple[requests.FakeItemContext, int]:
     item = getattr(server, "offline_input_context", None)
     _need(type(item) is requests.FakeItemContext and _plain_item(item),
           "Original pre-effect fake stdin context is required.")
@@ -374,7 +380,7 @@ def select_input(declaration, *, admission=None, route_input=None, node_id=None,
         return token
 
 
-def _current(selection):
+def _current(selection: InputSelection | None) -> _Selection:
     with _lock:
         data = _issued(_selections, InputSelection, selection)
     _need(data.adapter.server is data.server, "The selected original fake server changed.")
@@ -388,7 +394,7 @@ def _current(selection):
 
 
 @contextmanager
-def _selected(selection):
+def _selected(selection: InputSelection | None) -> Iterator[_Selection]:
     # Never hold the registry lock while acquiring native locks or validating.
     with _lock:
         data = _issued(_selections, InputSelection, selection)
@@ -396,7 +402,7 @@ def _selected(selection):
         yield _current(selection)
 
 
-def _approval(data, raw, decision):
+def _approval(data: _Selection, raw: bytes, decision: str) -> None:
     item = data.item
     consumer = requests.FakeRequestPreparer(item.epoch)
     consumer.open_turn(item.thread_id, item.turn_id, now=0)
@@ -414,7 +420,7 @@ def _approval(data, raw, decision):
           "The original no-grants approval consumer denied the input.")
 
 
-def authorize_input(selection, raw, chars, *, decision):
+def authorize_input(selection: InputSelection, raw: bytes, chars: bytes, *, decision: str) -> InputGrant:
     """Check actual raw approval through original consumers; issue a byte-bound one-shot token."""
     with _selected(selection) as data:
         _reserve_approval(data)
@@ -429,7 +435,7 @@ def authorize_input(selection, raw, chars, *, decision):
         return token
 
 
-def _reserve_approval(data):
+def _reserve_approval(data: _Selection) -> None:
     with _lock:
         root = str(data.handles[0])
         _need(root in _history or len(_history) < 256, "The finite approval ledger-history bound was reached.")
@@ -442,7 +448,7 @@ def _reserve_approval(data):
         server_history.add(data.item.approval_id)
 
 
-def _intent(data, selection):
+def _intent(data: _Selection, selection: InputSelection) -> None:
     with _lock:
         entry = _entries.get(data.server)
     _need(data.adapter._boundary_phase == "dispatch-attempted"
@@ -467,7 +473,7 @@ def _fake_state_handles(ledger):
     return clock, owner
 
 
-def _unavailable_owner(value, key):
+def _unavailable_owner(value: object, key: tuple[int, int]) -> bool:
     _need(type(value) is set and len(value) <= 256, "Bounded original fake owner status sets are required.")
     for pair in value:
         _need(type(pair) is tuple and len(pair) == 2 and all(type(part) is int for part in pair),
@@ -475,7 +481,7 @@ def _unavailable_owner(value, key):
     return key in value
 
 
-def _guarded_facts(data, expected_owner):
+def _guarded_facts(data: _Selection, expected_owner: dict[str, Any]) -> dict[str, Any]:
     """Read actual registered fake producer state without invoking any callback."""
     clock, probe = _fake_state_handles(data.ledger)
     clock_state = object.__getattribute__(clock, "__dict__")
@@ -497,7 +503,7 @@ def _guarded_facts(data, expected_owner):
     return current
 
 
-def _final_scope(data):
+def _final_scope(data: _Selection) -> Path:
     """After the final ledger callout, compare scope and capture an immutable cwd."""
     admitted._check_ledger(data.ledger, data.handles, data.host)
     expected = json.loads(data.context)
@@ -513,7 +519,9 @@ def _final_scope(data):
     return worker
 
 
-def deliver_input(selection, grant, chars, *, context):
+def deliver_input(
+    selection: InputSelection, grant: InputGrant, chars: bytes, *, context: requests.FakeItemContext,
+) -> dict[str, Any]:
     """Called at the original fake server send; direct or replayed dictionaries cannot deliver."""
     with _selected(selection) as data:
         with _lock:
