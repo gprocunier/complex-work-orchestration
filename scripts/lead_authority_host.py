@@ -7,6 +7,7 @@ from pathlib import Path
 import signal
 import sys
 
+from cwo_core.cyber_fallback import SECURITY_MARK_APPROVAL, security_mark_payload
 from cwo_core.errors import CWOError
 from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import MAX_RETURN_BYTES
@@ -19,6 +20,7 @@ from evaluate_synthesis import evaluate_protected_synthesis, validate_synthesis_
 _REQUEST_VALIDATORS = {
     "synthesis": validate_synthesis_approval,
     OUTBOUND_APPROVAL: outbound_approval_payload,
+    SECURITY_MARK_APPROVAL: security_mark_payload,
 }
 
 
@@ -40,8 +42,7 @@ def _serve(layout):
     records = configured_store()
     if records.state_root != layout.state_root:
         raise AuthorityError("original host records must use the protected authority state root")
-    handlers = {"synthesis": partial(evaluate_protected_synthesis, records),
-                OUTBOUND_APPROVAL: outbound_approval_payload}
+    handlers = {**_REQUEST_VALIDATORS, "synthesis": partial(evaluate_protected_synthesis, records)}
     with AuthorityHost(layout, handlers) as host:
         previous = signal.signal(signal.SIGTERM, _stop)
         try:

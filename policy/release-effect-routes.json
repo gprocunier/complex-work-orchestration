@@ -778,7 +778,7 @@
 
 "aC":[16,"checked_disposition",203,"CuIZFUUHRzU06C829BoFPSJst5wE69cS2VR6bhq3kqQ"],
 
-"aD":[216,32,"print(approvals.publish(operation, payload))"],
+"aD":[216,34,"print(approvals.publish(operation, payload))"],
 
 "aE":[217,170,"directory.write(reference + \".json\", raw)"],
 
@@ -1470,7 +1470,7 @@
 
 "gO":[75,"main",548,"z1w2A6R7g7xvMQSzNFvcCnTfJulrQxsznbA4FckQHbI"],
 
-"gP":[216,"main",54,"Iu2c03p9FcMdkLfCLs4ewR0CzkGF7YfsIUSn0JltYuk"],
+"gP":[216,"main",55,"Iu2c03p9FcMdkLfCLs4ewR0CzkGF7YfsIUSn0JltYuk"],
 
 "gQ":[44,"pinned_local_endpoint_address",721,"GiAVdU00SEa3x16aM25LXAy6PC8uEmEKIWOHmSZAgL8"],
 
@@ -1488,7 +1488,7 @@
 
 "gX":[112,"NativePoolAdmissionTests.test_concurrent_duplicate_consume_has_one_winner",664,"yBRnVNUrBFrD290sbSgGtDmKyTQjaKoWviznotjPy8Q"],
 
-"gY":[216,41,"if records.state_root != layout.state_root:"],
+"gY":[216,43,"if records.state_root != layout.state_root:"],
 
 "gZ":[83,"AtomicSpawnTests.test_unsupported_platform_and_old_libc_refuse_before_creation",39,"hYGVRZZloabUbNKQp_DBTVNhN_CKh3EQmt83rR0xEc4"],
 
@@ -1666,7 +1666,7 @@
 
 "hw":[48,69,"verify_provenance_pin(raw, expected)",8,69,44],
 
-"hx":[216,28,"if len(raw) > MAX_RETURN_BYTES:"],
+"hx":[216,30,"if len(raw) > MAX_RETURN_BYTES:"],
 
 "hy":[60,"RegisteredReviewHost.dispatch",227,"tmvnxFJqo4sjDhhaKqyxHtSgW68A3QFmagwVhBT5ICM"],
 
@@ -7052,7 +7052,7 @@
 
 "@215":["W5X1pTf2JQrJq0iCy9UwOJwBqxDF4orv9vZsBdBpLLA",420,46835],
 
-"@216":["P7TM8wW2ydw-0BXwug8Jpol3RrK59ZLvDMoSobSDmlM",420,2843],
+"@216":["Z7S0L5kj2uaM6q8FSAWCc1Wjw1gxERw9xa54pU4oaAM",420,2937],
 
 "@217":["dmAbyrwsZ_H2-cju0VFxPELrxIto89FIQjz8Uf24q2c",420,15537],
 
@@ -7272,7 +7272,7 @@
 
 "scripts/cwo_core/codex_protocol_pin.py":["X2Xiv-3DzLsfUkjGP6F8TXtgplhr-TBEdB4VejXJS70",420,29437],
 
-"scripts/cwo_core/cyber_fallback.py":["f2iw6-bAXyWRwIBuOLRJ2OwxE0IlhRi2byZ5mk6r8OE",420,20548],
+"scripts/cwo_core/cyber_fallback.py":["gpj7B_68Vys8Jw3vCwXHnDJ5UsUYwAToEnuSg00sGSo",420,22076],
 
 "scripts/cwo_core/epic_convergence.py":["BKL26bFL1g5WvbKWDWleMXLzCGyYgK_FXKFXOG9TsiY",420,13449],
 
@@ -7594,7 +7594,7 @@
 
 "scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
-"scripts/validate_repository.py":["tWphYKW2UYXtLeu2FtoMQm2NRBzJDRJkb9N_1FoiL4M",420,92968],
+"scripts/validate_repository.py":["gl1FwEIZHEYgootmq9w3BkAs1Uvq9tUUjijkjwfYRZU",420,92986],
 
 "scripts/validate_run_readiness_plan.py":["eOh8Jx0MhjjmZlqhcUFpe5E6tYTyKsSuz8Cm0vg8nq8",493,19544],
 
@@ -7634,7 +7634,7 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["BIGSiyXM2mXVdBYphhTmw7hQ1uS-l_pU_GW9fbaSQiQ",420,25742],
+"tests/test_cwo_core_import_contract.py":["O3YjMOR5uUsIqAAL92NTTNKCVa8z2X17eOZE6hYcDSA",420,25760],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 

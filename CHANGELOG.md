@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Hold Daybreak Blue security-work marks in the protected authority host. Publish them with `lead_authority_host.py publish security-work-mark` and resolve them with `AuthorityMarkStore`; the fallback controller now refuses a file-based mark unless the caller opts in for fixtures with `allow_file_marks=True`.
 - Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result. A three-worker qualification can use the existing dedicated logins as a complete roster.
 - Publish the [six-case workshop handoff comparison](references/evaluation-evidence.md#workshop-handoff-comparison) with check outcomes, elapsed time, and token use for CWO and plain Codex.
 - Update the public guides for protected review approvals and sizing, return screening, delivery readiness, saved runs and plan analysis, architecture design, and retired native controls.

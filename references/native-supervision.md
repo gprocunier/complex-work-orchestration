@@ -69,9 +69,19 @@ contains `daybreakBlue`. A missing model, missing metadata or missing program is
 reported as unavailable. It is not a policy-load error. CWO never combines
 `daybreak=true` with another model.
 
-Recovery also requires an explicit user-owned mark. Store it in an owned private
-file outside every lead and worker write root, and bind the file by its SHA-256
-digest when constructing `SecurityMarkStore`. The format is:
+Recovery also requires an explicit operator mark held by the protected authority
+host, the same separate account that holds outbound approvals. Publish it as the
+host account and keep the printed reference:
+
+```bash
+scripts/lead_authority_host.py publish security-work-mark < mark.json
+```
+
+Construct `AuthorityMarkStore(reference)` in the parent supervisor. The lead can
+request the mark by reference but cannot create, widen or replace it. The
+controller refuses a file-based `SecurityMarkStore` unless the caller passes
+`allow_file_marks=True`, which is for fixtures and non-production use. The mark
+document format is:
 
 ```json
 {
@@ -88,14 +98,15 @@ digest when constructing `SecurityMarkStore`. The format is:
 }
 ```
 
-`scope` may be `work-item` or `project`. The file must be an absolute,
-non-symlink, owner-only regular file, normally mode `0600`. The parent supervisor
-passes all lead and worker write roots to `SecurityMarkStore`, requests an opaque
+`scope` may be `work-item` or `project`. A fixture file used with
+`allow_file_marks=True` must be an absolute, non-symlink, owner-only regular
+file, normally mode `0600`, and the parent passes all lead and worker write roots
+to `SecurityMarkStore`. In either case the parent requests an opaque
 mark handle for the exact work item and gives that handle to
 `CyberFallbackController`. Plain JSON, a mark whose `source` is `lead` or
 `worker`, a mark inside a supplied write root, a forged handle and a spent handle
-are rejected. The recorded mark retains `marked_by`, `marked_at` and the source
-file digest.
+are rejected. The recorded mark retains `marked_by`, `marked_at` and the digest of
+the captured mark document.
 
 After Part 1 reports a structured provider safety refusal, the parent controller
 can consume the mark and make one fallback attempt. It sends the identical packet
