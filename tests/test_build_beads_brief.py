@@ -82,6 +82,26 @@ class BuildBeadsBriefTests(unittest.TestCase):
         self.assertIn("dependency", {entry["type"] for entry in brief["entries"]})
         self.assertTrue(any("rejected" in warning for warning in brief["warnings"]))
 
+    def test_subagent_review_checks_approved_inputs_after_summary_truncation(self) -> None:
+        bead = {**SAMPLE_BEAD[0], "labels": ["contract-jd-domain-web-design"],
+                "metadata": {"expert": "web_design"}, "description": "Public queue context. " * 55}
+        with patch("build_beads_brief.show_bead_json", return_value=[bead]):
+            with self.assertRaisesRegex(SystemExit, "review input.*blocked.*screen states"):
+                build_brief("cwo-1", depth="summary", audience="subagent")
+            self.assertTrue(build_brief("cwo-1", depth="summary", audience="main-thread")["entries"])
+            rows = {
+                "audience": "Queue operators",
+                "screen states": "Missing owner, partial case, and a queue with 9000 entries",
+                "content hierarchy": "Case summary precedes timing details",
+                "accessibility constraints": "Case status has a spoken label",
+                "responsive targets": "390px viewport",
+                "reader journey": "README.md#queue defines the path to the first open case",
+            }
+            bead["description"] += "\n" + "\n".join(f"Review input [{name}]: {value}" for name, value in rows.items())
+            brief = render_markdown(build_brief("cwo-1", depth="summary", audience="subagent"))
+        for expected in ["experts/web-design.md", *rows.values()]:
+            self.assertIn(expected, brief)
+
     def test_comment_bearing_contractor_brief_fails_closed(self) -> None:
         with self.assertRaises(SystemExit):
             build_brief("cwo-1", depth="focused", audience="contractor")

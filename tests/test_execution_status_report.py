@@ -88,6 +88,14 @@ def sample_convergence_summary() -> dict[str, object]:
             },
         },
         "unknown_call_records": 1,
+        "delivery_accounting": {
+            "record_counts": {"initial-delivery": 4, "correction": 2, "mixed": 1, "unknown": 5},
+            "corrective_passes": 2,
+            "first_pass": {
+                "known_deliveries": 4, "observed_attempts": 2, "first_attempt_acceptances": 1,
+                "missing_attempts": 1, "conflicting_attempts": 1, "rate_percent": None,
+            },
+        },
         "accepted": {"segments": 8, "calls": 28},
         "nonaccepted": {"segments": 4, "calls": 7},
         "preventable": {"segments": 3, "calls": 5},
@@ -859,6 +867,7 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertTrue(convergence["available"])
         self.assertEqual(convergence["source_count"], 1)
         self.assertEqual(convergence["targets"]["results"]["avoided_nonaccepted_calls"], 110)
+        self.assertEqual(convergence["delivery_accounting"], sample_convergence_summary()["delivery_accounting"])
 
         for width in (80, 120):
             rendered = render_terminal(report, width=width)
@@ -866,7 +875,29 @@ class ExecutionStatusReportTests(unittest.TestCase):
             self.assertIn("avoided 6/110", rendered)
             self.assertIn("targets", rendered)
             self.assertIn("met/met/met", rendered)
+            self.assertIn("corrective passes 2", rendered)
+            self.assertIn("initial 4  correction 2  mixed 1  unknown 5", rendered)
+            self.assertIn("missing 1  conflicting 1", rendered)
             self.assertTrue(all(len(line) <= width for line in rendered.splitlines()))
+
+        expanded = render_terminal(report, width=80, layout="expanded")
+        self.assertIn("corrective passes 2", expanded)
+        legacy = sample_convergence_summary()
+        del legacy["delivery_accounting"]
+        legacy_report = build_execution_status_report(convergence_summaries=[legacy])
+        self.assertIsNone(legacy_report["epic_convergence_summary"]["delivery_accounting"])
+
+    def test_first_pass_rate_requires_reported_coverage(self) -> None:
+        summary = sample_convergence_summary()
+        first_pass = summary["delivery_accounting"]["first_pass"]
+        first_pass["rate_percent"] = 50.0
+        report = build_execution_status_report(convergence_summaries=[summary])
+        self.assertIsNone(report["epic_convergence_summary"]["delivery_accounting"]["first_pass"]["rate_percent"])
+
+        first_pass.update(known_deliveries=2, missing_attempts=0, conflicting_attempts=0)
+        report = build_execution_status_report(convergence_summaries=[summary])
+        self.assertEqual(report["epic_convergence_summary"]["delivery_accounting"]["first_pass"]["rate_percent"], 50.0)
+        self.assertIn("first-pass 50.0%", render_terminal(report, width=80))
 
     def test_audit_fallback_preserves_missing_call_counts(self) -> None:
         report = build_execution_status_report(
@@ -964,6 +995,8 @@ class ExecutionStatusReportTests(unittest.TestCase):
         self.assertEqual(payload["result_type"], "cwo-execution-status-report")
         self.assertEqual(payload["source_counts"]["convergence_summaries"], 1)
         self.assertEqual(payload["call_category_summary"]["categories"]["productive"]["agent_model_calls"], 18)
+        self.assertEqual(payload["epic_convergence_summary"]["delivery_accounting"],
+                         sample_convergence_summary()["delivery_accounting"])
         for key in [
             "executive_summary",
             "expert_profile_utilization",

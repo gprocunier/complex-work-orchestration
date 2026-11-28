@@ -9,9 +9,9 @@ from cwo_core.host_records import using_test_store
 
 
 def provision_acceptance(store, *, bead_id, database_identity, delivery_context=None,
-                        observation_sha256=None, adjudication_identity="default"):
+                        observation_sha256=None, adjudication_identity="default", return_text=None):
     root = Path(__file__).resolve().parents[1]
-    text = (root / "examples/sample-contractor-return.md").read_text(encoding="utf-8")
+    text = (root / "examples/sample-contractor-return.md").read_text(encoding="utf-8") if return_text is None else return_text
     dispatch_id = "EXAMPLE_ACCEPTANCE_" + uuid.uuid4().hex
     metadata = {} if delivery_context is None else {'source_context': {
         **delivery_context, 'dispatch_id': dispatch_id, 'packet_sha256': '1' * 64,

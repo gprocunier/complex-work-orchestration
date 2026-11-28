@@ -65,6 +65,8 @@ class SchemaParityTests(unittest.TestCase):
             "research_evidence_signals",
             "research_evidence_signal_categories",
             "research_evidence_items",
+            "evidence_disposition",
+            "delivery_readiness",
             "research_contradictions",
             "research_reflection",
             "signal_categories",

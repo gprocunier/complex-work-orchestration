@@ -459,6 +459,7 @@ def expert_result_from_profile(
         "display_name": profile.get("display_name", name),
         "discipline": profile.get("discipline", name),
         "persona_file": profile.get("persona_file"),
+        "required_inputs": profile.get("required_inputs", []),
         "job_description_label": profile.get("job_description_label", "contract-jd-general-reasoning"),
         "task_class": profile.get("task_class", "domain-review"),
         "review_stage": profile.get("review_stage", "pre-implementation"),
@@ -1737,6 +1738,8 @@ def expert_review_metadata(expert: dict[str, Any], route: dict[str, Any]) -> dic
     contract_codex_pickup = contract.get("codex_pickup")
     metadata = {
         "expert": expert.get("name"),
+        "persona_file": expert.get("persona_file"),
+        "required_inputs": expert.get("required_inputs", []),
         "discipline": expert.get("discipline"),
         "job_description_label": expert.get("job_description_label"),
         "review_stage": expert.get("review_stage"),

@@ -104,7 +104,8 @@ Hash those bytes without a trailing newline.
 `cwo_core.peer_review.pending_evaluation_sha256` implements this encoding. The
 evaluator recomputes it before checking dispatch separation. Advisory decoration
 is applied afterward. Any change to the return or evaluated metadata requires a
-new matching review.
+new matching review. Use `evaluate_return.py --json` for the bound payload.
+`--report-json` adds evidence disposition and delivery readiness for inspection.
 
 CLI inputs are:
 

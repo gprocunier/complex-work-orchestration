@@ -66,7 +66,7 @@ def minimal_payload(index: int = 1) -> dict:
 
 
 def run_replay(inputs: list[str], *extra: str) -> dict:
-    command = ["--input", *inputs]
+    command = [argument for path in inputs for argument in ("--input", path)]
     command.extend(extra)
     buffer = io.StringIO()
     with redirect_stdout(buffer):
@@ -82,6 +82,10 @@ class EpicConvergenceTests(unittest.TestCase):
         self.assertFalse(schema["additionalProperties"])
         self.assertEqual(schema["properties"]["record_type"]["const"], ec.RECORD_TYPE)
         self.assertEqual(set(schema["required"]), set(ec.RECORD_FIELDS))
+        self.assertEqual(
+            schema["properties"]["delivery_accounting"]["properties"]["classification"]["enum"],
+            ["initial-delivery", "correction", "mixed", "unknown"],
+        )
         self.assertEqual(
             set(schema["properties"]["usage"]["oneOf"][1]["required"]),
             set(ec.USAGE_FIELDS),
@@ -305,6 +309,99 @@ class EpicConvergenceTests(unittest.TestCase):
             path.write_text(f"{lines[0]}\n{json.dumps(damaged)}\n", encoding="utf-8")
             with self.assertRaises(ValueError):
                 ec.load_records(path)
+
+    def test_replay_accounts_for_productive_accepted_corrections_in_a_legacy_chain(self) -> None:
+        legacy = dict.fromkeys(payload())
+        correction = {
+            "classification": "correction",
+            "original_ref": "delivery-1",
+            "corrective_pass_id": "pass-1",
+            "discovery_source": "peer-review",
+            "first_acceptance_outcome": "not-accepted",
+        }
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "ledger.jsonl"
+            first = ec.append_record(path, legacy)
+            prefix = path.read_bytes()
+            second = ec.append_record(path, dict(payload(2), delivery_accounting=correction))
+            ec.append_record(path, dict(payload(3), delivery_accounting=dict(
+                correction, original_ref="delivery-2", discovery_source="operator-report",
+                first_acceptance_outcome="accepted",
+            )))
+            ec.append_record(path, dict(payload(4), delivery_accounting=dict(
+                correction, classification="mixed", corrective_pass_id="pass-2",
+            )))
+            ec.append_record(path, dict(payload(5), delivery_accounting={
+                "classification": "initial-delivery", "original_ref": "delivery-2",
+                "first_acceptance_outcome": "accepted",
+            }))
+            self.assertEqual(first["record_sha256"], "e49961b0167985c798abee6e8919eb930526b6cd79101a243b0931e83f8898b8")
+            self.assertNotIn("delivery_accounting", first)
+            self.assertEqual(second["previous_record_sha256"], first["record_sha256"])
+            self.assertEqual(ec.load_records(path)[:2], [first, second])
+            original = path.read_bytes()
+            self.assertTrue(original.startswith(prefix))
+            output = run_replay([str(path)])
+            repeated = run_replay([str(path), str(path)])["delivery_accounting"]
+            self.assertEqual(path.read_bytes(), original)
+
+        accounting = output["delivery_accounting"]
+        self.assertEqual(accounting["record_counts"], {
+            "initial-delivery": 1, "correction": 2, "mixed": 1, "unknown": 1,
+        })
+        self.assertEqual(accounting["corrective_passes"], 2)
+        self.assertEqual(accounting["first_pass"], {
+            "known_deliveries": 2, "observed_attempts": 2, "first_attempt_acceptances": 1,
+            "missing_attempts": 0, "conflicting_attempts": 0, "rate_percent": 50.0,
+        })
+        self.assertEqual(repeated["corrective_passes"], accounting["corrective_passes"])
+        self.assertEqual(repeated["first_pass"], accounting["first_pass"])
+        self.assertEqual(output["accepted"], {"segments": 4, "calls": 14})
+        self.assertEqual(output["categories"]["call_totals"]["productive"], 14)
+
+    def test_replay_withholds_first_pass_rate_for_missing_or_conflicting_attempts(self) -> None:
+        initial = {"classification": "initial-delivery", "original_ref": "delivery-1"}
+        with tempfile.TemporaryDirectory() as temporary:
+            first, second = (Path(temporary) / name for name in ("past.json", "latest.json"))
+            first.write_text(json.dumps([
+                dict(payload(1), delivery_accounting=dict(initial, first_acceptance_outcome="accepted")),
+                dict(payload(2), delivery_accounting=dict(initial, original_ref="delivery-2")),
+            ]), encoding="utf-8")
+            second.write_text(json.dumps([
+                dict(payload(3), delivery_accounting=dict(initial, first_acceptance_outcome="not-accepted")),
+                dict(payload(4), delivery_accounting=dict(initial, original_ref="delivery-3", first_acceptance_outcome="accepted")),
+                payload(5),
+            ]), encoding="utf-8")
+            accounting = run_replay([str(first), str(second)])["delivery_accounting"]
+            self.assertEqual(accounting["first_pass"], {
+                "known_deliveries": 3, "observed_attempts": 1, "first_attempt_acceptances": 1,
+                "missing_attempts": 1, "conflicting_attempts": 1, "rate_percent": None,
+            })
+            accounting = run_replay([str(first)])["delivery_accounting"]
+            self.assertEqual(accounting["first_pass"]["missing_attempts"], 1)
+            self.assertIsNone(accounting["first_pass"]["rate_percent"])
+            first.write_text(json.dumps(payload(1)), encoding="utf-8")
+            accounting = run_replay([str(first)])["delivery_accounting"]
+            self.assertEqual(accounting["record_counts"]["unknown"], 1)
+            self.assertIsNone(accounting["first_pass"]["rate_percent"])
+
+    def test_correction_fields_are_required_and_covered_by_the_seal(self) -> None:
+        accounting = {
+            "classification": "correction", "original_ref": "delivery-1",
+            "corrective_pass_id": "pass-1", "discovery_source": "peer-review",
+        }
+        for field in ("original_ref", "corrective_pass_id", "discovery_source"):
+            with self.subTest(field=field), self.assertRaisesRegex(ValueError, field):
+                ec.build_record(dict(payload(), delivery_accounting={
+                    key: value for key, value in accounting.items() if key != field
+                }))
+        with tempfile.TemporaryDirectory() as temporary:
+            path = Path(temporary) / "ledger.jsonl"
+            sealed = ec.append_record(path, dict(payload(), delivery_accounting=accounting))
+            sealed["delivery_accounting"]["corrective_pass_id"] = "changed"
+            path.write_text(json.dumps(sealed), encoding="utf-8")
+            with self.assertRaisesRegex(ValueError, "record_sha256"):
+                run_replay([str(path)])
 
     def test_two_process_appends_are_serialized(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

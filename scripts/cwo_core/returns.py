@@ -121,6 +121,7 @@ __all__ = [
     "classify_patch_authorization",
     "critical_deferral_present",
     "direct_mutation_authorized",
+    "evaluation_report",
     "evidence_items_from_sections",
     "evidence_quality_thresholds",
     "executor_default_synthesis_use",
@@ -169,6 +170,7 @@ __all__ = [
     "structured_json_values",
     "typed_deferral_allowed_for_work",
     "typed_follow_up_deferral_present",
+    "unknown_delivery_readiness",
     "work_rerouting_or_subversion_reasons",
     "workspace_unexpected_mutations",
 ]
@@ -454,6 +456,17 @@ def mark_advisory_return(result: dict[str, Any]) -> None:
         result["hold_classification"] = "nonproduction-advisory"
     if result.get("recommended_synthesis_use") not in {"reject", "quarantine", "partial-only", "open-risk"}:
         result["recommended_synthesis_use"] = "open-risk"
+
+
+def unknown_delivery_readiness() -> dict[str, Any]:
+    """Represent delivery readiness when there is no usable issued observation."""
+    return {"state": "unknown", "checks": [], "observation_sha256": None}
+
+
+def evaluation_report(evaluation: dict[str, Any]) -> dict[str, Any]:
+    """Project an evaluator result for reporting without changing its bound payload."""
+    return {**evaluation, "evidence_disposition": evaluation["recommended_disposition"],
+            "delivery_readiness": unknown_delivery_readiness()}
 
 
 def make_acceptance_decision(

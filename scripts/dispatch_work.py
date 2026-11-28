@@ -40,6 +40,7 @@ from cwo_core.prepared_outbound import PreparedSource
 from cwo_core.private_artifact import PrivateArtifactError, read_private_artifact
 from cwo_core.outbound_screen import ScreenedRequest, ScreeningArgumentParser, refuse_attachments, screen_request, withheld_diagnostics
 from cwo_core.reasoning_effort import effort_arguments, failed_default_delivery
+from cwo_core.review_inputs import discover_review_issue, managed_review_profile, require_review_inputs
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import classify_work
 from cwo_core.audit import (
@@ -1288,6 +1289,12 @@ def project_local_response_payload(payload: Any) -> dict[str, Any]:
     return projected
 
 
+def dispatch_job_label(route: dict[str, Any]) -> str | None:
+    return route.get("assigned_review_job_description_label") or ((route.get("ranked_experts") or [{}])[0] or {}).get(
+        "job_description_label"
+    )
+
+
 def build_local_envelope(
     *,
     task: str,
@@ -1342,7 +1349,7 @@ def build_local_envelope(
                 f"Share boundary: {route.get('share_boundary')}\n"
                 f"Task class: {route.get('task_class')}\n"
                 f"Risk: {route.get('risk_level')}\n"
-                f"Job label: {(route.get('ranked_experts') or [{}])[0].get('job_description_label')}\n\n"
+                f"Job label: {dispatch_job_label(route)}\n\n"
                 f"Task:\n{task}"
             ),
         },
@@ -1360,7 +1367,7 @@ def build_local_envelope(
         "access_profile_details": access_profile_details,
         "access_profile_readiness": access_profile_runtime_status(access_profile_key),
         "share_boundary": route.get("share_boundary"),
-        "job_description_label": (route.get("ranked_experts") or [{}])[0].get("job_description_label"),
+        "job_description_label": dispatch_job_label(route),
         "local_profile": selected.get("local_profile"),
         "model_profile": selected.get("model_profile"),
         "expected_return_language": default_expected_return_language(),
@@ -2325,7 +2332,7 @@ def record_route_preparation(args: argparse.Namespace, route: dict[str, Any], ta
         request_sha256=request_sha256, bead_id=args.bead, executor=route['recommended_executor'],
         evaluation_metadata={
             'share_boundary': route.get('share_boundary'),
-            'job_description_label': (route.get('ranked_experts') or [{}])[0].get('job_description_label'),
+            'job_description_label': dispatch_job_label(route),
             'dispatch_mode': route['selected_executor']['dispatch_mode'],
             'peer_review_required': route.get('peer_review_required', True),
             'provider_conflict_domains': route.get('provider_conflict_domains', []),
@@ -2359,6 +2366,19 @@ def _local_workload_task(args, workload, files):
     args.epic = args.epic or route.get('aggregate_id')
     args.dispatch_id = args.dispatch_id or node['id']
     return [workload.task()]
+
+
+def require_local_review_inputs(task: str, route: dict[str, Any], bead_id: str | None) -> None:
+    if route["selected_executor"]["dispatch_mode"] not in {"local_openai_compatible", "local_secure_review"}:
+        return
+    profile = managed_review_profile(discover_review_issue(bead_id), text=task)
+    if not profile:
+        return
+    approved_task = redact_text(task, require_policy_patterns=True)
+    require_review_inputs(profile["required_inputs"], approved_task)
+    if f"Expert profile: {profile['persona_file']}" not in approved_task.splitlines():
+        raise SystemExit("review input handoff blocked; add the assigned expert profile reference to the approved task")
+    route["assigned_review_job_description_label"] = profile["job_description_label"]
 
 
 def _stage_requested_local_admission(args, workload, task, route, dispatch_id, files):
@@ -2645,6 +2665,7 @@ def _main() -> None:
         )
     if route.get("route") == "external-contract" and args.allow_raw_manual_prompt and not args.rehearsal:
         raise SystemExit("--allow-raw-manual-prompt requires --rehearsal and must not be used as production dispatch evidence")
+    require_local_review_inputs(task, route, args.bead)
     if args.allow_raw_manual_prompt:
         task = redact_text(task)
     dispatch_id = args.dispatch_id or make_dispatch_id(args.bead or "unassigned")
@@ -2718,7 +2739,7 @@ def _main() -> None:
     if audited_dispatch(args):
         selected_executor = route["selected_executor"]
         dispatch_mode = artifact["dispatch_mode"]
-        job_label = ((route.get("ranked_experts") or [{}])[0] or {}).get("job_description_label")
+        job_label = dispatch_job_label(route)
         is_local_dispatch = dispatch_mode in {"local_openai_compatible", "local_secure_review"}
         base_telemetry = telemetry_fields(
             telemetry_kind="local_dispatch" if is_local_dispatch else ("manual_dispatch" if dispatch_mode == "manual_ui" else "dispatch"),

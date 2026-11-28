@@ -373,6 +373,37 @@ class Case(unittest.TestCase):
             self.assertIn("parallel unittest: FAIL workers=1 tests=1", result.stdout)
             self.assertIn("expected failure", result.stderr)
 
+    def test_isolated_worker_imports_package_before_other_tests(self) -> None:
+        for filename in ("test_example.py", "test_qualified_closure.py"):
+            with self.subTest(filename=filename), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                tests = root / "tests"
+                inherited = root / "inherited"
+                tests.mkdir()
+                inherited.mkdir()
+                (tests / "worker_test_support.py").write_text("VALUE = 'test root'\n", encoding="utf-8")
+                (inherited / "worker_inherited_support.py").write_text("VALUE = 'inherited path'\n", encoding="utf-8")
+                (tests / filename).write_text(
+                    "from cwo_core import epic_convergence\n"
+                    "from worker_test_support import VALUE as local\n"
+                    "from worker_inherited_support import VALUE as inherited\n"
+                    "import unittest\n"
+                    "from pathlib import Path\n\n"
+                    "class Case(unittest.TestCase):\n"
+                    "    def test_imports(self):\n"
+                    "        scripts = Path(epic_convergence.__file__).resolve().parents[1]\n"
+                    f"        self.assertEqual(scripts, Path({str(SCRIPT.parent)!r}))\n"
+                    "        self.assertEqual((local, inherited), ('test root', 'inherited path'))\n",
+                    encoding="utf-8",
+                )
+                result = subprocess.run(
+                    [sys.executable, str(SCRIPT), "--workers", "1"], cwd=root,
+                    env=dict(os.environ, PYTHONPATH=str(inherited)), text=True,
+                    capture_output=True, check=False,
+                )
+                self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                self.assertIn("PASS workers=1 tests=1", result.stdout)
+
     def test_cli_rejects_nonpositive_worker_count(self) -> None:
         self._assert_discovery_failures()
         result = subprocess.run(
