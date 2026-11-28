@@ -3,11 +3,14 @@
 from __future__ import annotations
 
 from types import MethodType
-from typing import Any
+from typing import TYPE_CHECKING, Any, Mapping
 
 from cwo_core.native_pool_contracts import POOL_POLL_INTERVAL_MS
 from cwo_core.native_pool_transaction import TransactionRuntime
-from registered_pool_qualification_capability import CallbackCalibrationError
+from registered_pool_qualification_capability import CallbackCalibrationError, ConnectedCallbackCalibration, ConnectedPoolCallbackCapability
+
+if TYPE_CHECKING:
+    from registered_pool_qualification import _PoolParent
 
 
 def _require(condition: bool, reason: str) -> None:
@@ -15,7 +18,7 @@ def _require(condition: bool, reason: str) -> None:
         raise CallbackCalibrationError(reason)
 
 
-def _registered_parent(runtime: TransactionRuntime):
+def _registered_parent(runtime: TransactionRuntime) -> _PoolParent:
     from registered_pool_qualification import _PoolParent
 
     starter = runtime.start_worker_session
@@ -27,7 +30,7 @@ def _registered_parent(runtime: TransactionRuntime):
     return owner
 
 
-def _measure_original_controls(parent, observer):
+def _measure_original_controls(parent: _PoolParent, observer: ConnectedCallbackCalibration) -> ConnectedPoolCallbackCapability:
     controls = parent.controls
     _require(parent.limits.calibration_only and controls.keys() == parent.children.keys(),
              "original-writer-held-controls-required")
@@ -47,7 +50,7 @@ def _binding(control) -> dict[str, Any]:
     return {"state_file": control.contract["state_file"], "control_turn_id": control.contract["control_turn_id"]}
 
 
-def _begin_control(limits, observer, child, control):
+def _begin_control(limits, observer: ConnectedCallbackCalibration, child: str, control) -> None:
     binding = _binding(control)
     observer.observe_callback(control, "arm", **binding)
     send = limits._wrap_send(child, lambda **kwargs: observer.observe_callback(control, "send_input", **kwargs))
@@ -55,7 +58,7 @@ def _begin_control(limits, observer, child, control):
     observer.observe_callback(control, "mark_dispatched", submission_id=started["submission_id"], **binding)
 
 
-def _observe_initial_polls(controls, observer):
+def _observe_initial_polls(controls: Mapping[str, Any], observer: ConnectedCallbackCalibration) -> None:
     measured = set()
     for _ in controls:
         selected = observer.observe_scheduler()
@@ -66,7 +69,7 @@ def _observe_initial_polls(controls, observer):
         measured.add(child)
 
 
-def _await_original_contexts(controls):
+def _await_original_contexts(controls: Mapping[str, Any]) -> None:
     # Codex can acknowledge the turn before its initial context is durable.
     first = next(iter(controls.values()))
     while True:
@@ -76,7 +79,7 @@ def _await_original_contexts(controls):
         first.sleep(seconds=POOL_POLL_INTERVAL_MS / 1000)
 
 
-def _finish_control(observer, control):
+def _finish_control(observer: ConnectedCallbackCalibration, control) -> None:
     binding = _binding(control)
     # The original polling wait is outside callback and scheduler measurements.
     while True:

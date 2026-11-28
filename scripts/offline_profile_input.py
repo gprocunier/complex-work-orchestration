@@ -49,12 +49,12 @@ class InputError(ValueError):
     """A pre-effect refusal in the finite fake adapter."""
 
 
-def _need(condition, message):
+def _need(condition: bool, message: str) -> None:
     if not condition:
         raise InputError(message)
 
 
-def _encode(value):
+def _encode(value: object) -> bytes:
     return closure.validation._snapshot(value, 65536)
 
 
@@ -83,7 +83,7 @@ class OfflineProfileAdapter(admitted.native.LiveThreadAdapter):
 _PROFILE_VALIDATOR = OfflineProfileAdapter._validate_effective_boundary
 
 
-def require_original_adapter(adapter):
+def require_original_adapter(adapter: object) -> None:
     _need(type(adapter) is OfflineProfileAdapter, "The exact original or offline profile adapter is required.")
     for name, (original, static) in admitted.native._METHODS.items():
         expected = _PROFILE_VALIDATOR if name == "_validate_effective_boundary" else original
@@ -191,7 +191,7 @@ class InputGrant(_Token):
     __slots__ = ()
 
     @property
-    def report(self):
+    def report(self) -> dict[str, object]:
         with _lock:
             grant = _issued(_grants, InputGrant, self)
             return {**json.loads(grant.context), "input_sha256": hashlib.sha256(grant.chars).hexdigest(),
@@ -321,7 +321,7 @@ def _scope_binding(declaration, admission, host, adapter, contract, configuratio
             "declaration": declaration.report, "configuration_pins": admitted.native._pins(configuration_pins)}
 
 
-def _item(server, adapter):
+def _item(server, adapter: OfflineProfileAdapter) -> tuple[requests.FakeItemContext, int]:
     item = getattr(server, "offline_input_context", None)
     _need(type(item) is requests.FakeItemContext and _plain_item(item),
           "Original pre-effect fake stdin context is required.")
@@ -335,14 +335,14 @@ def _item(server, adapter):
     return item, timestamp
 
 
-def _plain_item(item):
+def _plain_item(item: requests.FakeItemContext) -> bool:
     texts = (item.epoch, item.thread_id, item.turn_id, item.item_id, item.approval_id)
     strings = (item.kind, item.method, item.command, item.cwd, item.provenance)
     return (all(requests._text(value) for value in texts)
             and all(type(value) is str for value in strings) and requests._paths(item.paths))
 
 
-def _item_record(item):
+def _item_record(item: requests.FakeItemContext) -> dict[str, object]:
     record = dataclasses.asdict(item)
     record["paths"] = list(item.paths)
     return record

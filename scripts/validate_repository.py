@@ -94,7 +94,7 @@ CWO_CORE_ALLOWED_IMPORTS = {
     "atomic_spawn": set(),
     "ownership_producer": {"process_identity"},
     "server_request_preparation": set(),
-    "access_profiles": {"codex_hook_enforcement", "policy"},
+    "access_profiles": {"codex_hook_enforcement", "errors", "policy"},
     "codex_hook_enforcement": {"errors"},
     "paths": set(),
     "util": set(),
@@ -939,75 +939,7 @@ def validate_repository() -> list[str]:
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
     validate_native_supervision_tech_preview_copy(errors)
-    for relative_path, terms in (
-        ("references/native-supervision-pools.md", [
-            "Temporary Audited Tool Boundary",
-            "intent and audit evidence, never dispatch authority",
-            "VerifiedToolEnforcementActivation",
-            "keeps its verification key and",
-            "rejected by dispatchable packet validation",
-            "scripts/run_native_pool_activation_preview.py",
-            "n1-read-only",
-            "n2-read-only",
-            "n1-mutable",
-            "--dry-run",
-            "--enable-tech-preview",
-            "verifies the clean commit/tree",
-            "without consuming the approval",
-            "exits 1 and reports its refusal on stderr",
-            "Archived activation procedure",
-            "run_admitted_native_pool",
-            "version-2 admitted contract passed directly",
-            "admitted-pool-launcher-required",
-            "capability_receipt=capability_receipt",
-            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41",
-            "Generation8FiniteDagContractTests",
-            "test_neutral_steering_is_strict_write_with_compatible_v1_read",
-        ]),
-        ("references/native-live-route-holds.md", [
-            "Historical campaign verification",
-            "7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/cwo_core/native_campaign_history.py",
-            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41/scripts/cwo_core/native_canary_contracts.py",
-        ]),
-        ("references/execution-environments.md", [
-            "--tool-enforcement-override",
-            "audit-only intent",
-            "cannot start `supervise_native_worker.py`",
-            "Live execution is retired.",
-            "--dry-run",
-            "--enable-tech-preview",
-            "One supervised worker remains the standard path",
-            "Running two or three workers concurrently is an experimental Tech Preview",
-            "productive admission-bound",
-            "run_admitted_native_pool",
-            "Capacity four and above is blocked",
-            "Native Worker Supervision",
-            "Native Supervision Pools",
-        ]),
-        ("references/native-supervision.md", [
-            "Single-worker execution is the default",
-            "fresh Spark session with trusted model attestation",
-            "version-2 native worker packet",
-            "single-worker supervisor armed before task submission",
-            "one uninterrupted control turn",
-            "The packet's `scope.workdir` is the authoritative working directory",
-            "A check that returns exit code `2` means interrupt or control loss",
-            "group of two or three workers through the [registered contained pool]",
-            "Two workers",
-            "Three workers",
-            "Four or more",
-            "run_admitted_native_pool",
-            "Exact server-side tool allowlisting",
-            "--enable-tech-preview",
-        ]),
-        ('docs/reference.html', [
-            "id=\"activation-artifacts\"",
-            "references/native-supervision-pools.md",
-            "current",
-            "historical",
-        ]),
-    ):
-        require_doc_terms(errors, relative_path, terms)
+    _validate_native_reference_docs(errors)
     validate_closure_pressure_contract(errors)
 
     validate_policy_validation_boundaries(errors)
@@ -1430,6 +1362,421 @@ def validate_repository() -> list[str]:
     for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
         errors.append(f"sample-run-readiness-plan.json: {error}")
 
+    _validate_public_entry_docs(errors)
+    _validate_reference_and_template_docs(errors)
+    validate_waiver_conventions(errors)
+
+    validate_ci_workflow(errors)
+
+    return errors
+
+
+def validate_qualification_target(errors: list[str]) -> None:
+    """Resolve the selected target through the same boundary used by consumers."""
+    try:
+        qualification_target.selected_target()
+    except qualification_target.TargetError as exc:
+        errors.append(f"qualification-target: {exc}")
+
+
+def validate_policy_validation_boundaries(errors: list[str], policy_dir: Path = POLICY_DIR) -> None:
+    """Every policy parses, matches its registered schema, and has a recorded validation boundary."""
+    present = {path.name for path in policy_dir.glob("*.yaml")}
+    for name in sorted(present):
+        try:
+            value = load_json_compatible_yaml(policy_dir / name)
+        except SystemExit as exc:
+            errors.append(str(exc))
+            continue
+        try:
+            schema_errors = policy_document_errors(name, value)
+        except SystemExit as exc:
+            errors.append(str(exc))
+            continue
+        errors.extend(f"policy/{name} does not match schemas/{POLICY_SCHEMAS[name]}: {error}" for error in schema_errors)
+        if name not in POLICY_VALIDATION_BOUNDARIES:
+            errors.append(f"policy/{name} has no recorded validation boundary in cwo_core.policy_schema")
+    for name, (kind, _detail) in sorted(POLICY_VALIDATION_BOUNDARIES.items()):
+        if name not in present:
+            errors.append(f"validation boundary recorded for missing policy/{name}")
+        if (kind == "schema") != (name in POLICY_SCHEMAS):
+            errors.append(f"policy/{name} validation boundary {kind!r} disagrees with the registered schemas")
+    for name in sorted(set(POLICY_SCHEMAS) - present):
+        errors.append(f"schema registered for missing policy/{name}")
+
+
+def validate_preferred_native_model(
+    errors: list[str], native: dict[str, Any], model_roles: dict[str, Any],
+) -> None:
+    worker = native.get("governance", {}).get("native_operative_worker", {})
+    expected = model_roles["roles"]["luna"]["current"]
+    if worker.get("preferred_model") != expected:
+        errors.append("native-worker-execution governance.native_operative_worker.preferred_model must match "
+                      f"model-roles roles.luna.current ({expected!r})")
+
+
+def validate_sabotage_threshold_mirrors(
+    errors: list[str], controls: dict[str, Any], acceptance: dict[str, Any], peer_review: dict[str, Any],
+) -> None:
+    production = controls["sabotage_policy"]["thresholds"]
+    mirrors = (
+        ("acceptance-policy sabotage.thresholds", acceptance.get("sabotage", {}).get("thresholds", {}),
+         {"review": "peer_review", "architect_escalation": "architect_escalation", "quarantine": "quarantine"}),
+        ("peer-review-policy sabotage_thresholds", peer_review["sabotage_thresholds"],
+         {"review": "peer_review", "quarantine": "quarantine"}),
+    )
+    for name, thresholds, fields in mirrors:
+        for mirror_field, production_field in fields.items():
+            expected = production[production_field]
+            if thresholds.get(mirror_field) != expected:
+                errors.append(f"{name}.{mirror_field} must match contracting-controls "
+                              f"sabotage_policy.thresholds.{production_field} ({expected})")
+
+
+def validate_cwo_core_contract(errors: list[str]) -> None:
+    core_dir = REPO_ROOT / "scripts" / "cwo_core"
+    legacy_name = "orchestration" + "_lib"
+    old_module = REPO_ROOT / "scripts" / f"{legacy_name}.py"
+    if old_module.exists():
+        errors.append("legacy monolith file remains under scripts/")
+
+    for directory in [REPO_ROOT / "scripts", REPO_ROOT / "tests"]:
+        for path in sorted(directory.rglob("*.py")):
+            text = path.read_text(encoding="utf-8")
+            if legacy_name in text:
+                errors.append(f"legacy monolith reference remains in {path.relative_to(REPO_ROOT)}")
+
+    for module_name in CWO_CORE_ALLOWED_IMPORTS:
+        module_path = cwo_core_module_path(core_dir, module_name)
+        if not module_path.is_file():
+            errors.append(f"missing cwo_core module: {module_path.relative_to(REPO_ROOT)}")
+
+    # Subpackages are covered too: a module under scripts/cwo_core/<package>/ is
+    # named by its dotted path and needs its own allowlist entry.
+    for path in sorted(core_dir.rglob("*.py")):
+        if path == core_dir / "__init__.py":
+            continue
+        module_name = cwo_core_module_name(core_dir, path)
+        allowed = CWO_CORE_ALLOWED_IMPORTS.get(module_name)
+        if allowed is None:
+            errors.append(f"unexpected cwo_core module: {path.relative_to(REPO_ROOT)}")
+            continue
+        try:
+            tree = ast.parse(path.read_text(encoding="utf-8"))
+        except SyntaxError as exc:
+            errors.append(f"{path.relative_to(REPO_ROOT)} has invalid Python syntax: {exc}")
+            continue
+        for node in ast.walk(tree):
+            for imported in cwo_core_import_targets(
+                node,
+                module_name,
+                is_package=path.name == "__init__.py",
+                known=CWO_CORE_ALLOWED_IMPORTS,
+            ):
+                if imported != module_name and imported not in allowed:
+                    errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
+
+
+def cwo_core_module_name(core_dir: Path, path: Path) -> str:
+    """Dotted name below ``cwo_core`` (``routing``, ``supervision.transport``)."""
+
+    parts = path.relative_to(core_dir).with_suffix("").parts
+    if parts[-1] == "__init__":
+        parts = parts[:-1]
+    return ".".join(parts)
+
+
+def cwo_core_module_path(core_dir: Path, module_name: str) -> Path:
+    module_path = core_dir.joinpath(*module_name.split("."))
+    if module_path.is_dir():
+        return module_path / "__init__.py"
+    return module_path.with_name(module_path.name + ".py")
+
+
+def _import_from_core_base(node: ast.ImportFrom, module_name: str, is_package: bool) -> list[str] | None:
+    module_parts = node.module.split(".") if node.module else []
+    if node.level == 0:
+        return module_parts[1:] if module_parts and module_parts[0] == "cwo_core" else None
+    package = module_name.split(".") if is_package else module_name.split(".")[:-1]
+    if node.level - 1 > len(package):
+        return ["<outside cwo_core>"]
+    return package[:len(package) - (node.level - 1)] + module_parts
+
+
+def cwo_core_import_targets(
+    node: ast.AST,
+    module_name: str,
+    *,
+    is_package: bool,
+    known: dict[str, set[str]],
+) -> set[str]:
+    """Return the cwo_core modules one import statement depends on.
+
+    A target is named by its longest dotted prefix that is a known module, so
+    ``cwo_core.routing.classify_work`` is ``routing`` and
+    ``cwo_core.supervision.transport.app_server`` is itself; an unknown target
+    is named by its first component. Relative imports
+    resolve from the importing module's package; one that climbs above
+    ``cwo_core`` is reported as ``<outside cwo_core>``.
+    """
+
+    candidates: list[list[str]] = []
+    if isinstance(node, ast.Import):
+        for alias in node.names:
+            parts = alias.name.split(".")
+            if parts[0] == "cwo_core" and len(parts) > 1:
+                candidates.append(parts[1:])
+    elif isinstance(node, ast.ImportFrom):
+        base = _import_from_core_base(node, module_name, is_package)
+        if base is None:
+            return set()
+        if base:
+            candidates.append(base)
+        for alias in node.names:
+            if alias.name != "*":
+                candidates.append(base + [alias.name])
+    targets: set[str] = set()
+    for parts in candidates:
+        prefixes = [".".join(parts[:end]) for end in range(len(parts), 0, -1)]
+        targets.add(next((prefix for prefix in prefixes if prefix in known), parts[0]))
+    return targets
+
+
+def _ci_job_block(ci: str, job: str) -> str:
+    blocks = re.findall(r"^  " + re.escape(job) + r":\n(.*?)(?=^  [\w-]+:|\Z)", ci,
+                        flags=re.MULTILINE | re.DOTALL)
+    return blocks[0] if len(blocks) == 1 else ""
+
+
+def _ci_required_lines(block: str, lines: tuple[str, ...]) -> bool:
+    return all(len(re.findall("^" + re.escape(line) + "$", block, re.MULTILINE)) == 1
+               for line in lines)
+
+
+def _ci_exact_job_section(block: str, name: str, expected: str) -> bool:
+    """Compare the entire section up to the next job key, not just its prefix."""
+    sections = re.findall(r"^    " + re.escape(name) + r":\n.*?(?=^    \S|\Z)", block,
+                          flags=re.MULTILINE | re.DOTALL)
+    return sections == [expected]
+
+
+def _ci_step(job: str, label: str) -> list[str]:
+    return re.findall(r"^      - " + label + r"\n(.*?)(?=^      - |\Z)", job,
+                      flags=re.MULTILINE | re.DOTALL)
+
+
+def _validate_ci_unit_shards(errors: list[str], ci: str) -> None:
+    job = _ci_job_block(ci, "test")
+    strategy = ("    strategy:\n      fail-fast: false\n"
+                "      matrix:\n        python-version: ['3.12', '3.14']\n"
+                "        shard: [0, 1, 2, 3]\n")
+    required = (
+        "    name: unit-tests (Python ${{ matrix.python-version }}, ${{ matrix.shard }}/4)",
+        "    env:\n      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}\n      CWO_TEST_SHARD_COUNT: 4",
+    )
+    units = _ci_step(job, "name: Unit tests")
+    setup = _ci_step(job, r"uses: actions/setup-python@[^\n]+")
+    checkout_count = len(re.findall(r"^      - uses: actions/checkout@", job, re.MULTILINE))
+    if (not _ci_required_lines(job, required) or not _ci_exact_job_section(job, "strategy", strategy)
+            or setup != ["        with:\n          python-version: ${{ matrix.python-version }}\n"]
+            or [step.strip("\n") for step in units] != ["        run: " + CI_UNIT_TEST_COMMAND]
+            or checkout_count != 1
+            or re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE)):
+        errors.append("CI unit shards must cover 0..3/4 on Python 3.12 and 3.14 with unconditional steps")
+
+
+def _validate_ci_test_aggregate(errors: list[str], ci: str) -> None:
+    job = _ci_job_block(ci, "test-result")
+    required = (
+        "    name: test", "    needs: [test, quality, codex-protocol-contract]", "    if: ${{ always() }}",
+        "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n"
+        "      QUALITY_RESULT: ${{ needs.quality.result }}\n"
+        "      CODEX_PROTOCOL_RESULT: ${{ needs.codex-protocol-contract.result }}",
+    )
+    steps = ('    steps:\n      - name: Require all unit test shards, quality checks and Codex protocol contracts\n'
+             '        run: test "$UNIT_TEST_RESULT" = success && test "$QUALITY_RESULT" = success'
+             ' && test "$CODEX_PROTOCOL_RESULT" = success')
+    if (not _ci_required_lines(job, required) or not job.rstrip().endswith(steps)
+            or re.search(r"^    continue-on-error:", job, re.MULTILINE)):
+        errors.append("CI test aggregate must always require success from unit shards, quality and Codex contracts")
+
+
+def _ci_top_level_section(workflow: str, name: str) -> list[str]:
+    pattern = rf"^{re.escape(name)}:\n(.*?)(?=^\S|\Z)"
+    return [section.strip() for section in re.findall(pattern, workflow, re.MULTILINE | re.DOTALL)]
+
+
+def _ci_codex_contract_steps(job: str, package: str) -> bool:
+    install = rf"^(?: {{6}}- run: | {{10}})npm install\b[^\n]* {re.escape(package)}(?: +\#.*)?$"
+    return (_ci_required_lines(job, (f"        run: {CI_CODEX_CONTRACT_COMMAND}",))
+            and re.search(install, job, re.MULTILINE) is not None
+            and not re.search(r"^ +(?:if|continue-on-error|permissions):", job, re.MULTILINE))
+
+
+def _validate_ci_codex_contracts(errors: list[str], ci: str) -> None:
+    job = _ci_job_block(ci, "codex-protocol-contract")
+    strategy = ("    strategy:\n      fail-fast: false\n      matrix:\n"
+                "        codex-version: ['0.163.0', '0.171.0']\n")
+    env = "    env:\n      CODEX_VERSION: ${{ matrix.codex-version }}\n"
+    if (not re.search(r"^  pull_request:\s*$", ci, re.MULTILINE)
+            or _ci_top_level_section(ci, "permissions") != ["contents: read"]
+            or not _ci_exact_job_section(job, "strategy", strategy)
+            or not _ci_exact_job_section(job, "env", env)
+            or not _ci_codex_contract_steps(job, '"@openai/codex@$CODEX_VERSION"')):
+        errors.append("CI Codex protocol contract must run for released 0.163.0 and 0.171.0")
+
+
+def _validate_weekly_codex_contract(errors: list[str]) -> None:
+    path = REPO_ROOT / ".github" / "workflows" / "codex-protocol-latest.yml"
+    if not path.is_file():
+        errors.append("Weekly Codex protocol contract workflow is missing")
+        return
+    workflow = path.read_text(encoding="utf-8")
+    events = _ci_top_level_section(workflow, "on")
+    week = r"schedule:\n    - cron: '[0-5]?\d (?:[01]?\d|2[0-3]) \* \* [0-6]'"
+    job = _ci_job_block(workflow, "codex-protocol-contract")
+    if (len(events) != 1 or re.fullmatch(week, events[0]) is None
+            or _ci_top_level_section(workflow, "permissions") != ["contents: read"]
+            or not _ci_required_lines(job, ("          persist-credentials: false",))
+            or not _ci_codex_contract_steps(job, "@openai/codex@latest")):
+        errors.append("Weekly Codex protocol contract must use the scheduled, read-only latest release check")
+
+
+def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:
+    path = ci_path or REPO_ROOT / ".github" / "workflows" / "ci.yml"
+    if not path.is_file():
+        return
+    ci = path.read_text(encoding="utf-8")
+    _validate_ci_unit_shards(errors, ci)
+    _validate_ci_test_aggregate(errors, ci)
+    _validate_ci_codex_contracts(errors, ci)
+    _validate_weekly_codex_contract(errors)
+    for term in CI_REQUIRED_COMMANDS:
+        if term not in ci:
+            errors.append(f"CI workflow is missing required command: {term}")
+    for workflow_path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
+        content = workflow_path.read_text(encoding="utf-8")
+        for match in re.finditer(r"uses:\s*([\w.-]+/[\w.-]+)(?:/[^@\s]+)?@([^\s]+)(?:\s+#\s*(\S+))?", content):
+            action, reference, comment = match.groups()
+            base = action if action in APPROVED_ACTION_PINS else action.split("/", 2)[0] + "/" + action.split("/", 2)[1]
+            expected = APPROVED_ACTION_PINS.get(base)
+            if expected is None:
+                errors.append(f"workflow uses unknown action: {action}")
+            elif reference != expected[0] or comment != expected[1] or len(reference) != 40:
+                errors.append(f"workflow action pin is invalid: {action}@{reference}")
+    if "contents: read" not in ci or "cancel-in-progress: true" not in ci:
+        errors.append("CI workflow is missing least privilege or cancellable concurrency")
+    if "timeout-minutes:" not in ci or "codeql:" not in ci or "shellcheck:" not in ci:
+        errors.append("CI workflow is missing timeout, CodeQL, or ShellCheck controls")
+
+
+def require_schema_properties(
+    errors: list[str],
+    *,
+    schema_name: str,
+    schema: dict[str, Any],
+    properties: list[str],
+) -> None:
+    available = set(schema.get("properties", {}))
+    missing = sorted(set(properties) - available)
+    if missing:
+        errors.append(f"schema {schema_name} is missing properties: {', '.join(missing)}")
+
+
+def _require_schema_file_properties(
+    errors: list[str], requirements: dict[str, list[str]], *, check_required: bool = False
+) -> None:
+    for schema_name, properties in requirements.items():
+        schema = load_json(REPO_ROOT / "schemas" / schema_name)
+        require_schema_properties(errors, schema_name=schema_name, schema=schema, properties=properties)
+        if check_required:
+            missing_required = sorted(set(properties) - set(schema.get("required", [])))
+            if missing_required:
+                errors.append(f"schema {schema_name} does not require properties: {', '.join(missing_required)}")
+
+
+def _require_runtime_schema_fields(
+    errors: list[str], label: str, schema: dict[str, Any], fields: list[str],
+) -> None:
+    required = set(schema.get("required", []))
+    missing = sorted(set(fields) - required)
+    if missing:
+        errors.append(f"{label} schema is missing runtime required fields: {', '.join(missing)}")
+
+
+def _validate_native_reference_docs(errors: list[str]) -> None:
+    for relative_path, terms in (
+        ("references/native-supervision-pools.md", [
+            "Temporary Audited Tool Boundary",
+            "intent and audit evidence, never dispatch authority",
+            "VerifiedToolEnforcementActivation",
+            "keeps its verification key and",
+            "rejected by dispatchable packet validation",
+            "scripts/run_native_pool_activation_preview.py",
+            "n1-read-only",
+            "n2-read-only",
+            "n1-mutable",
+            "--dry-run",
+            "--enable-tech-preview",
+            "verifies the clean commit/tree",
+            "without consuming the approval",
+            "exits 1 and reports its refusal on stderr",
+            "Archived activation procedure",
+            "run_admitted_native_pool",
+            "version-2 admitted contract passed directly",
+            "admitted-pool-launcher-required",
+            "capability_receipt=capability_receipt",
+            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41",
+            "Generation8FiniteDagContractTests",
+            "test_neutral_steering_is_strict_write_with_compatible_v1_read",
+        ]),
+        ("references/native-live-route-holds.md", [
+            "Historical campaign verification",
+            "7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/cwo_core/native_campaign_history.py",
+            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41/scripts/cwo_core/native_canary_contracts.py",
+        ]),
+        ("references/execution-environments.md", [
+            "--tool-enforcement-override",
+            "audit-only intent",
+            "cannot start `supervise_native_worker.py`",
+            "Live execution is retired.",
+            "--dry-run",
+            "--enable-tech-preview",
+            "One supervised worker remains the standard path",
+            "Running two or three workers concurrently is an experimental Tech Preview",
+            "productive admission-bound",
+            "run_admitted_native_pool",
+            "Capacity four and above is blocked",
+            "Native Worker Supervision",
+            "Native Supervision Pools",
+        ]),
+        ("references/native-supervision.md", [
+            "Single-worker execution is the default",
+            "fresh Spark session with trusted model attestation",
+            "version-2 native worker packet",
+            "single-worker supervisor armed before task submission",
+            "one uninterrupted control turn",
+            "The packet's `scope.workdir` is the authoritative working directory",
+            "A check that returns exit code `2` means interrupt or control loss",
+            "group of two or three workers through the [registered contained pool]",
+            "Two workers",
+            "Three workers",
+            "Four or more",
+            "run_admitted_native_pool",
+            "Exact server-side tool allowlisting",
+            "--enable-tech-preview",
+        ]),
+        ('docs/reference.html', [
+            "id=\"activation-artifacts\"",
+            "references/native-supervision-pools.md",
+            "current",
+            "historical",
+        ]),
+    ):
+        require_doc_terms(errors, relative_path, terms)
+
+
+def _validate_public_entry_docs(errors: list[str]) -> None:
     for relative_path, terms in (
         ('README.md', [
             "CWO is a Codex skill",
@@ -1808,12 +2155,24 @@ def validate_repository() -> list[str]:
     skill_path = REPO_ROOT / "SKILL.md"
     if skill_path.is_file():
         skill_content = skill_path.read_text(encoding="utf-8")
-        skill_lines = skill_content.splitlines()
-        skill_words = skill_content.split()
-        if len(skill_lines) > 220:
-            errors.append(f"SKILL.md should stay router-sized: {len(skill_lines)} lines > 220")
-        if len(skill_words) > 1600:
-            errors.append(f"SKILL.md should stay router-sized: {len(skill_words)} words > 1600")
+        line_count, word_count = len(skill_content.splitlines()), len(skill_content.split())
+        for count, unit, limit in ((line_count, "lines", 220), (word_count, "words", 1600)):
+            if count > limit:
+                errors.append(f"SKILL.md should stay router-sized: {count} {unit} > {limit}")
+
+
+def _validate_reference_and_template_docs(errors: list[str]) -> None:
+    closure_terms = (
+        "closure-memory",
+        "who was involved",
+        "what changed",
+        "how validated",
+        "when closed",
+        "where executed",
+        "evidence",
+        "residual risk",
+        "follow-up",
+    )
     for relative_path, terms in (
         ("references/redhat-expert-catalog.md", [
             "contract-jd-redhat-openshift-platform",
@@ -1974,34 +2333,16 @@ def validate_repository() -> list[str]:
             "Agreement is evidence, not validation",
             "policy/zero-trust-consensus-policy.yaml",
         ]),
-    ):
-        require_doc_terms(errors, relative_path, terms)
-    for template_path in [
-        "templates/work-task.md",
-        "templates/review-task.md",
-        "templates/external-contract.md",
-        "templates/contractor-evaluation.md",
-        "templates/acceptance-decision.md",
-        "templates/followup-task.md",
-        "templates/local-worker-task.md",
-        "templates/epic.md",
-    ]:
-        require_doc_terms(
-            errors,
-            template_path,
-            [
-                "closure-memory",
-                "who was involved",
-                "what changed",
-                "how validated",
-                "when closed",
-                "where executed",
-                "evidence",
-                "residual risk",
-                "follow-up",
-            ],
-        )
-    for relative_path, terms in (
+        *((path, list(closure_terms)) for path in (
+            "templates/work-task.md",
+            "templates/review-task.md",
+            "templates/external-contract.md",
+            "templates/contractor-evaluation.md",
+            "templates/acceptance-decision.md",
+            "templates/followup-task.md",
+            "templates/local-worker-task.md",
+            "templates/epic.md",
+        )),
         ("templates/followup-task.md", ["closure summary"]),
         ("experts/editor.md", [
             "Editor Distinguished Engineer",
@@ -2039,344 +2380,6 @@ def validate_repository() -> list[str]:
         require_doc_terms(errors, relative_path, terms)
     validate_local_inference_peer_review_guidance(errors)
     validate_public_docs_do_not_expose_hardware_categories(errors)
-    validate_waiver_conventions(errors)
-
-    validate_ci_workflow(errors)
-
-    return errors
-
-
-def validate_qualification_target(errors: list[str]) -> None:
-    """Resolve the selected target through the same boundary used by consumers."""
-    try:
-        qualification_target.selected_target()
-    except qualification_target.TargetError as exc:
-        errors.append(f"qualification-target: {exc}")
-
-
-def validate_policy_validation_boundaries(errors: list[str], policy_dir: Path = POLICY_DIR) -> None:
-    """Every policy parses, matches its registered schema, and has a recorded validation boundary."""
-    present = {path.name for path in policy_dir.glob("*.yaml")}
-    for name in sorted(present):
-        try:
-            value = load_json_compatible_yaml(policy_dir / name)
-        except SystemExit as exc:
-            errors.append(str(exc))
-            continue
-        try:
-            schema_errors = policy_document_errors(name, value)
-        except SystemExit as exc:
-            errors.append(str(exc))
-            continue
-        errors.extend(f"policy/{name} does not match schemas/{POLICY_SCHEMAS[name]}: {error}" for error in schema_errors)
-        if name not in POLICY_VALIDATION_BOUNDARIES:
-            errors.append(f"policy/{name} has no recorded validation boundary in cwo_core.policy_schema")
-    for name, (kind, _detail) in sorted(POLICY_VALIDATION_BOUNDARIES.items()):
-        if name not in present:
-            errors.append(f"validation boundary recorded for missing policy/{name}")
-        if (kind == "schema") != (name in POLICY_SCHEMAS):
-            errors.append(f"policy/{name} validation boundary {kind!r} disagrees with the registered schemas")
-    for name in sorted(set(POLICY_SCHEMAS) - present):
-        errors.append(f"schema registered for missing policy/{name}")
-
-
-def validate_preferred_native_model(
-    errors: list[str], native: dict[str, Any], model_roles: dict[str, Any],
-) -> None:
-    worker = native.get("governance", {}).get("native_operative_worker", {})
-    expected = model_roles["roles"]["luna"]["current"]
-    if worker.get("preferred_model") != expected:
-        errors.append("native-worker-execution governance.native_operative_worker.preferred_model must match "
-                      f"model-roles roles.luna.current ({expected!r})")
-
-
-def validate_sabotage_threshold_mirrors(
-    errors: list[str], controls: dict[str, Any], acceptance: dict[str, Any], peer_review: dict[str, Any],
-) -> None:
-    production = controls["sabotage_policy"]["thresholds"]
-    mirrors = (
-        ("acceptance-policy sabotage.thresholds", acceptance.get("sabotage", {}).get("thresholds", {}),
-         {"review": "peer_review", "architect_escalation": "architect_escalation", "quarantine": "quarantine"}),
-        ("peer-review-policy sabotage_thresholds", peer_review["sabotage_thresholds"],
-         {"review": "peer_review", "quarantine": "quarantine"}),
-    )
-    for name, thresholds, fields in mirrors:
-        for mirror_field, production_field in fields.items():
-            expected = production[production_field]
-            if thresholds.get(mirror_field) != expected:
-                errors.append(f"{name}.{mirror_field} must match contracting-controls "
-                              f"sabotage_policy.thresholds.{production_field} ({expected})")
-
-
-def validate_cwo_core_contract(errors: list[str]) -> None:
-    core_dir = REPO_ROOT / "scripts" / "cwo_core"
-    legacy_name = "orchestration" + "_lib"
-    old_module = REPO_ROOT / "scripts" / f"{legacy_name}.py"
-    if old_module.exists():
-        errors.append("legacy monolith file remains under scripts/")
-
-    for directory in [REPO_ROOT / "scripts", REPO_ROOT / "tests"]:
-        for path in sorted(directory.rglob("*.py")):
-            text = path.read_text(encoding="utf-8")
-            if legacy_name in text:
-                errors.append(f"legacy monolith reference remains in {path.relative_to(REPO_ROOT)}")
-
-    for module_name in CWO_CORE_ALLOWED_IMPORTS:
-        module_path = cwo_core_module_path(core_dir, module_name)
-        if not module_path.is_file():
-            errors.append(f"missing cwo_core module: {module_path.relative_to(REPO_ROOT)}")
-
-    # Subpackages are covered too: a module under scripts/cwo_core/<package>/ is
-    # named by its dotted path and needs its own allowlist entry.
-    for path in sorted(core_dir.rglob("*.py")):
-        if path == core_dir / "__init__.py":
-            continue
-        module_name = cwo_core_module_name(core_dir, path)
-        allowed = CWO_CORE_ALLOWED_IMPORTS.get(module_name)
-        if allowed is None:
-            errors.append(f"unexpected cwo_core module: {path.relative_to(REPO_ROOT)}")
-            continue
-        try:
-            tree = ast.parse(path.read_text(encoding="utf-8"))
-        except SyntaxError as exc:
-            errors.append(f"{path.relative_to(REPO_ROOT)} has invalid Python syntax: {exc}")
-            continue
-        for node in ast.walk(tree):
-            for imported in cwo_core_import_targets(
-                node,
-                module_name,
-                is_package=path.name == "__init__.py",
-                known=CWO_CORE_ALLOWED_IMPORTS,
-            ):
-                if imported != module_name and imported not in allowed:
-                    errors.append(f"cwo_core dependency violation: {module_name} imports {imported}")
-
-
-def cwo_core_module_name(core_dir: Path, path: Path) -> str:
-    """Dotted name below ``cwo_core`` (``routing``, ``supervision.transport``)."""
-
-    parts = path.relative_to(core_dir).with_suffix("").parts
-    if parts[-1] == "__init__":
-        parts = parts[:-1]
-    return ".".join(parts)
-
-
-def cwo_core_module_path(core_dir: Path, module_name: str) -> Path:
-    module_path = core_dir.joinpath(*module_name.split("."))
-    if module_path.is_dir():
-        return module_path / "__init__.py"
-    return module_path.with_name(module_path.name + ".py")
-
-
-def _import_from_core_base(node: ast.ImportFrom, module_name: str, is_package: bool) -> list[str] | None:
-    module_parts = node.module.split(".") if node.module else []
-    if node.level == 0:
-        return module_parts[1:] if module_parts and module_parts[0] == "cwo_core" else None
-    package = module_name.split(".") if is_package else module_name.split(".")[:-1]
-    if node.level - 1 > len(package):
-        return ["<outside cwo_core>"]
-    return package[:len(package) - (node.level - 1)] + module_parts
-
-
-def cwo_core_import_targets(
-    node: ast.AST,
-    module_name: str,
-    *,
-    is_package: bool,
-    known: dict[str, set[str]],
-) -> set[str]:
-    """Return the cwo_core modules one import statement depends on.
-
-    A target is named by its longest dotted prefix that is a known module, so
-    ``cwo_core.routing.classify_work`` is ``routing`` and
-    ``cwo_core.supervision.transport.app_server`` is itself; an unknown target
-    is named by its first component. Relative imports
-    resolve from the importing module's package; one that climbs above
-    ``cwo_core`` is reported as ``<outside cwo_core>``.
-    """
-
-    candidates: list[list[str]] = []
-    if isinstance(node, ast.Import):
-        for alias in node.names:
-            parts = alias.name.split(".")
-            if parts[0] == "cwo_core" and len(parts) > 1:
-                candidates.append(parts[1:])
-    elif isinstance(node, ast.ImportFrom):
-        base = _import_from_core_base(node, module_name, is_package)
-        if base is None:
-            return set()
-        if base:
-            candidates.append(base)
-        for alias in node.names:
-            if alias.name != "*":
-                candidates.append(base + [alias.name])
-    targets: set[str] = set()
-    for parts in candidates:
-        prefixes = [".".join(parts[:end]) for end in range(len(parts), 0, -1)]
-        targets.add(next((prefix for prefix in prefixes if prefix in known), parts[0]))
-    return targets
-
-
-def _ci_job_block(ci: str, job: str) -> str:
-    blocks = re.findall(r"^  " + re.escape(job) + r":\n(.*?)(?=^  [\w-]+:|\Z)", ci,
-                        flags=re.MULTILINE | re.DOTALL)
-    return blocks[0] if len(blocks) == 1 else ""
-
-
-def _ci_required_lines(block: str, lines: tuple[str, ...]) -> bool:
-    return all(len(re.findall("^" + re.escape(line) + "$", block, re.MULTILINE)) == 1
-               for line in lines)
-
-
-def _ci_exact_job_section(block: str, name: str, expected: str) -> bool:
-    """Compare the entire section up to the next job key, not just its prefix."""
-    sections = re.findall(r"^    " + re.escape(name) + r":\n.*?(?=^    \S|\Z)", block,
-                          flags=re.MULTILINE | re.DOTALL)
-    return sections == [expected]
-
-
-def _ci_step(job: str, label: str) -> list[str]:
-    return re.findall(r"^      - " + label + r"\n(.*?)(?=^      - |\Z)", job,
-                      flags=re.MULTILINE | re.DOTALL)
-
-
-def _validate_ci_unit_shards(errors: list[str], ci: str) -> None:
-    job = _ci_job_block(ci, "test")
-    strategy = ("    strategy:\n      fail-fast: false\n"
-                "      matrix:\n        python-version: ['3.12', '3.14']\n"
-                "        shard: [0, 1, 2, 3]\n")
-    required = (
-        "    name: unit-tests (Python ${{ matrix.python-version }}, ${{ matrix.shard }}/4)",
-        "    env:\n      CWO_TEST_SHARD_INDEX: ${{ matrix.shard }}\n      CWO_TEST_SHARD_COUNT: 4",
-    )
-    units = _ci_step(job, "name: Unit tests")
-    setup = _ci_step(job, r"uses: actions/setup-python@[^\n]+")
-    checkout_count = len(re.findall(r"^      - uses: actions/checkout@", job, re.MULTILINE))
-    if (not _ci_required_lines(job, required) or not _ci_exact_job_section(job, "strategy", strategy)
-            or setup != ["        with:\n          python-version: ${{ matrix.python-version }}\n"]
-            or [step.strip("\n") for step in units] != ["        run: " + CI_UNIT_TEST_COMMAND]
-            or checkout_count != 1
-            or re.search(r"^    (?:if|continue-on-error):", job, re.MULTILINE)):
-        errors.append("CI unit shards must cover 0..3/4 on Python 3.12 and 3.14 with unconditional steps")
-
-
-def _validate_ci_test_aggregate(errors: list[str], ci: str) -> None:
-    job = _ci_job_block(ci, "test-result")
-    required = (
-        "    name: test", "    needs: [test, quality, codex-protocol-contract]", "    if: ${{ always() }}",
-        "    env:\n      UNIT_TEST_RESULT: ${{ needs.test.result }}\n"
-        "      QUALITY_RESULT: ${{ needs.quality.result }}\n"
-        "      CODEX_PROTOCOL_RESULT: ${{ needs.codex-protocol-contract.result }}",
-    )
-    steps = ('    steps:\n      - name: Require all unit test shards, quality checks and Codex protocol contracts\n'
-             '        run: test "$UNIT_TEST_RESULT" = success && test "$QUALITY_RESULT" = success'
-             ' && test "$CODEX_PROTOCOL_RESULT" = success')
-    if (not _ci_required_lines(job, required) or not job.rstrip().endswith(steps)
-            or re.search(r"^    continue-on-error:", job, re.MULTILINE)):
-        errors.append("CI test aggregate must always require success from unit shards, quality and Codex contracts")
-
-
-def _ci_top_level_section(workflow: str, name: str) -> list[str]:
-    pattern = rf"^{re.escape(name)}:\n(.*?)(?=^\S|\Z)"
-    return [section.strip() for section in re.findall(pattern, workflow, re.MULTILINE | re.DOTALL)]
-
-
-def _ci_codex_contract_steps(job: str, package: str) -> bool:
-    install = rf"^(?: {{6}}- run: | {{10}})npm install\b[^\n]* {re.escape(package)}(?: +\#.*)?$"
-    return (_ci_required_lines(job, (f"        run: {CI_CODEX_CONTRACT_COMMAND}",))
-            and re.search(install, job, re.MULTILINE) is not None
-            and not re.search(r"^ +(?:if|continue-on-error|permissions):", job, re.MULTILINE))
-
-
-def _validate_ci_codex_contracts(errors: list[str], ci: str) -> None:
-    job = _ci_job_block(ci, "codex-protocol-contract")
-    strategy = ("    strategy:\n      fail-fast: false\n      matrix:\n"
-                "        codex-version: ['0.163.0', '0.171.0']\n")
-    env = "    env:\n      CODEX_VERSION: ${{ matrix.codex-version }}\n"
-    if (not re.search(r"^  pull_request:\s*$", ci, re.MULTILINE)
-            or _ci_top_level_section(ci, "permissions") != ["contents: read"]
-            or not _ci_exact_job_section(job, "strategy", strategy)
-            or not _ci_exact_job_section(job, "env", env)
-            or not _ci_codex_contract_steps(job, '"@openai/codex@$CODEX_VERSION"')):
-        errors.append("CI Codex protocol contract must run for released 0.163.0 and 0.171.0")
-
-
-def _validate_weekly_codex_contract(errors: list[str]) -> None:
-    path = REPO_ROOT / ".github" / "workflows" / "codex-protocol-latest.yml"
-    if not path.is_file():
-        errors.append("Weekly Codex protocol contract workflow is missing")
-        return
-    workflow = path.read_text(encoding="utf-8")
-    events = _ci_top_level_section(workflow, "on")
-    week = r"schedule:\n    - cron: '[0-5]?\d (?:[01]?\d|2[0-3]) \* \* [0-6]'"
-    job = _ci_job_block(workflow, "codex-protocol-contract")
-    if (len(events) != 1 or re.fullmatch(week, events[0]) is None
-            or _ci_top_level_section(workflow, "permissions") != ["contents: read"]
-            or not _ci_required_lines(job, ("          persist-credentials: false",))
-            or not _ci_codex_contract_steps(job, "@openai/codex@latest")):
-        errors.append("Weekly Codex protocol contract must use the scheduled, read-only latest release check")
-
-
-def validate_ci_workflow(errors: list[str], ci_path: Path | None = None) -> None:
-    path = ci_path or REPO_ROOT / ".github" / "workflows" / "ci.yml"
-    if not path.is_file():
-        return
-    ci = path.read_text(encoding="utf-8")
-    _validate_ci_unit_shards(errors, ci)
-    _validate_ci_test_aggregate(errors, ci)
-    _validate_ci_codex_contracts(errors, ci)
-    _validate_weekly_codex_contract(errors)
-    for term in CI_REQUIRED_COMMANDS:
-        if term not in ci:
-            errors.append(f"CI workflow is missing required command: {term}")
-    for workflow_path in sorted((REPO_ROOT / ".github" / "workflows").glob("*.yml")):
-        content = workflow_path.read_text(encoding="utf-8")
-        for match in re.finditer(r"uses:\s*([\w.-]+/[\w.-]+)(?:/[^@\s]+)?@([^\s]+)(?:\s+#\s*(\S+))?", content):
-            action, reference, comment = match.groups()
-            base = action if action in APPROVED_ACTION_PINS else action.split("/", 2)[0] + "/" + action.split("/", 2)[1]
-            expected = APPROVED_ACTION_PINS.get(base)
-            if expected is None:
-                errors.append(f"workflow uses unknown action: {action}")
-            elif reference != expected[0] or comment != expected[1] or len(reference) != 40:
-                errors.append(f"workflow action pin is invalid: {action}@{reference}")
-    if "contents: read" not in ci or "cancel-in-progress: true" not in ci:
-        errors.append("CI workflow is missing least privilege or cancellable concurrency")
-    if "timeout-minutes:" not in ci or "codeql:" not in ci or "shellcheck:" not in ci:
-        errors.append("CI workflow is missing timeout, CodeQL, or ShellCheck controls")
-
-
-def require_schema_properties(
-    errors: list[str],
-    *,
-    schema_name: str,
-    schema: dict[str, Any],
-    properties: list[str],
-) -> None:
-    available = set(schema.get("properties", {}))
-    missing = sorted(set(properties) - available)
-    if missing:
-        errors.append(f"schema {schema_name} is missing properties: {', '.join(missing)}")
-
-
-def _require_schema_file_properties(
-    errors: list[str], requirements: dict[str, list[str]], *, check_required: bool = False
-) -> None:
-    for schema_name, properties in requirements.items():
-        schema = load_json(REPO_ROOT / "schemas" / schema_name)
-        require_schema_properties(errors, schema_name=schema_name, schema=schema, properties=properties)
-        if check_required:
-            missing_required = sorted(set(properties) - set(schema.get("required", [])))
-            if missing_required:
-                errors.append(f"schema {schema_name} does not require properties: {', '.join(missing_required)}")
-
-
-def _require_runtime_schema_fields(
-    errors: list[str], label: str, schema: dict[str, Any], fields: list[str],
-) -> None:
-    required = set(schema.get("required", []))
-    missing = sorted(set(fields) - required)
-    if missing:
-        errors.append(f"{label} schema is missing runtime required fields: {', '.join(missing)}")
 
 
 def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -> None:
