@@ -334,7 +334,11 @@ status report projects audit, evaluator, and readiness telemetry.
 ### Saved continuation and plan analysis
 
 Run `continue` from the project directory, using the installed script path if
-the project is separate from the CWO checkout.
+the project is separate from the CWO checkout. A Beads-backed continuation uses
+one resolved project database for the entire command and stops if it cannot
+bind that database. The binding requires Beads to report existing absolute
+paths for the selected Beads directory and its database storage. The Markdown
+work-graph option reads the supplied file.
 
 ```bash
 python3 scripts/cwo.py continue --epic project-epic --record-run --format json

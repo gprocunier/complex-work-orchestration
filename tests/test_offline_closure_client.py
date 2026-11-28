@@ -14,7 +14,7 @@ import unittest
 import urllib.request
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
-from unittest.mock import Mock, patch
+from unittest.mock import Mock, patch, sentinel
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
@@ -407,6 +407,11 @@ class OfflineClosureClientTests(unittest.TestCase):
         self.assertEqual((nested[0]["new_comment_writes"], nested[0]["new_close_writes"]), (0, 0))
         self.assertEqual((target.snapshot()["comment_writes"], target.snapshot()["close_writes"]), (1, 1))
 
+    def run_legacy_case(self, kind, method):
+        # Calling a case directly bypasses the legacy module's binding fixture.
+        with patch.object(closure, "bind_project_beads", return_value=sentinel.project_beads):
+            kind(methodName=method).debug()
+
     def legacy_refusals(self):
         selectors = (
             (legacy.SuccessfulClosureUnavailableTests, "test_no_form_of_successful_closure_writes_to_beads"),
@@ -424,7 +429,7 @@ class OfflineClosureClientTests(unittest.TestCase):
         )
         for kind, method in selectors:
             with self.subTest(legacy=kind.__name__, method=method):
-                kind(methodName=method).debug()
+                self.run_legacy_case(kind, method)
 
     def test_legacy_refusals_remain_before_and_after_offline_success(self):
         self.legacy_refusals()
@@ -450,7 +455,7 @@ class OfflineClosureClientTests(unittest.TestCase):
             (legacy.ReviewRoundTwoTests, "test_partial_persistence_is_reported_when_close_fails_after_the_comment"),
         ):
             with self.subTest(method=method):
-                kind(methodName=method).debug()
+                self.run_legacy_case(kind, method)
         for option in ("--offline-completed", "--allow-completed", "--source-valid", "--fake-completed"):
             with self.subTest(option=option), contextlib.redirect_stdout(io.StringIO()), \
                     contextlib.redirect_stderr(io.StringIO()), self.assertRaises(SystemExit) as caught:

@@ -189,7 +189,7 @@ class BeadsArgvShapeTests(unittest.TestCase):
     def test_dependency_type_precedes_the_separator(self) -> None:
         with mock.patch("cwo_core.beads.run_bd", return_value="") as run_bd:
             add_dependency("cwo-blocked", "cwo-blocker", dependency_type="Tracks")
-        run_bd.assert_called_once_with(["dep", "add", "--type", "tracks", "--", "cwo-blocked", "cwo-blocker"])
+        run_bd.assert_called_once_with(["dep", "add", "--type", "tracks", "--", "cwo-blocked", "cwo-blocker"], binding=None)
 
 
 @unittest.skipUnless(BD_PATH, "bd CLI not available")
@@ -366,8 +366,8 @@ class RealBeadsBoundaryTests(unittest.TestCase):
     def test_close_step_with_option_like_ids_fails_without_changes(self) -> None:
         real_run_bd = close_bead_with_summary.run_bd
 
-        def skip_comment(command: list[str]) -> str:
-            return "ok" if command[0] == "comment" else real_run_bd(command)
+        def skip_comment(command: list[str], *, binding) -> str:
+            return "ok" if command[0] == "comment" else real_run_bd(command, binding=binding)
 
         before = self.export()
         for bead_id in OPTION_LIKE_IDS:
@@ -507,9 +507,9 @@ class RealBeadsBoundaryTests(unittest.TestCase):
         for bead_id in OPTION_LIKE_IDS:
             commands = []
 
-            def discovered(args):
+            def discovered(args, *, binding):
                 commands.append(args)
-                result = original(args)
+                result = original(args, binding=binding)
                 if args[0] == "list" and args[args.index("--parent") + 1] == self.alpha:
                     # Only discovery data is substituted; attempted queries
                     # otherwise use the original runner and disposable store.

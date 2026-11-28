@@ -132,7 +132,7 @@ class ContinueSprintTests(unittest.TestCase):
                 by_id = {item["id"]: item for item in items}
                 commands = []
 
-                def bd_json(args, *, items=items, by_id=by_id, commands=commands):
+                def bd_json(args, *, binding, items=items, by_id=by_id, commands=commands):
                     commands.append(args)
                     if args[0] == "ready":
                         return items[1:]
@@ -143,11 +143,11 @@ class ContinueSprintTests(unittest.TestCase):
                     return [by_id[item_id] for item_id in args[3:]]
 
                 with patch("continue_sprint.bd_json", side_effect=bd_json):
-                    observed = load_beads_items("epic")
+                    observed = load_beads_items("epic", binding=unittest.mock.sentinel.project)
                 self.assertEqual(len(observed), issue_count)
                 self.assertEqual(
                     continuation_fixture_timeout_seconds(issue_count),
-                    (len(commands) + 1) * REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
+                    (len(commands) + 3) * REAL_BEADS_FIXTURE_TIMEOUT_SECONDS,
                 )
 
     @unittest.skipUnless(HAS_JSONSCHEMA, "jsonschema is not installed")

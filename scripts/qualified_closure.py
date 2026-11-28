@@ -15,6 +15,7 @@ import threading
 import uuid
 import weakref
 from dataclasses import dataclass, field
+from functools import partial
 from pathlib import Path
 from typing import Any, Iterator
 
@@ -22,6 +23,7 @@ import close_bead_with_summary as closure
 import prepare_delivery_closure as original
 from cwo_core import beads, closure_checks
 from cwo_core.errors import CWOPolicyError
+from cwo_core.paths import REPO_ROOT
 import production_closure_authority as production_authority
 
 PUBLIC_ACTIVATION = False
@@ -118,7 +120,7 @@ class ExampleBeadsBridge:
 
 
 _EXAMPLE_CALL = ExampleBeadsBridge.__call__
-_BEADS_CALL = beads.run_bd
+_BEADS_CALL = partial(beads.run_bd_explicit, directory=REPO_ROOT)
 
 
 class _ProductionBeadsBridge:

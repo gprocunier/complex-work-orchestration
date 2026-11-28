@@ -10,7 +10,7 @@ from pathlib import Path
 import re
 from types import MappingProxyType
 
-from cwo_core import manual_delivery, native_live_availability, workspace_capture
+from cwo_core import beads, manual_delivery, native_live_availability, workspace_capture
 from cwo_core.beads_ready_set import build_ready_set_evidence, read_ready_set_admission_metadata as _admission_metadata
 from cwo_core.invocation_ledger import InvocationLedger
 from cwo_core.native_authority import canonical_authority_sha256, verify_operator_directive
@@ -62,13 +62,8 @@ def directory_identity(path):
 
 
 def database_coordinates(project):
-    digest, _ = manual_delivery.project_beads(project)
-    arguments = ["-C", str(project)]
-    if beads_dir := os.environ.get("BEADS_DIR"):
-        arguments.extend(("--db", str((project / beads_dir).resolve(strict=True))))
-    selector, storage = manual_delivery._database_location(arguments)
-    require(manual_delivery._database_identity(storage) == digest, "The current project Beads database changed.")
-    return {"selector": str(selector), "storage": str(storage), "sha256": digest}
+    bound = beads.bind_project_beads(project)
+    return {"selector": str(bound.selector), "storage": str(bound.storage), "sha256": bound.identity}
 
 
 def pool_state(store):
@@ -180,7 +175,7 @@ class ApprovedOrdinaryPool:
         require(directory_identity(self.project) == self._scope["project_identity"],
                 "The original project checkout changed.")
         database = self._scope["database"]
-        require(manual_delivery._database_identity(Path(database["storage"])) == database["sha256"]
+        require(beads.database_identity(Path(database["storage"])) == database["sha256"]
                 and str(Path(database["selector"]).resolve(strict=True)) == database["selector"],
                 "The original project Beads database changed.")
         homes = read_pool_worker_login_homes()

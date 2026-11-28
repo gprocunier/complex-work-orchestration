@@ -93,9 +93,13 @@ class _DisposableBeads:
     def run(self, command, *args, **kwargs):
         if command[0] != "bd":
             return self.original(command, *args, **kwargs)
-        if list(command[1:3]) != ["-C", str(self.project)]:
+        if Path(kwargs["cwd"]) != self.project:
             raise AssertionError("Unexpected Beads project for disposable pool")
-        options = command[3:]
+        options = command[1:]
+        if options[0] == "-C":
+            if options[1] != str(self.project):
+                raise AssertionError("Unexpected explicit Beads project for disposable pool")
+            options = options[2:]
         if options[0] == "--db":
             if options[1] != str(self.database):
                 raise AssertionError("Unexpected Beads database for disposable pool")

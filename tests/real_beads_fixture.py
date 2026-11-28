@@ -13,13 +13,13 @@ _real_beads_unavailable_reason: str | None = None
 
 
 def continuation_fixture_timeout_seconds(issue_count: int) -> int:
-    """Budget the CLI's ready, per-issue list, and batched exact-show calls.
+    """Budget the CLI's database probes, ready, per-issue list, and exact-show calls.
 
     One additional primitive-command allowance covers Python startup and JSON
     evaluation. Individual Beads commands keep their original 20-second bound.
     """
     show_batches = (issue_count + 49) // 50
-    command_count = 1 + issue_count + show_batches
+    command_count = 3 + issue_count + show_batches
     return (command_count + 1) * REAL_BEADS_FIXTURE_TIMEOUT_SECONDS
 
 

@@ -67,7 +67,7 @@ The CLI detects and prunes; termination flags report `termination-unavailable`. 
 `owned_capabilities` from `cleanup_capability(receipt)`; KILL also needs `allow_kill_owned=True` and lifetime, context, age and ancestry checks.
 A pidfd identifies one lifetime; registry records, argv and serialized fields grant no authority. See [cleanup limits](README.md#limits).
 
-5. Check Beads and sync only when a Dolt remote exists:
+5. From your project, check Beads. Sync with a Dolt remote:
 
 ```bash
 command -v bd

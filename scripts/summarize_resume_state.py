@@ -7,7 +7,7 @@ import re
 from pathlib import Path
 from typing import Any
 
-from cwo_core.beads import run_bd
+from cwo_core.beads import ProjectBeads, bind_project_beads, run_bd
 from cwo_core.workgraph_markdown import (
     FIELD_DEPENDS_ON_LANES,
     FIELD_LABELS,
@@ -26,8 +26,8 @@ WORKGRAPH_LIST_FIELDS = {FIELD_LABELS.lower(): "labels", FIELD_DEPENDS_ON_LANES.
 WORKGRAPH_ROUTE_NOTES = {"Route": "route", "Share boundary": "share_boundary", "Risk": "risk_level"}
 
 
-def bd_json(args: list[str]) -> Any:
-    return json.loads(run_bd(args))
+def bd_json(args: list[str], *, binding: ProjectBeads) -> Any:
+    return json.loads(run_bd(args, binding=binding))
 
 
 def coerce_items(value: Any) -> list[dict[str, Any]]:
@@ -149,14 +149,8 @@ def main() -> None:
         (
             "Codex-ready work",
             [
-                "ready",
-                "--exclude-label",
-                "contractor-only",
-                "--exclude-label",
-                "local-worker-only",
-                "--exclude-label",
-                "no-codex-exec",
-                "--json",
+                "ready", "--exclude-label", "contractor-only", "--exclude-label", "local-worker-only",
+                "--exclude-label", "no-codex-exec", "--json",
             ],
             args.ready_limit,
         ),
@@ -166,10 +160,17 @@ def main() -> None:
         ("Architect adjudication gates", ["ready", "--label", "adjudication", "--json"], args.ready_limit),
         ("Open graph", ["list", "--json"], args.open_limit),
     ]
+    try:
+        binding = bind_project_beads()
+    except SystemExit:
+        if not args.markdown_workgraph:
+            raise
+        summarize_markdown_workgraph(args.markdown_workgraph, args.open_limit)
+        return
     beads_unavailable = False
     for title, command, limit in commands:
         try:
-            summarize(title, coerce_items(bd_json(command)), limit)
+            summarize(title, coerce_items(bd_json(command, binding=binding)), limit)
         except SystemExit as exc:
             beads_unavailable = True
             print(f"## {title}\nUnable to read: {exc}\n")

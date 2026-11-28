@@ -222,7 +222,7 @@ class ManualAcceptanceTests(fixtures.WorkspaceTestCase):
                 cwd=root, env=env, check=True, capture_output=True)
             run_fixture_subprocess(["bd", "create", f"{prefix} task", "--id", f"{prefix}-abc", "--silent"],
                                    cwd=root, env=env, check=True, capture_output=True)
-        with patch.object(manual.beads, "REPO_ROOT", outside), patch.dict(os.environ, env, clear=True):
+        with patch.object(Path, "cwd", return_value=outside), patch.dict(os.environ, env, clear=True):
             project_id, project = manual.project_beads(self.repo)
             self.assertEqual(json.loads(project(["show", "--json", "--", "proj-abc"]))[0]["title"], "proj task")
             with patch.dict(os.environ, {"BEADS_DIR": str(other / ".beads")}):
@@ -246,7 +246,7 @@ class ManualAcceptanceTests(fixtures.WorkspaceTestCase):
         self.candidate_path.write_text(json.dumps(candidate), encoding="utf-8")
         outside = self.tmp / "installed-package"
         outside.mkdir()
-        with patch.object(manual.beads, "REPO_ROOT", outside), patch.dict(os.environ, env, clear=True), \
+        with patch.object(Path, "cwd", return_value=outside), patch.dict(os.environ, env, clear=True), \
                 host_records.using_test_store(self.store):
             _identity, run_bd = manual.project_beads(self.repo)
             run_bd(["create", "fixture delivery", "--id", "proj-abc", "--silent"])

@@ -33,14 +33,14 @@ class AuthorizeSolBreakfixTests(unittest.TestCase):
         effects.audit.side_effect = lambda payload: payload
         control = [arg for arg in self.common_args() if arg != "--dry-run"]
         control += ["--allow-sol-breakfix", "--waiver-reason", "EXAMPLE incident"]
-        with patch.object(breakfix.subprocess, "run", effects.update), \
+        with patch.object(breakfix, "run_bd", effects.update), \
                 patch.object(breakfix, "record_audit_event", effects.audit), \
                 contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
             with patch.object(sys, "argv", [str(SCRIPT), *control]):
                 breakfix.main()
             self.assertEqual([call[0] for call in effects.mock_calls], ["update", "audit"])
             command = effects.update.call_args.args[0]
-            self.assertEqual(command[:4], ["bd", "update", "--add-label", "sol-breakfix-approved"])
+            self.assertEqual(command[:3], ["update", "--add-label", "sol-breakfix-approved"])
             self.assertEqual(command[-2:], ["--", "project-123"])
             self.assertEqual(effects.audit.call_args.args[0]["event_type"], "sol_breakfix_authorized")
             effects.reset_mock()

@@ -130,33 +130,10 @@ class Delivery:
         _need(checked["valid"], "candidate or baseline refused: " + "; ".join(checked["errors"]))
 
 
-def _database_identity(storage: Path) -> str:
-    info = storage.stat()
-    return artifact_hash(f"{storage}\0{info.st_dev}\0{info.st_ino}")
-
-
-def _database_location(arguments: list[str]) -> tuple[Path, Path]:
-    location = projection(beads.run_bd([*arguments, "where", "--json"]), "database")
-    _need(type(location) is dict and type(location.get("path")) is str
-          and type(location.get("database_path")) is str, "Beads did not identify the project database")
-    return Path(location["path"]).resolve(strict=True), Path(location["database_path"]).resolve(strict=True)
-
-
 def project_beads(root: Path) -> tuple[str, Callable[[list[str]], str]]:
     """Pin Beads' normal project database selection without workspace enrollment."""
-    project = ["-C", str(root)]
-    beads_dir = os.environ.get("BEADS_DIR")
-    selector = ["--db", str((root / beads_dir).resolve(strict=True))] if beads_dir else []
-    path, storage = _database_location([*project, *selector])
-    pinned = [*project, "--db", str(path)]
-    database = _database_identity(storage)
-    _need(_database_location(pinned) == (path, storage), "the explicit Beads command selected another database")
-
-    def run_bd(command: list[str]) -> str:
-        _need(_database_identity(storage) == database, "the project Beads database changed")
-        return beads.run_bd([*pinned, *command])
-
-    return database, run_bd
+    project = beads.bind_project_beads(root)
+    return project.identity, project.run
 
 
 def _store(delivery: Delivery) -> host_records.HostRecordStore:
