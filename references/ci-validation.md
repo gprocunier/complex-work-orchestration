@@ -23,6 +23,19 @@ The repository validator reads required documentation terms from
 `tools/ci/required-documentation.json`. When changing a documented contract,
 update the affected phrases in the same change.
 
+Run `python scripts/check_code_health.py` to compare the checkout with
+`policy/code-health-baseline.json`. It checks Ruff F and E9 diagnostics and
+core-to-CLI imports. For code under `scripts/`, it also checks broad exception
+handlers, cross-module imports of private names, function complexity, function
+length and control nesting. It checks missing parameter and return annotations
+in registered and offline scripts and their pool qualification helpers.
+
+New functions may span up to 100 lines and nest up to five control suites before
+the check reports new debt. Existing entries that exceed these limits cannot
+grow. Run `python scripts/check_code_health.py refresh` after reducing debt.
+Record reviewed definition moves in `policy/code-health-moves.json`. Use
+`refresh --admit REASON` after review when a change needs new debt.
+
 Use Python 3.12 to reproduce the type and coverage checks from the `quality`
 job. The strict type check starts with eight annotated helpers. Add modules as
 they pass strict checking.
