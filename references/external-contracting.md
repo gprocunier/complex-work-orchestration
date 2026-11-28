@@ -850,6 +850,10 @@ Direct internal text without an external-contractor or local-worker provenance
 contract is not language-enforced. Every finding remains evidence for evaluator
 and architect adjudication, not an automatic claim about model intent.
 
+The installed `calibration/` directory contains the contract, corpus, tuning
+record, and saved report. To reproduce the report, use the v1.48.0 checkout
+and its matching inputs. [Archived calibration runner](https://github.com/gprocunier/complex-work-orchestration/blob/7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/calibrate_return_language.py)
+
    Research-style returns can add optional structured sections without changing
    the required return template. Use `Research evidence`, `Research
    contradictions`, and `Research reflection` when a contractor is making
