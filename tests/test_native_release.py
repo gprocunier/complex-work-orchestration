@@ -15,7 +15,7 @@ from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "scripts"))
-from tests.historical_policy_fixtures import historical_v2_policy, historical_cli_args
+from tests.historical_policy_fixtures import historical_v2_policy
 
 from cwo_core.native_containment import CONTAINMENT_ERROR, containment_error  # noqa: E402
 from cwo_core.native_precommit import canonical_sha256  # noqa: E402

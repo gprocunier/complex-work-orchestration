@@ -29,7 +29,7 @@ from cwo_core.codex_tool_surface import (  # noqa: E402
     DIRECT_TOOL_TRANSPORT as DIRECT_TOOL_TRANSPORT,
     NAMESPACED_EXEC_TOOL_TRANSPORT as NAMESPACED_EXEC_TOOL_TRANSPORT,
     ALLOWLIST_PARAMETER as _CONFIG_TOOL_ALLOWLIST_PARAMETER,
-    _codex_binary as _codex_binary,
+    discover_codex_binary,
     prepare_capture_binding as prepare_capture_binding,
     require_capture_binding as require_capture_binding,
     require_surface_proof as require_surface_proof,
@@ -50,8 +50,8 @@ from cwo_core.native_canary_contracts import (  # noqa: E402
     validate_materialization_evidence as validate_materialization_evidence,
 )
 from cwo_core.native_live_allocation_ledger import (  # noqa: E402
-    _IdentityCapabilityRegistry as _IdentityCapabilityRegistry,
-    _TurnNegativeResponseObserverBinding as _TurnNegativeResponseObserverBinding,
+    IdentityCapabilityRegistry,
+    TurnNegativeResponseObserverBinding,
 )
 from cwo_core.native_pool import LegacyNativePoolExecutionRetired as LegacyNativePoolExecutionRetired  # noqa: E402
 from cwo_core.native_pool_capacity import load_pool_capacity as load_pool_capacity  # noqa: E402
@@ -83,7 +83,7 @@ from cwo_core.native_pool_schedulability import (  # noqa: E402
     scheduling_budget_proof as scheduling_budget_proof,
 )
 from cwo_core.native_pool_scheduler import select_earliest_deadline as select_earliest_deadline  # noqa: E402
-from cwo_core.native_session import _record_token_snapshot as _record_token_snapshot  # noqa: E402
+from cwo_core.native_session import session_record_token_snapshot  # noqa: E402
 from cwo_core.native_session_boundary import (  # noqa: E402
     LocatedSession as LocatedSession,
     NativeSessionBoundaryError as NativeSessionBoundaryError,
@@ -113,10 +113,10 @@ from cwo_core.native_turn_dispatch import (  # noqa: E402
     validate_turn_dispatch_record as validate_turn_dispatch_record,
 )
 from cwo_core.native_worker_contracts import (  # noqa: E402
-    _argument_value as _argument_value,
-    _event_items as _event_items,
-    _output_text as _output_text,
-    _paired_namespaced_exec_result as _paired_namespaced_exec_result,
+    tool_argument_value,
+    session_event_items,
+    tool_output_text,
+    paired_namespaced_exec_result,
     canonical_argument_hash as canonical_argument_hash,
     decode_namespaced_exec_source as decode_namespaced_exec_source,
     is_tool_call_item as is_tool_call_item,
@@ -127,7 +127,7 @@ from cwo_core.native_worker_contracts import (  # noqa: E402
 from cwo_core.supervision.callback_timing import (  # noqa: E402
     ADAPTER_IMPLEMENTATION_PATHS as ADAPTER_IMPLEMENTATION_PATHS,
     PROVISIONAL_TERMINAL_GRACE_SECONDS as PROVISIONAL_TERMINAL_GRACE_SECONDS,
-    _measure_action_ms as _measure_action_ms,
+    measure_action_ms,
     adapter_implementation_sha256 as adapter_implementation_sha256,
     callback_certification_policy as callback_certification_policy,
     capability_certification as capability_certification,
@@ -165,21 +165,21 @@ from cwo_core.supervision.session_evidence import (  # noqa: E402
     STARTUP_SCAFFOLD_SESSION_META_FIELDS as STARTUP_SCAFFOLD_SESSION_META_FIELDS,
     STARTUP_SCAFFOLD_TASK_STARTED_FIELDS as STARTUP_SCAFFOLD_TASK_STARTED_FIELDS,
     STARTUP_SCAFFOLD_TOP_LEVEL_FIELDS as STARTUP_SCAFFOLD_TOP_LEVEL_FIELDS,
-    _DIRECT_PENDING_EXEC_RESULT as _DIRECT_PENDING_EXEC_RESULT,
-    _READ_ONLY_SHELL_META as _READ_ONLY_SHELL_META,
-    _bind_receipt_workdirs as _bind_receipt_workdirs,
-    _direct_pending_operation_session_id as _direct_pending_operation_session_id,
-    _exec_workdir_binding as _exec_workdir_binding,
-    _nonexistent_canonical_nonsymlink_path as _nonexistent_canonical_nonsymlink_path,
-    _normalize_expected_tool_trace as _normalize_expected_tool_trace,
-    _normalize_read_only_command_authority as _normalize_read_only_command_authority,
-    _read_only_command_tokens as _read_only_command_tokens,
-    _require_positive_read_only_command as _require_positive_read_only_command,
-    _strict_json_object_pairs as _strict_json_object_pairs,
-    _strict_session_json_record as _strict_session_json_record,
-    _tool_receipt_projection as _tool_receipt_projection,
-    _trusted_session_workdir_binding as _trusted_session_workdir_binding,
-    _trusted_tool_authority_receipts as _trusted_tool_authority_receipts,
+    DIRECT_PENDING_EXEC_RESULT_PATTERN,
+    READ_ONLY_SHELL_META,
+    bind_tool_receipt_workdirs,
+    direct_pending_operation_session_id,
+    exec_workdir_binding,
+    is_nonexistent_canonical_nonsymlink_path,
+    normalize_expected_tool_trace,
+    normalize_read_only_command_authority,
+    parse_read_only_command_tokens,
+    require_positive_read_only_command,
+    strict_session_json_object_pairs,
+    parse_strict_session_json_record,
+    project_tool_receipt,
+    require_trusted_session_workdir,
+    trusted_tool_authority_receipts,
     capture_server_tool_surface as capture_server_tool_surface,
     captured_session_boundary_summary as captured_session_boundary_summary,
     domain_sha256 as domain_sha256,
@@ -204,7 +204,7 @@ from cwo_core.supervision.transport.app_server import (  # noqa: E402
     THREAD_PHASE_PRECOMMIT_FIT as THREAD_PHASE_PRECOMMIT_FIT,
     THREAD_READ_TIMEOUT_SECONDS as THREAD_READ_TIMEOUT_SECONDS,
     THREAD_START_PHASES as THREAD_START_PHASES,
-    _canonical_controller_workdir as _canonical_controller_workdir,
+    canonical_controller_workdir,
     _seal_same_process_proof as _seal_same_process_proof,
     _validated_same_process_proof as _validated_same_process_proof,
     sha256_bytes as sha256_bytes,
@@ -216,11 +216,11 @@ from cwo_core.supervision.transport.errors import (  # noqa: E402
     AppServerRpcError as AppServerRpcError,
 )
 from cwo_core.supervision.transport.private_io import (  # noqa: E402
-    _fsync_owned_control_directory as _fsync_owned_control_directory,
-    _fsync_private_control_directory as _fsync_private_control_directory,
-    _load_owned_regular_bytes as _load_owned_regular_bytes,
-    _open_private_control_lock as _open_private_control_lock,
-    _private_control_directory as _private_control_directory,
+    fsync_owned_control_directory,
+    fsync_private_control_directory,
+    load_owned_regular_bytes,
+    open_private_control_lock,
+    ensure_private_control_directory,
     load_private_bytes as load_private_bytes,
     load_private_json as load_private_json,
     load_private_json_snapshot as load_private_json_snapshot,
@@ -403,6 +403,39 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
+
+
+# Preserve the retired canary module's compatibility exports.
+_record_token_snapshot = session_record_token_snapshot
+_argument_value = tool_argument_value
+_event_items = session_event_items
+_output_text = tool_output_text
+_paired_namespaced_exec_result = paired_namespaced_exec_result
+_measure_action_ms = measure_action_ms
+_DIRECT_PENDING_EXEC_RESULT = DIRECT_PENDING_EXEC_RESULT_PATTERN
+_READ_ONLY_SHELL_META = READ_ONLY_SHELL_META
+_bind_receipt_workdirs = bind_tool_receipt_workdirs
+_direct_pending_operation_session_id = direct_pending_operation_session_id
+_exec_workdir_binding = exec_workdir_binding
+_nonexistent_canonical_nonsymlink_path = is_nonexistent_canonical_nonsymlink_path
+_normalize_expected_tool_trace = normalize_expected_tool_trace
+_normalize_read_only_command_authority = normalize_read_only_command_authority
+_read_only_command_tokens = parse_read_only_command_tokens
+_require_positive_read_only_command = require_positive_read_only_command
+_strict_json_object_pairs = strict_session_json_object_pairs
+_strict_session_json_record = parse_strict_session_json_record
+_tool_receipt_projection = project_tool_receipt
+_trusted_session_workdir_binding = require_trusted_session_workdir
+_trusted_tool_authority_receipts = trusted_tool_authority_receipts
+_codex_binary = discover_codex_binary
+_IdentityCapabilityRegistry = IdentityCapabilityRegistry
+_TurnNegativeResponseObserverBinding = TurnNegativeResponseObserverBinding
+_canonical_controller_workdir = canonical_controller_workdir
+_fsync_owned_control_directory = fsync_owned_control_directory
+_fsync_private_control_directory = fsync_private_control_directory
+_load_owned_regular_bytes = load_owned_regular_bytes
+_open_private_control_lock = open_private_control_lock
+_private_control_directory = ensure_private_control_directory
 
 
 if __name__ == "__main__":

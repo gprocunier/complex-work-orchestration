@@ -19,7 +19,7 @@ import registered_delegation_approval as approval
 import registered_delegation_entry as entry
 from cwo_core import host_records, manual_delivery, outbound_screen, requirement_baseline, workspace_capture
 from cwo_core.model_identities import resolve_model
-from cwo_core.paths import BLOCKED_OUTPUT_PATH_PARTS, _reject_secret_like_path
+from cwo_core.paths import BLOCKED_OUTPUT_PATH_PARTS, reject_secret_like_output_path
 from cwo_core.routing import classify_work
 
 workflow, runtime, authority = approval.workflow, approval.runtime, approval.authority
@@ -33,11 +33,11 @@ MAX_TEXT_BYTES = 2048
 _DURATION_SECONDS = 600
 
 
-def _known_output_data(path, text):
+def _known_output_data(path: str, text: str) -> tuple[str, bytes]:
     path = runtime.native._relative(path)
     _need(not (set(path.lower().split('/')) & BLOCKED_OUTPUT_PATH_PARTS), 'Protected project paths cannot be delegation outputs.')
     try:
-        _reject_secret_like_path(Path(path))
+        reject_secret_like_output_path(Path(path))
     except SystemExit as exc:
         raise ValueError(str(exc)) from exc
     return path, _text(text)
@@ -52,14 +52,14 @@ def _known_output(path, text):
     return command, policy, data
 
 
-def _text(value):
+def _text(value: str) -> bytes:
     _need(type(value) is str and '\x00' not in value, 'A bounded UTF-8 text value is required.')
     data = value.encode('utf-8')
     _need(0 < len(data) <= MAX_TEXT_BYTES, 'Delegation text must have 1 to 2,048 UTF-8 bytes.')
     return data
 
 
-def _screen(task, text):
+def _screen(task: str | bytes, text: str | bytes) -> None:
     try:
         for value in (task, text):
             outbound_screen.require_clean(value, surface='registered delegation')
@@ -88,7 +88,7 @@ def _worker_home():
     return login.protected_roots()
 
 
-def _clone(project, worker):
+def _clone(project: str | Path, worker: Path) -> None:
     git = workspace_capture.trusted_git()
     _need(git is not None, workspace_capture.NO_TRUSTED_GIT)
     environment = {**workspace_capture._environment(), 'GIT_ALLOW_PROTOCOL': 'file'}
@@ -135,7 +135,7 @@ def _custody(store, protected_login, project, stack):
     return runtime.native.OfflineN1Host(host, target, worker), control
 
 
-def _custody_ticket():
+def _custody_ticket() -> str:
     return '-'.join(f'{secrets.randbelow(10**12):012d}' for _ in range(2))
 
 
@@ -355,3 +355,10 @@ def prepare(*, project, database, task, chain, output_path, output_text) -> appr
         pending = replace(pending, _preparation_root=(root, tuple(runtime.native._identity(root)), project))
         stack.pop_all()
     return pending
+
+
+clone_worker_checkout = _clone
+encode_delegation_text = _text
+new_custody_ticket = _custody_ticket
+require_clean_delegation_text = _screen
+validate_delegation_output = _known_output_data

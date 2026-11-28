@@ -17,8 +17,10 @@ from .browser_provenance import BROWSER_PREPARATION_TRACE_FIELDS
 from .errors import CWOPolicyError
 from .host_records import HostRecordStore, configured_store
 from .peer_review import PEER_REVIEW_HOLDS, pending_evaluation_sha256
-from .peer_review_identity import (_recorded_dispatch, _registered_model, validate_separation,
-                                   review_identity, identity_token, separation_level, IDENTITY_FIELDS)
+from .peer_review_identity import (
+    IDENTITY_FIELDS, identity_token, recorded_dispatch as _recorded_dispatch,
+    require_registered_review_model as _registered_model, review_identity, separation_level, validate_separation,
+)
 from .returns import make_acceptance_decision
 from .policy import load_policy
 from .policy_schema import strict_json_loads
@@ -153,6 +155,9 @@ def _host_inputs(dispatch, bead_id, dispatch_id, *, advisory=()):
     return {**metadata, "bead_id": bead_id, "dispatch_id": dispatch_id,
             "packet_sha256": dispatch.get("packet_sha256"), "executor": dispatch.get("executor"),
             "provider_key": dispatch.get("provider_key"), "_advisory_hold_reasons": advisory}
+
+
+host_evaluation_inputs = _host_inputs
 
 
 def dispatch_source_context(dispatch: dict[str, Any]) -> dict[str, Any] | None:

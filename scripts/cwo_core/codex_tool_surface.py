@@ -136,11 +136,17 @@ def _same_json(value: Any, expected: Any) -> bool:
     return type(expected) in (str, bool, int, float, type(None)) and value == expected
 
 
-def _codex_binary() -> Path:
+def discover_codex_binary() -> Path:
+    """Locate the Codex executable on PATH for tool-surface capture."""
+
     located = shutil.which("codex")
     if not located:
         raise CodexToolSurfaceError("codex-binary-unavailable")
     return Path(located).resolve()
+
+
+# The historical tool-surface module alias shares this discovery hook.
+_codex_binary = discover_codex_binary
 
 
 def _codex_version(binary: Path, *, codex_home: Path | None = None) -> str:

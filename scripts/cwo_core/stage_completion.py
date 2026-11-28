@@ -4,7 +4,7 @@ receipts, private adjudication, applicable postimage and exact closure recipe.
 Missing material is controlled non-readiness, never a worker acceptance flag.
 Historical A3-L uses its original independently pinned reader separately.
 """
-import copy,hashlib,json
+import hashlib,json
 from pathlib import Path
 from . import stage_evidence as preflight
 from .stage_evidence import exact

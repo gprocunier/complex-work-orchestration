@@ -262,12 +262,15 @@ def assert_repo_safe_path(path: Path) -> Path:
     return resolved
 
 
-def _reject_secret_like_path(path: Path) -> None:
+def reject_secret_like_output_path(path: Path) -> None:
     name = path.name.lower()
     if name in BLOCKED_PACKET_FILE_NAMES:
         raise SystemExit(f"refusing likely secret output path: {path}")
     if path.suffix.lower() in BLOCKED_PACKET_SUFFIXES:
         raise SystemExit(f"refusing private key or certificate output path: {path}")
+
+
+_reject_secret_like_path = reject_secret_like_output_path
 
 
 def _has_symlink_between(root: Path, path: Path) -> bool:
@@ -306,7 +309,7 @@ def assert_safe_output_path(path: Path) -> Path:
             raise SystemExit(f"refusing output path with symlink parent: {raw}")
     resolved_parent = parent.resolve()
     resolved = resolved_parent / raw.name
-    _reject_secret_like_path(resolved)
+    reject_secret_like_output_path(resolved)
 
     temp_root = Path(tempfile.gettempdir()).resolve()
     allowed_root: Path | None = None

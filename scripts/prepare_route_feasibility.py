@@ -10,15 +10,17 @@ from cwo_core.route_feasibility import (
     MAX_INTEGER as MAX_INTEGER,
     MAX_NODES as MAX_NODES,
     RESOURCES as RESOURCES,
-    _input_measurements as _input_measurements,
-    _measurement as _measurement,
-    _require,
     canonical_authority_sha256 as canonical_authority_sha256,
     input_sha256 as input_sha256,
+    measure_route_inputs,
+    measure_text,
     prepare,
     render_request as render_request,
+    require_input as _require,
     work_sizing as work_sizing,
 )
+
+_input_measurements, _measurement = measure_route_inputs, measure_text
 
 
 def _pairs(pairs):

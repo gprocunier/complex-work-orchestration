@@ -333,12 +333,12 @@ def _verify_host_audit() -> dict[str, Any]:
                 last_event_hash=events[-1]['event_hash'] if events else None)
 
 
-def _prepare_private_audit_event(event: dict[str, Any], directory: int, limits: Any,
-                                 prior: list[dict[str, Any]] | None = None) -> tuple[dict[str, Any], bytes]:
+def prepare_host_audit_event(event: dict[str, Any], directory: int, limits: Any,
+                             prior: list[dict[str, Any]] | None = None) -> tuple[dict[str, Any], bytes]:
     """Exact capacity preflight under the audit lock, before record creation."""
-    from .host_records import _audit_snapshot
+    from .host_records import read_verified_host_audit
     from .audit_segments import append_plan
-    prior = _audit_snapshot(directory, limits) if prior is None else prior
+    prior = read_verified_host_audit(directory, limits) if prior is None else prior
     enriched = sanitize_audit_event(dict(event))
     enriched.setdefault('timestamp', dt.datetime.now(dt.timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ'))
     enriched.setdefault('audit_lock_mode', 'posix-flock')
@@ -352,9 +352,12 @@ def _prepare_private_audit_event(event: dict[str, Any], directory: int, limits: 
     return enriched, raw
 
 
+_prepare_private_audit_event = prepare_host_audit_event
+
+
 def _restore_private_audit(directory: int, fd: int, before: bytes | None,
                            head: bytes | None, limits: Any) -> None:
-    from .host_records import _audit_snapshot, _write_at
+    from .host_records import read_verified_host_audit, replace_host_audit_checkpoint
     os.ftruncate(fd, len(before or b''))
     os.fsync(fd)
     if head is None:
@@ -364,9 +367,9 @@ def _restore_private_audit(directory: int, fd: int, before: bytes | None,
             except FileNotFoundError:
                 pass
     else:
-        _write_at(directory, 'audit.jsonl.head.json', head, replace=True)
+        replace_host_audit_checkpoint(directory, head)
     os.fsync(directory)
-    _audit_snapshot(directory, limits)
+    read_verified_host_audit(directory, limits)
 
 
 def _record_private_audit_event(event: dict[str, Any], directory: int, limits: Any, *,
@@ -377,10 +380,10 @@ def _record_private_audit_event(event: dict[str, Any], directory: int, limits: A
     when confirmation raises. Recovery that cannot be verified reports uncertainty
     and leaves verification closed; it never claims the operation did not occur.
     """
-    from .host_records import _audit_lock
+    from .host_records import acquire_host_audit_lock
     from .audit_segments import recover_rotation
     from .host_record_quarantine import require_no_pending
-    lock = _lock_fd if _lock_fd is not None else _audit_lock(directory, create=True, exclusive=True)
+    lock = _lock_fd if _lock_fd is not None else acquire_host_audit_lock(directory, create=True, exclusive=True)
     try:
         require_no_pending(directory)
         recover_rotation(directory, limits)
@@ -392,9 +395,9 @@ def _record_private_audit_event(event: dict[str, Any], directory: int, limits: A
 
 def _append_private_audit(event: dict[str, Any], directory: int, limits: Any) -> dict[str, Any]:
     import stat
-    from .host_records import _audit_snapshot, _need
-    prior = _audit_snapshot(directory, limits)
-    enriched, raw = _prepare_private_audit_event(event, directory, limits, prior)
+    from .host_records import read_verified_host_audit, require_host_record
+    prior = read_verified_host_audit(directory, limits)
+    enriched, raw = prepare_host_audit_event(event, directory, limits, prior)
     from .audit_segments import append_plan, commit_rotation, segment_name
     rotate, head, index, _, before = append_plan(directory, limits, raw, prior)
     if rotate:
@@ -404,7 +407,7 @@ def _append_private_audit(event: dict[str, Any], directory: int, limits: Any) ->
                  | os.O_NONBLOCK | os.O_CLOEXEC, 0o600, dir_fd=directory)
     try:
         info = os.fstat(fd)
-        _need(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
+        require_host_record(stat.S_ISREG(info.st_mode) and info.st_uid == os.getuid()
               and stat.S_IMODE(info.st_mode) == 0o600 and info.st_nlink == 1,
               'host audit must be private and regular')
         return _commit_private_append(directory, fd, enriched, raw, before, head, prior, limits)
@@ -412,41 +415,47 @@ def _append_private_audit(event: dict[str, Any], directory: int, limits: Any) ->
         os.close(fd)
 
 
-def _verify_uncommitted_append(directory: int, before: bytes | None, head: bytes | None,
-                                raw: bytes, limits: Any) -> None:
+def require_uncommitted_audit_append(directory: int, before: bytes | None, head: bytes | None,
+                                    raw: bytes, limits: Any) -> None:
     """A readable old checkpoint plus exact pending bytes proves noncommit."""
-    from .host_records import _need, _read_at
+    from .host_records import read_host_audit_bytes, require_host_record
     try:
         from .audit_segments import MAX_HEAD_BYTES
-        current_head = _read_at(directory, 'audit.jsonl.head.json', MAX_HEAD_BYTES)
+        current_head = read_host_audit_bytes(directory, 'audit.jsonl.head.json', MAX_HEAD_BYTES)
     except FileNotFoundError:
         current_head = None
-    _need(current_head == head, 'host audit checkpoint no longer proves an uncommitted append')
+    require_host_record(current_head == head, 'host audit checkpoint no longer proves an uncommitted append')
     from .audit_segments import layout, segment_name
-    current = _read_at(directory, segment_name(layout(head)[0]), limits.max_audit_bytes)
+    current = read_host_audit_bytes(directory, segment_name(layout(head)[0]), limits.max_audit_bytes)
     prefix = before or b''
-    _need(current.startswith(prefix) and raw.startswith(current[len(prefix):]),
+    require_host_record(current.startswith(prefix) and raw.startswith(current[len(prefix):]),
           'host audit bytes do not prove an uncommitted append')
+
+
+_verify_uncommitted_append = require_uncommitted_audit_append
 
 
 def _commit_private_append(directory: int, fd: int, enriched: dict[str, Any], raw: bytes,
                             before: bytes | None, head: bytes | None,
                             prior: list[dict[str, Any]], limits: Any) -> dict[str, Any]:
-    from .host_records import HostRecordError, _audit_snapshot, _json, _need, _write_at
+    from .host_records import (
+        HostRecordError, encode_host_record_json, read_verified_host_audit,
+        replace_host_audit_checkpoint, require_host_record,
+    )
     try:
         view = memoryview(raw)
         while view:
             count = os.write(fd, view)
-            _need(count > 0, 'host audit write did not progress')
+            require_host_record(count > 0, 'host audit write did not progress')
             view = view[count:]
         os.fsync(fd)
         from .audit_segments import append_head
         checkpoint = append_head(head, event_count=len(prior) + 1, event_hash=enriched['event_hash'],
                                  byte_count=len(before or b'') + len(raw))
-        _write_at(directory, 'audit.jsonl.head.json', _json(checkpoint), replace=True)
+        replace_host_audit_checkpoint(directory, encode_host_record_json(checkpoint))
     except BaseException as exc:
         try:
-            current = _audit_snapshot(directory, limits)
+            current = read_verified_host_audit(directory, limits)
         except (FileNotFoundError, ValueError):
             current = []
         except OSError as verification:
@@ -454,7 +463,7 @@ def _commit_private_append(directory: int, fd: int, enriched: dict[str, Any], ra
         if current and current[-1].get('event_hash') == enriched['event_hash']:
             raise HostRecordError('host audit event committed; confirmation interrupted, verify before retry') from exc
         try:
-            _verify_uncommitted_append(directory, before, head, raw, limits)
+            require_uncommitted_audit_append(directory, before, head, raw, limits)
         except (OSError, ValueError) as verification:
             raise HostRecordError('host audit append outcome uncertain; noncommit could not be verified, evidence preserved') from verification
         try:

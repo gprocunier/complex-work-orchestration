@@ -62,7 +62,7 @@ from cwo_core.native_session_boundary import (
 from cwo_core.supervision.transport.app_server import (
     AppServerError,
     _QUALIFICATION_RPC,
-    _checked_native_frame,
+    check_native_request_frame as _checked_native_frame,
     _qualification_wire_guard,
 )
 from cwo_core.supervision.transport.private_io import load_private_bytes
@@ -74,7 +74,7 @@ from registered_n1_factory import _DeadlineInput
 from registered_n1_qualification import EFFORT, FINITE_TOOL_NAMESPACE, LOGIN_MOUNT, MODEL, TIER
 from registered_host_root_boundary import require_private_roots
 from registered_pool_configuration import PoolContainmentError, WRITER_TOOL
-from registered_pool_containment import _calibration_close_phase
+from registered_pool_containment import measure_calibration_close_phase as _calibration_close_phase
 from registered_server_requests import RegisteredServerRequests
 
 
@@ -95,6 +95,10 @@ _AUTHORITY_FIELDS = frozenset({
 })
 _HOST_FIELDS = frozenset({"executable", "executable_sha256", "launcher", "launcher_sha256",
                           "validator", "validator_sha256"})
+CALIBRATION_POOL_MODE = _CALIBRATION_MODE
+CALLBACK_OPPORTUNITY_FIELD = _OPPORTUNITY_FIELD
+ORDINARY_POOL_MODE = _ORDINARY_MODE
+ORDINARY_POOL_SCOPE = _ORDINARY_SCOPE
 
 
 class PoolQualificationAdapterError(ValueError):
@@ -1113,6 +1117,9 @@ def _check_admission(admission, authority):
              "protected-beads-reader-required")
 
 
+require_original_pool_admission = _check_admission
+
+
 class _PoolParent:
     """One selected source, approved plan and immutable controller inputs."""
 
@@ -1192,13 +1199,13 @@ class _PoolParent:
         return inputs
 
     def bind_limits(self, limits):
-        from cwo_core.native_pool_deferred_context import _ContainedPoolAdmission
+        from cwo_core.native_pool_deferred_context import is_claimed_contained_pool_admission
         from cwo_core.native_pool_qualification_stage import PoolQualificationRunLimits
 
         _require(type(limits) is PoolQualificationRunLimits and self.limits is None, "original-stage-limits-required")
         self._require_stage_mode(limits)
         admission = getattr(limits, "_contained_admission", None)
-        _require(type(admission) is _ContainedPoolAdmission and admission._claimed
+        _require(is_claimed_contained_pool_admission(admission)
                  and admission._selection.runtime.start_worker_session.__self__ is self
                  and limits._allowance.ordinary is self._ordinary, "original-contained-stage-limits-required")
         self.limits = limits

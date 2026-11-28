@@ -49,7 +49,7 @@ from .native_pool_schedulability import (
 from .native_pool_leases import capture_owner_identity, owner_identity_is_live
 from .native_pool_workspace import PoolWorkspaceMonitor, capture_workspace_snapshot
 from .policy import load_policy
-from .native_tool_isolation import _contained_pool_child_errors, validate_tool_policy
+from .native_tool_isolation import contained_pool_child_binding_errors, validate_tool_policy
 
 
 RENDER_REQUEST_TYPE = "cwo-native-supervision-pool-render-request"
@@ -444,7 +444,7 @@ def validate_pool_render_request(
                 prefix=f"child[{index}]-tool-policy",
             )
         )
-        errors.extend(_contained_pool_child_errors(child, "render", f"child[{index}]"))
+        errors.extend(contained_pool_child_binding_errors(child, "render", f"child[{index}]"))
         read_only = isolation == "read-only-shared"
         child_tool_policy = child.get("tool_policy")
         if (

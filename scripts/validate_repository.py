@@ -8,7 +8,7 @@ import re
 import stat
 import sys
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 import scaffold_workgraph
 from site_code import without_token_spans
@@ -607,55 +607,40 @@ def validate_closure_pressure_contract(errors: list[str]) -> None:
                 )
 
     current_action = "continue-current-work-unit"
+    repair_action = "create-routine-repair-child"
     allowed_dispositions = list(epic_convergence.CLOSURE_DISPOSITIONS)
-    baseline_cases = (
-        (False, True, "closure-pressure-inactive"),
-        (True, False, "explicit-closure-disposition-required"),
-    )
-    for active, allowed, reason in baseline_cases:
-        expected = {
-            "active": active,
-            "action": current_action,
-            "disposition": None,
-            "allowed": allowed,
-            "reason": reason,
-            "allowed_dispositions": allowed_dispositions,
-        }
-        try:
-            decision = epic_convergence.evaluate_closure_pressure(active, current_action, None)
-        except Exception as exc:
-            _report_error("evaluator", f"decision failed for active={active}: {exc}")
-            continue
-        if decision != expected:
-            _report_error("evaluator", f"decision mismatch for active={active}: {decision} != {expected}")
 
-    for disposition in epic_convergence.CLOSURE_DISPOSITIONS:
-        expected_allowed = {
-            "active": True,
-            "action": current_action,
-            "disposition": disposition,
-            "allowed": True,
-            "reason": "closure-disposition-recorded",
-            "allowed_dispositions": allowed_dispositions,
-        }
-        expected_denied = {
-            "active": True,
-            "action": "create-routine-repair-child",
-            "disposition": disposition,
-            "allowed": False,
-            "reason": "routine-repair-child-rejected",
-            "allowed_dispositions": allowed_dispositions,
-        }
+    def _decision_cases() -> Iterator[tuple[bool, str | None, tuple[tuple[str, bool, str], ...]]]:
+        yield False, None, ((current_action, True, "closure-pressure-inactive"),)
+        yield True, None, ((current_action, False, "explicit-closure-disposition-required"),)
+        for disposition in epic_convergence.CLOSURE_DISPOSITIONS:
+            yield True, disposition, (
+                (current_action, True, "closure-disposition-recorded"),
+                (repair_action, False, "routine-repair-child-rejected"),
+            )
+
+    for active, disposition, checks in _decision_cases():
+        expected = [
+            {"active": active, "action": action, "disposition": disposition, "allowed": allowed,
+             "reason": reason, "allowed_dispositions": allowed_dispositions}
+            for action, allowed, reason in checks
+        ]
         try:
-            allowed = epic_convergence.evaluate_closure_pressure(
-                True, current_action, disposition
-            )
-            denied = epic_convergence.evaluate_closure_pressure(
-                True, "create-routine-repair-child", disposition
-            )
+            decisions = [
+                epic_convergence.evaluate_closure_pressure(active, action, disposition)
+                for action, _, _ in checks
+            ]
         except Exception as exc:
-            _report_error("evaluator", f"decision failed for disposition={disposition!r}: {exc}")
+            case = f"active={active}" if len(checks) == 1 else f"disposition={disposition!r}"
+            _report_error("evaluator", f"decision failed for {case}: {exc}")
             continue
+        if len(checks) == 1:
+            if decisions[0] != expected[0]:
+                _report_error("evaluator", f"decision mismatch for active={active}: {decisions[0]} != {expected[0]}")
+            continue
+
+        allowed, denied = decisions
+        expected_allowed, expected_denied = expected
         if allowed != expected_allowed:
             _report_error(
                 "evaluator",

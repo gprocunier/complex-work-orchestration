@@ -39,13 +39,16 @@ def _key_name(project, database):
     return delegation.digest({'project': str(project), 'database_sha256': database}) + '.key'
 
 
-def _protected_store(*roots):
+def _protected_store(*roots: str | os.PathLike[str]) -> host_records.HostRecordStore:
     store = host_records.configured_store()
     store.require_outside_worker_roots(roots)
     scripts = Path(__file__).resolve().parent
     native.boundary.require_private_roots((store.state_root,), visible_paths=(
         scripts, scripts.parent / 'policy', scripts.parent / 'schemas'))
     return store
+
+
+protected_controller_store = _protected_store
 
 
 @contextmanager

@@ -208,6 +208,12 @@ def _input_measurements(node):
     return measurements
 
 
+# The CLI shares these checks and retains its existing measurement exports.
+require_input = _require
+measure_text = _measurement
+measure_route_inputs = _input_measurements
+
+
 def _check_preparation_estimates(node):
     for field in ("estimate_source", "unit_estimate"):
         value = node[field]

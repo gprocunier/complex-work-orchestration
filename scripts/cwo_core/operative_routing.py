@@ -1874,6 +1874,9 @@ def _normalize_current_authority(value: Any) -> dict[str, Any]:
     return source
 
 
+normalize_current_authority_claim = _normalize_current_authority
+
+
 def _validate_authority_qualifications(qualifications: Any) -> None:
     portfolio = operative_models()
     legacy_portfolio = set(portfolio) - {portfolio[OPERATIVE_ROLES.index("sol")]}

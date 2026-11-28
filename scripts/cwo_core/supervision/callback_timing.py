@@ -141,7 +141,7 @@ def capability_certification() -> dict[str, Any]:
     }
 
 
-def _measure_action_ms(
+def measure_action_ms(
     action: Callable[[], Any],
     *,
     guard_seconds: float = 0.0,
@@ -161,7 +161,7 @@ def guarded_measure(
     *,
     guard_seconds: float = 0.20,
 ) -> Any:
-    result, elapsed_ms = _measure_action_ms(
+    result, elapsed_ms = measure_action_ms(
         action,
         guard_seconds=guard_seconds,
     )

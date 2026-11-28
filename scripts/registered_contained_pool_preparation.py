@@ -16,7 +16,7 @@ from uuid import uuid4
 import everyday_delegation
 import registered_contained_pool_host as pool
 from cwo_core import manual_delivery, native_live_availability, outbound_screen
-from cwo_core.beads_ready_set import _admission_metadata
+from cwo_core.beads_ready_set import read_ready_set_admission_metadata as _admission_metadata
 from cwo_core.invocation_ledger import MAX_UNITS
 from cwo_core.maintenance_authority import sign_controller_directive
 from cwo_core.native_authority import canonical_authority_sha256
@@ -25,11 +25,14 @@ from cwo_core.native_pool_transaction import execution_authoritative_bead_sha256
 from cwo_core.native_pool_workspace import capture_workspace_snapshot
 from cwo_core.native_tool_isolation import CONTAINED_POOL_WRITER
 from cwo_core.private_artifact import PrivateDirectory
-from registered_delegation_preparation import _clone, _custody_ticket, _known_output_data, _project_key, _screen, _text
-from registered_n1_factory import _file
-from registered_n1_qualification import _login_overlap, pool_worker_login_mount, worker_login_state
+from registered_delegation_preparation import (
+    _project_key, clone_worker_checkout as _clone, new_custody_ticket as _custody_ticket,
+    encode_delegation_text as _text, require_clean_delegation_text as _screen, validate_delegation_output as _known_output_data,
+)
+from registered_n1_factory import snapshot_registered_executable as _file
+from registered_n1_qualification import login_paths_overlap as _login_overlap, pool_worker_login_mount, worker_login_state
 from registered_pool_configuration import PoolContainmentError, trim_model_catalog
-from registered_pool_containment import MAX_POOL_PATCH_SOURCE_BYTES, _writer_bytes, pool_patch_path, read_pool_patch_file, render_pool_patch_prompt
+from registered_pool_containment import MAX_POOL_PATCH_SOURCE_BYTES, encode_pool_writer_text as _writer_bytes, pool_patch_path, read_pool_patch_file, render_pool_patch_prompt
 from registered_pool_qualification_capability import callback_implementation_sha256
 from registered_worker_login_config import read_pool_worker_login_homes
 

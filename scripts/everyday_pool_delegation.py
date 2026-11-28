@@ -7,7 +7,7 @@ from pathlib import Path
 import sys
 
 from registered_native_pool_client import validate_structure
-from run_admitted_native_pool_transaction import _load_pool_request, main as run_pool_request
+from run_admitted_native_pool_transaction import load_pool_request as _load_pool_request, main as run_pool_request
 
 
 def main(argv=None):

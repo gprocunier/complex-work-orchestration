@@ -75,6 +75,9 @@ def _registered_model(identity: dict[str, str], *, historical: bool = False) -> 
     return model
 
 
+require_registered_review_model = _registered_model
+
+
 def _stronger_reviewer(executor_id: str, executor_model: dict[str, Any], reviewer_model: dict[str, Any]) -> bool:
     executor_rank, reviewer_strength = executor_model.get("reviewer_rank"), reviewer_model.get("reviewer_rank")
     if executor_rank is not None and reviewer_strength is not None:
@@ -116,6 +119,9 @@ def _recorded_dispatch(dispatch_id: str) -> tuple[dict[str, Any], dict[str, str]
         if provenance["known"] is not True or provenance["provider_family"] != identity["provider"]:
             raise CWOPolicyError("peer-review dispatch provenance is unresolved or conflicting")
     return record, identity, record["_record_sha256"]
+
+
+recorded_dispatch = _recorded_dispatch
 
 
 def recorded_separation(inputs: dict[str, Any], reviewer: dict[str, str]) -> dict[str, Any]:

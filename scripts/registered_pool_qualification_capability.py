@@ -30,8 +30,12 @@ from cwo_core.native_pool_contracts import (
 )
 from cwo_core.native_pool_leases import capture_owner_identity
 from cwo_core.native_pool_scheduler import select_earliest_deadline
-from cwo_core.supervision.callback_timing import _measure_action_ms, callback_certification_policy, stats
-from cwo_core.workspace_capture import _pin_directory, read_at
+from cwo_core.supervision.callback_timing import (
+    callback_certification_policy,
+    measure_action_ms as _measure_action_ms,
+    stats,
+)
+from cwo_core.workspace_capture import pin_private_directory, read_at
 
 _SOURCE_PATHS = (
     "registered_pool_qualification_capability.py",
@@ -95,7 +99,7 @@ def callback_implementation_sha256() -> str:
 
 
 def _source_file_sha256(path: Path) -> str:
-    pinned = _pin_directory(str(path.parent))
+    pinned = pin_private_directory(str(path.parent))
     _require(pinned is not None, "calibration-source-directory-refused")
     directory, _ = pinned
     try:
@@ -177,7 +181,7 @@ def _charged_start(parent: object, opportunity: _CalibrationOpportunity) -> tupl
 
 
 def _active_ordinary_start(parent: object) -> tuple[InvocationLedger, str]:
-    from cwo_core.native_pool_deferred_context import _ContainedPoolAdmission
+    from cwo_core.native_pool_deferred_context import is_claimed_contained_pool_admission
     from registered_pool_ordinary_runtime import calibration_limits, ordinary_budget_id, require_ordinary_custody
 
     parent_type, _, _, limits_type = _protected_types()
@@ -188,7 +192,7 @@ def _active_ordinary_start(parent: object) -> tuple[InvocationLedger, str]:
     parent.require_effect()
     limits = parent.limits
     admission = limits._contained_admission
-    _require(type(admission) is _ContainedPoolAdmission and admission._claimed and admission._plan == parent.plan
+    _require(is_claimed_contained_pool_admission(admission) and admission._plan == parent.plan
              and limits._allowance.ordinary is approval, "original-calibration-stage-required")
     intent = limits._intent
     ledger = limits._allowance.accounting.ledger
@@ -287,21 +291,14 @@ def _observed_ms(action, ceiling_ms: float, *, on_overrun=None):
 
 
 def _observe_close(control, action, ceiling_ms):
-    from registered_pool_containment import (
-        _CALIBRATION_CLOSE_MAX_US, _CALIBRATION_CLOSE_PHASES, _CALIBRATION_CLOSE_TIMES,
-    )
+    from registered_pool_containment import collect_calibration_close_timings
 
-    timings = dict.fromkeys(_CALIBRATION_CLOSE_PHASES)
-    token = _CALIBRATION_CLOSE_TIMES.set(timings)
+    with collect_calibration_close_timings() as (max_us, timings):
+        def record_overrun(elapsed_ms):
+            total_us = min(max_us, max(0, ceil(elapsed_ms * 1000)))
+            control.worker.containment.record("calibration-slow-close", {"total_us": total_us, **timings})
 
-    def record_overrun(elapsed_ms):
-        total_us = min(_CALIBRATION_CLOSE_MAX_US, max(0, ceil(elapsed_ms * 1000)))
-        control.worker.containment.record("calibration-slow-close", {"total_us": total_us, **timings})
-
-    try:
         return _observed_ms(action, ceiling_ms, on_overrun=record_overrun)
-    finally:
-        _CALIBRATION_CLOSE_TIMES.reset(token)
 
 
 class ConnectedCallbackCalibration:

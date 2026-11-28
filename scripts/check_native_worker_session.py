@@ -9,11 +9,11 @@ from pathlib import Path
 from typing import Any
 
 from cwo_core.native_session import (
-    _error,
-    _evaluate_records,
-    _parse_iso_timestamp,
-    _session_id_matches,
-    _status_to_return_code,
+    exit_with_session_error,
+    evaluate_session_records,
+    parse_session_timestamp,
+    session_file_matches_id,
+    session_status_exit_code,
 )
 from cwo_core.model_identities import resolve_model
 from model_catalog_startup import configure_cli_model_catalog
@@ -33,11 +33,11 @@ def _load_json_policy() -> dict[str, Any]:
     try:
         raw = Path(REPO_POLICY).read_text(encoding="utf-8")
     except OSError as exc:
-        _error(f"unable to read policy {REPO_POLICY!r}: {exc}")
+        exit_with_session_error(f"unable to read policy {REPO_POLICY!r}: {exc}")
     try:
         return json.loads(raw)
     except json.JSONDecodeError as exc:
-        _error(f"policy {REPO_POLICY!r} is not valid JSON: {exc}")
+        exit_with_session_error(f"policy {REPO_POLICY!r} is not valid JSON: {exc}")
 
 
 def parse_args() -> argparse.Namespace:
@@ -71,10 +71,10 @@ def _load_policy(profile: str) -> dict[str, Any]:
     policy = _load_json_policy()
     lane_budgets = policy.get("lane_budgets")
     if not isinstance(lane_budgets, dict):
-        _error("policy lane_budgets missing")
+        exit_with_session_error("policy lane_budgets missing")
     budget = lane_budgets.get(profile)
     if not isinstance(budget, dict):
-        _error(f"budget profile {profile!r} is missing from policy")
+        exit_with_session_error(f"budget profile {profile!r} is missing from policy")
     snapshot = {
         "tool_calls_soft": int(budget.get("tool_calls_soft", 0)),
         "tool_calls_hard": int(budget.get("tool_calls_hard", 0)),
@@ -102,7 +102,7 @@ def _iter_json_lines(path: Path, *, strict: bool = True):
     try:
         raw_lines = path.read_text(encoding="utf-8").splitlines()
     except OSError as exc:
-        _error(f"unable to read {path}: {exc}", 1)
+        exit_with_session_error(f"unable to read {path}: {exc}", 1)
     for lineno, line in enumerate(raw_lines, start=1):
         line = line.strip()
         if not line:
@@ -112,7 +112,7 @@ def _iter_json_lines(path: Path, *, strict: bool = True):
         except json.JSONDecodeError as exc:
             if not strict:
                 continue
-            _error(f"{path}:{lineno} contains invalid JSON ({exc})", 1)
+            exit_with_session_error(f"{path}:{lineno} contains invalid JSON ({exc})", 1)
 
 
 def find_session_file(
@@ -122,14 +122,14 @@ def find_session_file(
 ) -> Path:
     if explicit:
         if not explicit.is_file():
-            _error(f"session file {explicit} is missing")
-        matches = _session_id_matches(explicit, session_id)
+            exit_with_session_error(f"session file {explicit} is missing")
+        matches = session_file_matches_id(explicit, session_id)
         if not matches:
-            _error(f"session id {session_id!r} not present in explicit session file {explicit}")
+            exit_with_session_error(f"session id {session_id!r} not present in explicit session file {explicit}")
         return explicit
 
     if not sessions_root.is_dir():
-        _error(f"sessions root {sessions_root} is not a directory")
+        exit_with_session_error(f"sessions root {sessions_root} is not a directory")
     candidates = [
         path
         for path in sorted(sessions_root.rglob("*.jsonl"))
@@ -139,12 +139,12 @@ def find_session_file(
         for path in sorted(sessions_root.rglob("*.jsonl")):
             if not path.is_file():
                 continue
-            if _session_id_matches(path, session_id, strict=False):
+            if session_file_matches_id(path, session_id, strict=False):
                 candidates.append(path)
     if not candidates:
-        _error(f"missing session file for session id {session_id!r}")
+        exit_with_session_error(f"missing session file for session id {session_id!r}")
     if len(candidates) > 1:
-        _error(f"ambiguous session id {session_id!r} matches {len(candidates)} files")
+        exit_with_session_error(f"ambiguous session id {session_id!r} matches {len(candidates)} files")
     return candidates[0]
 
 
@@ -159,15 +159,15 @@ def main() -> int:
         try:
             packet = json.loads(packet_path.read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            _error(f"could not load packet {packet_path}: {exc}")
+            exit_with_session_error(f"could not load packet {packet_path}: {exc}")
         # This helper is retrospective evidence inspection. Dispatch authority
         # belongs exclusively to the live supervisor and remains contained.
         packet_errors = validate_native_worker_packet(packet, dispatchable=False)
         if packet_errors:
-            _error("packet validation failed: " + "; ".join(packet_errors))
+            exit_with_session_error("packet validation failed: " + "; ".join(packet_errors))
         requested_model = str(packet["requested_model"])
         if args.requested_model and args.requested_model.strip() != requested_model:
-            _error("--requested-model must match packet requested_model")
+            exit_with_session_error("--requested-model must match packet requested_model")
         policy = {
             "profile_name": str(packet["lane"]),
             "snapshot": dict(packet["budget"]),
@@ -187,11 +187,11 @@ def main() -> int:
 
     now: dt.datetime | None = None
     if args.now:
-        now = _parse_iso_timestamp(args.now)
+        now = parse_session_timestamp(args.now)
         if now.tzinfo is None:
             now = now.replace(tzinfo=dt.timezone.utc)
 
-    segments, aggregate, overall_status, selected_segment = _evaluate_records(
+    segments, aggregate, overall_status, selected_segment = evaluate_session_records(
         records, policy["snapshot"], requested_model, now
     )
     payload = {
@@ -226,7 +226,7 @@ def main() -> int:
             print("Session status: within-budget")
         print(f"Session file: {session_file}")
         print(f"Segments: {len(segments)}")
-    return _status_to_return_code(overall_status)
+    return session_status_exit_code(overall_status)
 
 
 if __name__ == "__main__":

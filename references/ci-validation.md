@@ -33,6 +33,8 @@ in registered and offline scripts and their pool qualification helpers.
 New functions may span up to 100 lines and nest up to five control suites before
 the check reports new debt. Existing entries that exceed these limits cannot
 grow. Run `python scripts/check_code_health.py refresh` after reducing debt.
+The refresh lowers allowances to the observed counts, so CI rejects a return
+of a diagnostic that has been cleared.
 Record reviewed definition moves in `policy/code-health-moves.json`. Use
 `refresh --admit REASON` after review when a change needs new debt.
 

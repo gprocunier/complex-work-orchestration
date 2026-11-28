@@ -15,7 +15,7 @@ import unittest
 from tests.test_checked_command import ROOT,spec
 from cwo_core.checked_command import execute_checked_command
 from cwo_core.native_pool_transaction import execution_authoritative_bead_sha256
-from cwo_core.stage_completion import consume,CompletionError,canonical
+from cwo_core.stage_completion import consume,CompletionError
 from cwo_core.stage_evidence import StageEvidenceBinding,pinned,read,StageEvidenceError
 import cwo_core.checked_command as checked
 import cwo_core.native_pool_transaction as transaction

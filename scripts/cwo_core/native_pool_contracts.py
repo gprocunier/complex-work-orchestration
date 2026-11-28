@@ -10,7 +10,7 @@ import os
 from pathlib import Path, PurePosixPath
 import re
 import tempfile
-from typing import Any, Iterable, Mapping
+from typing import Any, Callable, Iterable, Mapping
 
 from .native_control import validate_control_turn_receipt
 from .native_authority import validate_authority_provenance
@@ -27,7 +27,7 @@ from .native_pool_schedulability import (
     scheduling_budget_proof,
     validate_slack_warning_fraction,
 )
-from .native_tool_isolation import _contained_pool_child_errors, validate_tool_policy
+from .native_tool_isolation import contained_pool_child_binding_errors, validate_tool_policy
 from .native_stop_scope import STOP_METADATA_FIELDS, validate_stop_metadata
 from .native_recovery_authority import (
     validate_fixed_cohort_consumption_projection,
@@ -864,16 +864,26 @@ def _validate_owner(value: Any, prefix: str, errors: list[str]) -> None:
         errors.append(f"invalid-{prefix}-boot-id-sha256")
 
 
+def _validate_fields(
+    value: Mapping[str, object],
+    fields: Iterable[str],
+    validate: Callable[[object], bool],
+    prefix: str,
+    errors: list[str],
+) -> None:
+    for field in fields:
+        if not validate(value.get(field)):
+            errors.append(f"{prefix}{field.replace('_', '-')}")
+
+
 def _validate_identity(value: Any, prefix: str, errors: list[str]) -> None:
     identity = _strict(value, IDENTITY_FIELDS, prefix, errors)
     if identity is None:
         return
-    for field in ("canonical_path_sha256", "git_common_dir_sha256", "baseline_sha256"):
-        if not _is_sha256(identity.get(field)):
-            errors.append(f"invalid-{prefix}-{field.replace('_', '-')}")
-    for field in ("device", "inode"):
-        if not _is_int(identity.get(field)):
-            errors.append(f"invalid-{prefix}-{field}")
+    invalid = f"invalid-{prefix}-"
+    hashes = ("canonical_path_sha256", "git_common_dir_sha256", "baseline_sha256")
+    _validate_fields(identity, hashes, _is_sha256, invalid, errors)
+    _validate_fields(identity, ("device", "inode"), _is_int, invalid, errors)
 
 
 def _validate_token_usage(value: Any, prefix: str, errors: list[str]) -> None:
@@ -1158,9 +1168,9 @@ def _validate_v2_admission_binding(
     admission_reservation: Mapping[str, Any] | None,
     errors: list[str],
 ) -> None:
-    for field in ADMISSION_TOP_BINDING_FIELDS:
-        if not _is_sha256(contract.get(field)):
-            errors.append(f"invalid-{field.replace('_', '-')}")
+    _validate_fields(
+        contract, ADMISSION_TOP_BINDING_FIELDS, _is_sha256, "invalid-", errors
+    )
 
     observed_bindings = [_admission_binding_projection(child) for child in children]
     if contract.get("child_bindings_sha256") != canonical_sha256(observed_bindings):
@@ -1236,6 +1246,35 @@ def _validate_v2_admission_binding(
             errors.append(f"admission-child[{index}]-claim-mismatch")
 
 
+_CONTRACT_CHILD_IDS = (
+    "child_id",
+    "packet_id",
+    "attempt_nonce",
+    "session_id",
+    "agent_id",
+    "control_turn_id",
+    "lease_id",
+)
+_HARD_BUDGET_MINIMUMS = {
+    "tool_calls": 1,
+    "runtime_seconds": 1,
+    "compactions": 0,
+    "full_suite_runs": 0,
+    "mutations": 0,
+}
+
+
+def _read_hard_budget(
+    value: object, prefix: str, errors: list[str]
+) -> Mapping[str, Any] | None:
+    budget = _strict(value, set(_HARD_BUDGET_MINIMUMS), prefix, errors)
+    if budget is not None:
+        for field, minimum in _HARD_BUDGET_MINIMUMS.items():
+            if not _is_int(budget.get(field), minimum):
+                errors.append(f"invalid-{prefix}-{field.replace('_', '-')}")
+    return budget
+
+
 def validate_pool_contract(
     value: Any,
     *,
@@ -1271,9 +1310,8 @@ def validate_pool_contract(
         errors=errors,
         expected_version=ADMITTED_POOL_VERSION if admitted_v2 else VERSION,
     )
-    for field in ("pool_id", "pool_epoch", "control_turn_id"):
-        if not _nonempty(contract.get(field)):
-            errors.append(f"invalid-{field.replace('_', '-')}")
+    fields = ("pool_id", "pool_epoch", "control_turn_id")
+    _validate_fields(contract, fields, _nonempty, "invalid-", errors)
     completion_policy = contract.get(
         "completion_policy", DEFAULT_COMPLETION_POLICY
     )
@@ -1301,56 +1339,21 @@ def validate_pool_contract(
             normalized_children.append(child)
             if child.get("ordinal") != index:
                 errors.append(f"invalid-child[{index}]-ordinal")
-            for field in (
-                "child_id",
-                "packet_id",
-                "attempt_nonce",
-                "session_id",
-                "agent_id",
-                "control_turn_id",
-                "lease_id",
-            ):
-                if not _nonempty(child.get(field)):
-                    errors.append(f"invalid-child[{index}]-{field.replace('_', '-')}")
-            for field in ("packet_sha256", "control_contract_sha256"):
-                if not _is_sha256(child.get(field)):
-                    errors.append(f"invalid-child[{index}]-{field.replace('_', '-')}")
+            prefix = f"invalid-child[{index}]-"
+            _validate_fields(child, _CONTRACT_CHILD_IDS, _nonempty, prefix, errors)
+            hashes = ("packet_sha256", "control_contract_sha256")
+            _validate_fields(child, hashes, _is_sha256, prefix, errors)
             if admitted_v2:
+                text_fields = {"bead_id", "work_unit_id"}
                 for field in ADMISSION_CHILD_IDENTITY_FIELDS:
-                    if field in {"bead_id", "work_unit_id"}:
-                        if not _nonempty(child.get(field)):
-                            errors.append(
-                                f"invalid-child[{index}]-{field.replace('_', '-')}"
-                            )
-                    elif not _is_sha256(child.get(field)):
-                        errors.append(
-                            f"invalid-child[{index}]-{field.replace('_', '-')}"
-                        )
+                    validate = _nonempty if field in text_fields else _is_sha256
+                    if not validate(child.get(field)):
+                        errors.append(f"{prefix}{field.replace('_', '-')}")
                 if not _nonempty(child.get("requested_model")):
                     errors.append(f"invalid-child[{index}]-requested-model")
-                child_budget = _strict(
-                    child.get("hard_budget"),
-                    {
-                        "tool_calls",
-                        "runtime_seconds",
-                        "compactions",
-                        "full_suite_runs",
-                        "mutations",
-                    },
-                    f"child[{index}]-hard-budget",
-                    errors,
+                _read_hard_budget(
+                    child.get("hard_budget"), f"child[{index}]-hard-budget", errors
                 )
-                if child_budget is not None:
-                    for field in ("tool_calls", "runtime_seconds"):
-                        if not _is_int(child_budget.get(field), 1):
-                            errors.append(
-                                f"invalid-child[{index}]-hard-budget-{field.replace('_', '-')}"
-                            )
-                    for field in ("compactions", "full_suite_runs", "mutations"):
-                        if not _is_int(child_budget.get(field)):
-                            errors.append(
-                                f"invalid-child[{index}]-hard-budget-{field.replace('_', '-')}"
-                            )
                 for field, expected in admission_child_render_hashes(child).items():
                     if child.get(field) != expected:
                         errors.append(
@@ -1378,7 +1381,7 @@ def validate_pool_contract(
                     prefix=f"child[{index}]-tool-policy",
                 )
             )
-            errors.extend(_contained_pool_child_errors(child, "contract", f"child[{index}]"))
+            errors.extend(contained_pool_child_binding_errors(child, "contract", f"child[{index}]"))
             child_tool_policy = child.get("tool_policy")
             if (
                 isolation == "read-only-shared"
@@ -1414,23 +1417,13 @@ def validate_pool_contract(
                             f"child[{index}]-declared-write-outside-integration-target:{write_path}"
                         )
 
-        for field in (
-            "child_id",
-            "packet_id",
-            "attempt_nonce",
-            "session_id",
-            "agent_id",
-            "control_turn_id",
-            "lease_id",
-        ):
+        unique_fields = _CONTRACT_CHILD_IDS
+        if admitted_v2:
+            unique_fields += ("bead_id", "work_unit_id", "admitted_child_sha256")
+        for field in unique_fields:
             values = [child.get(field) for child in normalized_children]
             if len(values) != len(set(values)):
                 errors.append(f"duplicate-child-{field.replace('_', '-')}")
-        if admitted_v2:
-            for field in ("bead_id", "work_unit_id", "admitted_child_sha256"):
-                values = [child.get(field) for child in normalized_children]
-                if len(values) != len(set(values)):
-                    errors.append(f"duplicate-child-{field.replace('_', '-')}")
 
         mutable = [
             child
@@ -1466,26 +1459,19 @@ def validate_pool_contract(
     elif isinstance(children, list) and cap != len(children):
         errors.append("max-active-workers-must-equal-fixed-cohort")
 
-    scheduler = _strict(
-        contract.get("scheduler"),
-        {
-            "kind",
-            "poll_interval_ms",
-            "poll_lag_tolerance_ms",
-            "certified_max_check_ms",
-            "certified_max_scheduler_overhead_ms",
-        },
-        "scheduler",
-        errors,
-    )
+    schedule = {
+        "kind": "earliest-deadline-rotating-v1",
+        "poll_interval_ms": POOL_POLL_INTERVAL_MS,
+        "poll_lag_tolerance_ms": POOL_POLL_LAG_TOLERANCE_MS,
+    }
+    certification = ("certified_max_check_ms", "certified_max_scheduler_overhead_ms")
+    scheduler_fields = set(schedule).union(certification)
+    scheduler = _strict(contract.get("scheduler"), scheduler_fields, "scheduler", errors)
     if scheduler is not None:
-        if scheduler.get("kind") != "earliest-deadline-rotating-v1":
-            errors.append("invalid-scheduler-kind")
-        if scheduler.get("poll_interval_ms") != POOL_POLL_INTERVAL_MS:
-            errors.append("invalid-scheduler-poll-interval-ms")
-        if scheduler.get("poll_lag_tolerance_ms") != POOL_POLL_LAG_TOLERANCE_MS:
-            errors.append("invalid-scheduler-poll-lag-tolerance-ms")
-        for field in ("certified_max_check_ms", "certified_max_scheduler_overhead_ms"):
+        for field, expected in schedule.items():
+            if scheduler.get(field) != expected:
+                errors.append(f"invalid-scheduler-{field.replace('_', '-')}")
+        for field in certification:
             item = scheduler.get(field)
             if item is not None and not _is_number(item):
                 errors.append(f"invalid-scheduler-{field.replace('_', '-')}")
@@ -1516,29 +1502,10 @@ def validate_pool_contract(
                     if not proof.accepted:
                         errors.append("concurrent-response-time-bound-failed")
 
-    budget = _strict(
-        contract.get("aggregate_hard_budget"),
-        {
-            "tool_calls",
-            "runtime_seconds",
-            "compactions",
-            "full_suite_runs",
-            "mutations",
-        },
-        "aggregate-hard-budget",
-        errors,
+    budget = _read_hard_budget(
+        contract.get("aggregate_hard_budget"), "aggregate-hard-budget", errors
     )
     if budget is not None:
-        for field in ("tool_calls", "runtime_seconds"):
-            if not _is_int(budget.get(field), 1):
-                errors.append(
-                    f"invalid-aggregate-hard-budget-{field.replace('_', '-')}"
-                )
-        for field in ("compactions", "full_suite_runs", "mutations"):
-            if not _is_int(budget.get(field)):
-                errors.append(
-                    f"invalid-aggregate-hard-budget-{field.replace('_', '-')}"
-                )
         required_tool_calls = sum(
             int(
                 child.get("completion_evidence_policy", {}).get("minimum_tool_calls", 0)
@@ -1557,13 +1524,7 @@ def validate_pool_contract(
                 "completion-evidence-minimum-tool-calls-exceed-aggregate-budget"
             )
         if admitted_v2 and normalized_children:
-            for field in (
-                "tool_calls",
-                "runtime_seconds",
-                "compactions",
-                "full_suite_runs",
-                "mutations",
-            ):
+            for field in _HARD_BUDGET_MINIMUMS:
                 child_values = [
                     child.get("hard_budget", {}).get(field)
                     for child in normalized_children
@@ -2346,15 +2307,11 @@ def _validate_receipt_identity(
         errors=errors,
         expected_version=ADMITTED_POOL_VERSION if admitted_v2 else VERSION,
     )
-    for field in ("pool_id", "pool_epoch"):
-        if not _nonempty(receipt.get(field)):
-            errors.append(f"invalid-{field.replace('_', '-')}")
+    _validate_fields(receipt, ("pool_id", "pool_epoch"), _nonempty, "invalid-", errors)
     identity_hash_fields = ["contract_sha256", "terminal_state_sha256"]
     if admitted_v2:
         identity_hash_fields.extend(["reservation_sha256", "dispatch_sha256"])
-    for field in identity_hash_fields:
-        if not _is_sha256(receipt.get(field)):
-            errors.append(f"invalid-{field.replace('_', '-')}")
+    _validate_fields(receipt, identity_hash_fields, _is_sha256, "invalid-", errors)
     if receipt.get("capability_receipt_sha256") is not None and not _is_sha256(
         receipt.get("capability_receipt_sha256")
     ):
@@ -2385,27 +2342,22 @@ def _read_receipt_timing(value: Any, errors: list[str]) -> Mapping[str, Any] | N
     )
     timing = _strict(value, timing_fields, "timing", errors)
     if timing is not None:
-        for field in POOL_RECEIPT_LEGACY_TIMING_FIELDS:
-            if not _is_number(timing.get(field)):
-                errors.append(f"invalid-timing-{field.replace('_', '-')}")
+        prefix = "invalid-timing-"
+        _validate_fields(timing, POOL_RECEIPT_LEGACY_TIMING_FIELDS, _is_number, prefix, errors)
         if "accounting_version" in timing:
             if timing.get("accounting_version") != "exclusive-v1":
                 errors.append("invalid-timing-accounting-version")
-            for field in _POOL_RECEIPT_TIMING_BUCKETS:
-                if not _is_int(timing.get(field)):
-                    errors.append(f"invalid-timing-{field.replace('_', '-')}")
+            _validate_fields(timing, _POOL_RECEIPT_TIMING_BUCKETS, _is_int, prefix, errors)
     return timing
 
 
 def _validate_admitted_receipt_child_fields(
     entry: Mapping[str, Any], prefix: str, errors: list[str]
 ) -> None:
-    for field in ("bead_id", "work_unit_id"):
-        if not _nonempty(entry.get(field)):
-            errors.append(f"invalid-{prefix}-{field.replace('_', '-')}")
-    for field in ("packet_sha256", "admitted_child_sha256"):
-        if not _is_sha256(entry.get(field)):
-            errors.append(f"invalid-{prefix}-{field.replace('_', '-')}")
+    invalid = f"invalid-{prefix}-"
+    _validate_fields(entry, ("bead_id", "work_unit_id"), _nonempty, invalid, errors)
+    hashes = ("packet_sha256", "admitted_child_sha256")
+    _validate_fields(entry, hashes, _is_sha256, invalid, errors)
 
 
 def _read_child_terminal_receipt(
@@ -2438,9 +2390,9 @@ def _validate_receipt_usage(
     _validate_usage(
         receipt.get("final_aggregate_usage"), "final-aggregate-usage", errors
     )
-    for field in ("pool_wall_seconds", "worker_seconds"):
-        if not _is_number(receipt.get(field)):
-            errors.append(f"invalid-{field.replace('_', '-')}")
+    _validate_fields(
+        receipt, ("pool_wall_seconds", "worker_seconds"), _is_number, "invalid-", errors
+    )
     if (
         timing is not None
         and timing.get("accounting_version") == "exclusive-v1"
@@ -2486,26 +2438,22 @@ def _read_receipt_lease_ids(lease_evidence: Any, errors: list[str]) -> list[str]
     return lease_ids
 
 
+_RECEIPT_MUTATION_CLEAN_FIELDS = (
+    "integration_root_clean", "shared_read_only_clean", "child_worktrees_clean",
+)
+
+
 def _read_receipt_mutation_evidence(
     value: Any, errors: list[str]
 ) -> Mapping[str, Any] | None:
     mutation = _strict(
         value,
-        {
-            "integration_root_clean",
-            "shared_read_only_clean",
-            "child_worktrees_clean",
-            "evidence_sha256",
-        },
+        {*_RECEIPT_MUTATION_CLEAN_FIELDS, "evidence_sha256"},
         "mutation-evidence",
         errors,
     )
     if mutation is not None:
-        for field in (
-            "integration_root_clean",
-            "shared_read_only_clean",
-            "child_worktrees_clean",
-        ):
+        for field in _RECEIPT_MUTATION_CLEAN_FIELDS:
             if not isinstance(mutation.get(field), bool):
                 errors.append(f"invalid-mutation-{field.replace('_', '-')}")
         if not _is_sha256(mutation.get("evidence_sha256")):
@@ -2514,11 +2462,7 @@ def _read_receipt_mutation_evidence(
             expected_mutation_hash = canonical_sha256(
                 {
                     field: mutation.get(field)
-                    for field in (
-                        "integration_root_clean",
-                        "shared_read_only_clean",
-                        "child_worktrees_clean",
-                    )
+                    for field in _RECEIPT_MUTATION_CLEAN_FIELDS
                 }
             )
             if mutation.get("evidence_sha256") != expected_mutation_hash:
@@ -2564,6 +2508,32 @@ def _read_receipt_child_disposition(
             f"invalid-child-disposition[{index}]-runtime-disposition"
         )
     return entry, runtime_disposition
+
+
+_ADMITTED_RECEIPT_CHILD_BINDINGS = (
+    "child_id",
+    "bead_id",
+    "work_unit_id",
+    "packet_sha256",
+    "admitted_child_sha256",
+)
+
+
+def _validate_matching_fields(
+    actual: Mapping[str, object],
+    expected: Mapping[str, object],
+    fields: Iterable[str | tuple[str, str, str]],
+    prefix: str,
+    errors: list[str],
+) -> None:
+    """Compare same-name fields or ordered (actual, expected, diagnostic) rules."""
+    for rule in fields:
+        if isinstance(rule, str):
+            actual_field = expected_field = label = rule
+        else:
+            actual_field, expected_field, label = rule
+        if actual.get(actual_field) != expected.get(expected_field):
+            errors.append(f"{prefix}-{label.replace('_', '-')}-mismatch")
 
 
 def validate_pool_receipt(
@@ -2716,14 +2686,10 @@ def validate_pool_receipt(
     if not isinstance(receipt.get("accepting"), bool):
         errors.append("invalid-accepting")
     if contract is not None:
-        for field in (
-            "pool_id",
-            "pool_epoch",
-            "contract_sha256",
-            "capability_receipt_sha256",
-        ):
-            if receipt.get(field) != contract.get(field):
-                errors.append(f"receipt-{field.replace('_', '-')}-mismatch")
+        identity_fields = (
+            "pool_id", "pool_epoch", "contract_sha256", "capability_receipt_sha256"
+        )
+        _validate_matching_fields(receipt, contract, identity_fields, "receipt", errors)
         child_ids = [
             child.get("child_id")
             for child in contract.get("children", [])
@@ -2774,12 +2740,13 @@ def validate_pool_receipt(
             errors.append("lease-evidence-order-mismatch")
         if timing is not None:
             scheduler = contract.get("scheduler", {})
-            if timing.get("poll_interval_ms") != scheduler.get("poll_interval_ms"):
-                errors.append("receipt-poll-interval-mismatch")
-            if timing.get("poll_lag_tolerance_ms") != scheduler.get(
-                "poll_lag_tolerance_ms"
-            ):
-                errors.append("receipt-poll-lag-tolerance-mismatch")
+            schedule_fields = (
+                ("poll_interval_ms", "poll_interval_ms", "poll_interval"),
+                ("poll_lag_tolerance_ms", "poll_lag_tolerance_ms", "poll_lag_tolerance"),
+            )
+            _validate_matching_fields(
+                timing, scheduler, schedule_fields, "receipt", errors
+            )
         if admitted_v2:
             if contract.get("version") != ADMITTED_POOL_VERSION:
                 errors.append("receipt-v2-requires-v2-contract")
@@ -2825,17 +2792,10 @@ def validate_pool_receipt(
                     ):
                         continue
                     entry = child_receipts[index]
-                    for field in (
-                        "child_id",
-                        "bead_id",
-                        "work_unit_id",
-                        "packet_sha256",
-                        "admitted_child_sha256",
-                    ):
-                        if entry.get(field) != child.get(field):
-                            errors.append(
-                                f"child-receipt[{index}]-{field.replace('_', '-')}-mismatch"
-                            )
+                    prefix = f"child-receipt[{index}]"
+                    _validate_matching_fields(
+                        entry, child, _ADMITTED_RECEIPT_CHILD_BINDINGS, prefix, errors
+                    )
                     control_receipt = entry.get("control_receipt")
                     if isinstance(control_receipt, Mapping) and control_receipt.get(
                         "contract_sha256"
@@ -2850,17 +2810,10 @@ def validate_pool_receipt(
                     ):
                         continue
                     entry = dispositions[index]
-                    for field in (
-                        "child_id",
-                        "bead_id",
-                        "work_unit_id",
-                        "packet_sha256",
-                        "admitted_child_sha256",
-                    ):
-                        if entry.get(field) != child.get(field):
-                            errors.append(
-                                f"child-disposition[{index}]-{field.replace('_', '-')}-mismatch"
-                            )
+                    prefix = f"child-disposition[{index}]"
+                    _validate_matching_fields(
+                        entry, child, _ADMITTED_RECEIPT_CHILD_BINDINGS, prefix, errors
+                    )
                     projection = entry.get("recovery_projection")
                     if (
                         entry.get("runtime_disposition") == "failed-contained"
@@ -2921,16 +2874,15 @@ def validate_pool_receipt(
                             f"child-disposition[{index}]-control-failed-close-forbidden"
                         )
     if terminal_state is not None:
-        if receipt.get("terminal_state_sha256") != terminal_state.get("state_sha256"):
-            errors.append("receipt-terminal-state-sha256-mismatch")
-        if receipt.get("final_aggregate_usage") != terminal_state.get(
-            "aggregate_usage"
-        ):
-            errors.append("receipt-aggregate-usage-mismatch")
-        if receipt.get("pool_wall_seconds") != terminal_state.get("pool_wall_seconds"):
-            errors.append("receipt-pool-wall-seconds-mismatch")
-        if receipt.get("worker_seconds") != terminal_state.get("worker_seconds"):
-            errors.append("receipt-worker-seconds-mismatch")
+        state_usage = (
+            ("terminal_state_sha256", "state_sha256", "terminal_state_sha256"),
+            ("final_aggregate_usage", "aggregate_usage", "aggregate_usage"),
+            "pool_wall_seconds",
+            "worker_seconds",
+        )
+        _validate_matching_fields(
+            receipt, terminal_state, state_usage, "receipt", errors
+        )
         if (
             timing is not None
             and timing.get("accounting_version") == "exclusive-v1"
@@ -2948,14 +2900,10 @@ def validate_pool_receipt(
                 abs_tol=1e-9,
             ):
                 errors.append("receipt-poll-overhead-seconds-mismatch")
-        if receipt.get("first_protected_fault") != terminal_state.get(
-            "first_protected_fault"
-        ):
-            errors.append("receipt-first-protected-fault-mismatch")
-        if receipt.get("reasons") != terminal_state.get("reasons"):
-            errors.append("receipt-reasons-mismatch")
-        if receipt.get("reason_records") != terminal_state.get("reason_records"):
-            errors.append("receipt-reason-records-mismatch")
+        fault_fields = ("first_protected_fault", "reasons", "reason_records")
+        _validate_matching_fields(
+            receipt, terminal_state, fault_fields, "receipt", errors
+        )
         if any(
             receipt.get(field) != terminal_state.get(field)
             for field in STOP_METADATA_FIELDS
@@ -2978,32 +2926,23 @@ def validate_pool_receipt(
                     continue
                 child_receipt = child_receipts[index]
                 disposition = dispositions[index]
-                if child_receipt.get("child_id") != state_child.get("child_id"):
-                    errors.append(
-                        f"child-terminal[{index}]-state-child-id-mismatch"
-                    )
-                if child_receipt.get("receipt_sha256") != state_child.get(
-                    "child_receipt_sha256"
-                ):
-                    errors.append(
-                        f"child-terminal[{index}]-state-receipt-sha256-mismatch"
-                    )
-                if disposition.get("child_id") != state_child.get("child_id"):
-                    errors.append(
-                        f"child-disposition[{index}]-state-child-id-mismatch"
-                    )
-                if disposition.get("runtime_disposition") != state_child.get(
-                    "runtime_disposition"
-                ):
-                    errors.append(
-                        f"child-disposition[{index}]-state-runtime-mismatch"
-                    )
-                if admitted_v2 and disposition.get(
-                    "recovery_projection"
-                ) != state_child.get("recovery_projection"):
-                    errors.append(
-                        f"child-disposition[{index}]-state-recovery-projection-mismatch"
-                    )
+                receipt_fields = (
+                    "child_id",
+                    ("receipt_sha256", "child_receipt_sha256", "receipt_sha256"),
+                )
+                prefix = f"child-terminal[{index}]-state"
+                _validate_matching_fields(
+                    child_receipt, state_child, receipt_fields, prefix, errors
+                )
+                disposition_fields: tuple[str | tuple[str, str, str], ...] = (
+                    "child_id", ("runtime_disposition", "runtime_disposition", "runtime")
+                )
+                if admitted_v2:
+                    disposition_fields += ("recovery_projection",)
+                prefix = f"child-disposition[{index}]-state"
+                _validate_matching_fields(
+                    disposition, state_child, disposition_fields, prefix, errors
+                )
 
     runtime_values = [
         item.get("runtime_disposition")
@@ -3072,11 +3011,7 @@ def validate_pool_receipt(
                     errors.append("accepting-receipt-poll-gap-exceeded")
         if isinstance(mutation, Mapping) and any(
             mutation.get(field) is not True
-            for field in (
-                "integration_root_clean",
-                "shared_read_only_clean",
-                "child_worktrees_clean",
-            )
+            for field in _RECEIPT_MUTATION_CLEAN_FIELDS
         ):
             errors.append("accepting-requires-clean-mutation-evidence")
         if isinstance(lease_evidence, list) and any(

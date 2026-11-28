@@ -54,6 +54,9 @@ def _load_pool_request(path: Path) -> dict[str, Any]:
     return value
 
 
+load_pool_request = _load_pool_request
+
+
 def _load_json(path: Path, label: str) -> dict[str, Any]:
     if not path.is_file() or path.is_symlink():
         raise ValueError(f"{label} must be a regular non-symlink file")

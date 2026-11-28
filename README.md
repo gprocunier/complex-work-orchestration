@@ -115,8 +115,8 @@ custom reviewer profiles and where to find saved audit records and packets.
 
 Hosted CI runs the full unit suite on Python 3.12 and 3.14. It also checks
 types and enforces a measured coverage floor for selected modules. The
-code-health check prevents maintainability regressions against a reviewed
-baseline.
+code-health check prevents maintainability regressions and records reductions
+in unused names, private imports and validator complexity.
 See [CI validation](references/ci-validation.md) for the check scope and local commands.
 
 ## Example: one project across two fresh sessions

@@ -106,12 +106,15 @@ def _login_identity(path):
     return info.st_dev, info.st_ino
 
 
-def _login_overlap(left, right):
+def _login_overlap(left: Path, right: Path) -> bool:
     if left.is_relative_to(right) or right.is_relative_to(left):
         return True
     left_id, right_id = _login_identity(left), _login_identity(right)
     return ((left_id is not None and left_id in map(_login_identity, right.parents))
             or (right_id is not None and right_id in map(_login_identity, (left, *left.parents))))
+
+
+login_paths_overlap = _login_overlap
 
 
 def _qualification_login_homes() -> tuple[Path, ...]:

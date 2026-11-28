@@ -38,7 +38,7 @@ from cwo_core.codex_tool_surface import (
     thread_start_enforcement_params,
     prepare_capture_binding,
     require_capture_binding,
-    _codex_binary as _codex_binary,
+    discover_codex_binary,
     tool_transport_instructions,
     tool_profile_is_mutable,
     require_zero_endpoint_inventory,
@@ -47,8 +47,8 @@ from cwo_core.native_canary_contracts import canonical_sha256 as domain_sha256
 from cwo_core.native_live_allocation_ledger import (
     EXPECTED_ROLES,
     NativeLiveAllocationLedgerStore,
-    _IdentityCapabilityRegistry,
-    _TurnNegativeResponseObserverBinding,
+    IdentityCapabilityRegistry as _IdentityCapabilityRegistry,
+    TurnNegativeResponseObserverBinding as _TurnNegativeResponseObserverBinding,
 )
 from cwo_core.native_pool_contracts import write_private_artifact
 from cwo_core.outbound_screen import OutboundRefused
@@ -66,8 +66,8 @@ from cwo_core.supervision.transport.errors import (
     AppServerRpcError,
 )
 from cwo_core.supervision.transport.private_io import (
-    _open_private_control_lock,
-    _private_control_directory,
+    ensure_private_control_directory as _private_control_directory,
+    open_private_control_lock as _open_private_control_lock,
     load_private_json,
 )
 
@@ -3102,3 +3102,12 @@ def _canonical_controller_workdir(value: Path | str) -> Path:
     ):
         raise AppServerError("controller-workdir-invalid")
     return resolved
+
+
+# Keep the original hooks and expose shared transport operations by name.
+_codex_binary = discover_codex_binary
+IdentityCapabilityRegistry = _IdentityCapabilityRegistry
+TurnNegativeResponseObserverBinding = _TurnNegativeResponseObserverBinding
+prepare_native_request_frame = _prepare_native_frame
+check_native_request_frame = _checked_native_frame
+canonical_controller_workdir = _canonical_controller_workdir

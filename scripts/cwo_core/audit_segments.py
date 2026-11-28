@@ -10,7 +10,11 @@ import base64
 import hashlib
 import os
 
-from .host_records import HostRecordError, _json, _need, _parse, _read_at, _sha, _write_at
+from .host_records import (
+    HostRecordError, decode_host_record_json, encode_host_record_json,
+    require_host_record, require_host_record_sha256,
+    read_private_host_file_at as _read_at, write_private_host_file_at as _write_at,
+)
 
 HEAD = 'audit.jsonl.head.json'
 JOURNAL = 'audit.rotation.json'
@@ -31,10 +35,10 @@ def read_head(directory):
 def layout(head):
     if head is None:
         return 0, []
-    value = _parse(head)
+    value = decode_host_record_json(head)
     seals = value.get('sealed_segments', [])
     index = value.get('active_segment', 0)
-    _need(type(seals) is list and type(index) is int and index == len(seals),
+    require_host_record(type(seals) is list and type(index) is int and index == len(seals),
           'host audit segment layout is invalid')
     return index, seals
 
@@ -45,20 +49,21 @@ def active(directory, limits, head=None):
     try:
         raw = _read_at(directory, segment_name(index), limits.max_audit_bytes)
     except FileNotFoundError:
-        _need(head is None, 'host audit log is missing')
+        require_host_record(head is None, 'host audit log is missing')
         raw = b''
     return head, index, seals, raw
 
 
 def _events(raw, previous, limits):
     from .audit import audit_event_payload_hash
-    _need(not raw or raw.endswith(b'\n'), 'host audit has an incomplete final event')
+    require_host_record(not raw or raw.endswith(b'\n'), 'host audit has an incomplete final event')
     events = []
     for line in raw.splitlines():
-        _need(len(events) < limits.max_events, 'host audit event bound exceeded')
-        event = _parse(line)
-        _need(event.get('event_hash') == audit_event_payload_hash(event), 'host audit event digest mismatch')
-        _need(event.get('previous_event_hash') == previous, 'host audit chain break')
+        require_host_record(len(events) < limits.max_events, 'host audit event bound exceeded')
+        event = decode_host_record_json(line)
+        require_host_record(event.get('event_hash') == audit_event_payload_hash(event),
+                            'host audit event digest mismatch')
+        require_host_record(event.get('previous_event_hash') == previous, 'host audit chain break')
         previous = event['event_hash']
         events.append(event)
     return events, previous
@@ -75,7 +80,7 @@ def _segment_inventory(directory, index, ignored):
     with os.scandir(directory) as entries:
         for entry in entries:
             if entry.name.startswith('audit.segment-'):
-                _need(entry.name in expected or entry.name in ignored,
+                require_host_record(entry.name in expected or entry.name in ignored,
                       'host audit has an unknown or uncommitted segment')
 
 
@@ -92,35 +97,35 @@ def verify_checkpoint(directory, limits, head, raw, *, ignored=()):
     suffix. Ordinary readers always pass the actual current head and tail.
     """
     index, seals = layout(head)
-    _need(index < limits.max_segments, 'host audit segment count bound exceeded')
+    require_host_record(index < limits.max_segments, 'host audit segment count bound exceeded')
     _segment_inventory(directory, index, ignored)
     events, previous, total_bytes = [], None, 0
     for number, seal in enumerate(seals):
         sealed_raw = _read_at(directory, segment_name(number), limits.max_audit_bytes)
         current, last = _events(sealed_raw, previous, limits)
-        _need(bool(current) and seal == _seal(number, sealed_raw, current, previous),
+        require_host_record(bool(current) and seal == _seal(number, sealed_raw, current, previous),
               'host audit segment seal/content mismatch')
         events.extend(current)
         previous = last
         total_bytes += len(sealed_raw)
         _history_bound(events, total_bytes, limits)
-    _need(len(raw) <= limits.max_audit_bytes, 'host audit active byte bound exceeded')
+    require_host_record(len(raw) <= limits.max_audit_bytes, 'host audit active byte bound exceeded')
     current, previous = _events(raw, previous, limits)
     events.extend(current)
     total_bytes += len(raw)
     _history_bound(events, total_bytes, limits)
     if head is None:
-        _need(not events, 'host audit checkpoint is missing')
+        require_host_record(not events, 'host audit checkpoint is missing')
         return []
     expected = dict(event_count=len(events), event_hash=previous, byte_count=len(raw))
     if index:
         expected.update(active_segment=index, sealed_segments=seals)
-    _need(_parse(head) == expected, 'host audit head mismatch or truncation')
+    require_host_record(decode_host_record_json(head) == expected, 'host audit head mismatch or truncation')
     return events
 
 
 def _history_bound(events, byte_count, limits):
-    _need(len(events) <= limits.max_history_events and byte_count <= limits.max_history_bytes,
+    require_host_record(len(events) <= limits.max_history_events and byte_count <= limits.max_history_bytes,
           'host audit history bound exceeded')
 
 
@@ -137,10 +142,10 @@ def append_plan(directory, limits, raw, prior):
     head, index, seals, before = active(directory, limits)
     sealed_events = sum(seal['event_count'] for seal in seals)
     rotate = len(before) + len(raw) > limits.max_audit_bytes or len(prior) - sealed_events >= limits.max_events
-    _need(len(raw) <= limits.max_audit_bytes, 'host audit event byte bound exceeded')
-    _need(index + int(rotate) < limits.max_segments, 'host audit segment count bound exceeded')
+    require_host_record(len(raw) <= limits.max_audit_bytes, 'host audit event byte bound exceeded')
+    require_host_record(index + int(rotate) < limits.max_segments, 'host audit segment count bound exceeded')
     total_bytes = sum(seal['byte_count'] for seal in seals) + len(before) + len(raw)
-    _need(len(prior) + 1 <= limits.max_history_events and total_bytes <= limits.max_history_bytes,
+    require_host_record(len(prior) + 1 <= limits.max_history_events and total_bytes <= limits.max_history_bytes,
           'host audit history bound exceeded')
     return rotate, head, index, seals, before
 
@@ -154,31 +159,31 @@ def append_head(head, *, event_count, event_hash, byte_count):
 
 
 def _journal_bytes(previous, next_head, raw):
-    return _json(dict(previous_head=base64.b64encode(previous).decode('ascii'), next_head=next_head,
-                      event_bytes=base64.b64encode(raw).decode('ascii')))
+    return encode_host_record_json(dict(previous_head=base64.b64encode(previous).decode('ascii'),
+                                        next_head=next_head, event_bytes=base64.b64encode(raw).decode('ascii')))
 
 
 def _rotation_pending(directory, limits):
-    value = _parse(_read_at(directory, JOURNAL, 2 * limits.max_audit_bytes + MAX_HEAD_BYTES))
+    value = decode_host_record_json(_read_at(directory, JOURNAL, 2 * limits.max_audit_bytes + MAX_HEAD_BYTES))
     required = {'previous_head', 'next_head', 'event_bytes'}
-    _need(set(value) in (required, required | {'rollback_ready'})
+    require_host_record(set(value) in (required, required | {'rollback_ready'})
           and value.get('rollback_ready', True) is True, 'host rotation journal shape is invalid')
     try:
         previous = base64.b64decode(value['previous_head'], validate=True)
         raw = base64.b64decode(value['event_bytes'], validate=True)
     except (TypeError, ValueError) as failure:
         raise HostRecordError('host rotation journal encoding is invalid') from failure
-    _need(len(previous) <= MAX_HEAD_BYTES and len(raw) <= limits.max_audit_bytes,
+    require_host_record(len(previous) <= MAX_HEAD_BYTES and len(raw) <= limits.max_audit_bytes,
           'host rotation journal exceeds bounds')
     index, seals = layout(previous)
-    next_index, next_seals = layout(_json(value['next_head']))
-    _need(next_index == index + 1 and next_seals[:-1] == seals,
+    next_index, next_seals = layout(encode_host_record_json(value['next_head']))
+    require_host_record(next_index == index + 1 and next_seals[:-1] == seals,
           'host rotation journal does not extend the old checkpoint')
-    events, last = _events(raw, _parse(previous)['event_hash'], limits)
+    events, last = _events(raw, decode_host_record_json(previous)['event_hash'], limits)
     next_head = value['next_head']
-    _need(len(events) == 1 and next_head.get('event_hash') == last
+    require_host_record(len(events) == 1 and next_head.get('event_hash') == last
           and next_head.get('byte_count') == len(raw)
-          and next_head.get('event_count') == _parse(previous)['event_count'] + 1,
+          and next_head.get('event_count') == decode_host_record_json(previous)['event_count'] + 1,
           'host rotation journal event/checkpoint binding mismatch')
     return previous, next_head, raw, next_index, value.get('rollback_ready', False)
 
@@ -187,7 +192,7 @@ def _pending_record(directory, event, prior, limits, *, remove=False, allow_miss
     record_id = event.get('host_record_sha256')
     if record_id is None or any(row.get('host_record_sha256') == record_id for row in prior):
         return
-    _sha(record_id)
+    require_host_record_sha256(record_id)
     records = os.open('records', os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW | os.O_CLOEXEC, dir_fd=directory)
     try:
         from .host_records import HostRecordStore
@@ -198,7 +203,7 @@ def _pending_record(directory, event, prior, limits, *, remove=False, allow_miss
             if not allow_missing:
                 raise
             return
-        _need(hashlib.sha256(raw).hexdigest() == record_id, 'uncommitted rotation record changed')
+        require_host_record(hashlib.sha256(raw).hexdigest() == record_id, 'uncommitted rotation record changed')
         if remove:
             os.unlink(record_id + '.json', dir_fd=records)
             os.fsync(records)
@@ -214,26 +219,26 @@ def recover_rotation(directory, limits, *, allow_unreferenced=False):
         return
     current = read_head(directory)
     from .host_records import verify_recovery_records
-    if current == _json(next_head):
+    if current == encode_host_record_json(next_head):
         events = _snapshot(directory, limits)
         verify_recovery_records(directory, events, limits, allow_unreferenced=allow_unreferenced)
     else:
-        _need(current == previous, 'host audit rotation checkpoint outcome is uncertain')
+        require_host_record(current == previous, 'host audit rotation checkpoint outcome is uncertain')
         name = segment_name(index)
         prior = _snapshot(directory, limits, ignored=(name,))
-        event = _parse(raw)
+        event = decode_host_record_json(raw)
         verify_recovery_records(directory, prior, limits, event, allow_unreferenced=allow_unreferenced)
         try:
             pending = _read_at(directory, name, limits.max_audit_bytes)
         except FileNotFoundError:
             pending = None
         if pending is not None:
-            _need(raw.startswith(pending), 'uncommitted host audit segment bytes changed')
+            require_host_record(raw.startswith(pending), 'uncommitted host audit segment bytes changed')
         _pending_record(directory, event, prior, limits, allow_missing=rollback_ready)
         if not rollback_ready:
-            marker = _parse(_journal_bytes(previous, next_head, raw))
+            marker = decode_host_record_json(_journal_bytes(previous, next_head, raw))
             marker['rollback_ready'] = True
-            _write_at(directory, JOURNAL, _json(marker), replace=True)
+            _write_at(directory, JOURNAL, encode_host_record_json(marker), replace=True)
         _pending_record(directory, event, prior, limits, remove=True, allow_missing=True)
         if pending is not None:
             os.unlink(name, dir_fd=directory)
@@ -249,14 +254,15 @@ def commit_rotation(directory, limits, enriched, raw, prior):
     next_seals = [*seals, _seal(index, before, segment, previous)]
     next_head = dict(event_count=len(prior) + 1, event_hash=enriched['event_hash'],
                      byte_count=len(raw), active_segment=index + 1, sealed_segments=next_seals)
-    _need(len(_json(next_head)) <= MAX_HEAD_BYTES, 'host audit checkpoint byte bound exceeded')
+    require_host_record(len(encode_host_record_json(next_head)) <= MAX_HEAD_BYTES,
+                        'host audit checkpoint byte bound exceeded')
     _write_at(directory, JOURNAL, _journal_bytes(head, next_head, raw), atomic_create=True)
     try:
         _write_at(directory, segment_name(index + 1), raw)
-        _write_at(directory, HEAD, _json(next_head), replace=True)
+        _write_at(directory, HEAD, encode_host_record_json(next_head), replace=True)
     except BaseException as failure:
         try:
-            committed = read_head(directory) == _json(next_head)
+            committed = read_head(directory) == encode_host_record_json(next_head)
             recover_rotation(directory, limits)
         except BaseException as recovery:
             raise HostRecordError('host audit rotation outcome uncertain; evidence preserved') from recovery

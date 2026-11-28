@@ -8,13 +8,13 @@ import math
 from pathlib import Path
 from threading import Lock, get_ident
 from time import monotonic
-from typing import Any
+from typing import Any, TypeGuard
 
 from .native_pool_contracts import canonical_sha256
 from .native_tool_isolation import (
     CONTAINED_POOL_WRITER,
     _CONTAINED_POOL_TOKEN,
-    _ContainedPoolChild,
+    ContainedPoolChildBinding,
     _ContainedPoolToolScope,
     _contained_pool_tool_validation,
 )
@@ -139,7 +139,8 @@ class _ContainedPoolAdmission:
     def __init__(
         self, issuer: object, *, selection: ContainedPoolSelection, plan: Mapping[str, Any],
         journal_path: Path, check_custody: Callable[[], None], check_source: Callable[[], None],
-        check_availability: Callable[[], None], policy_children: Mapping[str, _ContainedPoolChild], deadline: float,
+        check_availability: Callable[[], None],
+        policy_children: Mapping[str, ContainedPoolChildBinding], deadline: float,
         calibration: _QualificationCalibration | None = None,
     ) -> None:
         _require(issuer is _ADMISSION_TOKEN, "contained-admission-construction-refused")
@@ -275,7 +276,11 @@ class _ContainedPoolAdmission:
                  "contained-provisional-workers-unresolved")
 
 
-def _require(condition: bool, reason: str) -> None:
+def is_claimed_contained_pool_admission(value: object) -> TypeGuard[_ContainedPoolAdmission]:
+    return type(value) is _ContainedPoolAdmission and value._claimed
+
+
+def require_deferred_attestation(condition: bool, reason: str) -> None:
     if not condition:
         raise DeferredAttestationError("pool-deferred-" + reason)
 
@@ -287,5 +292,9 @@ def _dispatch_artifact_hash(inputs: tuple[object, ...]) -> str:
                              "capability_receipt": capability})
 
 
-def _require_deadline(deadline: float, *, now: float) -> None:
+def require_deferred_deadline(deadline: float, *, now: float) -> None:
     _require(type(deadline) is float and math.isfinite(deadline) and now < deadline, "deadline-expired")
+
+
+_require = require_deferred_attestation
+_require_deadline = require_deferred_deadline

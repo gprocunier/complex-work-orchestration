@@ -22,12 +22,12 @@ from cwo_core.ownership_producer import (
     MAX_MIN_AGE_SECONDS,
     PID_LIMIT,
     ExpectedSpawn,
-    _Refusal,
+    OwnershipRefusal as _Refusal,
     _RetainedOwnershipProducer,
-    _duration,
-    _integer,
-    _validate_spec,
     _issue_cleanup_capability,
+    integer_in_range as _integer,
+    is_bounded_duration as _duration,
+    validate_expected_spawn as _validate_spec,
 )
 from cwo_core.process_identity import (
     MAX_GRACE_SECONDS,

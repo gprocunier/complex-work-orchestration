@@ -36,8 +36,7 @@ from registered_server_requests import RegisteredServerRequests
 from registered_finite_input import RegisteredFiniteInput
 import registered_finite_tool_calls as finite_calls
 from prepare_server_request_frames import _decode as decode_protocol_frame
-from cwo_core.maintenance_authority import require_maintenance_operation
-from cwo_core.maintenance_authority import MaintenanceStateStore
+from cwo_core.maintenance_authority import require_maintenance_operation, MaintenanceStateStore
 from cwo_core.native_control import build_control_turn_contract
 from cwo_core.native_pool_contracts import canonical_sha256
 from cwo_core import server_request_preparation as protocol
@@ -46,7 +45,8 @@ from cwo_core.host_records import configured_store
 from cwo_core.host_return_intake import record_received_return
 from cwo_core.process_identity import parse_proc_stat
 from cwo_core.supervision.transport.app_server import (
-    AppServerError, _PRODUCTION_RPC, _QUALIFICATION_RPC, _checked_native_frame, _prepare_native_frame, domain_sha256,
+    AppServerError, _PRODUCTION_RPC, _QUALIFICATION_RPC, domain_sha256,
+    check_native_request_frame as _checked_native_frame, prepare_native_request_frame as _prepare_native_frame,
 )
 from cwo_core.supervision.transport.errors import AppServerRpcError
 from cwo_core.supervision.turn_observations import provider_policy_blocker
@@ -2782,3 +2782,7 @@ def require_factory(factory, host):
     admitted._original_methods(factory, RegisteredN1Factory, _FACTORY_METHODS)
     _need(factory.host is host, "The original registered host identity is required.")
     factory.require_effect()
+
+
+# Registered pool preparation shares the executable metadata and digest check.
+snapshot_registered_executable = _file

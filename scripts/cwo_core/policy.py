@@ -13,7 +13,7 @@ from .errors import UnknownExecutorError
 from .model_identities import resolve_model
 from .paths import POLICY_DIR
 from .policy_schema import canonical_policy_filename, strict_json_loads, validate_policy_document
-from .util import rank_allows, rank_max, term_hits
+from .util import rank_max as rank_max, term_hits
 
 
 RISK_ORDER = ["low", "medium", "high", "critical"]

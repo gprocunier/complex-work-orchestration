@@ -12,13 +12,13 @@ from typing import Any
 
 from cwo_core.native_session import (
     SEGMENT_START_EVENT,
-    _evaluate_records,
-    _extract_command,
-    _normalize_response_items,
-    _is_user_boundary_record,
-    _normalize_event_msg,
-    _normalize_turn_context,
-    _session_id_matches,
+    evaluate_session_records,
+    extract_session_command,
+    normalize_session_response_items,
+    is_user_boundary_record,
+    normalize_session_event_message,
+    normalize_session_turn_context,
+    session_file_matches_id,
 )
 from cwo_core.audit import acquire_audit_lock, record_audit_event, release_audit_lock
 from cwo_core.native_disposition import derive_disposition
@@ -841,7 +841,7 @@ def _authorized_continuation_calls(
     authorized_calls: set[str] = set()
 
     for record in records:
-        for item in _normalize_response_items(record):
+        for item in normalize_session_response_items(record):
             if not isinstance(item, dict):
                 continue
             item_type = item.get("type")
@@ -850,7 +850,7 @@ def _authorized_continuation_calls(
                 effective_item = _effective_tool_call(item)
                 name = _tool_name(effective_item).lower()
                 if name == "exec_command" and call_id is not None:
-                    command = _extract_command(effective_item) or ""
+                    command = extract_session_command(effective_item) or ""
                     category, _, _ = _activity_category(
                         effective_item,
                         command,
@@ -1013,7 +1013,7 @@ def _analyze_command_evidence(
     output_seen: set[str] = set()
 
     for record in records:
-        for item in _normalize_response_items(record):
+        for item in normalize_session_response_items(record):
             if not isinstance(item, dict):
                 continue
             item_type = item.get("type")
@@ -1028,7 +1028,7 @@ def _analyze_command_evidence(
                         violations.add("command-call-id-duplicate")
                     calls[call_id] = (str(item_type), name)
                 if name == "exec_command":
-                    command = _extract_command(effective_item) or ""
+                    command = extract_session_command(effective_item) or ""
                     try:
                         argv = tuple(shlex.split(command))
                     except ValueError:
@@ -1123,7 +1123,7 @@ def _classify_native_activity(
     items = [
         item
         for record in records
-        for item in _normalize_response_items(record)
+        for item in normalize_session_response_items(record)
         if isinstance(item, dict) and is_tool_call_item(item)
     ]
     processed = int(activity.get("processed_items", 0) or 0)
@@ -1176,7 +1176,7 @@ def _classify_native_activity(
             ) + 1
             violations.add("forbidden-tool-activity")
             continue
-        command = _extract_command(effective_item) or ""
+        command = extract_session_command(effective_item) or ""
         workdir_violation = _exec_command_workdir_violation(effective_item, packet)
         if workdir_violation is not None:
             category_counts["unrelated"] = int(category_counts.get("unrelated", 0)) + 1
@@ -1344,7 +1344,7 @@ def _read_session(path: Path) -> tuple[list[dict[str, Any]], bool]:
 def _trusted_models(records: list[dict[str, Any]]) -> set[str]:
     result: set[str] = set()
     for record in records:
-        context = _normalize_turn_context(record)
+        context = normalize_session_turn_context(record)
         if isinstance(context, dict) and isinstance(context.get("model"), str):
             model = context["model"].strip()
             if model:
@@ -1743,7 +1743,7 @@ def start(
     if _direct_execution_contract_invalid(packet.get("work_plan")):
         _fail("packet direct execution authority is missing or invalid")
     session_file = Path(args.session_file).expanduser().resolve()
-    if not session_file.is_file() or not _session_id_matches(session_file, args.session_id):
+    if not session_file.is_file() or not session_file_matches_id(session_file, args.session_id):
         _fail("control-lost: session file identity does not match --session-id")
     records, trailing = _read_session(session_file)
     models = _trusted_models(records)
@@ -2147,8 +2147,8 @@ def check(args: argparse.Namespace, *, current_authority=None, maintenance_opera
             _fail("control-lost: session log was truncated below the supervision watermark")
         records = all_records[baseline_record_count:]
         has_boundary = any(
-            _normalize_event_msg(record) == SEGMENT_START_EVENT
-            or _is_user_boundary_record(record)
+            normalize_session_event_message(record) == SEGMENT_START_EVENT
+            or is_user_boundary_record(record)
             for record in records
             if isinstance(record, dict)
         )
@@ -2173,7 +2173,7 @@ def check(args: argparse.Namespace, *, current_authority=None, maintenance_opera
                 _write_state(path, state)
                 return _decision(state), 0
             _fail("control-lost: task boundary did not appear within startup grace")
-        segments, aggregate, overall_status, selected = _evaluate_records(
+        segments, aggregate, overall_status, selected = evaluate_session_records(
             records,
             state["budget"],
             state["requested_model"],

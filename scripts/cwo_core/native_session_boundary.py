@@ -10,7 +10,7 @@ from pathlib import Path
 import stat
 from typing import Any, Mapping, Sequence
 
-from .native_session import _record_token_snapshot
+from .native_session import session_record_token_snapshot
 from .policy_schema import strict_json_loads
 
 
@@ -88,7 +88,7 @@ def session_source_identity(path: Path | str, session_id: str) -> str:
 def _token_snapshot(records: Sequence[Mapping[str, Any]]) -> dict[str, int] | None:
     latest = None
     for record in records:
-        snapshot = _record_token_snapshot(dict(record))
+        snapshot = session_record_token_snapshot(dict(record))
         if snapshot is not None:
             latest = {key: int(value) for key, value in snapshot.items()}
     return latest

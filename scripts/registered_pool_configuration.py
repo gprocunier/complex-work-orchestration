@@ -6,6 +6,7 @@ from hashlib import sha256
 import json
 from pathlib import Path
 import tomllib
+from typing import Mapping
 
 from cwo_core.native_tool_isolation import CONTAINED_POOL_WRITER_NAME as WRITER_TOOL
 from cwo_core.policy_schema import strict_json_loads
@@ -38,47 +39,49 @@ class PoolContainmentError(ValueError):
     """A contained pool worker rejected configuration or lost original custody."""
 
 
-def require(condition, message):
+def require(condition: object, message: str) -> None:
     if not condition:
         raise PoolContainmentError(message)
 
 
-def _selected_model(raw):
+def _selected_model(raw: bytes) -> dict[str, object]:
     require(type(raw) is bytes and 0 < len(raw) <= MAX_CATALOG_BYTES, 'Bounded model catalog required.')
     try:
         catalog = strict_json_loads(raw.decode('utf-8'))
     except (ValueError, RecursionError) as error:
         raise PoolContainmentError('Invalid model catalog.') from error
     require(type(catalog) is dict and type(catalog.get('models')) is list, 'Invalid model catalog shape.')
-    selected = [model for model in catalog['models'] if type(model) is dict and model.get('slug') == MODEL]
+    selected: list[dict[str, object]] = [
+        model for model in catalog['models'] if type(model) is dict and model.get('slug') == MODEL
+    ]
     require(len(selected) == 1, 'The catalog must contain the original qualification model once.')
     return selected[0]
 
 
-def _trimmed(model):
+def _trimmed(model: Mapping[str, object]) -> dict[str, object]:
     return {**{name: value for name, value in model.items() if name not in _CATALOG_OPTIONALS},
             'tool_mode': 'direct', 'supports_search_tool': False, 'experimental_supported_tools': []}
 
 
-def trim_model_catalog(source, *, source_sha256):
+def trim_model_catalog(source: bytes, *, source_sha256: str) -> bytes:
     """Derive the optional direct-only catalog from one independently pinned export."""
     model = _selected_model(source)
     require(sha256(source).hexdigest() == source_sha256, 'The source model catalog pin differs.')
     return _catalog_bytes(_trimmed(model))
 
 
-def _catalog_bytes(model):
+def _catalog_bytes(model: dict[str, object]) -> bytes:
     return json.dumps({'models': [model]}, sort_keys=True, allow_nan=False,
                       separators=(',', ':')).encode('utf-8') + b'\n'
 
 
-def require_trimmed_model_catalog(catalog, sha256_pin):
+def require_trimmed_model_catalog(catalog: bytes, sha256_pin: str) -> None:
     model = _selected_model(catalog)
     require(catalog == _catalog_bytes(_trimmed(model)) and sha256(catalog).hexdigest() == sha256_pin,
             'The selected trimmed model catalog differs from its pin or projection.')
 
 
-def configuration_files(worktree: Path, spool: Path, *, catalog=None):
+def configuration_files(worktree: Path, spool: Path, *, catalog: bytes | None = None) -> dict[str, bytes]:
     """Return the complete operation-owned configuration to stage read-only."""
     strings = {'default_permissions': PROFILE, 'approval_policy': APPROVAL_POLICY,
                'approvals_reviewer': 'user', 'model': MODEL, 'model_provider': PROVIDER,
@@ -111,7 +114,7 @@ def configuration_files(worktree: Path, spool: Path, *, catalog=None):
     return files
 
 
-def require_named_deny_policy(worktree: Path, content: bytes):
+def require_named_deny_policy(worktree: Path, content: bytes) -> None:
     """Verify the complete policy for the named, read-only worker profile."""
     try:
         settings = tomllib.loads(content.decode('utf-8'))
@@ -123,24 +126,25 @@ def require_named_deny_policy(worktree: Path, content: bytes):
             'The named login deny policy or its worker scope differs.')
 
 
-def _writer_registration(*, patch_mode: bool):
+def _writer_registration(*, patch_mode: bool) -> list[dict[str, object]]:
+    input_schema: dict[str, object] = {'type': 'object', 'properties': {}, 'additionalProperties': False}
     tool = {'type': 'function', 'name': WRITER_TOOL,
             'description': 'The controller writes the signed fixture already selected for this worker. '
                            'The worker shell and checkout stay read-only.',
-            'inputSchema': {'type': 'object', 'properties': {}, 'additionalProperties': False}}
+            'inputSchema': input_schema}
     description = 'Registered qualification writer.'
     if patch_mode:
         description = 'Registered one-file patch writer.'
         tool['description'] = ('Submit a unified text diff for the signed file already selected for this worker. '
                                'The worker shell and checkout stay read-only.')
-        tool['inputSchema'].update({
+        input_schema.update({
             'properties': {'diff': {'type': 'string', 'minLength': 1, 'maxLength': MAX_WORKER_DIFF_BYTES}},
             'required': ['diff'],
         })
     return [{'type': 'namespace', 'name': FINITE_TOOL_NAMESPACE, 'description': description, 'tools': [tool]}]
 
 
-def thread_start_selectors(worktree, *, patch_mode: bool = False):
+def thread_start_selectors(worktree: str | Path, *, patch_mode: bool = False) -> dict[str, object]:
     require(type(patch_mode) is bool, 'The original writer mode is required.')
     return {'cwd': str(worktree), 'runtimeWorkspaceRoots': [str(worktree)], 'permissions': PROFILE,
             'approvalPolicy': APPROVAL_POLICY, 'approvalsReviewer': 'user', 'ephemeral': False,
@@ -148,8 +152,9 @@ def thread_start_selectors(worktree, *, patch_mode: bool = False):
             'allowProviderModelFallback': False, 'dynamicTools': _writer_registration(patch_mode=patch_mode)}
 
 
-def require_thread_readback(worktree, response):
-    require(type(response) is dict, 'The actual contained qualification thread is required.')
+def require_thread_readback(worktree: str | Path, response: object) -> None:
+    if type(response) is not dict:
+        raise PoolContainmentError('The actual contained qualification thread is required.')
     expected = {'cwd': str(worktree), 'runtimeWorkspaceRoots': [str(worktree)],
                 'activePermissionProfile': {'id': PROFILE, 'extends': None}, 'model': MODEL,
                 'approvalPolicy': APPROVAL_POLICY, 'approvalsReviewer': 'user',
@@ -163,9 +168,9 @@ def require_thread_readback(worktree, response):
             'A fresh, persistent qualification thread is required.')
 
 
-def require_turn_selectors(params, *, thread_id):
-    require(type(params) is dict and _TURN_REQUIRED <= params.keys() <= _TURN_REQUIRED | _TURN_METADATA,
-            'Unexpected qualification turn selectors.')
+def require_turn_selectors(params: object, *, thread_id: object) -> None:
+    if type(params) is not dict or not (_TURN_REQUIRED <= params.keys() <= _TURN_REQUIRED | _TURN_METADATA):
+        raise PoolContainmentError('Unexpected qualification turn selectors.')
     expected = {'threadId': thread_id, 'model': MODEL, 'effort': EFFORT, 'serviceTier': TIER}
     require(type(thread_id) is str and thread_id and all(params.get(key) == value for key, value in expected.items()),
             'The original qualification thread and model must remain selected.')

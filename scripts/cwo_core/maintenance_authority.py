@@ -25,7 +25,7 @@ import os
 from pathlib import Path
 import stat
 import threading
-from typing import Any, Callable, Mapping
+from typing import Any, Callable, Iterator, Mapping
 import uuid
 
 from .native_authority import (
@@ -191,7 +191,7 @@ def _state(value: Any, mission_id: str, mission_hash: str) -> dict[str, Any]:
 
 
 @contextmanager
-def _state_descriptor(descriptor: int):
+def _state_descriptor(descriptor: int) -> Iterator[int]:
     """Keep an active state-operation failure primary during descriptor cleanup."""
     try:
         yield descriptor
@@ -203,6 +203,9 @@ def _state_descriptor(descriptor: int):
         raise
     else:
         os.close(descriptor)
+
+
+maintenance_state_descriptor = _state_descriptor
 
 
 class MaintenanceStateStore:

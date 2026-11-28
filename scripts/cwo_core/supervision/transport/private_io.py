@@ -243,3 +243,11 @@ def _fsync_owned_control_directory(
     finally:
         if descriptor is not None:
             os.close(descriptor)
+
+
+# Shared owner-bound operations keep the original compatibility identities.
+load_owned_regular_bytes = _load_owned_regular_bytes
+ensure_private_control_directory = _private_control_directory
+open_private_control_lock = _open_private_control_lock
+fsync_private_control_directory = _fsync_private_control_directory
+fsync_owned_control_directory = _fsync_owned_control_directory

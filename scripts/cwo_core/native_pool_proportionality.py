@@ -12,7 +12,7 @@ from dataclasses import dataclass
 import hashlib
 import json
 from threading import Lock
-from typing import Any, Mapping, Sequence
+from typing import Any, Callable, Iterator, Mapping, Sequence
 
 from .native_authority import (
     AUTHORIZED_SCOPE_RANK,
@@ -207,7 +207,15 @@ def canonical_proportionality_sha256(value: Any) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
-def _is_sha256(value: Any) -> bool:
+def _unsigned_artifact(
+    record: Mapping[str, object], digest_field: str
+) -> dict[str, object]:
+    unsigned = dict(record)
+    unsigned.pop(digest_field, None)
+    return unsigned
+
+
+def _is_sha256(value: object) -> bool:
     return (
         isinstance(value, str)
         and len(value) == 64
@@ -215,7 +223,7 @@ def _is_sha256(value: Any) -> bool:
     )
 
 
-def _is_int(value: Any, *, minimum: int = 0) -> bool:
+def _is_int(value: object, *, minimum: int = 0) -> bool:
     return isinstance(value, int) and not isinstance(value, bool) and value >= minimum
 
 
@@ -315,16 +323,11 @@ def load_pool_proportionality_policy(
         "per_mutable_worker_mutation_overhead_ms",
         "per_mutable_worker_integration_overhead_ms",
     )
-    for field in positive_fields:
-        if not _is_int(raw.get(field), minimum=1):
-            raise PoolProportionalityError(
-                f"proportionality-policy-{field.replace('_', '-')}-invalid"
-            )
-    for field in nonnegative_fields:
-        if not _is_int(raw.get(field)):
-            raise PoolProportionalityError(
-                f"proportionality-policy-{field.replace('_', '-')}-invalid"
-            )
+    rules = ((_is_positive_int, positive_fields), (_is_int, nonnegative_fields))
+    for field in _invalid_fields(raw, rules):
+        raise PoolProportionalityError(
+            f"proportionality-policy-{field.replace('_', '-')}-invalid"
+        )
     if raw["minimum_gross_savings_overhead_multiple_milli"] < 1000:
         raise PoolProportionalityError(
             "proportionality-policy-savings-multiple-must-be-at-least-one"
@@ -395,8 +398,7 @@ def _snapshot_and_projections(
     snapshot_sha256 = snapshot.get("snapshot_sha256")
     if not _is_sha256(snapshot_sha256):
         raise PoolProportionalityError("readiness-snapshot-sha256-invalid")
-    unsigned = dict(snapshot)
-    unsigned.pop("snapshot_sha256", None)
+    unsigned = _unsigned_artifact(snapshot, "snapshot_sha256")
     if canonical_proportionality_sha256(unsigned) != snapshot_sha256:
         raise PoolProportionalityError("readiness-snapshot-sha256-mismatch")
     if readiness_evidence.get("beads_readiness_snapshot_sha256") != snapshot_sha256:
@@ -415,8 +417,7 @@ def _snapshot_and_projections(
         if not isinstance(issue_id, str) or not issue_id or issue_id in projections:
             raise PoolProportionalityError("issue-projection-id-invalid")
         projection_sha256 = projection.get("issue_projection_sha256")
-        unsigned_projection = dict(projection)
-        unsigned_projection.pop("issue_projection_sha256", None)
+        unsigned_projection = _unsigned_artifact(projection, "issue_projection_sha256")
         if (
             not _is_sha256(projection_sha256)
             or canonical_proportionality_sha256(unsigned_projection)
@@ -434,6 +435,31 @@ def _snapshot_and_projections(
     ) != len(set(ranked_ids)):
         raise PoolProportionalityError("ranked-ready-issue-ids-invalid")
     return snapshot, projections
+
+
+def _schedulability_policy(
+    document: Mapping[str, Any], *, label_prefix: str = ""
+) -> tuple[Mapping[str, Any], Mapping[str, Any]]:
+    pool = _mapping(
+        document.get("native_supervision_pool"),
+        label=label_prefix + "native-supervision-pool-policy",
+    )
+    certification = _mapping(
+        pool.get("callback_certification"),
+        label=label_prefix + "callback-certification-policy",
+    )
+    return certification, _mapping(pool.get("scheduler"), label=label_prefix + "scheduler-policy")
+
+
+def _schedulability_proof(
+    worker_count: int, certification: Mapping[str, Any], scheduler: Mapping[str, Any]
+) -> dict[str, Any]:
+    return scheduling_budget_proof(
+        requested_workers=worker_count,
+        certified_callback_max_ms=certification.get("certified_callback_max_ms"),
+        certified_scheduler_overhead_ms=certification.get("certified_scheduler_overhead_ms"),
+        poll_interval_ms=scheduler.get("poll_interval_ms"),
+    ).as_dict()
 
 
 def _validated_capacity_basis(
@@ -460,14 +486,7 @@ def _validated_capacity_basis(
     bounded = basis.get("bounded_candidate_capacity")
     if not _is_int(bounded, minimum=1) or bounded > limits.hard_max_active_workers:
         raise PoolProportionalityError("bounded-candidate-capacity-invalid")
-    pool = _mapping(
-        policy_document.get("native_supervision_pool"),
-        label="native-supervision-pool-policy",
-    )
-    certification = _mapping(
-        pool.get("callback_certification"), label="callback-certification-policy"
-    )
-    scheduler = _mapping(pool.get("scheduler"), label="scheduler-policy")
+    certification, scheduler = _schedulability_policy(policy_document)
     proofs_by_size: dict[int, Mapping[str, Any]] = {}
     for index, raw in enumerate(
         _sequence(basis.get("schedulability_proofs"), label="schedulability-proofs")
@@ -478,16 +497,7 @@ def _validated_capacity_basis(
         if not _is_int(worker_count, minimum=1) or worker_count in proofs_by_size:
             raise PoolProportionalityError("schedulability-proof-worker-count-invalid")
         try:
-            expected = scheduling_budget_proof(
-                requested_workers=worker_count,
-                certified_callback_max_ms=certification.get(
-                    "certified_callback_max_ms"
-                ),
-                certified_scheduler_overhead_ms=certification.get(
-                    "certified_scheduler_overhead_ms"
-                ),
-                poll_interval_ms=scheduler.get("poll_interval_ms"),
-            ).as_dict()
+            expected = _schedulability_proof(worker_count, certification, scheduler)
         except PoolSchedulabilityError as error:
             raise PoolProportionalityError("schedulability-policy-invalid") from error
         if dict(proof) != expected:
@@ -602,8 +612,7 @@ def _validated_cohorts(
                 f"compatible-ready-set-release-classification-mismatch:{index}"
             )
         cohort_sha256 = cohort.get("cohort_sha256")
-        unsigned = dict(cohort)
-        unsigned.pop("cohort_sha256", None)
+        unsigned = _unsigned_artifact(cohort, "cohort_sha256")
         if (
             not _is_sha256(cohort_sha256)
             or canonical_proportionality_sha256(unsigned) != cohort_sha256
@@ -905,6 +914,19 @@ def _seal_assessment(body: Mapping[str, Any]) -> dict[str, Any]:
     return result
 
 
+def _fixed_overhead(floor: int, measured_ms: int | None) -> tuple[int, str]:
+    effective_ms = max(floor, measured_ms or 0)
+    if measured_ms is not None and measured_ms > floor:
+        return effective_ms, "measured"
+    return effective_ms, "conservative-policy"
+
+
+def _released_candidate_mode(worker_count: int, released_capacity: int) -> str:
+    if worker_count > released_capacity:
+        return "offline-unreleased-candidate"
+    return "released-capacity"
+
+
 def _base_assessment(
     readiness_evidence: Mapping[str, Any],
     work_estimates: Mapping[str, Mapping[str, Any]],
@@ -951,16 +973,8 @@ def _base_assessment(
         projections=projections,
         policy_document=policy_document,
     )
-    effective_fixed_overhead_ms = max(
-        proportionality_policy.conservative_fixed_overhead_ms,
-        measured_fixed_overhead_ms or 0,
-    )
-    fixed_source = (
-        "measured"
-        if measured_fixed_overhead_ms is not None
-        and measured_fixed_overhead_ms
-        > proportionality_policy.conservative_fixed_overhead_ms
-        else "conservative-policy"
+    effective_fixed_overhead_ms, fixed_source = _fixed_overhead(
+        proportionality_policy.conservative_fixed_overhead_ms, measured_fixed_overhead_ms
     )
     evaluations = [
         _cohort_evaluation(
@@ -983,9 +997,8 @@ def _base_assessment(
     )
     selected_count = int(selected["worker_count"]) if selected is not None else 0
     candidate_mode = (
-        "offline-unreleased-candidate"
-        if selected_count > limits.released_max_active_workers
-        else ("released-capacity" if selected_count else "none")
+        _released_candidate_mode(selected_count, limits.released_max_active_workers)
+        if selected_count else "none"
     )
     return _seal_assessment(
         {
@@ -1278,8 +1291,7 @@ def _apply_override(
         evaluation["overridden"] = True
         evaluation["overridden_rule_ids"] = overridden_rules
         evaluation["accepted"] = True
-        unsigned = dict(evaluation)
-        unsigned.pop("evaluation_sha256", None)
+        unsigned = _unsigned_artifact(evaluation, "evaluation_sha256")
         evaluation["evaluation_sha256"] = canonical_proportionality_sha256(unsigned)
     result["cohort_evaluations"].sort(key=_selection_key)
     accepted = [
@@ -1293,10 +1305,8 @@ def _apply_override(
     result["selected_cohort"] = selected
     result["decision"] = "pool"
     result["accepted"] = True
-    result["candidate_mode"] = (
-        "offline-unreleased-candidate"
-        if selected["worker_count"] > result["released_capacity"]
-        else "released-capacity"
+    result["candidate_mode"] = _released_candidate_mode(
+        selected["worker_count"], result["released_capacity"]
     )
     result["override_authorization"] = {
         "action_sha256": authorization.action_sha256,
@@ -1339,11 +1349,8 @@ def _reconstruct_unoverridden_baseline(
         evaluation["overridden"] = False
         evaluation["overridden_rule_ids"] = []
         evaluation["accepted"] = eligible
-        unsigned_evaluation = dict(evaluation)
-        unsigned_evaluation.pop("evaluation_sha256", None)
-        evaluation["evaluation_sha256"] = canonical_proportionality_sha256(
-            unsigned_evaluation
-        )
+        unsigned = _unsigned_artifact(evaluation, "evaluation_sha256")
+        evaluation["evaluation_sha256"] = canonical_proportionality_sha256(unsigned)
     if matched != 1:
         raise PoolProportionalityError("serialized-override-target-cardinality-invalid")
     try:
@@ -1372,11 +1379,7 @@ def _reconstruct_unoverridden_baseline(
             raise PoolProportionalityError(
                 "serialized-override-baseline-capacity-invalid"
             )
-        result["candidate_mode"] = (
-            "offline-unreleased-candidate"
-            if worker_count > released_capacity
-            else "released-capacity"
-        )
+        result["candidate_mode"] = _released_candidate_mode(worker_count, released_capacity)
     return _seal_assessment(result)
 
 
@@ -1514,6 +1517,60 @@ def pool_proportionality_check(
     return result
 
 
+def _is_positive_int(value: object) -> bool:
+    return _is_int(value, minimum=1)
+
+
+def _is_nonempty_text(value: object) -> bool:
+    return isinstance(value, str) and bool(value)
+
+
+_FieldRules = tuple[tuple[Callable[[object], bool], tuple[str, ...]], ...]
+_ASSESSMENT_RULES: _FieldRules = (
+    (_is_sha256, (
+        "readiness_snapshot_sha256", "readiness_evidence_sha256",
+        "work_estimate_set_sha256", "native_worker_policy_sha256",
+        "proportionality_policy_sha256", "assessment_sha256",
+    )),
+    (_is_positive_int, (
+        "requested_workers", "candidate_capacity_ceiling",
+        "released_capacity", "effective_fixed_overhead_ms",
+    )),
+)
+_OVERRIDE_RULES: _FieldRules = ((_is_sha256, (
+    "action_sha256", "baseline_assessment_sha256", "cohort_sha256", "reason_sha256",
+)),)
+_READY_ORDER_RULES: _FieldRules = ((_is_int, ("rank",)), (_is_nonempty_text, ("id",)))
+_CHILD_RULES: _FieldRules = (
+    (_is_int, ("rank",)),
+    (_is_nonempty_text, ("task_class",)),
+    (_is_sha256, ("work_estimate_sha256",)),
+    (_is_int, ("runtime_p90_ms",)),
+    (lambda value: isinstance(value, bool), ("mutable",)),
+)
+_REASON_RULES: _FieldRules = (
+    (_is_nonempty_text, ("code", "detail")),
+    (lambda value: isinstance(value, bool), ("waivable",)),
+)
+
+
+def _invalid_fields(record: Mapping[str, object], rules: _FieldRules) -> Iterator[str]:
+    for check, fields in rules:
+        for field in fields:
+            if not check(record.get(field)):
+                yield field
+
+
+def _artifact_sha256_mismatch(record: Mapping[str, object], field: str) -> bool:
+    observed = record.get(field)
+    unsigned = _unsigned_artifact(record, field)
+    try:
+        expected = canonical_proportionality_sha256(unsigned)
+    except PoolProportionalityError:
+        expected = None
+    return not _is_sha256(observed) or observed != expected
+
+
 def validate_pool_proportionality_assessment(
     value: Any,
     *,
@@ -1559,38 +1616,22 @@ def validate_pool_proportionality_assessment(
         or assessment.get("dispatch_authorized") is not False
     ):
         errors.append("assessment-authority-invalid")
-    for field in (
-        "readiness_snapshot_sha256",
-        "readiness_evidence_sha256",
-        "work_estimate_set_sha256",
-        "native_worker_policy_sha256",
-        "proportionality_policy_sha256",
-        "assessment_sha256",
-    ):
-        if not _is_sha256(assessment.get(field)):
-            errors.append(f"assessment-{field.replace('_', '-')}-invalid")
-    for field in (
-        "requested_workers",
-        "candidate_capacity_ceiling",
-        "released_capacity",
-        "effective_fixed_overhead_ms",
-    ):
-        if not _is_int(assessment.get(field), minimum=1):
-            errors.append(f"assessment-{field.replace('_', '-')}-invalid")
+    for field in _invalid_fields(assessment, _ASSESSMENT_RULES):
+        errors.append(f"assessment-{field.replace('_', '-')}-invalid")
     requested_workers = assessment.get("requested_workers")
     candidate_capacity_ceiling = assessment.get("candidate_capacity_ceiling")
     released_capacity = assessment.get("released_capacity")
-    if _is_int(requested_workers, minimum=1) and requested_workers > 3:
+    if _is_positive_int(requested_workers) and requested_workers > 3:
         errors.append("assessment-requested-workers-exceeds-hard-cap")
-    if _is_int(candidate_capacity_ceiling, minimum=1):
+    if _is_positive_int(candidate_capacity_ceiling):
         if candidate_capacity_ceiling > 3:
             errors.append("assessment-candidate-capacity-ceiling-exceeds-hard-cap")
         if (
-            _is_int(requested_workers, minimum=1)
+            _is_positive_int(requested_workers)
             and candidate_capacity_ceiling > requested_workers
         ):
             errors.append("assessment-candidate-capacity-ceiling-exceeds-request")
-    if _is_int(released_capacity, minimum=1) and released_capacity > 3:
+    if _is_positive_int(released_capacity) and released_capacity > 3:
         errors.append("assessment-released-capacity-exceeds-hard-cap")
     if policy_sha256 is not None and (
         assessment.get("native_worker_policy_sha256") != policy_sha256
@@ -1613,305 +1654,219 @@ def validate_pool_proportionality_assessment(
     ):
         errors.append("assessment-fixed-overhead-source-invalid")
     if proportionality_policy is not None and (measured is None or _is_int(measured)):
-        expected_effective_fixed_overhead_ms = max(
-            proportionality_policy.conservative_fixed_overhead_ms,
-            measured or 0,
+        expected_ms, expected_source = _fixed_overhead(
+            proportionality_policy.conservative_fixed_overhead_ms, measured
         )
-        expected_fixed_overhead_source = (
-            "measured"
-            if measured is not None
-            and measured > proportionality_policy.conservative_fixed_overhead_ms
-            else "conservative-policy"
-        )
-        if (
-            assessment.get("effective_fixed_overhead_ms")
-            != expected_effective_fixed_overhead_ms
-        ):
+        if assessment.get("effective_fixed_overhead_ms") != expected_ms:
             errors.append("assessment-effective-fixed-overhead-ms-policy-mismatch")
-        if fixed_overhead_source != expected_fixed_overhead_source:
+        if fixed_overhead_source != expected_source:
             errors.append("assessment-fixed-overhead-source-policy-mismatch")
     evaluations = assessment.get("cohort_evaluations")
     normalized: list[Mapping[str, Any]] = []
     if not isinstance(evaluations, list):
         errors.append("assessment-cohort-evaluations-invalid")
-    else:
-        seen: set[str] = set()
-        for index, raw in enumerate(evaluations):
-            if not isinstance(raw, Mapping) or set(raw) != COHORT_EVALUATION_FIELDS:
-                errors.append(f"assessment-cohort[{index}]-fields-invalid")
-                continue
-            item = dict(raw)
-            normalized.append(item)
-            cohort_sha256 = item.get("cohort_sha256")
-            if not _is_sha256(cohort_sha256) or cohort_sha256 in seen:
-                errors.append(f"assessment-cohort[{index}]-sha256-invalid")
-            else:
-                seen.add(str(cohort_sha256))
-            issue_ids = item.get("issue_ids")
-            worker_count = item.get("worker_count")
-            within_released_capacity = item.get("within_released_capacity")
-            children = item.get("child_economics")
-            ready_order = item.get("ready_order")
-            issue_ids_valid = isinstance(issue_ids, list) and all(
-                isinstance(issue_id, str) and bool(issue_id) for issue_id in issue_ids
-            )
-            ready_order_valid = isinstance(ready_order, list) and all(
-                isinstance(entry, Mapping)
-                and set(entry) == {"rank", "id"}
-                and _is_int(entry.get("rank"))
-                and isinstance(entry.get("id"), str)
-                and bool(entry.get("id"))
-                for entry in (ready_order if isinstance(ready_order, list) else [])
-            )
-            members_valid = not (
-                not issue_ids_valid
-                or not _is_int(worker_count, minimum=1)
-                or worker_count > 3
-                or worker_count != len(issue_ids)
-                or len(issue_ids) != len(set(issue_ids))
-                or not isinstance(children, list)
-                or len(children) != worker_count
-                or not ready_order_valid
-                or len(ready_order) != worker_count
-            )
-            validated_children: list[Mapping[str, Any]] = []
-            if not members_valid:
-                errors.append(f"assessment-cohort[{index}]-members-invalid")
-            else:
-                for child_index, child in enumerate(children):
-                    child_valid = not (
-                        not isinstance(child, Mapping)
-                        or set(child) != CHILD_ECONOMICS_FIELDS
-                        or child.get("id") != issue_ids[child_index]
-                        or not _is_int(child.get("rank"))
-                        or not isinstance(child.get("task_class"), str)
-                        or not child.get("task_class")
-                        or not _is_sha256(child.get("work_estimate_sha256"))
-                        or not _is_int(child.get("runtime_p90_ms"))
-                        or not isinstance(child.get("mutable"), bool)
-                    )
-                    if not child_valid:
-                        errors.append(
-                            f"assessment-cohort[{index}]-child[{child_index}]-invalid"
-                        )
-                    else:
-                        validated_children.append(child)
-                expected_ready = [
-                    {"rank": child["rank"], "id": child["id"]}
-                    for child in children
-                    if isinstance(child, Mapping) and "rank" in child and "id" in child
-                ]
-                if ready_order != expected_ready or ready_order != sorted(
-                    ready_order, key=lambda entry: (entry["rank"], entry["id"])
-                ):
-                    errors.append(f"assessment-cohort[{index}]-ready-order-invalid")
-            if not isinstance(within_released_capacity, bool):
-                errors.append(
-                    f"assessment-cohort[{index}]-release-classification-invalid"
+        evaluations = []
+    seen: set[str] = set()
+    for index, raw in enumerate(evaluations):
+        prefix = f"assessment-cohort[{index}]"
+        if not isinstance(raw, Mapping) or set(raw) != COHORT_EVALUATION_FIELDS:
+            errors.append(f"{prefix}-fields-invalid")
+            continue
+        item = dict(raw)
+        normalized.append(item)
+        cohort_sha256 = item.get("cohort_sha256")
+        if not _is_sha256(cohort_sha256) or cohort_sha256 in seen:
+            errors.append(f"{prefix}-sha256-invalid")
+        else:
+            seen.add(str(cohort_sha256))
+        issue_ids = item.get("issue_ids")
+        worker_count = item.get("worker_count")
+        within_released_capacity = item.get("within_released_capacity")
+        children = item.get("child_economics")
+        ready_order = item.get("ready_order")
+        issue_ids_valid = isinstance(issue_ids, list) and all(map(_is_nonempty_text, issue_ids))
+        ready_order_valid = isinstance(ready_order, list) and all(
+            isinstance(entry, Mapping)
+            and set(entry) == {"rank", "id"}
+            and not any(_invalid_fields(entry, _READY_ORDER_RULES))
+            for entry in ready_order
+        )
+        members_valid = not (
+            not issue_ids_valid
+            or not _is_positive_int(worker_count)
+            or worker_count > 3
+            or worker_count != len(issue_ids)
+            or len(issue_ids) != len(set(issue_ids))
+            or not isinstance(children, list)
+            or len(children) != worker_count
+            or not ready_order_valid
+            or len(ready_order) != worker_count
+        )
+        validated_children: list[Mapping[str, Any]] = []
+        if not members_valid:
+            errors.append(f"{prefix}-members-invalid")
+        else:
+            for child_index, child in enumerate(children):
+                child_valid = not (
+                    not isinstance(child, Mapping)
+                    or set(child) != CHILD_ECONOMICS_FIELDS
+                    or child.get("id") != issue_ids[child_index]
+                    or any(_invalid_fields(child, _CHILD_RULES))
                 )
-            elif _is_int(worker_count, minimum=1) and _is_int(
-                released_capacity,
-                minimum=1,
-            ):
-                expected_within_release = worker_count <= released_capacity
-                if within_released_capacity is not expected_within_release:
-                    errors.append(
-                        f"assessment-cohort[{index}]-release-classification-mismatch"
-                    )
-            economics = item.get("economics")
-            if not isinstance(economics, Mapping) or set(economics) != ECONOMICS_FIELDS:
-                errors.append(f"assessment-cohort[{index}]-economics-fields-invalid")
-            else:
-                overhead = economics.get("overhead")
-                if (
-                    not isinstance(overhead, Mapping)
-                    or set(overhead) != OVERHEAD_FIELDS
-                ):
-                    errors.append(f"assessment-cohort[{index}]-overhead-fields-invalid")
-                elif any(not _is_int(number) for number in overhead.values()):
-                    errors.append(f"assessment-cohort[{index}]-overhead-values-invalid")
+                if not child_valid:
+                    errors.append(f"{prefix}-child[{child_index}]-invalid")
                 else:
-                    total = sum(int(number) for number in overhead.values())
-                    if economics.get("total_orchestration_overhead_ms") != total:
-                        errors.append(
-                            f"assessment-cohort[{index}]-overhead-total-mismatch"
-                        )
-                    serial = economics.get("serial_runtime_p90_ms")
-                    critical = economics.get("parallel_critical_path_p90_ms")
-                    gross = economics.get("gross_parallel_savings_ms")
-                    net = economics.get("net_parallel_savings_ms")
-                    elapsed = economics.get("modeled_parallel_elapsed_p90_ms")
-                    if (
-                        not all(
-                            _is_int(number)
-                            for number in (serial, critical, gross, elapsed)
-                        )
-                        or not isinstance(net, int)
-                        or isinstance(net, bool)
-                    ):
-                        errors.append(
-                            f"assessment-cohort[{index}]-economics-values-invalid"
-                        )
-                    elif (
-                        gross != serial - critical
-                        or elapsed != critical + total
-                        or net != serial - elapsed
-                    ):
-                        errors.append(f"assessment-cohort[{index}]-economics-mismatch")
-            reasons = item.get("reasons")
-            reasons_valid = isinstance(reasons, list) and not any(
-                not isinstance(reason, Mapping)
-                or set(reason) != REASON_FIELDS
-                or not isinstance(reason.get("code"), str)
-                or not reason.get("code")
-                or not isinstance(reason.get("detail"), str)
-                or not reason.get("detail")
-                or not isinstance(reason.get("waivable"), bool)
-                for reason in (reasons if isinstance(reasons, list) else [])
-            )
-            if not reasons_valid:
-                errors.append(f"assessment-cohort[{index}]-reasons-invalid")
-            validated_reasons = reasons if reasons_valid else []
+                    validated_children.append(child)
+            expected_ready = [
+                {"rank": child["rank"], "id": child["id"]}
+                for child in children
+                if isinstance(child, Mapping) and "rank" in child and "id" in child
+            ]
+            if ready_order != expected_ready or ready_order != sorted(
+                ready_order, key=lambda entry: (entry["rank"], entry["id"])
+            ):
+                errors.append(f"{prefix}-ready-order-invalid")
+        if not isinstance(within_released_capacity, bool):
+            errors.append(f"{prefix}-release-classification-invalid")
+        elif _is_positive_int(worker_count) and _is_positive_int(released_capacity):
+            expected_within_release = worker_count <= released_capacity
+            if within_released_capacity is not expected_within_release:
+                errors.append(f"{prefix}-release-classification-mismatch")
+        economics = item.get("economics")
+        if not isinstance(economics, Mapping) or set(economics) != ECONOMICS_FIELDS:
+            errors.append(f"{prefix}-economics-fields-invalid")
+        else:
+            overhead = economics.get("overhead")
             if (
-                members_valid
-                and len(validated_children) == worker_count
-                and proportionality_policy is not None
-                and _is_int(candidate_capacity_ceiling, minimum=1)
-                and _is_int(assessment.get("effective_fixed_overhead_ms"), minimum=1)
+                not isinstance(overhead, Mapping)
+                or set(overhead) != OVERHEAD_FIELDS
             ):
-                try:
-                    pool_policy = _mapping(
-                        document.get("native_supervision_pool"),
-                        label="assessment-native-supervision-pool-policy",
-                    )
-                    certification = _mapping(
-                        pool_policy.get("callback_certification"),
-                        label="assessment-callback-certification-policy",
-                    )
-                    scheduler = _mapping(
-                        pool_policy.get("scheduler"),
-                        label="assessment-scheduler-policy",
-                    )
-                    proof = scheduling_budget_proof(
-                        requested_workers=worker_count,
-                        certified_callback_max_ms=certification.get(
-                            "certified_callback_max_ms"
-                        ),
-                        certified_scheduler_overhead_ms=certification.get(
-                            "certified_scheduler_overhead_ms"
-                        ),
-                        poll_interval_ms=scheduler.get("poll_interval_ms"),
-                    ).as_dict()
-                    expected_economics, expected_reasons = (
-                        _modeled_economics_and_reasons(
-                            validated_children,
-                            worker_count=worker_count,
-                            policy=proportionality_policy,
-                            candidate_capacity_ceiling=candidate_capacity_ceiling,
-                            effective_fixed_overhead_ms=assessment[
-                                "effective_fixed_overhead_ms"
-                            ],
-                            schedulability_proof=proof,
-                        )
-                    )
-                except (PoolProportionalityError, PoolSchedulabilityError):
-                    errors.append(f"assessment-cohort[{index}]-policy-model-invalid")
-                else:
-                    if (
-                        not isinstance(economics, Mapping)
-                        or dict(economics) != expected_economics
-                    ):
-                        errors.append(
-                            f"assessment-cohort[{index}]-economics-policy-mismatch"
-                        )
-                    if reasons_valid and validated_reasons != expected_reasons:
-                        errors.append(
-                            f"assessment-cohort[{index}]-reasons-policy-mismatch"
-                        )
-            eligible = item.get("eligible_without_override")
-            overridden = item.get("overridden")
-            accepted = item.get("accepted")
-            overridden_rules = item.get("overridden_rule_ids")
-            if not all(
-                isinstance(flag, bool) for flag in (eligible, overridden, accepted)
-            ):
-                errors.append(f"assessment-cohort[{index}]-decision-flags-invalid")
-            elif eligible is not (not validated_reasons):
-                errors.append(f"assessment-cohort[{index}]-eligibility-mismatch")
-            if not isinstance(overridden_rules, list) or any(
-                not isinstance(rule, str) or not rule for rule in overridden_rules
-            ):
-                errors.append(f"assessment-cohort[{index}]-overridden-rules-invalid")
-            elif overridden:
-                expected_rules = sorted(
-                    {reason["code"] for reason in validated_reasons}
-                )
+                errors.append(f"{prefix}-overhead-fields-invalid")
+            elif any(not _is_int(number) for number in overhead.values()):
+                errors.append(f"{prefix}-overhead-values-invalid")
+            else:
+                total = sum(int(number) for number in overhead.values())
+                if economics.get("total_orchestration_overhead_ms") != total:
+                    errors.append(f"{prefix}-overhead-total-mismatch")
+                serial = economics.get("serial_runtime_p90_ms")
+                critical = economics.get("parallel_critical_path_p90_ms")
+                gross = economics.get("gross_parallel_savings_ms")
+                net = economics.get("net_parallel_savings_ms")
+                elapsed = economics.get("modeled_parallel_elapsed_p90_ms")
                 if (
-                    not reasons_valid
-                    or any(
-                        reason["waivable"] is not True for reason in validated_reasons
+                    not all(
+                        _is_int(number)
+                        for number in (serial, critical, gross, elapsed)
                     )
-                    or overridden_rules != expected_rules
-                    or accepted is not True
+                    or not isinstance(net, int)
+                    or isinstance(net, bool)
                 ):
-                    errors.append(f"assessment-cohort[{index}]-override-invalid")
-            elif overridden_rules or accepted is not eligible:
-                errors.append(f"assessment-cohort[{index}]-decision-mismatch")
-            if (
-                accepted is True
-                and _is_int(worker_count, minimum=1)
-                and worker_count < 2
-            ):
-                errors.append(f"assessment-cohort[{index}]-accepted-single-worker-pool")
-            if (
-                accepted is True
-                and _is_int(worker_count, minimum=1)
-                and _is_int(candidate_capacity_ceiling, minimum=1)
-                and worker_count > candidate_capacity_ceiling
-            ):
-                errors.append(
-                    f"assessment-cohort[{index}]-accepted-above-capacity-ceiling"
-                )
-            if (
-                accepted is True
-                and _is_int(worker_count, minimum=1)
-                and _is_int(requested_workers, minimum=1)
-                and worker_count > requested_workers
-            ):
-                errors.append(
-                    f"assessment-cohort[{index}]-accepted-above-requested-workers"
-                )
-            observed_evaluation_sha256 = item.get("evaluation_sha256")
-            unsigned_item = dict(item)
-            unsigned_item.pop("evaluation_sha256", None)
+                    errors.append(f"{prefix}-economics-values-invalid")
+                elif (
+                    gross != serial - critical
+                    or elapsed != critical + total
+                    or net != serial - elapsed
+                ):
+                    errors.append(f"{prefix}-economics-mismatch")
+        reasons = item.get("reasons")
+        reasons_valid = isinstance(reasons, list) and not any(
+            not isinstance(reason, Mapping)
+            or set(reason) != REASON_FIELDS
+            or any(_invalid_fields(reason, _REASON_RULES))
+            for reason in reasons
+        )
+        if not reasons_valid:
+            errors.append(f"{prefix}-reasons-invalid")
+        validated_reasons = reasons if reasons_valid else []
+        if (
+            members_valid
+            and len(validated_children) == worker_count
+            and proportionality_policy is not None
+            and _is_positive_int(candidate_capacity_ceiling)
+            and _is_positive_int(assessment.get("effective_fixed_overhead_ms"))
+        ):
             try:
-                expected_evaluation_sha256 = canonical_proportionality_sha256(
-                    unsigned_item
+                certification, scheduler = _schedulability_policy(
+                    document, label_prefix="assessment-"
                 )
-            except PoolProportionalityError:
-                expected_evaluation_sha256 = None
+                proof = _schedulability_proof(worker_count, certification, scheduler)
+                expected_economics, expected_reasons = (
+                    _modeled_economics_and_reasons(
+                        validated_children,
+                        worker_count=worker_count,
+                        policy=proportionality_policy,
+                        candidate_capacity_ceiling=candidate_capacity_ceiling,
+                        effective_fixed_overhead_ms=assessment[
+                            "effective_fixed_overhead_ms"
+                        ],
+                        schedulability_proof=proof,
+                    )
+                )
+            except (PoolProportionalityError, PoolSchedulabilityError):
+                errors.append(f"{prefix}-policy-model-invalid")
+            else:
+                if (
+                    not isinstance(economics, Mapping)
+                    or dict(economics) != expected_economics
+                ):
+                    errors.append(f"{prefix}-economics-policy-mismatch")
+                if reasons_valid and validated_reasons != expected_reasons:
+                    errors.append(f"{prefix}-reasons-policy-mismatch")
+        eligible = item.get("eligible_without_override")
+        overridden = item.get("overridden")
+        accepted = item.get("accepted")
+        overridden_rules = item.get("overridden_rule_ids")
+        if not all(
+            isinstance(flag, bool) for flag in (eligible, overridden, accepted)
+        ):
+            errors.append(f"{prefix}-decision-flags-invalid")
+        elif eligible is not (not validated_reasons):
+            errors.append(f"{prefix}-eligibility-mismatch")
+        if not isinstance(overridden_rules, list) or not all(
+            map(_is_nonempty_text, overridden_rules)
+        ):
+            errors.append(f"{prefix}-overridden-rules-invalid")
+        elif overridden:
+            expected_rules = sorted(
+                {reason["code"] for reason in validated_reasons}
+            )
             if (
-                not _is_sha256(observed_evaluation_sha256)
-                or observed_evaluation_sha256 != expected_evaluation_sha256
+                not reasons_valid
+                or any(
+                    reason["waivable"] is not True for reason in validated_reasons
+                )
+                or overridden_rules != expected_rules
+                or accepted is not True
             ):
-                errors.append(f"assessment-cohort[{index}]-evaluation-sha256-mismatch")
-    selection_shape_valid = True
+                errors.append(f"{prefix}-override-invalid")
+        elif overridden_rules or accepted is not eligible:
+            errors.append(f"{prefix}-decision-mismatch")
+        if accepted is True:
+            if _is_positive_int(worker_count) and worker_count < 2:
+                errors.append(f"{prefix}-accepted-single-worker-pool")
+            for bound, label in (
+                (candidate_capacity_ceiling, "capacity-ceiling"),
+                (requested_workers, "requested-workers"),
+            ):
+                if (
+                    _is_positive_int(worker_count)
+                    and _is_positive_int(bound)
+                    and worker_count > bound
+                ):
+                    errors.append(f"{prefix}-accepted-above-{label}")
+        if _artifact_sha256_mismatch(item, "evaluation_sha256"):
+            errors.append(f"{prefix}-evaluation-sha256-mismatch")
+    expected_selected = None
     try:
         expected_order = sorted(normalized, key=_selection_key)
     except (KeyError, TypeError, ValueError, PoolProportionalityError):
-        selection_shape_valid = False
-        expected_order = []
         errors.append("assessment-cohort-selection-input-invalid")
-    if selection_shape_valid and normalized != expected_order:
-        errors.append("assessment-cohort-selection-order-invalid")
-    selected = assessment.get("selected_cohort")
-    accepted_items = (
-        [item for item in normalized if item.get("accepted") is True]
-        if selection_shape_valid
-        else []
-    )
-    expected_selected = accepted_items[0] if accepted_items else None
-    if selected != expected_selected:
+    else:
+        if normalized != expected_order:
+            errors.append("assessment-cohort-selection-order-invalid")
+        accepted_items = [item for item in normalized if item.get("accepted") is True]
+        expected_selected = accepted_items[0] if accepted_items else None
+    if assessment.get("selected_cohort") != expected_selected:
         errors.append("assessment-selected-cohort-mismatch")
     accepted = assessment.get("accepted")
     if not isinstance(accepted, bool) or accepted is not bool(expected_selected):
@@ -1936,12 +1891,8 @@ def validate_pool_proportionality_assessment(
     if expected_selected is not None:
         worker_count = expected_selected.get("worker_count")
         released_capacity = assessment.get("released_capacity")
-        if _is_int(worker_count, minimum=1) and _is_int(released_capacity, minimum=1):
-            expected_mode = (
-                "offline-unreleased-candidate"
-                if worker_count > released_capacity
-                else "released-capacity"
-            )
+        if _is_positive_int(worker_count) and _is_positive_int(released_capacity):
+            expected_mode = _released_candidate_mode(worker_count, released_capacity)
         else:
             errors.append("assessment-candidate-mode-input-invalid")
     if assessment.get("candidate_mode") != expected_mode:
@@ -1954,14 +1905,8 @@ def validate_pool_proportionality_assessment(
     elif not isinstance(override, Mapping) or set(override) != OVERRIDE_RECORD_FIELDS:
         errors.append("assessment-override-record-fields-invalid")
     else:
-        for field in (
-            "action_sha256",
-            "baseline_assessment_sha256",
-            "cohort_sha256",
-            "reason_sha256",
-        ):
-            if not _is_sha256(override.get(field)):
-                errors.append(f"assessment-override-{field.replace('_', '-')}-invalid")
+        for field in _invalid_fields(override, _OVERRIDE_RULES):
+            errors.append(f"assessment-override-{field.replace('_', '-')}-invalid")
         reason = override.get("reason")
         if (
             not isinstance(reason, str)
@@ -1993,13 +1938,6 @@ def validate_pool_proportionality_assessment(
                     policy=proportionality_policy,
                 )
             )
-    observed_sha256 = assessment.get("assessment_sha256")
-    unsigned_assessment = dict(assessment)
-    unsigned_assessment.pop("assessment_sha256", None)
-    try:
-        expected_sha256 = canonical_proportionality_sha256(unsigned_assessment)
-    except PoolProportionalityError:
-        expected_sha256 = None
-    if not _is_sha256(observed_sha256) or observed_sha256 != expected_sha256:
+    if _artifact_sha256_mismatch(assessment, "assessment_sha256"):
         errors.append("assessment-sha256-mismatch")
     return sorted(set(errors))

@@ -676,9 +676,14 @@ def compute(names=None) -> dict:
 
 
 def _r5_surface_source_identity(expected: str, current_pin: str) -> str:
-    """The full archived module is preserved after reversing exact probe edits."""
+    """Check the full archived module after reversing exact source edits."""
     source = Path(SURFACE.__file__).read_text()
     edits = (
+        ('def discover_codex_binary() -> Path:\n'
+         '    """Locate the Codex executable on PATH for tool-surface capture."""\n\n',
+         'def _codex_binary() -> Path:\n'),
+        ('# The historical tool-surface module alias shares this discovery hook.\n'
+         '_codex_binary = discover_codex_binary\n\n\n', ''),
         ('def _codex_version(binary: Path, *, codex_home: Path | None = None) -> str:\n',
          'def _codex_version(binary: Path) -> str:\n'),
         ('        env=None if codex_home is None else dict(os.environ, CODEX_HOME=str(codex_home),\n'

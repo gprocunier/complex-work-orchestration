@@ -50,7 +50,6 @@ from .policy import (
     provider_metadata_for_executor,
     provider_profile,
     route_requires_peer_review,
-    validate_peer_review_controls,
 )
 from .reasoning_effort import FailedDelivery, effort_arguments, failed_delivery_metadata, routing_efforts
 from .routing_signals import (
