@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import hashlib
 import os
+import re
 import subprocess
 import sys
 import tempfile
@@ -418,7 +419,7 @@ class EvaluateReturnTests(unittest.TestCase):
     def sample_return(self) -> str:
         return (ROOT / "examples" / "sample-contractor-return.md").read_text(encoding="utf-8")
 
-    def _evaluate_redacted_advisory(self, text: str, *extra: str) -> dict:
+    def _evaluate_redacted_advisory(self, text: str, *extra: str, output: str = "--json") -> dict:
         with tempfile.TemporaryDirectory() as workdir:
             fixture = Path(workdir) / "return.md"
             fixture.write_text(text, encoding="utf-8")
@@ -426,13 +427,27 @@ class EvaluateReturnTests(unittest.TestCase):
                 [sys.executable, "-B", str(ROOT / "scripts" / "evaluate_return.py"),
                  "--file", str(fixture), "--share-boundary", "redacted-packet",
                  "--advisory", "--no-audit", "--waiver-reason", "offline sample fixture",
-                 "--json", *extra],
+                 output, *extra],
                 cwd=ROOT, capture_output=True, text=True, check=False,
             )
         self.assertEqual(result.returncode, 0, result.stderr)
         payload = json.loads(result.stdout)
         self.assertIs(payload["execution_permitted"], False)
         return payload
+
+    def test_delivery_report_preserves_evidence_scoring_and_requires_observations(self) -> None:
+        sample = self.sample_return()
+        for validation, score in (("passed", 100), ("failed", 100), ("not run", 85)):
+            with self.subTest(validation=validation):
+                returned = re.sub(r"(?m)^Validation result:.*$", "Validation result: " + validation, sample)
+                decision = make_acceptance_decision(returned)
+                self.assertTrue(decision["accepted_for_use"])
+                self.assertEqual(decision["score"], score)
+                report = self._evaluate_redacted_advisory(returned, output="--report-json")
+                readiness = report.pop("delivery_readiness")
+                self.assertEqual((readiness["state"], readiness["checks"]), ("unknown", []))
+                self.assertEqual(report.pop("evidence_disposition"), report["recommended_disposition"])
+                self.assertEqual(report, self._evaluate_redacted_advisory(returned))
 
     def test_redacted_advisory_distinguishes_validation_claims(self) -> None:
         sample = self.sample_return()

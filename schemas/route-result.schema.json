@@ -181,6 +181,8 @@
       "items": {
         "type": "object",
         "properties": {
+          "persona_file": {"type": ["string", "null"]},
+          "required_inputs": {"type": "array", "items": {"type": "string", "minLength": 1}},
           "recommended_executor": {"type": "string"},
           "selected_executor": {"type": "object"},
           "executor_policy_violations": {"type": "array", "items": {"type": "string"}},

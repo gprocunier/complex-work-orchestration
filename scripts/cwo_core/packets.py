@@ -18,6 +18,7 @@ from .policy import (
     load_policy,
     provider_profile,
 )
+from .review_inputs import packet_review_input_errors
 from .util import artifact_hash, packet_payload_hash, parse_iso_datetime
 from .return_language import default_expected_return_language, validate_expected_return_language
 
@@ -1628,6 +1629,7 @@ def validate_contractor_packet(
         errors.append("packet_sha256 does not match packet payload")
     errors.extend(nonproduction_packet_errors(packet, allow_nonproduction=allow_nonproduction))
     errors.extend(contractor_subject_errors(packet))
+    errors.extend(packet_review_input_errors(packet))
 
     forbidden_fields = set(boundary.get("forbidden_fields", [])) if boundary else set()
     forbidden_hits = find_forbidden_fields(packet, forbidden_fields)

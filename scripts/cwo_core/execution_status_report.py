@@ -9,7 +9,7 @@ from pathlib import Path
 from typing import Any
 
 from .audit import iter_audit_events
-from .epic_convergence import CALL_CATEGORIES, GRAPH_COUNTER_FIELDS
+from .epic_convergence import CALL_CATEGORIES, DELIVERY_CLASSIFICATIONS, GRAPH_COUNTER_FIELDS
 from .model_identities import OPERATIVE_ROLES, SPARK_MODEL, model_family_role
 from .execution_enhancement_metrics import checked_command_details, checked_command_summary, native_progress_details, native_progress_summary
 
@@ -348,6 +348,7 @@ def _epic_convergence_summary(
         "nonaccepted": _coerce_pair(summary.get("nonaccepted"), ("segments", "calls")),
         "preventable": _coerce_pair(summary.get("preventable"), ("segments", "calls")),
         "protected_stops": _coerce_pair(summary.get("protected_stops"), ("count", "calls", "preserved")),
+        "delivery_accounting": _delivery_accounting_summary(summary.get("delivery_accounting")),
         "historical_null_counts": _coerce_nullable_counts(summary.get("historical_null_counts")),
         "targets": summary.get("targets") if isinstance(summary.get("targets"), dict) else _unavailable_targets(),
     }
@@ -363,8 +364,30 @@ def _unavailable_epic_convergence_summary() -> dict[str, Any]:
         "nonaccepted": {"segments": None, "calls": None},
         "preventable": {"segments": None, "calls": None},
         "protected_stops": {"count": None, "calls": None, "preserved": None},
+        "delivery_accounting": None,
         "historical_null_counts": {},
         "targets": _unavailable_targets(),
+    }
+
+
+def _delivery_accounting_summary(value: Any) -> dict[str, Any] | None:
+    if not isinstance(value, dict):
+        return None
+    counts = _coerce_nullable_counts(value, allowed_fields=("corrective_passes",))
+    observations = _report_dict(value.get("first_pass"))
+    first_pass = _coerce_nullable_counts(observations, allowed_fields=(
+        "known_deliveries", "observed_attempts", "first_attempt_acceptances", "missing_attempts", "conflicting_attempts",
+    ))
+    known = first_pass.get("known_deliveries")
+    accepted = first_pass.get("first_attempt_acceptances")
+    rate = _coerce_non_negative_numeric(observations.get("rate_percent"), default=-1)
+    coverage = (first_pass.get("observed_attempts"), first_pass.get("missing_attempts"), first_pass.get("conflicting_attempts"))
+    if not (known and coverage == (known, 0, 0) and accepted is not None and accepted <= known and 0 <= rate <= 100):
+        rate = None
+    return {
+        "record_counts": _coerce_nullable_counts(value.get("record_counts"), allowed_fields=DELIVERY_CLASSIFICATIONS),
+        "corrective_passes": counts.get("corrective_passes"),
+        "first_pass": dict(first_pass, rate_percent=rate),
     }
 
 
@@ -2070,7 +2093,11 @@ def _convergence_lines(summary: Any, width: int) -> list[str]:
         "calls_target_met": results.get("calls_target_met"),
         "control_plane_target_met": results.get("control_plane_reduction_target_met"),
     }
-    return _key_value_box("Epic Convergence", values, width)
+    lines = _key_value_box("Epic Convergence", values, width)
+    accounting = _delivery_accounting_lines(summary)
+    if accounting:
+        lines.extend(_text_box("Delivery Accounting", accounting, width))
+    return lines
 
 
 def _report_dict(value: Any) -> dict[str, Any]:
@@ -2161,9 +2188,32 @@ def _dashboard_lines(report: dict[str, Any], width: int) -> list[str]:
     next_line = "Hint: import usage sidecars for collectible ? fields; --layout expanded shows lane detail."
 
     return _text_box("Dashboard", [
-        status_line, resource_line, category_line, convergence_line, gap_line, quality_line, evidence_line,
+        status_line, resource_line, category_line, convergence_line, *_delivery_accounting_lines(convergence),
+        gap_line, quality_line, evidence_line,
         workerbee_line, supervision_line, disposition_line, autonomy_line, command_line, next_line,
     ], width)
+
+
+def _delivery_accounting_lines(summary: dict[str, Any]) -> list[str]:
+    accounting = _report_dict(summary.get("delivery_accounting"))
+    if not accounting:
+        return []
+    first_pass = _report_dict(accounting.get("first_pass"))
+    rate = first_pass.get("rate_percent")
+    rate_display = f"{rate:.1f}%" if isinstance(rate, (int, float)) else UNAVAILABLE
+    return [
+        _dashboard_metrics(
+            _report_dict(accounting.get("record_counts")),
+            ("initial", "initial-delivery"), ("correction", "correction"), ("mixed", "mixed"), ("unknown", "unknown"),
+            prefix="Delivery records  ",
+        ),
+        f"Delivery  corrective passes {_cell(accounting.get('corrective_passes'))}  first-pass {rate_display}",
+        _dashboard_metrics(
+            first_pass, ("accepted", "first_attempt_acceptances"),
+            ("missing", "missing_attempts"), ("conflicting", "conflicting_attempts"),
+            prefix=f"First attempts  observed {_cell(first_pass.get('observed_attempts'))}/{_cell(first_pass.get('known_deliveries'))}  ",
+        ),
+    ]
 
 
 def _convergence_dashboard_line(summary: dict[str, Any]) -> str:

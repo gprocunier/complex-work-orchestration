@@ -7,7 +7,7 @@ import json
 from pathlib import Path
 from typing import Any
 
-from cwo_core.returns import make_acceptance_decision
+from cwo_core.returns import evaluation_report, make_acceptance_decision
 from cwo_core.returns import mark_advisory_return as _mark_advisory
 from cwo_core.adjudication import dispatch_provenance
 from cwo_core.audit import record_audit_event
@@ -61,7 +61,7 @@ def print_human(result: dict[str, object]) -> None:
     hold_reasons = result.get("hold_reasons") or []
     print("Hold reasons: " + (", ".join(str(item) for item in hold_reasons) if hold_reasons else "none"))
     print(f"Human adjudication required: {result.get('human_adjudication_required', False)}")
-    print(f"Recommended disposition: {result.get('recommended_disposition', 'unknown')}")
+    _print_classifications(evaluation_report(result))
     print(f"Recommended synthesis use: {result.get('recommended_synthesis_use', 'unknown')}")
     print(f"Accepted for use: {result.get('accepted_for_use', False)}")
     print(f"Evidence-use hold: {result.get('evidence_use_hold', False)}")
@@ -503,23 +503,33 @@ def _record_host_evaluation(text: str, result: dict[str, Any], *, tracked: bool 
         raise SystemExit(str(failure)) from failure
 
 
+def _print_classifications(report: dict[str, Any]) -> None:
+    print(f"Evidence disposition: {report['evidence_disposition']}")
+    print(f"Delivery readiness: {report['delivery_readiness']['state']}")
+
+
 def _print_evaluation(args: argparse.Namespace, result: dict, record: str | None, return_bytes: bytes) -> None:
     if _is_private_browser_return(args):
+        output = result if args.json else evaluation_report(result)
         fields = ("dispatch_id", "bead_id", "verdict", "score", "peer_review_required", "peer_review_status",
                   "architect_review_required", "implementation_blocked", "execution_permitted")
-        summary = {key: result[key] for key in fields}
+        if not args.json:
+            fields += ("evidence_disposition", "delivery_readiness")
+        summary = {key: output[key] for key in fields}
         summary["return_sha256"] = hashlib.sha256(return_bytes).hexdigest()
         summary["evaluation_record_sha256"] = record
-        if args.json:
+        if args.json or args.report_json:
             print(json.dumps(summary, indent=2, sort_keys=True))
         else:
             print(f"Verdict: {summary['verdict']}")
             print(f"Score: {summary['score']}")
+            _print_classifications(summary)
             print(f"Peer review required: {summary['peer_review_required']}")
             print(f"Architect review required: {summary['architect_review_required']}")
             print(f"Host evaluation record: {record}")
-    elif args.json:
-        print(json.dumps(result, indent=2, sort_keys=True))
+    elif args.json or args.report_json:
+        output = evaluation_report(result) if args.report_json else result
+        print(json.dumps(output, indent=2, sort_keys=True))
     else:
         print_human(result)
 
@@ -638,7 +648,9 @@ def main() -> None:
     parser.add_argument("--audit", dest="audit", action="store_true", help=argparse.SUPPRESS)
     parser.add_argument("--no-audit", dest="audit", action="store_false", help="Do not append the default audit event.")
     parser.add_argument("--audit-file", help="Audit JSONL path; defaults to ../.cwo-host-state/<package-name>/audit.jsonl (verified segments included).")
-    parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    output = parser.add_mutually_exclusive_group()
+    output.add_argument("--json", action="store_true", help="Print the existing evaluator JSON payload.")
+    output.add_argument("--report-json", action="store_true", help="Print JSON with evidence disposition and delivery readiness.")
     add_waiver_reason_argument(parser)
     args = parser.parse_args()
     attempted = [

@@ -64,6 +64,41 @@ class ScaffoldBeadsGraphTests(unittest.TestCase):
         self.assertTrue(cwo["cwo_design"])
         self.assertTrue(cwo["cwo_notes"])
 
+    def test_editor_and_visual_review_inputs_reach_native_graph(self) -> None:
+        route = classify_work("Publish public documentation and visual review for GitHub Pages.",
+                              file_paths=["docs/index.html"])
+        editor = next(expert for expert in route["ranked_experts"] if expert["name"] == "editor")
+        visual = next(expert for expert in route["ranked_experts"] if expert["name"] == "web_design")
+        self.assertIn("target audience", editor["required_inputs"])
+        self.assertIn("screen states", visual["required_inputs"])
+        inputs = {
+            "target audience": "First-time queue operators",
+            "documentation map": "README.md#queue defines the four documented states",
+            "page flow": "390px viewport shows status before details",
+            "Diataxis intent": "An operator runs the workflow as a tutorial",
+            "changed behavior": "The queue card shows incomplete case status",
+            "publication constraints": "The queue uses a documented public example",
+            "prerequisites and setup paths": "Start the sample server with make demo",
+            "public terminology map": "A case is a single queue entry",
+            "audience": "First-time queue operators",
+            "reader journey": "README.md#queue explains each card before setup",
+            "content hierarchy": "Open cases precede resolved cases",
+            "accessibility constraints": "Each status has a text label",
+            "responsive targets": "390px viewport",
+            "screen states": "Missing timestamp, partial record, and a 9000-item queue",
+        }
+        context = "\n".join(f"Review input [{name}]: {value}" for name, value in inputs.items())
+        graph = beads_graph_plan(planned_graph("Queue docs", route, review_context=context))
+        for expert, keys in ((editor, ["target audience", "documentation map", "page flow"]),
+                             (visual, ["audience", "reader journey", "responsive targets", "screen states"])):
+            node = next(node for node in graph["nodes"] if node["key"] == f"expert-review-{expert['name'].replace('_', '-')}")
+            self.assertEqual(node["metadata"]["cwo_metadata_persona_file"], expert["persona_file"])
+            self.assertEqual(json.loads(node["metadata"]["cwo_metadata_required_inputs"]), expert["required_inputs"])
+            self.assertEqual(node["metadata"]["cwo_metadata_review_input_status"], "ready")
+            self.assertIn("Review is complete", node["metadata"]["cwo_acceptance"])
+            for key in keys:
+                self.assertIn(inputs[key], node["description"])
+
     def test_beads_graph_plan_preserves_explicit_nonblocking_relationships(self) -> None:
         plan = [
             {

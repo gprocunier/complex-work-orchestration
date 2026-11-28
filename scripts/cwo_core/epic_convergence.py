@@ -27,6 +27,12 @@ CALL_CATEGORIES = (
     "unknown",
 )
 CLOSURE_DISPOSITIONS = ("retain", "correct", "quarantine", "defer", "close")
+DELIVERY_CLASSIFICATIONS = ("initial-delivery", "correction", "mixed", "unknown")
+FIRST_ACCEPTANCE_OUTCOMES = ("accepted", "not-accepted")
+_CORRECTIVE_FIELDS = {"corrective_pass_id", "discovery_source"}
+_DELIVERY_ACCOUNTING_FIELDS = {
+    "classification", "original_ref", "first_acceptance_outcome", *_CORRECTIVE_FIELDS,
+}
 IDENTITY_FIELDS = (
     "epic_id",
     "work_unit_id",
@@ -156,6 +162,33 @@ def canonical_record_sha256(record: Mapping[str, Any]) -> str:
     return hashlib.sha256(encoded).hexdigest()
 
 
+def _delivery_accounting(value: Any) -> dict[str, str]:
+    if not isinstance(value, Mapping):
+        raise TypeError("delivery_accounting must be an object")
+    unknown = sorted(set(value) - _DELIVERY_ACCOUNTING_FIELDS)
+    if unknown:
+        raise ValueError(f"delivery_accounting has unknown fields: {', '.join(unknown)}")
+    for field, text in value.items():
+        if not isinstance(text, str) or not text.strip():
+            raise ValueError(f"delivery_accounting.{field} must be a non-blank string")
+    classification = value.get("classification")
+    if classification not in DELIVERY_CLASSIFICATIONS:
+        raise ValueError(f"unsupported delivery_accounting.classification: {classification!r}")
+    required = set()
+    if classification != "unknown" or "first_acceptance_outcome" in value:
+        required.add("original_ref")
+    if classification in ("correction", "mixed"):
+        required.update(_CORRECTIVE_FIELDS)
+    elif "corrective_pass_id" in value:
+        raise ValueError("delivery_accounting.corrective_pass_id requires correction or mixed work")
+    missing = sorted(required - set(value))
+    if missing:
+        raise ValueError(f"delivery_accounting is missing fields: {', '.join(missing)}")
+    if value.get("first_acceptance_outcome", "accepted") not in FIRST_ACCEPTANCE_OUTCOMES:
+        raise ValueError("unsupported delivery_accounting.first_acceptance_outcome")
+    return dict(value)
+
+
 def _normalize_record(
     record: Mapping[str, Any],
     *,
@@ -165,7 +198,7 @@ def _normalize_record(
     if not isinstance(record, Mapping):
         raise TypeError("record must be an object")
     source = dict(record)
-    unknown = sorted(set(source) - set(RECORD_FIELDS))
+    unknown = sorted(set(source) - set(RECORD_FIELDS) - {"delivery_accounting"})
     if unknown:
         raise ValueError(f"record has unknown fields: {', '.join(unknown)}")
     missing = sorted(set(RECORD_FIELDS) - set(source))
@@ -190,6 +223,8 @@ def _normalize_record(
     source["artifact_disposition"] = _nullable_text(
         source["artifact_disposition"], "artifact_disposition"
     )
+    if "delivery_accounting" in source:
+        source["delivery_accounting"] = _delivery_accounting(source["delivery_accounting"])
     source["graph_counters"] = _metrics(
         source["graph_counters"],
         "graph_counters",

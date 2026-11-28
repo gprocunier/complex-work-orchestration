@@ -572,6 +572,13 @@ bd create "Claude Opus review: security-focused reasoning for auth flow" \
 Avoid literal `\n` sequences in Beads text fields. Use a heredoc, `--body-file`,
 `--design-file`, or command substitution when a field needs multiple lines.
 
+For a managed expert review, put concrete context in the shareable assignment
+description or select it with `--snippet` or `--snippet-file`. Use one line per
+declared input, such as `Review input [responsive targets]: 390px viewport with one column`. Include the relevant facts or excerpt with
+any source locator. Packet construction refuses when a required input is absent
+from the redacted material. Use the normal profile-inclusion and outbound
+approval controls.
+
 For generated packets, create the contractor Bead first, then run:
 
 ```bash

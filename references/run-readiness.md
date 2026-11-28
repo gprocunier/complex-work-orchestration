@@ -83,6 +83,13 @@ being inferred or rewritten. Status output reports absolute productive,
 validation, attestation, fit, monitoring, recovery, PM, architect, and unknown
 call counts together with replay-target results.
 
+Delivery accounting tracks initial work, correction, mixed work, and unknown
+work. Reports count a corrective pass once when several findings or recorded
+events refer to the same pass. A correction can still be productive and yield
+accepted artifacts. First-pass rates use explicitly recorded first acceptance
+attempts for known requirement or delivery references and show coverage gaps
+when the references lack a first attempt or have conflicting results.
+
 Closure pressure begins when acceptance or independent validation starts. The
 current work unit must carry any routine correction and one explicit
 `retain`, `correct`, `quarantine`, `defer`, or `close` disposition; do not add a
@@ -396,6 +403,16 @@ boundary. Unrestricted processes that can directly change Beads or rewrite
 the host audit history remain outside that boundary.
 
 ### Verified closure library
+
+Evidence disposition describes whether a return can be used as evidence. The
+evaluator can accept a well-supported report of a failed or unrun check.
+Delivery readiness uses the current requirement baseline and the original
+checked observations. Required checks must pass, and a not-applicable check
+uses the reason recorded in the baseline. Failed and unrun required checks
+block readiness. `Observation.delivery_readiness` describes the captured
+checks. The production report shows `ready` once it binds the same
+observations to the accepted final review. A detected change to that binding
+blocks readiness and retains the captured check results.
 
 Production closure is enabled: `PRODUCTION_CLOSURE_AVAILABLE = True`, following
 the operator release decision of 2026-11-15. Closing acceptance must have a

@@ -8,12 +8,12 @@ from typing import Any
 from cwo_core.routing import current_authority_file_arguments
 
 from cwo_core.errors import CWOError
+from cwo_core.review_inputs import review_description
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import (
     classify_work,
     expert_review_labels,
     expert_review_metadata,
-    expert_uses_external_contract,
     experts_with_required,
     risk_required_expert_names,
     unmet_required_experts,
@@ -35,33 +35,6 @@ def sabotage_control_triggers(route: dict[str, object]) -> list[str]:
     if route.get("sabotage_review_required"):
         triggers.append(SABOTAGE_CONTROL_TRIGGER_WORK_REROUTING)
     return triggers
-
-
-def review_body(expert: dict[str, object], route: dict[str, object]) -> str:
-    return f"""Purpose:
-Perform {expert['display_name']} review for the assigned Bead.
-
-Review stage:
-{expert['review_stage']}
-
-Job-description label:
-{expert['job_description_label']}
-
-Output contract:
-{chr(10).join('- ' + str(item) for item in expert.get('output_contract', []))}
-
-Acceptance checks:
-{chr(10).join('- ' + str(item) for item in expert.get('acceptance_checks', []))}
-
-Escalation rules:
-{chr(10).join('- ' + str(item) for item in expert.get('escalation_rules', []))}
-
-Share boundary:
-{route['share_boundary']}
-
-Codex handling rule:
-{"Codex may brief and evaluate this Bead, but must not execute it as contractor work." if expert_uses_external_contract(expert, route.get('recommended_executor')) else "Codex may execute this as an internal expert-review task."}
-"""
 
 
 def review_fields(expert: dict[str, object], route: dict[str, object]) -> dict[str, object]:
@@ -147,7 +120,7 @@ def control_review_tasks(title_prefix: str, route: dict[str, object]) -> list[di
 
 
 def planned_expert_reviews(
-    title_prefix: str, route: dict[str, Any], top_n: int
+    title_prefix: str, route: dict[str, Any], top_n: int, *, review_context: str = "",
 ) -> tuple[list[dict[str, Any]], list[dict[str, str]]]:
     """The review tasks for the top ``top_n`` ranked experts plus every risk-required expert, and any unmet one.
 
@@ -157,13 +130,18 @@ def planned_expert_reviews(
     experts = experts_with_required(route, top_n)
     reviews = []
     for expert in experts:
+        metadata = expert_review_metadata(expert, route)
+        fields = review_fields(expert, route)
+        description, input_status = review_description(
+            expert, fields["acceptance"], review_context, metadata,
+        )
         reviews.append(
             {
                 "title": f"{title_prefix}: {expert['display_name']}",
                 "labels": expert_review_labels(expert, route),
-                "metadata": expert_review_metadata(expert, route),
-                "description": review_body(expert, route),
-                **review_fields(expert, route),
+                "metadata": {**metadata, **input_status},
+                "description": description,
+                **fields,
             }
         )
     reviews.extend(control_review_tasks(title_prefix, route))
@@ -206,7 +184,7 @@ def main() -> None:
         )
     except CWOError as exc:
         raise SystemExit(str(exc))
-    reviews, unmet = planned_expert_reviews(args.title_prefix, route, args.top_n)
+    reviews, unmet = planned_expert_reviews(args.title_prefix, route, args.top_n, review_context=text)
 
     if args.dry_run:
         print(json.dumps({

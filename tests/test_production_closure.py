@@ -6,6 +6,7 @@ import copy
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 import tempfile
@@ -162,6 +163,24 @@ class ProductionClosureTests(unittest.TestCase):
         qualified.bind(host)
         return observed
 
+    def test_accepted_failure_report_cannot_complete_failed_delivery(self):
+        case = self.builders.compact(variant="failed")
+        sample = (fixtures.ROOT / "examples/sample-contractor-return.md").read_text(encoding="utf-8")
+        text = re.sub(r"(?m)^Validation result:.*$", "Validation result: failed", sample)
+        with self.provisioned(case, return_text=text) as (process, custody, database), \
+                qualified.production_custody(str(custody), database=str(database),
+                    actor="EXAMPLE-supervisor", **process.authority) as host:
+            with self.assertRaises(original.ClosureError):
+                qualified.observe(host)
+            with self.assertRaises(original.ClosureError):
+                closure.execute_qualified_completed(host)
+            report = host.report
+            self.assertEqual(report["evidence_disposition"], "accept-findings")
+            self.assertEqual(report["delivery_readiness"]["state"], "blocked")
+            self.assertEqual(report["delivery_readiness"]["checks"][0]["status"], "failed")
+            self.assertFalse(report["completed"])
+            self.assertEqual(process.effects, [])
+
     def test_candidate_acceptance_without_final_observation_review_cannot_complete(self):
         case = self.builders.compact()
         with self.provisioned(case) as (process, custody, database):
@@ -188,10 +207,13 @@ class ProductionClosureTests(unittest.TestCase):
         with self.registered(case) as (host, process, custody):
             observed = qualified.observe(host)
             self.assertTrue(observed.combined['combined_observations_complete'])
-            self.assertNotEqual(original.observation_digest(observed),
-                                original.observation_digest(case.review_observation))
+            reported_digest = host.report["delivery_readiness"]["observation_sha256"]
+            self.assertEqual(reported_digest, original.observation_digest(observed))
+            self.assertNotEqual(reported_digest, original.observation_digest(case.review_observation))
+            self.assertEqual(host.report["delivery_readiness"]["state"], "blocked")
             with self.assertRaisesRegex(original.ClosureError, 'exact complete observations'):
                 qualified.bind(host)
+            self.assertEqual(host.report["delivery_readiness"]["state"], "blocked")
             self.assertEqual(process.effects, [])
 
     def rename_case(self, *, incomplete=False, missing_named=False):
