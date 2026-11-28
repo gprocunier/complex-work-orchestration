@@ -54,7 +54,53 @@
 
     <main id="main" tabindex="-1">
 <div class="page-shell reference-slice page--landing"><article class="doc-content">
-<section id="start" class="positioning-hero positioning-hero--intro"><div class="hero-copy"><span id="top"></span><p class="eyebrow">A Codex skill for project work</p><h1>Delegate the work.<br>Keep the definition of done.</h1><p class="lede">Bring cloud models and models you serve through vLLM into the same project as specialist reviewers. vLLM is a model-serving engine you can run on your own infrastructure. Give them focused questions, investigate their findings, and retain the requirements and decisions later tasks depend on. One lead agent coordinates the work; you set the outcome and permissions.</p><p>CWO is a reusable set of instructions and helper tools for Codex. It helps you define what counts as finished, check model responses and preserve verified work across tasks and sessions. Optional tools compare claims from separate reviews; the lead checks the evidence and decides what proceeds.</p><p><strong>No model gets implicit trust.</strong> CWO treats public-cloud and open-weight models as untrusted contributors. The lead is not exempt. Using a model without guardrails is a choice to trust it implicitly. Limit its access, check its work and keep consequential actions within your permissions. Guardrails reduce risk; they do not make the model trustworthy.</p><div class="hero-actions"><a class="button" href="./workflows.html#operator">Use CWO on your project</a><a class="button secondary" href="./local-workers.html">Use a local reviewer</a></div><p><a href="./zero-trust-consensus.html#tested-example">Inspect the comparison example</a> · <a href="./install.html">Install CWO</a></p><p class="beginner-route">New to project agents? <a href="./get-started.html">Try the guided practice example</a>.</p><p class="maturity-note">Development-stage skill. Some safeguards are instructions, not enforced restrictions. Native workers also require model, tool and host qualification.</p></div>
+<section id="start" class="positioning-hero positioning-hero--intro"><div class="hero-copy"><span id="top"></span><p class="eyebrow">A Codex skill for project work</p><h1>Delegate the work.<br>Keep the definition of done.</h1><p class="lede">Bring cloud models and models you serve through vLLM into the same project as specialist reviewers. vLLM is a model-serving engine you can run on your own infrastructure. Give them focused questions, investigate their findings, and retain the requirements and decisions later tasks depend on. One lead agent coordinates the work; you set the outcome and permissions.</p><p>CWO is a reusable set of instructions and helper tools for Codex. It helps you define what counts as finished, check model responses and preserve verified work across tasks and sessions. Optional tools compare claims from separate reviews; the lead checks the evidence and decides what proceeds.</p><p><strong>No model gets implicit trust.</strong> CWO treats public-cloud and open-weight models as untrusted contributors. The lead is not exempt. Using a model without guardrails is a choice to trust it implicitly. Limit its access, check its work and keep consequential actions within your permissions. Guardrails reduce risk; they do not make the model trustworthy.</p><div class="hero-actions"><a class="button" href="./workflows.html#operator">Use CWO on your project</a><a class="button secondary" href="./local-workers.html">Use a local reviewer</a></div><p><a href="#capabilities">See what works today</a> · <a href="./zero-trust-consensus.html#tested-example">Inspect the comparison example</a> · <a href="./install.html">Install CWO</a></p><p class="beginner-route">New to project agents? <a href="./get-started.html">Try the guided practice example</a>.</p><p class="maturity-note">Development-stage skill. Some safeguards are instructions, not enforced restrictions. Native workers also require model, tool and host qualification.</p></div>
+</section>
+
+<section id="capabilities" aria-labelledby="capabilities-title">
+  <h2 id="capabilities-title">What works today</h2>
+  <table class="data-table" aria-labelledby="capabilities-title">
+    <thead>
+      <tr>
+        <th scope="col">Readiness</th>
+        <th scope="col">What you can use</th>
+        <th scope="col">Evidence and requirements</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr>
+        <th scope="row">Immediately</th>
+        <td>Run the scripted exercises with Python. The practice project also uses Git and a local task database.</td>
+        <td><a href="./use-cases.html#run-fixtures">Scripted exercises</a> · <a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/examples/first-project/VALIDATION.md">First-project evidence</a></td>
+      </tr>
+      <tr>
+        <th scope="row">Needs an endpoint</th>
+        <td>Send a screened local review request to a configured vLLM endpoint after opt-in and workload admission. Use the evaluated reply as advice.</td>
+        <td><a href="./local-workers.html#execute-local">Local review requirements and checks</a></td>
+      </tr>
+      <tr>
+        <th scope="row">Needs an authority host</th>
+        <td>Run a signed registered assignment or an approved contained pool of two or three workers. A separately configured trusted host checks the approval and controls the worker environment.</td>
+        <td><a href="./native-supervision.html#single-worker">Single-worker requirements</a> · <a href="./native-supervision.html#preview">Contained pool requirements</a></td>
+      </tr>
+      <tr>
+        <th scope="row">Library-only</th>
+        <td>Verified production success closure needs a host integration that supplies independent acceptance for the exact checked delivery. The narrative helper can record pending acceptance.</td>
+        <td><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/run-readiness.md">Closure and acceptance contract</a></td>
+      </tr>
+      <tr>
+        <th scope="row">Held</th>
+        <td>Raw native launch and generic worker pools are held.</td>
+        <td><a href="./native-supervision.html#supervision">Current native route boundaries</a></td>
+      </tr>
+      <tr>
+        <th scope="row">Retired</th>
+        <td>Historical fixed live campaigns and standalone native callback calibration have retired. Their archived records remain available.</td>
+        <td><a href="./native-supervision.html#history">Historical records</a> · <a href="./reference.html#controls">Current controls</a></td>
+      </tr>
+    </tbody>
+  </table>
+  <p><a href="https://github.com/gprocunier/complex-work-orchestration/blob/main/references/claims-register.md">Inspect the source claims, evidence and limits</a>.</p>
 </section>
 
 <section id="ecosystem" class="ecosystem-section" aria-labelledby="ecosystem-title">
@@ -140,7 +186,9 @@
             <!-- /diagram:purpose-preserving -->
 </details></section>
 <section id="choose"><span id="routes"></span><span id="first-step"></span><span id="crawl"></span><h2>Take the route that fits your work</h2><dl><dt>Already using agents</dt><dd><a href="./workflows.html">Choose a task</a>: compare approaches without changing the requirements, resolve conflicting reviews, check a handoff or recover after a worker stops.</dd><dt>Want to inspect the evidence first?</dt><dd><a href="./use-cases.html">Explore the examples</a>. Proposed workflows, authored exercises and observed work are labeled separately.</dd><dt>New to project agents</dt><dd><a href="./get-started.html">Set up CWO and try the practice example</a>, then continue it in a fresh session.</dd></dl></section>
-<section id="status"><span id="run"></span><span id="reference"></span><h2>Status and boundaries</h2><p>CWO is a development-stage public skill package. Your configured model provider receives selected project context. Additional outside review is off by default. Native delegation requires verification of the exact worker, tools and host. <a href="./reference.html">See setup, compatibility and troubleshooting</a>.</p></section></article></div>
+<section id="status"><span id="run"></span><span id="reference"></span><h2>Status and boundaries</h2><p>CWO is a development-stage public skill package. Your configured model provider receives selected project context. Additional outside review is off by default. Native delegation requires verification of the exact worker, tools and host. <a href="./reference.html">See setup, compatibility and troubleshooting</a>.</p>
+<!-- pages-source-revision -->
+</section></article></div>
     </main>
 
     <footer class="site-footer">

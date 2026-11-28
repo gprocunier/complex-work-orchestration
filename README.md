@@ -15,6 +15,8 @@ responses and tool requests as untrusted.
 
 ## What CWO does today
 
+[Check availability and prerequisites for each capability](docs/index.html#capabilities).
+
 - **Plans before anyone edits.** Prompt Coach defines the result, sizes the job
   and names the questions worth a second opinion. It does not call reviewers or
   authorize implementation.
@@ -133,10 +135,9 @@ that checks server names and port numbers:
    five subprocess tests. All eleven project tests passed in an independent run.
 
 Limits of this record: one configured Linux host and one existing account; not
-a novice study, benchmark or cost claim. The practice pages have since been
-split and have not had another full two-session model run, and that run
-predates the closure change, so the same work would now end at
-`pending-acceptance`. [Read the record](examples/first-project/VALIDATION.md)
+a novice study, benchmark or cost claim. An offline rehearsal of the revised
+walkthrough verified the current setup, acceptance step and pending CLI
+delivery using a fresh project and the authored solution. [Read both records](examples/first-project/VALIDATION.md)
 or [try the guided practice example](https://gprocunier.github.io/complex-work-orchestration/get-started.html).
 
 ## Plan across models, then supervise the work
