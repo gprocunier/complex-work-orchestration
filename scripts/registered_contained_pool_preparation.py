@@ -27,9 +27,9 @@ from cwo_core.native_tool_isolation import CONTAINED_POOL_WRITER
 from cwo_core.private_artifact import PrivateDirectory
 from registered_delegation_preparation import _clone, _custody_ticket, _known_output_data, _project_key, _screen, _text
 from registered_n1_factory import _file
-from registered_n1_qualification import WorkerLoginMount, worker_login_state, _login_overlap
+from registered_n1_qualification import _login_overlap, pool_worker_login_mount, worker_login_state
 from registered_pool_configuration import PoolContainmentError, trim_model_catalog
-from registered_pool_containment import _writer_bytes
+from registered_pool_containment import _writer_bytes, pool_patch_path, read_pool_patch_file
 from registered_pool_qualification_capability import callback_implementation_sha256
 from registered_worker_login_config import read_pool_worker_login_homes
 
@@ -44,8 +44,9 @@ _ASSIGNMENT_PROPERTIES = {
     "amendments": {"type": "array", "items": {"type": "string"}},
     "output_path": {"type": "string"},
     "output_text": {"type": "string"},
+    "output_mode": {"type": "string", "enum": [pool.PATCH_OUTPUT_MODE]},
 }
-_ASSIGNMENT_REQUIRED = {"task", "baseline", "output_path", "output_text"}
+_ASSIGNMENT_REQUIRED = {"task", "baseline", "output_path"}
 TOOL = {
     "name": "authorize_pool",
     "description": "Approve one ordered, contained pool of two or three registered assignments.",
@@ -59,7 +60,8 @@ TOOL = {
             "assignments": {
                 "type": "array", "minItems": 2, "maxItems": 3,
                 "items": {"type": "object", "properties": _ASSIGNMENT_PROPERTIES,
-                          "required": sorted(_ASSIGNMENT_REQUIRED), "additionalProperties": False},
+                          "required": sorted(_ASSIGNMENT_REQUIRED), "additionalProperties": False,
+                          "oneOf": [{"required": ["output_text"]}, {"required": ["output_mode"]}]},
             },
         },
         "required": ["epic_id", "model", "effort", "service_tier", "assignments"],
@@ -86,18 +88,32 @@ def _proposal(args):
     return epic, selection, assignments
 
 
+def _assignment_output(proposal: dict[str, object], task: str) -> dict[str, str | None]:
+    if "output_mode" in proposal:
+        pool.require(proposal["output_mode"] == pool.PATCH_OUTPUT_MODE and "output_text" not in proposal,
+                     "Unified-diff assignments require output_mode and omit output_text.")
+        path, _ = _known_output_data(proposal["output_path"], task)
+        pool.require(pool_patch_path(path), "A unified diff requires one canonical relative file path.")
+        _screen(task, "")
+        return {"write_path": path, "expected_utf8": None, "output_mode": pool.PATCH_OUTPUT_MODE}
+    pool.require("output_text" in proposal, "Supply exact output_text or choose unified-diff mode.")
+    text = proposal["output_text"]
+    path, _ = _known_output_data(proposal["output_path"], text)
+    _writer_bytes(path, text)
+    _screen(task, text)
+    return {"write_path": path, "expected_utf8": text}
+
+
 def _assignment(project, proposal, run, claim):
     pool.require(type(proposal) is dict and _ASSIGNMENT_REQUIRED <= set(proposal) <= set(_ASSIGNMENT_PROPERTIES),
-                 "Each assignment needs the original task, baseline and exact output.")
+                 "Each assignment needs the original task, baseline and output path.")
     amendments = proposal.get("amendments", [])
     pool.require(type(amendments) is list and all(type(path) is str for path in amendments)
                  and type(proposal["baseline"]) is str, "Supply the original requirement baseline and amendments.")
     task = proposal["task"]
     _text(task)
     pool.require(bool(task.strip()), "The original lead task is required.")
-    output_path, _ = _known_output_data(proposal["output_path"], proposal["output_text"])
-    _writer_bytes(output_path, proposal["output_text"])
-    _screen(task, proposal["output_text"])
+    output = _assignment_output(proposal, task)
     _, _, chain = everyday_delegation._baseline(project / proposal["baseline"], [project / path for path in amendments])
     bead_id = chain["bead_id"]
     pool.require(_IDENTITY.fullmatch(bead_id) is not None, "The requirement baseline needs the exact Bead ID.")
@@ -106,8 +122,8 @@ def _assignment(project, proposal, run, claim):
     admission = _admission_metadata({"id": bead_id, "raw": issue})
     pool.require(admission is not None, "The Bead lacks original pool readiness metadata.")
     return {
-        "bead_id": bead_id, "baseline_sha256": chain["digest"], "task": task, "write_path": output_path,
-        "expected_utf8": proposal["output_text"], "bead_projection_sha256": execution_authoritative_bead_sha256(issue),
+        "bead_id": bead_id, "baseline_sha256": chain["digest"], "task": task, **output,
+        "bead_projection_sha256": execution_authoritative_bead_sha256(issue),
     }, admission
 
 
@@ -126,7 +142,8 @@ def _limits(admissions, size):
 def _mounts(size):
     homes = read_pool_worker_login_homes()[:size]
     pool.require(len(homes) == size, "Configure one distinct dedicated login per concurrent worker.")
-    mounts = tuple(WorkerLoginMount(home, worker_login_state()) for home in homes)
+    state = worker_login_state()
+    mounts = tuple(pool_worker_login_mount(home, state, homes) for home in homes)
     pool.require(len({mount.identity for mount in mounts}) == size, "The pool login homes share a directory identity.")
     pool.require(not any(_login_overlap(home, peer) for index, home in enumerate(homes) for peer in homes[index + 1:]),
                  "The pool login homes overlap.")
@@ -161,17 +178,35 @@ def _bundled_catalog(host):
         return None
 
 
+def _bind_output(worktree: Path, row: dict[str, str | None]) -> dict[str, str | None]:
+    path = row["write_path"]
+    if row.get("output_mode") == pool.PATCH_OUTPUT_MODE:
+        before = read_pool_patch_file(worktree, path)
+        return {**row, "patch_preimage_sha256": sha256(before).hexdigest()}
+    pool.require(not os.path.lexists(worktree / path), "The contained writer requires a fresh output path.")
+    return row
+
+
+def _worker_prompt(row: dict[str, str | None], marker: str) -> str:
+    if row.get("output_mode") == pool.PATCH_OUTPUT_MODE:
+        return (f"Approved task: {row['task']}\n"
+                f"Inspect {row['write_path']} in your read-only assigned checkout. "
+                f"Call only `{CONTAINED_POOL_WRITER}`, exactly once, with a `diff` string containing "
+                f"a unified diff against that file. Use its exact repository-relative path in both diff headers. "
+                f"Return this exact marker only when the writer reports success:\n{marker}")
+    return (f"Approved task: {row['task']}\n"
+              f"Call only `{CONTAINED_POOL_WRITER}`, exactly once, with `{{}}`. "
+              f"The registered writer creates only {row['write_path']} in your read-only assigned checkout. "
+              f"Return this exact marker only when the writer reports success:\n{marker}")
+
+
 def _workspace(root, project, row, mount, index):
     worker_id = f"worker-{index}"
     worktree = root / "workspaces" / worker_id
     _clone(project, worktree)
-    pool.require(not os.path.lexists(worktree / row["write_path"]), "The contained writer requires a fresh output path.")
+    row = _bind_output(worktree, row)
     fingerprint = capture_workspace_snapshot(worktree, allowed_paths=[row["write_path"]])["identity"]
     marker = f"CWO_POOL_WORKER_{index}_DONE"
-    prompt = (f"Approved task: {row['task']}\n"
-              f"Call only `{CONTAINED_POOL_WRITER}`, exactly once, with `{{}}`. "
-              f"The registered writer creates only {row['write_path']} in your read-only assigned checkout. "
-              f"Return this exact marker only when the writer reports success:\n{marker}")
     spools = {}
     for phase in ("calibration", "productive"):
         custody = root / f"{phase}-spool-{index}"
@@ -182,7 +217,7 @@ def _workspace(root, project, row, mount, index):
     return {**row, **spools, "worker_id": worker_id, "worktree": str(worktree),
             "worktree_identity_sha256": canonical_authority_sha256(fingerprint),
             "login_home": str(mount.home), "login_identity": list(mount.identity),
-            "prompt": prompt, "completion_marker": marker}
+            "prompt": _worker_prompt(row, marker), "completion_marker": marker}
 
 
 def _manifest(root, project, database, epic, selection, assignments, limits, mounts):

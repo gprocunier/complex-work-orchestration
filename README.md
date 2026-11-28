@@ -185,8 +185,10 @@ eligible assignment and post a bound delivery for hand acceptance. See the
 The [registered contained pool](references/native-supervision-pools.md)
 runs two or three preapproved, independent assignments on one trusted host.
 Each app server sees a read-only checkout and reaches only the model provider.
-The registered writer can write the exact approved output in its own checkout.
-Each worker uses a separate configured login, and the host accounts for both
+The registered writer can create an exact approved output or apply a checked
+worker-authored patch to one existing assigned file in its checkout.
+Each worker uses a separate configured login. A three-worker qualification can
+use the existing dedicated logins as a complete roster. The host accounts for
 calibration and execution against the approved allowance.
 
 The native app-server integration supports Codex CLI 0.163.0 and later releases

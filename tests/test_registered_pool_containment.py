@@ -1,5 +1,6 @@
 """Check the contained pool host with synthetic files and inert stdio peers."""
 
+from base64 import b64encode
 from concurrent.futures import ThreadPoolExecutor
 from hashlib import sha256
 import json
@@ -7,13 +8,16 @@ import os
 from pathlib import Path
 import select
 import socket
+import stat
+import subprocess
 import sys
 import tempfile
 from threading import Barrier, RLock
 import time
 import tomllib
+from types import SimpleNamespace
 import unittest
-from unittest.mock import PropertyMock, patch
+from unittest.mock import Mock, PropertyMock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / 'scripts'))
 
@@ -136,6 +140,133 @@ class PoolConfigurationTests(unittest.TestCase):
                 config.require_named_deny_policy(worktree, changed)
 
 
+class CheckedPatchWriterTests(unittest.TestCase):
+    stage_name = '.cwo-patch-' + 'a' * 32
+
+    def setUp(self):
+        self.root = Path(self.enterContext(tempfile.TemporaryDirectory()))
+        self.target = self.root / 'source.py'
+        self.before = b'value = 1\n'
+        self.target.write_bytes(self.before)
+        self.target.chmod(0o751)
+
+    def _command(self, after, program=None, *, path=None):
+        if path is None:
+            path = self.target.relative_to(self.root).as_posix()
+        return [sys.executable, '-I', '-S', '-c', program or containment._PATCH_WRITER, path,
+                sha256(self.before).hexdigest(), sha256(after).hexdigest(),
+                json.dumps(containment._patch_mark(self.target.stat())), self.stage_name]
+
+    def _run(self, command, data):
+        with containment._patch_parent(self.root, self.target.relative_to(self.root).as_posix()) as (directory, _):
+            flags = os.O_RDWR | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW
+            with os.fdopen(os.open(self.stage_name, flags, 0o600, dir_fd=directory), 'r+b') as staging:
+                try:
+                    info = os.fstat(staging.fileno())
+                    stdin = f'{info.st_dev} {info.st_ino}\n'.encode() + b64encode(data)
+                    return subprocess.run(command, cwd=self.root, input=stdin, capture_output=True, timeout=5)
+                finally:
+                    containment._remove_patch_staging(directory, self.stage_name, staging.fileno())
+
+    def test_patch_writer_fits_retained_launcher_argument_bounds(self):
+        worker = SimpleNamespace(spec={'validator': sys.executable}, _output_path=self.target.name)
+        prepared = SimpleNamespace(content=b'updated\n', preimage_sha256=sha256(self.before).hexdigest(),
+                                   target_mark=containment._patch_mark(self.target.stat()))
+        command, _ = containment.PoolWorkerContainment._writer_command(worker, prepared, self.stage_name)
+        lifetime = containment._PoolLifetime(worker, 'tool', command)
+        launcher = '/usr/bin/bwrap'
+        argv = containment.n1._launcher_argv(launcher, 3, lifetime._bootstrap_command(command))
+        workspace = str(self.root)
+        self.assertEqual(containment.n1.owned._freeze('worker-1-tool', argv, workspace, launcher),
+                         ('worker-1-tool', tuple(argv), workspace))
+
+    def test_empty_checked_postimage_replaces_the_file_and_preserves_permissions(self):
+        nested = self.root / 'src' / 'package'
+        nested.mkdir(parents=True)
+        self.target = self.target.rename(nested / self.target.name)
+        self.assertEqual(containment.read_pool_patch_file(self.root, 'src/package/source.py'), self.before)
+        completed = self._run(self._command(b''), b'')
+        self.assertEqual((completed.returncode, completed.stdout, completed.stderr),
+                         (0, containment._WRITTEN.encode(), b''))
+        self.assertEqual(self.target.read_bytes(), b'')
+        self.assertEqual(stat.S_IMODE(self.target.stat().st_mode), 0o751)
+        self.assertEqual(list(nested.iterdir()), [self.target])
+
+    def test_short_and_surplus_input_leave_the_original_file(self):
+        after = b'value = 2\n'
+        command = self._command(after)
+        surplus = b'x' * (containment.MAX_WORKER_PATCH_BYTES + 16)
+        for data in (after[:-1], after + b'x', surplus):
+            with self.subTest(length=len(data)):
+                completed = self._run(command, data)
+                self.assertEqual((completed.returncode, completed.stdout), (1, b''))
+                self.assertEqual(self.target.read_bytes(), self.before)
+                self.assertEqual(list(self.root.iterdir()), [self.target])
+
+    def test_changed_preimage_and_failed_replacement_leave_no_staging_file(self):
+        after = b'value = 2\n'
+        program = ('import os\n'
+                   'def refused(*args, **kwargs):\n    raise OSError("synthetic replacement failure")\n'
+                   'os.replace = refused\n' + containment._PATCH_WRITER)
+        self.assertEqual(self._run(self._command(after, program), after).returncode, 1)
+        self.assertEqual(self.target.read_bytes(), self.before)
+        self.assertEqual(list(self.root.iterdir()), [self.target])
+        command = self._command(after)
+        changed = b'value = 3\n'
+        self.target.write_bytes(changed)
+        self.assertEqual(self._run(command, after).returncode, 1)
+        self.assertEqual(self.target.read_bytes(), changed)
+        self.assertEqual(list(self.root.iterdir()), [self.target])
+
+    def test_staging_cleanup_preserves_an_entry_with_different_custody(self):
+        stage = self.root / self.stage_name
+        other = self.root / 'other.txt'
+        other.write_bytes(b'unrelated')
+        with containment._patch_parent(self.root, self.target.name) as (directory, _), stage.open('xb') as original:
+            other.replace(stage)
+            with self.assertRaisesRegex(config.PoolContainmentError, 'staging entry changed'):
+                containment._remove_patch_staging(directory, self.stage_name, original.fileno())
+        self.assertEqual(stage.read_bytes(), b'unrelated')
+        self.assertEqual(self.target.read_bytes(), self.before)
+
+    def test_host_reader_rejects_aliases_nonregular_and_nontext_files(self):
+        alias = self.root / 'alias.py'
+        alias.symlink_to(self.target)
+        with self.assertRaisesRegex(config.PoolContainmentError, 'regular file'):
+            containment.read_pool_patch_file(self.root, alias.name)
+        alias.unlink()
+        os.link(self.target, alias)
+        with self.assertRaisesRegex(config.PoolContainmentError, 'one link'):
+            containment.read_pool_patch_file(self.root, self.target.name)
+        alias.unlink()
+        alias.mkdir()
+        with self.assertRaisesRegex(config.PoolContainmentError, 'regular file'):
+            containment.read_pool_patch_file(self.root, alias.name)
+        self.target.write_bytes(b'\xff')
+        with self.assertRaisesRegex(config.PoolContainmentError, 'UTF-8'):
+            containment.read_pool_patch_file(self.root, self.target.name)
+
+    def test_patch_path_requires_ordinary_components_and_rejects_symlinked_ancestors(self):
+        for path in ('/source.py', './source.py', 'a/../source.py', 'a//source.py', 'source.py/',
+                     '.git/config', 'src/.hidden/file.py', 'src/space name.py', 'src\\source.py'):
+            with self.subTest(path=path):
+                self.assertFalse(containment.pool_patch_path(path))
+        self.assertTrue(containment.pool_patch_path('src/module-1/source.py'))
+        with self.assertRaisesRegex(config.PoolContainmentError, 'ordinary worktree file'):
+            containment._writer_bytes('src/source.py', 'legacy fixed write')
+        nested = self.root / 'src'
+        nested.mkdir()
+        self.target = self.target.rename(nested / self.target.name)
+        (self.root / 'alias').symlink_to(nested, target_is_directory=True)
+        alias = 'alias/source.py'
+        with self.assertRaises(config.PoolContainmentError):
+            containment.read_pool_patch_file(self.root, alias)
+        after = b'value = 2\n'
+        self.assertEqual(self._run(self._command(after, path=alias), after).returncode, 1)
+        self.assertEqual(self.target.read_bytes(), self.before)
+        self.assertEqual(list(nested.iterdir()), [self.target])
+
+
 class _InertBroker:
     def __init__(self):
         self.closed = False
@@ -161,6 +292,7 @@ class PoolWorkerContainmentTests(unittest.TestCase):
             auth.write_text(f'synthetic marker {slot}\n')
             auth.chmod(0o600)
         self.production_home = None
+        self.login_homes = ()
         self.login_state = self.root / 'worker-login-state'
         self.launcher = Path('/usr/bin/bwrap').resolve()
         self.validator = Path('/usr/bin/python3').resolve()
@@ -188,7 +320,8 @@ assert sys.stdin.read() == ''
 
     def _original_effect(self, effect, worker_id, worktree, spool, slot, containment=None):
         effect()
-        return self.configured[slot] if self.production_home is None else self.production_home
+        home = self.configured[slot] if self.production_home is None else self.production_home
+        return home, self.login_homes
 
     def _select_production_login(self, name='configured-login'):
         self.production_home = self.root / name
@@ -204,15 +337,16 @@ assert sys.stdin.read() == ''
             path.mkdir(mode=0o700)
         return worktree, custody / 'codex-home'
 
-    def _worker(self, slot, paths, protected=()):
+    def _worker(self, slot, paths, protected=(), *, patch_preimage_sha256=None, write_path='marker.txt'):
         worker, spool = paths
         worker = containment.PoolWorkerContainment(
             worker_id=f'worker-{slot}', worktree=worker, spool=spool, login_slot=slot,
             executable=self.peer, executable_sha256=sha256(self.peer.read_bytes()).hexdigest(),
             launcher=self.launcher, launcher_sha256=sha256(self.launcher.read_bytes()).hexdigest(),
             validator=self.validator, validator_sha256=sha256(self.validator.read_bytes()).hexdigest(),
-            protected_roots=protected, write_path='marker.txt', expected_utf8=f'marker {slot}\n',
-            require_effect=lambda: None,
+            protected_roots=protected, write_path=write_path,
+            expected_utf8=f'marker {slot}\n' if patch_preimage_sha256 is None else None,
+            require_effect=lambda: None, patch_preimage_sha256=patch_preimage_sha256,
         )
         self.addCleanup(worker.close)
         return worker
@@ -289,6 +423,38 @@ assert sys.stdin.read() == ''
             n1_mount.release(n1_mount.claim())
             self.assertEqual(list(self.login_state.iterdir()), [])
         self.assertEqual(list(self.login_state.iterdir()), [])
+
+    def test_qualification_pool_interlocks_follow_containment_cleanup(self):
+        self.slots = self.configured
+        self.login_homes = tuple(self.slots.values())
+        self.enterContext(patch.object(qualification, '_controller_home', return_value=self.root))
+        qualification.initialize_campaign()
+        first, second = (self._worker(slot, self._paths(slot)) for slot in (1, 2))
+        self.assertIn(qualification.campaign_directory(), first._protected_roots())
+
+        historical = qualification.claim_managed_login(1)
+        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+            first._worker_login.claim()
+        self.assertEqual(list(self.login_state.iterdir()), [])
+        qualification.release_managed_login(historical, 1)
+        first._prepare_home()
+        second._prepare_home()
+        for slot in (1, 2):
+            with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+                qualification.claim_managed_login(slot)
+        self.assertEqual(len(list(self.login_state.iterdir())), 2)
+
+        first.close()
+        historical = qualification.claim_managed_login(1)
+        qualification.release_managed_login(historical, 1)
+        second._managed_lifetime = containment._PoolLifetime(second, 'appserver', [])
+        second._managed_lifetime._managed_mount_started = True
+        with self.assertRaisesRegex(config.PoolContainmentError, 'cleanup is unresolved'):
+            second.close()
+        self.assertEqual(len(list(self.login_state.iterdir())), 1)
+        with self.assertRaisesRegex(qualification.QualificationError, 'remains unresolved'):
+            qualification.claim_managed_login(2)
+        self.assertEqual(qualification.campaign_usage()['total'], 0)
 
     def test_production_provider_requires_managed_login(self):
         self._select_production_login()
@@ -538,3 +704,101 @@ active.rename(home / 'archived_sessions' / active.name)
         self.assertFalse((paths[0] / 'marker.txt').exists())
         self.assertTrue(worker.receipt()['cleanup_confirmed'])
         self.assertTrue(worker.receipt()['failed'])
+
+    def test_interrupted_patch_waits_for_original_writer_retirement_before_staging_cleanup(self):
+        for slot, confirmed in enumerate((True, False), 1):
+            with self.subTest(confirmed=confirmed):
+                self._assert_interrupted_patch_staging(slot, confirmed)
+
+    def _assert_interrupted_patch_staging(self, slot, confirmed):
+        paths = self._paths(slot)
+        target = paths[0] / 'src' / 'marker.txt'
+        target.parent.mkdir()
+        target.write_bytes(b'old\n')
+        neighbor = target.parent / 'neighbor.txt'
+        neighbor.write_bytes(b'unrelated\n')
+        path = target.relative_to(paths[0]).as_posix()
+        worker = self._worker(slot, paths, patch_preimage_sha256=sha256(b'old\n').hexdigest(), write_path=path)
+        worker._prepare_home()
+        worker._appserver = SimpleNamespace(receipt=None, process=None)
+        worker.record('appserver-terminated', {})
+        authorize = Mock()
+        diff = f'--- a/{path}\n+++ b/{path}\n@@ -1 +1 @@\n-old\n+new\n'
+        authorize.pending = SimpleNamespace(params={'arguments': {'diff': diff}}, request_sha256='a' * 64)
+        child = Mock()
+        stage = None
+
+        def launch(lifetime, command, _home, **_binding):
+            nonlocal stage
+            stage = target.parent / command[-1]
+            self.assertFalse(stage.exists())
+            self.assertFalse(worker._workspace_capture_guard.locked())
+            lifetime.process = child
+            lifetime.receipt = object()
+            return child
+
+        def interrupted(stdin, _timeout):
+            self.assertTrue(worker._workspace_capture_guard.locked())
+            info = stage.stat()
+            self.assertEqual(stdin, f'{info.st_dev} {info.st_ino}\n' + b64encode(b'new\n').decode())
+            stage.write_bytes(b'partial\n')
+            raise TimeoutError('synthetic writer deadline')
+
+        def settle(lifetime):
+            self.assertEqual(stage.read_bytes(), b'partial\n')
+            if confirmed:
+                self.assertTrue(worker._workspace_capture_guard.locked())
+                worker.record('tool-terminated', {})
+                lifetime.termination_recorded = True
+            else:
+                raise RuntimeError('synthetic unconfirmed retirement')
+
+        child.communicate.side_effect = interrupted
+        with (patch.object(containment._PoolLifetime, 'launch', launch),
+              patch.object(containment._PoolLifetime, 'settle_termination', settle),
+              self.assertRaisesRegex(TimeoutError, 'synthetic writer deadline')):
+            worker.run_writer('call-1', authorize=authorize, deadline=time.monotonic() + 5)
+        self.assertEqual(worker.receipt()['cleanup_confirmed'], confirmed)
+        self.assertFalse(worker._workspace_capture_guard.locked())
+        self.assertEqual(stage.exists(), not confirmed)
+        self.assertEqual(target.read_bytes(), b'old\n')
+        self.assertEqual(neighbor.read_bytes(), b'unrelated\n')
+
+    @unittest.skipUnless(Path('/usr/bin/bwrap').is_file(), 'Bubblewrap is required for physical containment')
+    def test_checked_patch_uses_the_same_gate_and_bounded_postimage_pipe(self):
+        self._replace_provider()
+        paths = self._paths(1)
+        path = 'src/marker.txt'
+        target = paths[0] / path
+        target.parent.mkdir()
+        unchanged = b'x' * 40_000 + b'\n'
+        before, after = unchanged + b'old\n', unchanged + b'new\n'
+        target.write_bytes(before)
+        target.chmod(0o751)
+        preimage_sha256 = sha256(before).hexdigest()
+        worker = self._worker(1, paths, patch_preimage_sha256=preimage_sha256, write_path=path)
+        self._start_inert_apps((worker,))
+        diff = f'--- a/{path}\n+++ b/{path}\n@@ -2 +2 @@\n-old\n+new\n'
+
+        def release_with_original_preimage(release):
+            self.assertEqual(target.read_bytes(), before)
+            release()
+
+        authorize = Mock(side_effect=release_with_original_preimage)
+        authorize.pending = SimpleNamespace(params={'arguments': {'diff': diff}}, request_sha256='a' * 64)
+        self.assertEqual(worker.run_writer('call-1', authorize=authorize, deadline=time.monotonic() + 10),
+                         containment._WRITTEN.encode())
+        authorize.assert_called_once()
+        self.assertEqual(target.read_bytes(), after)
+        self.assertEqual(stat.S_IMODE(target.stat().st_mode), 0o751)
+        self.assertEqual(set(paths[0].iterdir()), {target.parent, paths[0] / '.git'})
+        self.assertEqual(list(target.parent.iterdir()), [target])
+        rows = {row['stage']: row['observation'] for row in worker.close()['observations']}
+        self.assertTrue(rows['appserver-contained']['worktree_readonly'])
+        self.assertEqual(rows['tool-contained']['network'], 'isolated')
+        self.assertFalse(rows['tool-contained']['managed_login_projection'])
+        self.assertEqual(rows['writer-output'], {
+            'call_id': 'call-1', 'path': path, 'content_sha256': sha256(after).hexdigest(),
+            'patch_preimage_sha256': preimage_sha256, 'request_sha256': 'a' * 64,
+            'diff_sha256': sha256(diff.encode()).hexdigest(),
+        })

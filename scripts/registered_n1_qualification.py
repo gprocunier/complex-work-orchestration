@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from contextlib import contextmanager
 from dataclasses import dataclass
 import copy
@@ -113,14 +114,22 @@ def _login_overlap(left, right):
             or (right_id is not None and right_id in map(_login_identity, (left, *left.parents))))
 
 
-def require_worker_login_location(home):
-    roots = [_controller_home() / '.codex', *(managed_login_home(slot) for slot in (1, 2, 3))]
+def _qualification_login_homes() -> tuple[Path, ...]:
+    return tuple(managed_login_home(slot) for slot in (1, 2, 3))
+
+
+def _require_login_location(home: Path, qualification_homes: Iterable[Path]) -> None:
+    roots = [_controller_home() / '.codex', *qualification_homes]
     ambient = os.environ.get('CODEX_HOME')
     if ambient:
         roots.append(Path(ambient).expanduser())
     for root in roots:
         _need(not _login_overlap(home, root.absolute()) and not _login_overlap(home, root.resolve()),
               'The worker login must be separate from the primary Codex home and all qualification homes.')
+
+
+def require_worker_login_location(home):
+    _require_login_location(home, _qualification_login_homes())
 
 
 def _file_identity(info):
@@ -268,9 +277,12 @@ class WorkerLoginMount(ManagedLoginMount):
     """A production worker's overlay and durable interlock for its original login inode."""
 
     def __init__(self, home, state):
-        require_worker_login_location(home)
+        self._require_location(home)
         super().__init__(home, work_root=state)
         self._lease_name = f'login-{self.identity[0]:x}-{self.identity[1]:x}.lock'
+
+    def _require_location(self, home: Path) -> None:
+        require_worker_login_location(home)
 
     @staticmethod
     def _observe_auth(directory):
@@ -290,22 +302,74 @@ class WorkerLoginMount(ManagedLoginMount):
         _need(identity == self.identity, 'The original worker login directory changed.')
 
     def claim(self):
-        require_worker_login_location(self.home)
+        self._require_location(self.home)
         self._require_original_home()
         directory = host_records._directory(self._work_root, create=True, private=True)
         with authority._state_descriptor(directory):
             _need(os.fstat(directory).st_dev == self.identity[0],
                   'The worker login and interlock must share an overlay-capable filesystem.')
-            return _claim_login(directory, self._lease_name)
+            return self._claim_lease(directory)
+
+    def _claim_lease(self, directory: int) -> str:
+        return _claim_login(directory, self._lease_name)
 
     def release(self, nonce):
         self._require_original_home()
         directory = host_records._directory(self._work_root, private=True)
         with authority._state_descriptor(directory):
-            _release_login(directory, self._lease_name, nonce)
+            self._release_lease(directory, nonce)
+
+    def _release_lease(self, directory: int, nonce: str) -> None:
+        _release_login(directory, self._lease_name, nonce)
 
     def protected_roots(self):
         return self.home, self._work_root
+
+
+class _PoolQualificationLoginMount(WorkerLoginMount):
+    """An ordinary pool login that also holds its historical qualification slot."""
+
+    def __init__(self, home: Path, state: Path, slot: int) -> None:
+        self._slot = slot
+        super().__init__(home, state)
+        with _journal() as descriptor:
+            _read_starts(descriptor)
+
+    def _require_location(self, home: Path) -> None:
+        homes = _qualification_login_homes()
+        _need(home == homes[self._slot - 1], 'The original qualification login slot changed.')
+        _require_login_location(home, (peer for peer in homes if peer != home))
+        _need(not _login_overlap(home, campaign_directory()),
+              'The qualification login and historical interlock must be separate.')
+
+    def _claim_lease(self, directory: int) -> str:
+        slot_lease = _login_lease_name(self._slot)
+        with _journal(include_directory=True) as (_, campaign):
+            nonce = _claim_login(campaign, slot_lease)
+            try:
+                return _claim_login(directory, self._lease_name, nonce=nonce)
+            except QualificationError:
+                # An existing inode lease blocked the claim before we could write to it.
+                _release_login(campaign, slot_lease, nonce)
+                raise
+
+    def _release_lease(self, directory: int, nonce: str) -> None:
+        slot_lease = _login_lease_name(self._slot)
+        with _journal(include_directory=True) as (_, campaign):
+            _require_login_nonce(campaign, slot_lease, nonce)
+            super()._release_lease(directory, nonce)
+            _release_login(campaign, slot_lease, nonce)
+
+    def protected_roots(self) -> tuple[Path, ...]:
+        return (*super().protected_roots(), campaign_directory())
+
+
+def pool_worker_login_mount(home: Path, state: Path, homes: tuple[Path, ...]) -> WorkerLoginMount:
+    """Use a qualification slot only for the exact ordered three-home pool roster."""
+    slots = _qualification_login_homes()
+    if homes == slots and home in slots:
+        return _PoolQualificationLoginMount(home, state, slots.index(home) + 1)
+    return WorkerLoginMount(home, state)
 
 
 def require_model_selection(spec, plan, operation):
@@ -474,8 +538,9 @@ def claim_managed_login(slot=1):
         return _claim_login(directory, lease)
 
 
-def _claim_login(directory, lease):
-    nonce = uuid.uuid4().hex
+def _claim_login(directory, lease, *, nonce: str | None = None):
+    if nonce is None:
+        nonce = uuid.uuid4().hex
     try:
         # O_EXCL also leaves a blocking entry after a partial write.
         host_records._write_at(directory, lease, nonce.encode())
@@ -490,9 +555,13 @@ def release_managed_login(nonce, slot=1):
         _release_login(directory, lease, nonce)
 
 
-def _release_login(directory, lease, nonce):
+def _require_login_nonce(directory: int, lease: str, nonce: str) -> None:
     observed = host_records._read_at(directory, lease, 32)
     _need(observed == nonce.encode(), 'The original managed login lease changed.')
+
+
+def _release_login(directory, lease, nonce):
+    _require_login_nonce(directory, lease, nonce)
     os.unlink(lease, dir_fd=directory)
     os.fsync(directory)
 

@@ -59,10 +59,11 @@ has no external anchor and says nothing about unrecorded actions.
 The registered single-worker and contained pool app servers run
 with read-only checkout mounts. The single-worker route exposes the approved
 finite command and empty polls. In the pool, the original isolated writer may
-change only its assigned file. Codex's read-only tool profile adds another layer
-in the pool: stock tool names can still appear in the reported catalog. The
-catalog records what was declared. The containment claim rests on the host
-mounts, network isolation, checked profile and authorized writer effects.
+change only its assigned file. For a bounded unified diff, it rechecks the signed
+starting digest before replacing the existing file. Codex's read-only tool
+profile adds another layer in the pool: stock tool names can still appear in the
+reported catalog. The catalog records what was declared. The containment claim
+rests on the host mounts, network isolation, checked profile and authorized writer effects.
 Confidential native workloads remain unsupported.
 [Registered route](native-live-route-holds.md#registered-single-worker-production) ·
 [Contained pool tools](native-supervision-pools.md#contained-pool-execution).

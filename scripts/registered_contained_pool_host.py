@@ -3,9 +3,11 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
+from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import re
 from types import MappingProxyType
 
 from cwo_core import manual_delivery, native_live_availability, workspace_capture
@@ -20,7 +22,7 @@ from cwo_core.native_pool_workspace import capture_workspace_snapshot
 from cwo_core.private_artifact import PrivateDirectory
 from delegate_internal_work import PROJECT_CONTROLLER_IDENTITY
 from registered_delegation_entry import _protected_store, _read_key
-from registered_n1_qualification import EFFORT, MODEL, TIER, WorkerLoginMount, worker_login_state
+from registered_n1_qualification import EFFORT, MODEL, TIER, pool_worker_login_mount, worker_login_state
 from registered_native_pool_client import CONTAINED_EXECUTION_ROUTE, validate_structure
 from registered_worker_login_config import read_pool_worker_login_homes
 
@@ -29,6 +31,7 @@ APPROVAL_SCOPE = "cwo-ordinary-contained-pool-v1"
 APPROVAL_FILE = "approval.json"
 REQUEST_FILE = "request.json"
 APPROVAL_MAX_BYTES = 65_536
+PATCH_OUTPUT_MODE = "unified-diff"
 IDENTITY_SOURCE = PROJECT_CONTROLLER_IDENTITY
 SUPPORTED_SELECTION = (MODEL, EFFORT, TIER)
 _ISSUER = object()
@@ -88,7 +91,7 @@ class OrdinaryPoolChild:
     task: str
     prompt: str
     write_path: str
-    expected_utf8: str
+    expected_utf8: str | None
     completion_marker: str
     worktree: Path
     worktree_identity_sha256: str
@@ -97,9 +100,19 @@ class OrdinaryPoolChild:
     calibration_spool: Path
     productive_spool: Path
     bead_projection_sha256: str
+    output_mode: str | None = None
+    patch_preimage_sha256: str | None = None
 
     @classmethod
     def from_scope(cls, row):
+        if "output_mode" in row or "patch_preimage_sha256" in row:
+            from registered_pool_containment import pool_patch_path
+
+            digest = row.get("patch_preimage_sha256")
+            require(row.get("output_mode") == PATCH_OUTPUT_MODE and row["expected_utf8"] is None
+                    and type(digest) is str and re.fullmatch(r"[0-9a-f]{64}", digest) is not None,
+                    "A signed unified-diff assignment requires one exact preimage digest.")
+            require(pool_patch_path(row["write_path"]), "A signed unified-diff assignment requires a canonical relative path.")
         paths = ("worktree", "login_home", "calibration_spool", "productive_spool")
         return cls(**{**row, **{key: Path(row[key]) for key in paths}, "login_identity": tuple(row["login_identity"])})
 
@@ -154,6 +167,10 @@ class ApprovedOrdinaryPool:
         object.__setattr__(self, "readiness_evidence", evidence)
         object.__setattr__(self, "work_estimates", estimates)
 
+    @property
+    def login_homes(self) -> tuple[Path, ...]:
+        return tuple(child.login_home for child in self.children.values())
+
     def require_current(self):
         native_live_availability.require_registered_contained_pool_live()
         with PrivateDirectory.open(self.root) as directory:
@@ -167,7 +184,7 @@ class ApprovedOrdinaryPool:
                 and str(Path(database["selector"]).resolve(strict=True)) == database["selector"],
                 "The original project Beads database changed.")
         homes = read_pool_worker_login_homes()
-        selected = tuple(child.login_home for child in self.children.values())
+        selected = self.login_homes
         require(homes[:len(selected)] == selected, "The configured pool worker logins changed.")
         _verify(self._scope, self._directive, self._key, self.ledger.current_time())
 
@@ -190,8 +207,9 @@ class ApprovedOrdinaryPool:
         snapshot = capture_workspace_snapshot(self.integration_root)["identity"]
         require(canonical_authority_sha256(snapshot) == self._scope["integration_identity_sha256"],
                 "The original pool integration checkout changed.")
+        homes, state = self.login_homes, worker_login_state()
         for child in self.children.values():
-            mount = WorkerLoginMount(child.login_home, worker_login_state())
+            mount = pool_worker_login_mount(child.login_home, state, homes)
             require(mount.identity == child.login_identity, "A configured pool worker login inode changed.")
             require(_worktree_identity(child) == child.worktree_identity_sha256, "An approved worker worktree changed.")
 
@@ -211,7 +229,16 @@ def _verify(scope, directive, key, now):
 
 
 def _worktree_identity(child):
+    if child.patch_preimage_sha256 is not None:
+        require_patch_preimage(child)
     return canonical_authority_sha256(capture_workspace_snapshot(child.worktree, allowed_paths=[child.write_path])["identity"])
+
+
+def require_patch_preimage(child: OrdinaryPoolChild) -> None:
+    from registered_pool_containment import read_pool_patch_file
+
+    current = read_pool_patch_file(child.worktree, child.write_path)
+    require(sha256(current).hexdigest() == child.patch_preimage_sha256, "The signed worker patch preimage changed.")
 
 
 def _cohort(approved):

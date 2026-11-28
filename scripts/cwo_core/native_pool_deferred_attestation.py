@@ -27,6 +27,7 @@ from .native_pool_deferred_context import (
     _require_deadline,
 )
 from .native_pool_transaction import PLAN_VERSION, TransactionJournal, _allocation_intent, validate_transaction_plan
+from .worker_patch import MAX_WORKER_DIFF_BYTES
 
 
 def _digest(value: Any, reason: str) -> str:
@@ -120,7 +121,7 @@ def verify_deferred_startup(
 
 def attest_deferred_turn(
     startup: ProvisionalWorkerStartup, *, turn_ack: Mapping[str, Any], evidence: Mapping[str, Any],
-    pending_callback: Mapping[str, Any],
+    pending_callback: Mapping[str, Any], patch_mode: bool = False,
 ) -> DeferredWorkerTurnEvidence:
     """Join transport-verified JSONL to the protected controller's recorded turn acknowledgement."""
     _require(type(startup) is ProvisionalWorkerStartup, "provisional-startup-required")
@@ -132,7 +133,7 @@ def attest_deferred_turn(
              and evidence.get("epoch") == startup.connection_epoch_sha256
              and evidence.get("owner_identity_sha256") == startup.owner_identity_sha256
              and evidence.get("session_path") == startup.session_path, "turn-observation-mismatch")
-    request_id, request_digest = _pending_callback(pending_callback, startup, turn_id)
+    request_id, request_digest = _pending_callback(pending_callback, startup, turn_id, patch_mode=patch_mode)
     provenance = _record(evidence.get("startup_to_turn"), "turn-provenance-missing")
     wire_start = _exchange(_record(provenance.get("thread_start"), "startup-exchange-missing"))
     _require(wire_start == startup.startup_exchange, "startup-exchange-changed")
@@ -161,11 +162,28 @@ def attest_deferred_turn(
     )
 
 
-def _pending_callback(value: Mapping[str, Any], startup: ProvisionalWorkerStartup, turn_id: str) -> tuple[int | str, str]:
+def writer_arguments_match(arguments: Any, *, patch_mode: bool = False) -> bool:
+    """Check the exact callback argument shape and UTF-8 budget for the retained writer mode."""
+    if type(arguments) is not dict or type(patch_mode) is not bool:
+        return False
+    if not patch_mode:
+        return not arguments
+    diff = arguments.get("diff")
+    if arguments.keys() != {"diff"} or type(diff) is not str or not 0 < len(diff) <= MAX_WORKER_DIFF_BYTES:
+        return False
+    try:
+        return len(diff.encode("utf-8")) <= MAX_WORKER_DIFF_BYTES
+    except UnicodeEncodeError:
+        return False
+
+
+def _pending_callback(value: Mapping[str, Any], startup: ProvisionalWorkerStartup, turn_id: str,
+                      *, patch_mode: bool) -> tuple[int | str, str]:
     request_id = value.get("request_id")
     _require(type(request_id) in (int, str) and request_id != "", "pending-callback-id-invalid")
     expected = {"thread_id": startup.session_id, "turn_id": turn_id, "epoch": startup.connection_epoch_sha256,
-                "owner_identity_sha256": startup.owner_identity_sha256, "tool": QUALIFICATION_TOOL,
-                "arguments": {}}
-    _require(all(value.get(field) == selected for field, selected in expected.items()), "pending-callback-binding-mismatch")
+                "owner_identity_sha256": startup.owner_identity_sha256, "tool": QUALIFICATION_TOOL}
+    _require(all(value.get(field) == selected for field, selected in expected.items())
+             and writer_arguments_match(value.get("arguments"), patch_mode=patch_mode),
+             "pending-callback-binding-mismatch")
     return request_id, _digest(value.get("request_sha256"), "pending-callback-digest-invalid")

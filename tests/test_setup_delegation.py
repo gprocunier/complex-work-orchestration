@@ -163,6 +163,35 @@ class DelegationSetupTests(unittest.TestCase):
         self.assertEqual(stat.S_IMODE(self.worker_home.stat().st_mode), 0o755)
         self.assertIsNone(self.configured())
 
+    def test_exact_qualification_pool_configures_existing_logins_only(self):
+        import setup_delegation as setup
+        from registered_worker_login_config import read_pool_worker_login_homes
+
+        with (host_records.using_test_store(self.store),
+              patch.object(qualification, "_controller_home", return_value=self.account),
+              patch.dict(os.environ, {"CODEX_HOME": str(self.main_home)}),
+              patch.object(setup.subprocess, "run", side_effect=AssertionError("pool setup launched a process"))):
+            homes = tuple(qualification.managed_login_home(slot) for slot in (1, 2, 3))
+            for home in homes:
+                home.mkdir(mode=0o700)
+                (home / "auth.json").touch(mode=0o600)
+            with self.assertRaisesRegex(qualification.QualificationError, "campaign accounting"):
+                setup.setup_pool_delegation(list(homes), self.main_home)
+            qualification.initialize_campaign()
+            for selected in (homes[:2], homes[::-1], (*homes[:2], self.main_home)):
+                with self.subTest(selected=selected), self.assertRaises(ValueError):
+                    setup.setup_pool_delegation(list(selected), self.main_home)
+            with patch.dict(os.environ, {"CODEX_HOME": str(homes[0])}), self.assertRaises(ValueError):
+                setup.setup_pool_delegation(list(homes), self.main_home)
+            with self.assertRaisesRegex(qualification.QualificationError, "all qualification homes"):
+                setup.setup_delegation(homes[0], self.main_home)
+            setup.setup_pool_delegation(list(homes), self.main_home)
+            self.assertEqual(read_pool_worker_login_homes(), homes)
+            self.assertEqual(set(qualification.campaign_directory().iterdir()),
+                             {qualification.campaign_directory() / "starts.jsonl"})
+            self.assertFalse(qualification.worker_login_state().exists())
+            self.assertIsNone(self.configured())
+
 
 class GuidedInstallerTests(unittest.TestCase):
     def invoke(self, *args, answer="", terminal=False, setup_exit=0):

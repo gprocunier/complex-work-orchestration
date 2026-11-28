@@ -774,5 +774,116 @@ class RegisteredPoolQualificationTests(unittest.TestCase):
             self.assertIsNone(wire.take_transport_failure_observation())
 
 
+class PatchCallbackTests(unittest.TestCase):
+    def test_only_patch_thread_registers_diff_schema(self):
+        def schema(*, patch_mode):
+            selectors = config.thread_start_selectors(Path("/checkout"), patch_mode=patch_mode)
+            namespace, = selectors["dynamicTools"]
+            tool, = namespace["tools"]
+            self.assertEqual((namespace["name"], tool["name"]), (config.FINITE_TOOL_NAMESPACE, config.WRITER_TOOL))
+            return tool["inputSchema"]
+
+        self.assertEqual(schema(patch_mode=False), {
+            "type": "object", "properties": {}, "additionalProperties": False,
+        })
+        self.assertEqual(schema(patch_mode=True), {
+            "type": "object", "properties": {"diff": {"type": "string", "minLength": 1,
+                                                      "maxLength": config.MAX_WORKER_DIFF_BYTES}},
+            "required": ["diff"], "additionalProperties": False,
+        })
+
+    @staticmethod
+    def _callback_wire(arguments, *, current, patch_mode):
+        wire = object.__new__(adapter._WorkerWire)
+        task = {"expected_utf8": None, "patch_preimage_sha256": "a" * 64} if patch_mode else {"expected_utf8": "fixed"}
+        wire.factory = adapter._PoolWorker(None, {"child_id": "worker"}, task, None, None, 1)
+        wire._items, wire._pending, wire.transport_failure = {}, None, None
+        wire._retiring, wire._wire_turn, wire.connection_epoch_sha256 = Event(), ("thread", "turn", 3), "b" * 64
+        wire.requests = adapter.RegisteredServerRequests(wire)
+        wire.qualified_tool_evidence = adapter.QualifiedToolEvidence(wire)
+        scope = {"threadId": "thread", "turnId": "turn"}
+        binding = {"namespace": config.FINITE_TOOL_NAMESPACE, "tool": config.WRITER_TOOL}
+        item = {"id": "call", "type": "dynamicToolCall", "status": "inProgress", **binding, "arguments": current}
+        notice = {"method": "item/started", "params": {**scope, "item": item}}
+        request = {"id": 71, "method": "item/tool/call", "params": {
+            **scope, **binding, "callId": "call", "arguments": arguments,
+        }}
+        frames = [(json.dumps(message, ensure_ascii=True) + "\n").encode() for message in (notice, request)]
+        wire.process = SimpleNamespace(stdout=frames, poll=lambda: None)
+        lines = wire._protocol_lines()
+        next(lines)
+        wire._observe_notification(notice)
+        next(lines)
+        return wire, request, frames[1]
+
+    def test_patch_callback_freezes_utf8_limited_diff_and_original_frame_hash(self):
+        diff = "é" * (config.MAX_WORKER_DIFF_BYTES // 2)
+        arguments = {"diff": diff}
+        wire, request, original = self._callback_wire(arguments, current=arguments, patch_mode=True)
+        pending = wire._take_writer(request)
+        self.assertEqual((pending.request_id, pending.request_sha256), (71, sha256(original).hexdigest()))
+        pending.params["arguments"]["diff"] = "alternate"
+        self.assertEqual(pending.params["arguments"], {"diff": diff})
+        with wire.requests.lock:
+            wire._require_pending(pending)
+
+    def test_patch_callback_refuses_wrong_mode_shape_or_current_item(self):
+        for arguments, current, patch_mode, reason in (
+            ({"diff": "text"}, {"diff": "text"}, False, "writer-policy"),
+            ({}, {}, True, "writer-policy"),
+            ({"diff": "", "path": "other"}, {"diff": "", "path": "other"}, True, "writer-policy"),
+            ({"diff": "é" * (config.MAX_WORKER_DIFF_BYTES // 2 + 1)}, {}, True, "writer-policy"),
+            ({"diff": "\ud800"}, {}, True, "writer-policy"),
+            ({"diff": "submitted"}, {"diff": "observed"}, True, "callback-without-original-item"),
+        ):
+            with self.subTest(reason=reason, patch_mode=patch_mode):
+                wire, request, _ = self._callback_wire(arguments, current=current, patch_mode=patch_mode)
+                with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, reason):
+                    wire._take_writer(request)
+                self.assertIsNone(wire._pending)
+                self.assertEqual(wire.qualified_tool_evidence.calls, {})
+
+    def test_deferred_callback_attestation_uses_the_selected_argument_contract(self):
+        from cwo_core import native_pool_deferred_attestation as attestation
+
+        startup = SimpleNamespace(session_id="thread", connection_epoch_sha256="a" * 64, owner_identity_sha256="b" * 64)
+        callback = {"thread_id": startup.session_id, "turn_id": "turn", "epoch": startup.connection_epoch_sha256,
+                    "owner_identity_sha256": startup.owner_identity_sha256, "tool": attestation.QUALIFICATION_TOOL,
+                    "request_id": 71, "request_sha256": "c" * 64}
+        for arguments, patch_mode in (({}, False), ({"diff": "approved diff"}, True)):
+            with self.subTest(patch_mode=patch_mode):
+                observation = {**callback, "arguments": arguments}
+                self.assertEqual(attestation._pending_callback(observation, startup, "turn", patch_mode=patch_mode),
+                                 (71, "c" * 64))
+                with self.assertRaisesRegex(attestation.DeferredAttestationError, "pending-callback-binding-mismatch"):
+                    attestation._pending_callback(observation, startup, "turn", patch_mode=not patch_mode)
+
+    def test_patch_calibration_refuses_before_the_writer(self):
+        arguments = {"diff": "inert calibration payload"}
+        wire, request, _ = self._callback_wire(arguments, current=arguments, patch_mode=True)
+        pending = wire._take_writer(request)
+        wire.factory.parent = SimpleNamespace(calibration_only=True, limits=SimpleNamespace(remaining=lambda: 1))
+        wire.factory._turn_ready.set()
+        with patch.object(wire.factory, "write") as write, patch.object(wire, "_commit_callback_reply") as reply:
+            wire._run_callback(pending)
+        write.assert_not_called()
+        reply.assert_called_once_with(pending, adapter._CALIBRATION_REFUSAL, success=False)
+
+    def test_writer_mode_requires_exact_retained_task_selection(self):
+        child = {"child_id": "worker"}
+        for expected, preimage, reason in ((None, None, "fixed-writer-task-invalid"),
+                                           ("fixed", "a" * 64, "patch-writer-task-invalid"),
+                                           (None, "not-a-digest", "patch-writer-task-invalid")):
+            with self.subTest(reason=reason):
+                task = {"expected_utf8": expected, "patch_preimage_sha256": preimage}
+                worker = adapter._PoolWorker(None, child, task, None, None, 1)
+                with self.assertRaisesRegex(adapter.PoolQualificationAdapterError, reason):
+                    worker._writer_selection()
+        task = {"expected_utf8": None, "patch_preimage_sha256": "a" * 64}
+        worker = adapter._PoolWorker(None, child, task, None, None, 1)
+        task["patch_preimage_sha256"] = None
+        self.assertEqual(worker._writer_selection(), (None, "a" * 64))
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -22,6 +22,7 @@ import registered_native_pool_client as client
 import registered_contained_pool_host as contained
 import registered_contained_pool_preparation as preparation
 import registered_delegation_foreground as foreground
+import registered_n1_qualification as qualification
 from registered_native_pool_host import RegisteredNativePoolHost
 import registered_pool_configuration as pool_config
 import run_admitted_native_pool_transaction as launcher
@@ -175,6 +176,26 @@ class OrdinaryPoolIngressTests(unittest.TestCase):
             self.assertEqual(fixture.database.commands.claim_order, [])
             self.assertFalse(fixture.login_state.exists())
             self.assertFalse((retained / "ledger").exists())
+
+    def test_signed_qualification_pool_binds_all_three_login_inodes(self):
+        with hosted._pool_test_directory() as directory, ExitStack() as stack:
+            root = Path(directory)
+            stack.enter_context(patch.object(qualification, "_controller_home", return_value=root))
+            stack.enter_context(patch.object(qualification, "managed_login_home", side_effect=lambda slot: root / f"login-{slot}"))
+            stack.enter_context(patch.object(hosted, "_LAUNCHER", Path("/usr/bin/true")))
+            qualification.initialize_campaign()
+            fixture = hosted._HostedPoolFixture(directory, 3, stack)
+            self.assertEqual(tuple(Path(row["login_home"]) for row in fixture.scope["children"]), fixture.homes)
+            approved = contained.open_approved_pool(fixture.project, fixture.request["pool_id"])
+            validate = dict(fixture.request, mode="validate-only")
+            self.assertTrue(client.submit(validate, host=approved)["authority_validated"])
+            fixture.homes[0].rename(root / "prior-login")
+            fixture.homes[0].mkdir(mode=0o700)
+            (fixture.homes[0] / "auth.json").touch(mode=0o600)
+            with self.assertRaisesRegex(ValueError, "login inode changed"):
+                client.submit(validate, host=approved)
+            self.assertEqual(qualification.campaign_usage()["total"], 0)
+            self.assertFalse(fixture.login_state.exists())
 
     def _foreground_pool_decision(self, fixture, decision):
         elicitation_id = "cwo-standing-pool-test"

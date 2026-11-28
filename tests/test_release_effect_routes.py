@@ -14,7 +14,7 @@ from unittest.mock import patch
 from unittest import mock
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path[:0] = [str(ROOT / "scripts"), str(ROOT)]
 from cwo_core import release_effect_routes as R
 
 
@@ -1150,7 +1150,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
                     R._check_gate_effects(contents, [bad], [])
 
     def test_annotation_version_refuses_before_subprocess_with_positive(self):
-        import check_extended_code_health as health
+        from tools import check_extended_code_health as health
         with mock.patch.object(health.initial, "ruff_version", return_value="EXAMPLE-wrong"), \
              mock.patch.object(health.subprocess, "run") as child:
             with self.assertRaisesRegex(SystemExit, "pinned Ruff"):
@@ -1376,7 +1376,7 @@ class ReleaseEffectRoutesTests(unittest.TestCase):
 
 
     def _driver_pair(self):
-        import check_extended_code_health as health
+        from tools import check_extended_code_health as health
         for name in (health.SUBJECT, health.DRIVER):
             target = self.root / name
             target.parent.mkdir(parents=True, exist_ok=True)

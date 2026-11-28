@@ -9,6 +9,8 @@ from hashlib import sha256
 import json
 import os
 from pathlib import Path
+import re
+from typing import TYPE_CHECKING
 from uuid import NAMESPACE_URL, uuid4, uuid5
 
 from cwo_core import native_live_availability as availability
@@ -50,7 +52,8 @@ from cwo_core.private_artifact import PrivateDirectory
 from cwo_core.supervision.transport.app_server import _prepare_native_frame
 from cwo_core.workspace_capture import _pin_directory, read_at
 from registered_n1_qualification import EFFORT, MODEL, TIER
-from registered_pool_configuration import thread_start_selectors
+from registered_pool_configuration import PoolContainmentError, thread_start_selectors
+from registered_pool_containment import read_pool_patch_file
 from registered_pool_qualification import (
     _CALIBRATION_MODE,
     _OPPORTUNITY_FIELD,
@@ -67,6 +70,9 @@ from registered_pool_qualification_capability import (
     callback_implementation_sha256,
 )
 
+if TYPE_CHECKING:
+    from registered_contained_pool_host import OrdinaryPoolChild
+
 _STARTUP_BOUNDS = {
     "pre_allocation_ms": 4_000,
     "per_allocation_ms": 15_000,
@@ -81,6 +87,8 @@ _BINDING_FIELDS = (
     "requested_model", "admitted_child_sha256",
 )
 _BUDGET_PREFIX = "registered-contained-pool:"
+_PATCH_DIGEST_FIELDS = ("patch_preimage_sha256", "request_sha256", "diff_sha256", "content_sha256")
+_PATCH_OBSERVATION_FIELDS = {*_PATCH_DIGEST_FIELDS, "path", "call_id"}
 
 
 def _require(condition, reason):
@@ -114,12 +122,12 @@ def _hard_budget(estimate):
 
 
 def build_registered_contained_pool_packet(child_id, child, work_estimate):
-    """Bind the original ordinary task and root-file scope before claiming the cohort."""
+    """Bind the original ordinary task and one-file scope before claiming the cohort."""
     prospective = f"{child_id}-prospective"
     policy = contained_pool_tool_policy()
     prompt_preflight = _scan_prompt(child.prompt, policy)
     _require(prompt_preflight["accepted"], "ordinary-prompt-refused")
-    _screen_worker_start(child.worktree)
+    _screen_worker_start(child.worktree, patch_mode=child.patch_preimage_sha256 is not None)
     packet = {
         "child_id": child_id, "packet_id": str(uuid4()), "lease_id": str(uuid4()),
         "attempt_nonce": str(uuid4()), "session_id": prospective, "agent_id": prospective,
@@ -132,9 +140,10 @@ def build_registered_contained_pool_packet(child_id, child, work_estimate):
     return {**packet, "packet_sha256": effective_child_packet_sha256(packet)}
 
 
-def _screen_worker_start(worktree):
+def _screen_worker_start(worktree, *, patch_mode: bool = False):
     try:
-        _prepare_native_frame({"id": 1, "method": "thread/start", "params": thread_start_selectors(worktree)}, "thread/start")
+        params = thread_start_selectors(worktree, patch_mode=patch_mode)
+        _prepare_native_frame({"id": 1, "method": "thread/start", "params": params}, "thread/start")
     except OutboundRefused as error:
         raise NativePoolTransactionError("registered-contained-pool-worker-start-screening-refused") from error
 
@@ -153,9 +162,12 @@ def ordinary_pool_tasks(approved, children, authority):
         _require((row["bead_id"], row["worktree_identity_sha256"], row["write_paths"], row["requested_model"])
                  == (child.bead_id, child.worktree_identity_sha256, [child.write_path], approved.model),
                  "ordinary-child-scope-drift")
-        tasks[row["child_id"]] = {"worker_slot": child.worktree.name, "prompt": child.prompt,
-                                 "write_path": child.write_path, "expected_utf8": child.expected_utf8,
-                                 "completion_marker": child.completion_marker}
+        task = {"worker_slot": child.worktree.name, "prompt": child.prompt,
+                "write_path": child.write_path, "expected_utf8": child.expected_utf8,
+                "completion_marker": child.completion_marker}
+        if child.patch_preimage_sha256 is not None:
+            task["patch_preimage_sha256"] = child.patch_preimage_sha256
+        tasks[row["child_id"]] = task
     return tasks
 
 
@@ -350,12 +362,24 @@ def _allowance(approved, run, productive):
 def _fresh_baselines(approved):
     snapshots = {}
     for child in approved.children.values():
-        _require(not os.path.lexists(child.worktree / child.write_path), "ordinary-writer-target-already-present")
+        _require_original_output(child)
         snapshot = capture_workspace_snapshot(child.worktree, allowed_paths=[child.write_path])
         _require(canonical_sha256(snapshot["identity"]) == child.worktree_identity_sha256,
                  "ordinary-worktree-identity-drift")
         snapshots[child.worker_id] = snapshot
     return snapshots
+
+
+def _require_original_output(child: OrdinaryPoolChild) -> None:
+    if child.patch_preimage_sha256 is None:
+        _require(not os.path.lexists(child.worktree / child.write_path), "ordinary-writer-target-already-present")
+        return
+    from registered_contained_pool_host import require_patch_preimage
+
+    try:
+        require_patch_preimage(child)
+    except (OSError, ValueError) as error:
+        raise NativePoolTransactionError("registered-contained-pool-ordinary-patch-preimage-drift") from error
 
 
 def _calibrate(approved, run, allowance, baseline):
@@ -389,6 +413,35 @@ def _read_output(child):
         os.close(directory)
 
 
+def _original_patch_observation(child: OrdinaryPoolChild, worker: object) -> dict[str, str]:
+    host = worker.get("host") if type(worker) is dict else None
+    _require(type(host) is dict and (host.get("worker_id"), host.get("worktree"), host.get("spool"))
+             == (child.worker_id, str(child.worktree), str(child.productive_spool)), "ordinary-patch-worker-custody-lost")
+    observations = host.get("observations")
+    _require(type(observations) is list and all(type(row) is dict for row in observations),
+             "ordinary-patch-writer-observations-required")
+    output = [row.get("observation") for row in observations if row.get("stage") == "writer-output"]
+    _require(len(output) == 1 and type(output[0]) is dict and output[0].keys() == _PATCH_OBSERVATION_FIELDS,
+             "ordinary-patch-writer-observation-required")
+    receipt = output[0]
+    _require(receipt["path"] == child.write_path and receipt["patch_preimage_sha256"] == child.patch_preimage_sha256
+             and type(receipt["call_id"]) is str and bool(receipt["call_id"])
+             and all(type(receipt[key]) is str and re.fullmatch(r"[0-9a-f]{64}", receipt[key]) for key in _PATCH_DIGEST_FIELDS),
+             "ordinary-patch-writer-observation-drift")
+    return receipt
+
+
+def _read_productive_output(child: OrdinaryPoolChild, workers: object) -> bool:
+    if child.patch_preimage_sha256 is None:
+        return _read_output(child)
+    _require(type(workers) is dict, "ordinary-patch-worker-custody-lost")
+    receipt = _original_patch_observation(child, workers.get(child.worker_id, {}))
+    _require(receipt["content_sha256"] != child.patch_preimage_sha256, "ordinary-patch-output-unchanged")
+    data = read_pool_patch_file(child.worktree, child.write_path)
+    _require(sha256(data).hexdigest() == receipt["content_sha256"], "ordinary-patch-output-digest-drift")
+    return True
+
+
 def _bound_productive_runtime(approved, run, limits):
     original = run.runtime
     settlement = None
@@ -420,8 +473,9 @@ def _settle_productive_validation(approved, settlement, launched, validation):
         _require(settlement is not None, "ordinary-original-settlement-required")
         validation["qualification_settlement"] = stage._verify_settlement(settlement, launched)
         if validation.get("accepted") is True:
-            validation["accepted"] = all(_read_output(child) for child in approved.children.values())
-    except (OSError, NativePoolTransactionError) as error:
+            workers = validation.get("worker_observations", {})
+            validation["accepted"] = all(_read_productive_output(child, workers) for child in approved.children.values())
+    except (OSError, NativePoolTransactionError, PoolContainmentError) as error:
         validation.update(accepted=False, qualification_settlement={"outcome": "refused", "reason": str(error)})
 
 

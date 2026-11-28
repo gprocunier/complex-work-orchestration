@@ -848,6 +848,11 @@ def _pin_directory(path: str) -> tuple[int, list[tuple[int, int]]] | None:
     return descriptor, identities
 
 
+def pin_private_directory(path: str) -> tuple[int, list[tuple[int, int]]] | None:
+    """Pin an absolute directory through owner-controlled, non-symlink ancestors."""
+    return _pin_directory(path)
+
+
 def _ancestry(fd: int) -> list[os.stat_result]:
     """The directory open at ``fd`` and every directory above it, up to ``/``, found by descriptor.
 

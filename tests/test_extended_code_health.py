@@ -14,7 +14,7 @@ import unittest
 from unittest.mock import patch
 
 ROOT = Path(__file__).resolve().parents[1]
-sys.path.insert(0, str(ROOT / "scripts"))
+sys.path.insert(0, str(ROOT / "tools"))
 import check_extended_code_health as gate  # noqa: E402
 
 ANNOTATED = "def example(value: int) -> int:\n    return value\n"
