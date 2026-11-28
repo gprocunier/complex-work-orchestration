@@ -204,13 +204,6 @@
       "reason": "Exact identity preserved for historical comparison and retirement checks. Current model roles resolve through the model-role policy."
     },
     {
-      "path": "scripts/cwo_core/native_canary_contracts.py",
-      "literal": "gpt-5.6-sol",
-      "count": 3,
-      "class": "historical",
-      "reason": "Frozen validator-contract path: its blob SHA-256 is bound into historical live-campaign evidence (native_live_campaign_contracts.VALIDATOR_CONTRACT_PATHS_V1 to _V6), so editing the file breaks verification of those records."
-    },
-    {
       "path": "scripts/cwo_core/routing_signals.py",
       "literal": "gpt-5",
       "count": 1,

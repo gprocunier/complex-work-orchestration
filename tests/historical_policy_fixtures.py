@@ -8,6 +8,8 @@ from __future__ import annotations
 
 import copy
 from contextlib import contextmanager
+import hashlib
+import json
 from pathlib import Path
 import runpy
 import sys
@@ -46,12 +48,19 @@ def historical_cli_args(script: str | Path, *args: str) -> list[str]:
 # Public compatibility inputs are deliberately distinct from archived source.
 CONTRACT_EVIDENCE_PATH = "tests/fixtures/w20_affected_contract_w13/source-pins-2026-10-23.json"
 CONTRACT_EVIDENCE_SHA256 = "8828c94c7041e4750f6f895e87828ce95e824e938d9cc54bc4c8404c26c13d28"
+CONTRACT_GOLDEN = ROOT / "tests/fixtures/w20_affected_contract_w13/golden-b8f6251.json"
+
+
+def pinned_contract_golden() -> tuple[dict, dict]:
+    raw = CONTRACT_GOLDEN.read_bytes()
+    pins = json.loads((ROOT / CONTRACT_EVIDENCE_PATH).read_bytes())
+    if pins["public_golden_sha256"] != hashlib.sha256(raw).hexdigest():
+        raise AssertionError("public-golden-changed")
+    return json.loads(raw), pins
+
 
 def contract_evidence():
     """Read pinned neutral inputs; never resolve private source revisions."""
-    import hashlib
-    import json
-
     document = json.loads((ROOT / CONTRACT_EVIDENCE_PATH).read_bytes())["portable_contract_evidence"]
     raw = json.dumps(document, sort_keys=True, separators=(",", ":"), allow_nan=False).encode()
     if hashlib.sha256(raw).hexdigest() != CONTRACT_EVIDENCE_SHA256:
@@ -68,26 +77,26 @@ class ContractRepository:
 
     Fixture IDs and SHA-256 values never stand in for production source IDs.
     The 182-commit fixture has 31 distinct runner pairs, plus a continuation.
-    Only the identity *input* is substituted; real tree/digest validators run.
+    The path rosters and input bytes come from the pinned public fixtures.
     """
 
     def __init__(self):
-        import hashlib
         import tempfile
 
+        golden, _ = pinned_contract_golden()
+        self.path_lists = golden["sections"]["validator_contracts"]["path_lists"]
         self.temporary = tempfile.TemporaryDirectory(prefix="cwo-contract-")
         self.root = Path(self.temporary.name)
         self.evidence = contract_evidence()
         self.sources = self.evidence["sources"]
         self.git("init", "-q")
         from tests.real_beads_fixture import configure_git_fixture
-        from cwo_core import native_live_campaign_contracts as contracts
 
         configure_git_fixture(self.root)
         self.commits = {}
         self.trees = {}
-        for label, version in (("v2", "V2"), ("v5", "V5"), ("v6", "V6"), ("baseline", "V6")):
-            paths = getattr(contracts, "VALIDATOR_CONTRACT_PATHS_" + version)
+        for label, version in (("v2", "v2"), ("v5", "v5"), ("v6", "v6"), ("baseline", "v6")):
+            paths = self.path_lists[version]
             files = {name: ("# neutral contract input: " + name + "\n").encode() for name in paths}
             variant = 30 if label == "baseline" else 0 if label == "v6" else -1
             files["scripts/run_native_pool_live_canaries.py"] = self.runner(variant)
@@ -140,8 +149,6 @@ class ContractRepository:
 
     def history(self):
         """Build a bounded first-parent chain without archived commits or prose."""
-        from cwo_core import native_live_campaign_contracts as contracts
-
         parent = self.commit(self.trees["v5"], "before contract")
         chain = []
         last_variant = None
@@ -149,7 +156,7 @@ class ContractRepository:
             variant = index * 31 // 182
             if variant != last_variant:
                 files = {name: ("# neutral contract input: " + name + "\n").encode()
-                         for name in contracts.VALIDATOR_CONTRACT_PATHS_V6}
+                         for name in self.path_lists["v6"]}
                 files["scripts/run_native_pool_live_canaries.py"] = self.runner(variant)
                 if variant == 30:
                     files["scripts/codex_tool_surface.py"] = self.sources["surface"].encode()

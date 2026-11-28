@@ -36,7 +36,6 @@ sys.path.insert(0, str(ROOT))
 import codex_tool_surface as SURFACE  # noqa: E402
 import run_native_pool_live_canaries as LIVE  # noqa: E402
 from cwo_core import maintenance_qualification as MQ  # noqa: E402
-from cwo_core import native_live_campaign_contracts as CONTRACTS  # noqa: E402
 from cwo_core import native_pool_contracts as POOL  # noqa: E402
 from cwo_core.supervision import callback_timing as TIMING  # noqa: E402
 from cwo_core.supervision import session_evidence as EVIDENCE  # noqa: E402
@@ -44,7 +43,11 @@ from cwo_core.supervision.transport import app_server as TRANSPORT  # noqa: E402
 from tests import test_codex_tool_surface as SURFACE_TESTS  # noqa: E402
 from tests import test_native_pool_contracts as POOL_TESTS  # noqa: E402
 from tests.historical_campaign_launcher import (  # noqa: E402
-    PRE_RETIREMENT, RETIRED_CAMPAIGN, launcher_before_retirement, pinned_blob, pinned_git, run_archived_cases,
+    PRE_RETIREMENT, RETIRED_CAMPAIGN, REVIEWED_CAMPAIGN_SOURCE,
+    launcher_before_retirement, pinned_blob, pinned_git, run_archived_cases,
+)
+from tests.historical_policy_fixtures import (  # noqa: E402
+    CONTRACT_GOLDEN, contract_evidence, pinned_contract_golden, portable_repository,
 )
 
 
@@ -61,36 +64,13 @@ def tearDownModule() -> None:
     _F5_HELD_ROUTE_PATCH.stop()
 
 
-GOLDEN = ROOT / "tests" / "fixtures" / "w20_affected_contract_w13" / "golden-b8f6251.json"
 LEGACY_TRANSPORT_SOURCE = ROOT / "tests/fixtures/affected_contract_compatibility/legacy-transport-before-bounds.txt"
 LEGACY_TRANSPORT_MODULE_SHA256 = "264522cef555c0682227edf927ec1ab57dbee8776d8e360722c3d2e8fd874566"
 LEGACY_TRANSPORT_CLASS_SHA256 = "543715d9bee197b8674ea832c9f2b38bd74b19a6b07b7eafdaa453bf195f1591"
-from tests.historical_policy_fixtures import contract_evidence, portable_repository
-
-FIXTURE = portable_repository()
-BASELINE_COMMIT = FIXTURE.commits["baseline"]
 MODEL = "gpt-5.3-codex-spark"
 HISTORICAL_MODEL = "gpt-5.2-codex"
 OPERATIVE_TOOLS = sorted(SURFACE.EXACT_OPERATIVE_TOOLS)
 
-# Neutral trees cover the V6, V5 and V2 path rosters and unavailable inputs.
-# Stable case labels are not the identities of the supplied Git objects.
-CONTRACT_TREES = {
-    "b8f6251-baseline": FIXTURE.trees["baseline"],
-    "0aafd2f-v6-introduced": FIXTURE.trees["v6"],
-    "e7f5406-v5-introduced-generation11": FIXTURE.trees["v5"],
-    "5564ba2-v2-introduced": FIXTURE.trees["v2"],
-    "unknown-tree": "0" * 40,
-    "malformed-tree": "not-a-tree",
-}
-CONTRACT_FUNCTIONS = {
-    "v1": "validator_contract_sha256",
-    "v2": "validator_contract_sha256_v2",
-    "v3": "validator_contract_sha256_v3",
-    "v4": "validator_contract_sha256_v4",
-    "v5": "validator_contract_sha256_v5",
-    "v6": "validator_contract_sha256_v6",
-}
 RUNNER_PATH = "scripts/run_native_pool_live_canaries.py"
 BOUNDARY_PATH = "scripts/cwo_core/native_session_boundary.py"
 RETIRED_CALIBRATION_PATHS = {RUNNER_PATH, "scripts/cwo_core/supervision/calibration.py"}
@@ -169,10 +149,6 @@ def _source_sha256(value) -> str:
     return _sha256(inspect.getsource(value))
 
 
-def _git_blob(commit: str, path: str) -> bytes:
-    return FIXTURE.blob(commit, path)
-
-
 def _relative(path: str | Path) -> str:
     return Path(path).resolve().relative_to(ROOT.resolve()).as_posix()
 
@@ -186,30 +162,6 @@ def _outcome(function, *args, **kwargs) -> dict:
         return {"outcome": "returned", "value": function(*args, **kwargs)}
     except Exception as exc:  # normalized verdict, not a crash
         return {"outcome": "refused", "error_type": type(exc).__name__, "message": str(exc)}
-
-
-# --- Frozen validator-contract digests (V1 to V6) -------------------------------------
-
-
-def validator_contract_section() -> dict:
-    paths = {
-        name: list(getattr(CONTRACTS, "VALIDATOR_CONTRACT_PATHS_" + name.upper()))
-        for name in CONTRACT_FUNCTIONS
-    }
-    verdicts = {}
-    for name, function_name in CONTRACT_FUNCTIONS.items():
-        function = getattr(CONTRACTS, function_name)
-        for label, tree in CONTRACT_TREES.items():
-            result = _outcome(function, FIXTURE.root, tree)
-            verdicts[f"{name}@{label}"] = {
-                "input": {"contract": name, "checkpoint_tree": tree},
-                **result,
-            }
-    return {
-        "path_lists": paths,
-        "legacy_alias_is_v1": CONTRACTS.VALIDATOR_CONTRACT_PATHS is CONTRACTS.VALIDATOR_CONTRACT_PATHS_V1,
-        "verdicts": verdicts,
-    }
 
 
 # --- Codex tool-surface proofs: historical verifier versus current authority -----------
@@ -446,7 +398,8 @@ def tool_surface_section() -> dict:
 
 
 def capability_receipt_section() -> dict:
-    baseline_runner_sha256 = _sha256(_git_blob(BASELINE_COMMIT, RUNNER_PATH))
+    fixture = portable_repository()
+    baseline_runner_sha256 = _sha256(fixture.blob(fixture.commits["baseline"], RUNNER_PATH))
     now = POOL_TESTS.dt.datetime(2026, 7, 16, 0, 10, tzinfo=POOL_TESTS.dt.timezone.utc)
     later = POOL_TESTS.dt.datetime(2026, 7, 17, 0, 0, tzinfo=POOL_TESTS.dt.timezone.utc)
 
@@ -708,7 +661,6 @@ def identity_section() -> dict:
 
 
 SECTIONS = {
-    "validator_contracts": validator_contract_section,
     "tool_surface": tool_surface_section,
     "capability_receipts": capability_receipt_section,
     "adapter_digest_coverage": adapter_digest_coverage_section,
@@ -782,12 +734,7 @@ def _current_transport_source(manifest):
 
 def load_golden() -> dict:
     """Bind public fixture digests, retained semantic outcomes and current sources."""
-    historical = GOLDEN.read_bytes()
-    document = json.loads(historical)
-    path = GOLDEN.with_name("source-pins-2026-10-23.json")
-    pins = json.loads(path.read_bytes())
-    if pins["public_golden_sha256"] != _sha256(historical):
-        raise AssertionError("public-golden-changed")
+    document, pins = pinned_contract_golden()
     allowed = {"validator_contracts", "generation11_runner_source"}
     if set(pins["source_pins"]) != allowed:
         raise AssertionError("source-pin-scope-invalid")
@@ -872,8 +819,6 @@ class GoldenVerdictTests(unittest.TestCase):
     def check(self, name: str) -> dict:
         observed = compute([name])[name]
         expected = self.golden[name]
-        if name == "validator_contracts":
-            expected = {key: value for key, value in expected.items() if key != "validator_source_sha256"}
         if name == "identities":
             identities = dict(expected["model_identities"])
             del identities["CONTRACTS.EXACT_OPERATIVE_MODEL"]
@@ -882,41 +827,55 @@ class GoldenVerdictTests(unittest.TestCase):
         return observed
 
     def test_frozen_validator_contract_digests_are_unchanged(self) -> None:
-        observed = self.check("validator_contracts")
-        verdicts = observed["verdicts"]
-        # The baseline tree binds every contract; unavailable history fails clearly.
-        for name in CONTRACT_FUNCTIONS:
-            self.assertEqual(verdicts[f"{name}@b8f6251-baseline"]["outcome"], "returned")
-            self.assertEqual(verdicts[f"{name}@malformed-tree"]["message"], "validator-contract-tree-invalid")
-            self.assertTrue(verdicts[f"{name}@unknown-tree"]["message"].startswith("validator-contract-path-invalid:"))
-        # Independent semantic witness: a neutral V5 config must let V6 reach
-        # the absent authorization-v11 schema, just as the original input did.
-        witness = verdicts["v6@e7f5406-v5-introduced-generation11"]
-        self.assertEqual(witness["outcome"], "refused")
-        self.assertEqual(witness["error_type"], "ValueError")
-        self.assertEqual(witness["message"],
-                         "validator-contract-path-invalid:schemas/full-auto-run-authorization-v11.schema.json")
+        suite = "tests.test_w20_affected_contract_w13.GoldenVerdictTests."
+        run_archived_cases(self, REVIEWED_CAMPAIGN_SOURCE,
+                           suite + "test_frozen_validator_contract_digests_are_unchanged",
+                           suite + "test_moved_paths_are_in_no_frozen_contract_list")
+
+    def test_neutral_validator_trees_match_the_pinned_checkpoint_ids(self) -> None:
+        fixture = portable_repository()
+        document, _ = pinned_contract_golden()
+        self.assertEqual(fixture.commits["baseline"], document["baseline_commit"])
+        verdicts = self.golden["validator_contracts"]["verdicts"]
+        for label, case in (("baseline", "b8f6251-baseline"), ("v6", "0aafd2f-v6-introduced"),
+                            ("v5", "e7f5406-v5-introduced-generation11"), ("v2", "5564ba2-v2-introduced")):
+            with self.subTest(tree=label):
+                self.assertEqual(fixture.trees[label], verdicts[f"v1@{case}"]["input"]["checkpoint_tree"])
         config = "scripts/cwo_core/native_pool_config.py"
-        v5_tree = FIXTURE.trees["v5"]
-        self.assertEqual(FIXTURE.git("ls-tree", v5_tree, "--", config).split()[0], "100644")
-        # Retain the earlier missing-config refusal separately, outside the
-        # unchanged 36-case matrix, using only neutral V5-roster bytes.
-        missing_config = FIXTURE.tree({
-            name: FIXTURE.blob(FIXTURE.commits["v5"], name)
-            for name in CONTRACTS.VALIDATOR_CONTRACT_PATHS_V5})
-        self.assertEqual(_outcome(CONTRACTS.validator_contract_sha256_v6, FIXTURE.root, missing_config),
-                         {"outcome": "refused", "error_type": "ValueError",
-                          "message": "validator-contract-path-invalid:scripts/cwo_core/native_pool_config.py"})
+        self.assertNotIn(config, self.golden["validator_contracts"]["path_lists"]["v5"])
+        self.assertEqual(fixture.git("ls-tree", fixture.trees["v5"], "--", config).split()[0], "100644")
+
+    def test_neutral_history_keeps_the_first_parent_chain_and_continuation_pair(self) -> None:
+        fixture = portable_repository()
+        chain, introducing, accepted = fixture.history()
+        self.assertEqual(len(chain), 182)
+        span = chain[0] + "^.." + accepted
+        self.assertEqual(fixture.git("rev-list", "--first-parent", "--reverse", span).splitlines(),
+                         [*chain, introducing, accepted])
+
+        surface_path = "scripts/codex_tool_surface.py"
+
+        def pair(tree):
+            surface = (_sha256(fixture.blob(tree, surface_path))
+                       if fixture.git("ls-tree", tree, "--", surface_path) else None)
+            return _sha256(fixture.blob(tree, RUNNER_PATH)), surface
+
+        trees = fixture.git("log", "--first-parent", "--format=%T", chain[0] + "^.." + chain[-1]).splitlines()
+        derived = {pair(tree) for tree in set(trees)}
+        accepted_pair = pair(accepted)
+        self.assertEqual(len(derived), 31)
+        self.assertEqual(accepted_pair, pair(introducing))
+        self.assertNotIn(accepted_pair, derived)
+        self.assertEqual(derived | {accepted_pair}, fixture.pairs)
 
     def test_moved_paths_are_in_no_frozen_contract_list(self) -> None:
         moved = {
             _defining_file(LIVE.AppServer), _defining_file(LIVE.AppServerError),
             _defining_file(LIVE.load_private_bytes), _defining_file(SURFACE.require_surface_proof),
         } - {RUNNER_PATH, "scripts/codex_tool_surface.py"}
-        for name in CONTRACT_FUNCTIONS:
-            paths = set(getattr(CONTRACTS, "VALIDATOR_CONTRACT_PATHS_" + name.upper()))
+        for name, paths in self.golden["validator_contracts"]["path_lists"].items():
             self.assertIn(RUNNER_PATH, paths)
-            self.assertFalse(moved & paths, name)
+            self.assertTrue(moved.isdisjoint(paths), name)
 
     def test_archived_launcher_refuses_historical_authorization_with_zero_effects(self) -> None:
         launcher_before_retirement()
@@ -938,12 +897,13 @@ class GoldenVerdictTests(unittest.TestCase):
         )
 
     def test_neutral_generation11_git_sources_match_golden(self) -> None:
-        revision = FIXTURE.commits["generation11"]
-        self.assertEqual(FIXTURE.git("rev-parse", revision + "^{tree}"), FIXTURE.trees["generation11"])
+        fixture = portable_repository()
+        revision = fixture.commits["generation11"]
+        self.assertEqual(fixture.git("rev-parse", revision + "^{tree}"), fixture.trees["generation11"])
         expected = self.golden["generation11_runner_source"]
         for name, path in (("runner", RUNNER_PATH), ("session_boundary", BOUNDARY_PATH)):
             with self.subTest(path=path):
-                self.assertEqual(_sha256(_git_blob(revision, path)), expected[f"history_{name}_blob_sha256"])
+                self.assertEqual(_sha256(fixture.blob(revision, path)), expected[f"history_{name}_blob_sha256"])
 
     def test_public_generation11_git_sources_match_recorded_digests(self) -> None:
         revision = "e7f540654e0ed605e4720bd4d3b670a11cb8f701"
@@ -1141,6 +1101,8 @@ import check_codex_worker_surface as CHECK
 import run_native_pool_activation_preview as PREVIEW
 from cwo_core import maintenance_native_runtime as RUNTIME
 from cwo_core import maintenance_qualification as MQ
+from cwo_core import native_live_campaign_contracts as CONTRACTS
+from cwo_core.supervision.transport import errors, private_io
 prefixes = tuple(str(Path(p).resolve()) for p in {sys.prefix, sys.base_prefix, sys.exec_prefix})
 loaded = sorted({str(Path(m.__file__).resolve()) for m in list(sys.modules.values())
                  if isinstance(getattr(m, "__file__", None), str)})
@@ -1154,9 +1116,13 @@ print(json.dumps({
     "pins_outside": sorted(p for p in pins if p != executable and not p.startswith(str(root) + "/")),
     "app_server_file_inside": inspect.getsourcefile(LIVE.AppServer).startswith(str(root) + "/"),
     "one_app_server": LIVE.AppServer is PREVIEW.AppServer is RUNTIME.AppServer,
+    "one_app_server_error": LIVE.AppServerError is PREVIEW.AppServerError is RUNTIME.AppServerError is errors.AppServerError,
+    "one_app_server_rpc_error": LIVE.AppServerRpcError is errors.AppServerRpcError,
+    "one_json_artifact_snapshot": private_io.JsonArtifactSnapshot is CONTRACTS.JsonArtifactSnapshot,
     "probe_validates_shared_tools": CHECK.normalized_tools is SURFACE.normalized_tools,
     "test_only_host_absent": not (root / "scripts/qualified_n1_host.py").exists(),
     "app_server_source_sha256": source(LIVE.AppServer),
+    "app_server_rpc_error_source_sha256": source(LIVE.AppServerRpcError),
     "surface_source_sha256": source(SURFACE),
 }, sort_keys=True))
 """
@@ -1190,9 +1156,13 @@ class InstalledProjectionTests(unittest.TestCase):
         self.assertEqual(observed["pins_outside"], [])
         self.assertTrue(observed["app_server_file_inside"])
         self.assertTrue(observed["one_app_server"])
+        self.assertTrue(observed["one_app_server_error"])
+        self.assertTrue(observed["one_app_server_rpc_error"])
+        self.assertTrue(observed["one_json_artifact_snapshot"])
         self.assertTrue(observed["probe_validates_shared_tools"])
         self.assertTrue(observed["test_only_host_absent"])
         self.assertEqual(observed["app_server_source_sha256"], identities["AppServer"])
+        self.assertEqual(observed["app_server_rpc_error_source_sha256"], identities["AppServerRpcError"])
         self.assertEqual(observed["surface_source_sha256"], identities["codex_tool_surface-module"])
 
 
@@ -1304,23 +1274,10 @@ class RunIdentityReport(unittest.TestCase):
                 closure[_relative(path)] = _sha256(Path(path).read_bytes())
         print("\nOffline transport run identity " + json.dumps({
             "interpreter": sys.version.split()[0],
-            "golden_sha256": _sha256(GOLDEN.read_bytes()),
+            "golden_sha256": _sha256(CONTRACT_GOLDEN.read_bytes()),
             "loaded_scripts_closure": dict(sorted(closure.items())),
         }, sort_keys=True))
 
 
 if __name__ == "__main__":
-    if sys.argv[1:] == ["--write-golden"]:
-        GOLDEN.parent.mkdir(parents=True, exist_ok=True)
-        document = {
-            "consumer": "transport",
-            "checkpoint": "offline-transport-compatibility",
-            "baseline_commit": BASELINE_COMMIT,
-            "interpreter": sys.version.split()[0],
-            "note": "Observed verdicts at the baseline. Not proof of equivalence beyond these inputs; grants no current authority.",
-            "sections": compute(),
-        }
-        GOLDEN.write_text(json.dumps(document, indent=1, sort_keys=True) + "\n", encoding="utf-8")
-        print(f"wrote {GOLDEN}")
-    else:
-        unittest.main()
+    unittest.main()
