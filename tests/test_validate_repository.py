@@ -115,6 +115,43 @@ class ValidateRepositoryTests(unittest.TestCase):
                 validate_repository_module._validate_documentation_group(errors, "public")
                 self.assertEqual(errors, ["Invalid documentation requirements for 'public'"])
 
+    def test_schema_requirements_preserve_schema_order_and_required_checks(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            roster = root / "tools" / "ci" / "required-schema-properties.json"
+            roster.parent.mkdir(parents=True)
+            roster.write_text(json.dumps({"activation": {
+                "trace.schema.json": ["tool_trace_sha256"],
+                "bead-closure.schema.json": ["close_receipts"],
+            }}), encoding="utf-8")
+            schemas = root / "schemas"
+            schemas.mkdir()
+            (schemas / "trace.schema.json").write_text('{"properties": {"tool_trace_sha256": {}}}', encoding="utf-8")
+            (schemas / "bead-closure.schema.json").write_text('{}', encoding="utf-8")
+            errors: list[str] = []
+            with mock.patch.object(validate_repository_module, "REPO_ROOT", root):
+                validate_repository_module._require_checkout_schema_properties(errors, "activation", check_required=True)
+            self.assertEqual(errors, [
+                "schema trace.schema.json does not require properties: tool_trace_sha256",
+                "schema bead-closure.schema.json is missing properties: close_receipts",
+                "schema bead-closure.schema.json does not require properties: close_receipts",
+            ])
+
+    def test_schema_requirements_refuse_missing_or_nonlocal_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            roster = root / "tools" / "ci" / "required-schema-properties.json"
+            roster.parent.mkdir(parents=True)
+            with mock.patch.object(validate_repository_module, "REPO_ROOT", root):
+                errors: list[str] = []
+                validate_repository_module._require_checkout_schema_properties(errors, "activation")
+                self.assertTrue(errors[0].startswith("Could not read schema requirements"))
+
+                roster.write_text('{"activation": {"../trace.schema.json": ["field"]}}', encoding="utf-8")
+                errors = []
+                validate_repository_module._require_checkout_schema_properties(errors, "activation")
+                self.assertEqual(errors, ["Invalid or missing schema requirements for 'activation'"])
+
     def test_repository_refuses_schema_valid_policy_contradictions(self) -> None:
         cases = (
             (
@@ -761,6 +798,34 @@ class ValidateRepositoryTests(unittest.TestCase):
         self.assertTrue(any("add_waiver_reason_argument" in error for error in errors))
         self.assertTrue(any("must require --waiver-reason for: audit" in error for error in errors))
         self.assertTrue(any("must add waiver audit fields for: audit" in error for error in errors))
+
+    def test_waiver_roster_reports_invalid_data_and_preserves_diagnostic_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            errors: list[str] = []
+            validate_waiver_conventions(errors, repo_root=root)
+            self.assertTrue(errors[0].startswith("Could not read waiver convention roster"))
+
+            roster = root / "tools" / "ci" / "waiver-conventions.json"
+            roster.parent.mkdir(parents=True)
+            roster.write_text('{"../tool.py": {"flags": ["--no-audit"]}}', encoding="utf-8")
+            errors = []
+            validate_waiver_conventions(errors, repo_root=root)
+            self.assertEqual(errors, [f"Invalid waiver convention roster: {roster}"])
+
+            roster.write_text(json.dumps({
+                "scripts/z.py": {"flags": ["--no-audit", "--allow-second", "--allow-first"]},
+                "scripts/a.py": {"flags": ["--no-audit"]},
+            }), encoding="utf-8")
+            script = root / "scripts" / "z.py"
+            script.parent.mkdir()
+            script.write_text("pass\n", encoding="utf-8")
+            errors = []
+            validate_waiver_conventions(errors, repo_root=root)
+            self.assertEqual(errors, [
+                "scripts/z.py is missing controlled waiver flags: --no-audit, --allow-second, --allow-first",
+                "waiver convention script is missing: scripts/a.py",
+            ])
 
     def test_waiver_reason_rejects_unknown_flag_destination(self) -> None:
         with self.assertRaises(SystemExit) as context:

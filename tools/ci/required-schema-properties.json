@@ -1,0 +1,181 @@
+{
+  "contractor": {
+    "opt-in-record.schema.json": [
+      "allowed_providers"
+    ],
+    "acceptance-decision.schema.json": [
+      "malpractice_score",
+      "malpractice_signals",
+      "evidence_quality_score",
+      "evidence_quality_signals",
+      "evidence_quality_signal_categories",
+      "research_evidence_score",
+      "research_evidence_signals",
+      "research_evidence_signal_categories",
+      "research_evidence_items",
+      "research_contradictions",
+      "research_reflection",
+      "research_evidence_rejections",
+      "signal_categories",
+      "peer_review_required",
+      "peer_review_status",
+      "boundary_taint_status",
+      "boundary_taint_findings",
+      "provider_key",
+      "provider_trust_tier",
+      "provider_external",
+      "model_profile",
+      "provenance_class",
+      "human_adjudication_required",
+      "recommended_disposition",
+      "recommended_synthesis_use",
+      "expected_return_language",
+      "expected_return_language_source",
+      "return_language_status",
+      "return_language_findings",
+      "detected_letter_scripts",
+      "unexpected_script_ratio",
+      "unicode_normalization_changed"
+    ],
+    "contractor-return-bundle.schema.json": [
+      "provider_key",
+      "provider_trust_tier",
+      "provider_external",
+      "dispatch_mode",
+      "local_profile",
+      "model_profile",
+      "provenance_class",
+      "evidence_quality_score",
+      "evidence_quality_signals",
+      "evidence_quality_signal_categories",
+      "research_evidence_score",
+      "research_evidence_signals",
+      "research_evidence_signal_categories",
+      "research_evidence_items",
+      "research_contradictions",
+      "research_reflection",
+      "research_evidence_rejections",
+      "expected_return_language",
+      "expected_return_language_source",
+      "return_language_status",
+      "return_language_findings",
+      "detected_letter_scripts",
+      "unexpected_script_ratio",
+      "unicode_normalization_changed"
+    ]
+  },
+  "activation": {
+    "native-tool-activation-result-v2.schema.json": [
+      "tool_trace_sha256",
+      "bead_closure_sha256",
+      "result_sha256"
+    ],
+    "native-tool-activation-trace.schema.json": [
+      "children",
+      "all_satisfied",
+      "tool_trace_sha256"
+    ],
+    "native-tool-activation-bead-closure.schema.json": [
+      "expected_bead_ids",
+      "attempted_bead_ids",
+      "unattempted_bead_ids",
+      "close_receipts",
+      "errors",
+      "parent_close_attempted",
+      "publication_close_attempted",
+      "all_closed",
+      "bead_closure_sha256"
+    ]
+  },
+  "readiness": {
+    "run-readiness-plan.schema.json": [
+      "workstreams",
+      "rubric",
+      "criterion_evidence_matrix",
+      "provider_provenance",
+      "quarantine_rules",
+      "boundary_negative_tests",
+      "next_version_rail",
+      "patrol_stopping_rule",
+      "handoff_evidence_requirements",
+      "adjudication_record"
+    ],
+    "sprint-continuation.schema.json": [
+      "recommended_next_issue",
+      "why_next",
+      "ready_issues",
+      "blocked_issues",
+      "definition_of_ready",
+      "definition_of_done",
+      "resume_commands",
+      "operator_handoff_packet",
+      "modeling_note",
+      "ranked_ready_issues",
+      "recommended_ready_set",
+      "excluded_ready_issues",
+      "beads_readiness_snapshot",
+      "beads_readiness_snapshot_sha256",
+      "fanout_decision",
+      "fanout_reasons",
+      "candidate_capacity_evidence",
+      "ready_set_authority",
+      "dispatch_authorized"
+    ]
+  },
+  "route-result": {
+    "route-result.schema.json": [
+      "access_profile",
+      "model_synthesis",
+      "data_sensitivity_source",
+      "data_sensitivity_heuristic",
+      "data_sensitivity_provenance",
+      "data_sensitivity_disclaimer",
+      "beads_context_depth",
+      "zero_trust_consensus_required",
+      "zero_trust_consensus_trigger_reasons",
+      "zero_trust_minimum_independent_domains",
+      "zero_trust_policy_version"
+    ]
+  },
+  "local-dispatch-envelope": {
+    "local-dispatch-envelope.schema.json": [
+      "access_profile",
+      "access_profile_details",
+      "access_profile_readiness",
+      "model_profile",
+      "allow_private_dns",
+      "tls_verify",
+      "tls_ca_bundle_env",
+      "request_options",
+      "thinking_parser",
+      "response_sanitization"
+    ]
+  },
+  "prompt-coach-result": {
+    "prompt-coach-result.schema.json": [
+      "scaffold_sizing",
+      "requires_user_selection_before_plan",
+      "selection_before_plan_reason",
+      "selection_before_plan_question_ids"
+    ]
+  },
+  "harness-dispatch-envelope": {
+    "harness-dispatch-envelope.schema.json": [
+      "model_profile",
+      "model_profile_details",
+      "access_profile",
+      "access_profile_details",
+      "access_profile_readiness"
+    ]
+  },
+  "access-profile": {
+    "access-profile.schema.json": [
+      "profiles"
+    ]
+  },
+  "execution-environment": {
+    "execution-environment.schema.json": [
+      "profiles"
+    ]
+  }
+}

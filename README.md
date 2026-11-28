@@ -216,7 +216,8 @@ shows a retry plan revised after two illustrative reviews. Use the
 to combine your own evaluated critic returns and compare explicit claims. The
 lead still adjudicates each return and resolves material disagreement.
 [Return screening](references/external-contracting.md#return-screening) flags
-instructions and unsupported claims that need adjudication before use.
+instructions and unsupported claims, and rejects malformed structured evidence
+before it can be used.
 
 ## Keep project memory beyond the conversation
 

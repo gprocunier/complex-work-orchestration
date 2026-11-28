@@ -139,6 +139,31 @@ verified that the optional advisor can add and preserve a hold. The rates in
 the table cover deterministic screening on this fixture.
 [Held-out paraphrases](../tests/fixtures/return_tripwires/held-out-paraphrases.json)
 
+### Optional local advisory
+
+The November 28, 2026 comparison used a new set written after the screening
+rules were frozen. Each of the 24 expected holds and 24 benign controls was
+added to the same sample return in two places. Recall and false holds count
+placements where the evaluator set `evidence_use_hold`.
+
+| Screening | Recall | False holds | Invalid advisory replies |
+| --- | ---: | ---: | ---: |
+| Deterministic checks | 0/48 (0%) | 0/48 (0%) | Not applicable |
+| Deterministic checks with the local advisory | 0/48 (0%) | 0/48 (0%) | 96/96 (100%) |
+
+The advisory arm ran Qwen2.5-0.5B-Instruct from cached weights at revision
+`7ae557604adf67be50417f59c2c2f167def9a775`. It used the shipped classifier
+prompt, greedy decoding with a 64-token limit, and the normal reply parser
+and hold projection. All 96 replies were fenced Markdown, so the parser
+discarded them. These results measure the tested configuration. Recall from
+valid advisory replies remains unmeasured. The sample returns were fictional
+and inference ran offline. [Held-out cases](../tests/fixtures/return_tripwires/held-out-advisory.json)
+
+**Recommended configuration.** Leave the optional advisory off by default.
+Use deterministic screening and architect adjudication. Use a configured
+local reviewer as an additional signal when it reliably returns the required
+JSON hold codes.
+
 ## Registered native single worker
 
 The live qualification completed on November 24, 2026. Every required

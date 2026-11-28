@@ -379,6 +379,7 @@ same endpoint, model, timeout and request options for preparation and execution.
 A valid result records only finding codes and the source and request bindings.
 Re-evaluate the original return to see the combined holds. Empty, invalid or
 unavailable model results leave all existing holds in effect.
+[See the held-out comparison and configuration guidance](evaluation-evidence.md#optional-local-advisory).
 
 For an already captured local return, inspect the current holds with its exact
 return file and source dispatch ID.

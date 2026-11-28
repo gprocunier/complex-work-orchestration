@@ -12,6 +12,7 @@
 - Summarize the measured workshop handoff comparison and explain the code-health check and required documentation terms. [Examples](docs/use-cases.html#workshop-handoff-comparison) · [Reference](docs/reference.html#maintain)
 - Slim `route_work.py --json`. Read `ranked_experts` in place of the removed top-level `required_experts` alias, and add `--include-catalog` for full ranked expert and executor details. Risk-required experts are still listed at `risk_assessment.required_experts`.
 - Tighten the code-health baseline and consolidate repeated checks in native worker and pool validators. Renew registered delegation and pool approvals bound to earlier source digests after upgrading.
+- Reject malformed structured research evidence with specific errors and evaluate each inspection or validation claim in its own clause. Use JSON integers for research scores in place of strings or decimals. See the [held-out advisory comparison](references/evaluation-evidence.md#optional-local-advisory).
 
 ## 1.49.0 - 2026-11-28
 

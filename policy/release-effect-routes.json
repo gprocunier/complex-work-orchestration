@@ -1158,7 +1158,7 @@
 
 "dD":[189,119,"with PrivateDirectory.open(store.state_root / \"browser-returns\", create=True) as directory:"],
 
-"dE":[190,810,"if args.audit:"],
+"dE":[190,828,"if args.audit:"],
 
 "dF":[12,868,"if args.write_manifest and target_dir.exists():"],
 
@@ -1190,7 +1190,7 @@
 
 "dU":[191,"DesktopBrowserReviewTests.test_unmatched_request_and_audit_override_create_no_receipt",107,"L8HRcxATvuBjdGpjq2Fq38NNzsrwx0y1u4zLgyponPQ"],
 
-"dV":[190,811,"record = _record_host_evaluation(return_text, result, tracked=tracked)"],
+"dV":[190,829,"record = _record_host_evaluation(return_text, result, tracked=tracked)"],
 
 "dW":[189,121,"directory.write(name, raw)"],
 
@@ -2018,7 +2018,7 @@
 
 "kc":[59,729,{"$":57}],
 
-"kd":[190,"main",556,"9PdOPi6xgcQgqdlrgM9y8mRbzhw85pGL_33empZ_nMs"],
+"kd":[190,"main",574,"9PdOPi6xgcQgqdlrgM9y8mRbzhw85pGL_33empZ_nMs"],
 
 "ke":[188,108,"submitted = self.require_unchanged().decode(\"utf-8\")"],
 
@@ -2204,13 +2204,13 @@
 
 "mC":[179,"EverydayDelegationFlowTests.test_registered_delegation_delivers_exact_candidate_and_independent_cli_closes",121,"j3Xn0Li4IzfrpqwV6Bd8mWcPGRadssJFhy-jXEmD434"],
 
-"mD":[190,421,"record_received_return(configured_store(), dispatch_id, browser_return)"],
+"mD":[190,439,"record_received_return(configured_store(), dispatch_id, browser_return)"],
 
-"mE":[190,416,"if browser_return is not None:"],
+"mE":[190,434,"if browser_return is not None:"],
 
-"mF":[190,198,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
+"mF":[190,216,"if (dispatch.get(\"request_sha256\") != provenance[\"submitted_sha256\"]"],
 
-"mG":[190,188,"if ("],
+"mG":[190,206,"if ("],
 
 "mH":[87,"BrowserProvenanceTests.test_private_evaluation_round_trip",229,"AZ6V16vtyNtTPMLVbrc4UPcl5xgbxqPl4HArCgjZ2-M"],
 
@@ -5137,7 +5137,7 @@
 
 [41,2386,63,2386,100,{"$":59},"ypKY73eMENYLhVb5Co2lv5r86zD3cAb2ti7ZYE29l0w",[{"$":9},"dR"]],
 
-[42,675,19,675,44,{"$":59},{"$":192},[{"$":9},"dS"]],
+[42,693,19,693,44,{"$":59},{"$":192},[{"$":9},"dS"]],
 
 [89,330,11,330,84,{"$":3},"BxQXymhrN4ga9Ofy-LQe2k22wNBOFhfkBKy2nxFw14g",[{"$":9},"authority-protected-synthesis-client"]],
 
@@ -7010,7 +7010,7 @@
 
 "@19":["lVXGoZ9EnoiO3zO1gtl0aKqhFcOycVR2gF4Z4ABLFic",420,1174],
 
-"@190":["_n1cZPfmrLLEM4xTKGJX_XzaGrnovwPMcXxYw_pfFIk",493,48569],
+"@190":["IjBfgY9fEzdpFavGckJ6VUZ9RV1Cmg6CeiAauSUQTkw",493,49311],
 
 "@191":["l43tp1oVZ988nOZSI8BbCdfjB-rCCOBSh8CtiKDNR-k",420,11671],
 
@@ -7420,7 +7420,7 @@
 
 "scripts/cwo_core/policy.py":["k_rVek96XhWrnByUtlE7VpDgmGKPIftebmYbtJU2sDU",420,18691],
 
-"scripts/cwo_core/policy_schema.py":["kWpgxwBT69YxYg2J3WzZaGuF-cZqfVUBH7VkO_ysjHQ",420,26817],
+"scripts/cwo_core/policy_schema.py":["rfk2d5rqLwjb0lrZbdWVUlDFti156uNRzvbB8ka6iLs",420,27038],
 
 "scripts/cwo_core/private_authority_input.py":["BRQRrK37uq-8OqlryMh3AbacXEn4fzxYpu9kH3GMieg",420,3861],
 
@@ -7438,23 +7438,23 @@
 
 "scripts/cwo_core/return_advisory.py":["8EkVp_bF-Ev8dsrPemYqcFLFkM6mbgViG0mYZSsvSr4",420,7485],
 
-"scripts/cwo_core/return_boundary.py":["SRW40SMA6pZtQvF4j_x3W30jn5liNQGgVXmwktSroys",420,15766],
+"scripts/cwo_core/return_boundary.py":["zFoeQrAKlxsQxUUy0XYsZRnZaWyW7XRtk6hux2tRn0Y",420,17935],
 
 "scripts/cwo_core/return_common.py":["E7J4XiwshSuYsQ3NBlT3ruLPutFjsFHoL2Dx1P7tp20",420,5234],
 
-"scripts/cwo_core/return_evidence.py":["qdCL_eG7GcPWPglX7D17rh3hziw6x0PBO2FFtEl47BU",420,16333],
+"scripts/cwo_core/return_evidence.py":["IHMhSiW8RMtKGEzbMDQAccIaIoKeSEahq17WbgB48ZU",420,21796],
 
 "scripts/cwo_core/return_language.py":["2QBuTz4lOSDklO-NQYvf3t23IHYiIHwYdwNakl0X2o0",420,10564],
 
 "scripts/cwo_core/return_risk.py":["goyrfwqiDPJVLEjG-QrYrN-ErJoa-SNObiT7ZMKJBA4",420,30013],
 
-"scripts/cwo_core/return_sections.py":["GUCWZZeynDsIwzGBfncN7E44LF2jyMvzGYO55meFv3Q",420,6493],
+"scripts/cwo_core/return_sections.py":["uuxkBbPjaq6cF3OykS1Ae2wTjXJQ79veUAAw0Bf6VaY",420,7200],
 
 "scripts/cwo_core/return_structure.py":["a8Oze2t709WQjDHZuQu577oQ1x7XmrZZMuXqS7AKhlE",420,17353],
 
 "scripts/cwo_core/return_tripwires.py":["HjvsqIK1JvYmXbuJ0hYqDQ0_h5ZxSOVzxvvlijq8tuo",420,19133],
 
-"scripts/cwo_core/returns.py":["hDV_HKK-4mJDQ_eyuoovWzMFBvCeQr3BkvRDO8uYD8I",420,40362],
+"scripts/cwo_core/returns.py":["ynqDzOhhOt5R2JrOzSMq8ldH9W-q7tcT0TUMHJUT7XE",420,39802],
 
 "scripts/cwo_core/review_inputs.py":["5QIQSTeOnWrlr7hZA_aGL17iOdLvnhi0Qt9_Hy_GdI8",420,9030],
 
@@ -7486,7 +7486,7 @@
 
 "scripts/cwo_core/typed_artifact_requirement.py":["sZPbgWNySCIGqrbzTgbPAjlDd2FoOID0kgS4fAjKDio",420,2296],
 
-"scripts/cwo_core/types.py":["kWYmBpNR0hHpPxgLs-v6CX-SJcWPgb_d0G_W37zSDvQ",420,15418],
+"scripts/cwo_core/types.py":["kIcto9q8l3VZoYMZUTQ2_1i6nFptRbet0tPnv_Mn7gE",420,15830],
 
 "scripts/cwo_core/util.py":["71ju5SkwRH4vbcdDiA4n3pXGGJCzjn-TKoo4ZnZwMGk",420,6749],
 
@@ -7612,7 +7612,7 @@
 
 "scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
-"scripts/validate_repository.py":["YzhOyzAznWmbQ8NrMb4dp90uBdym1PvJcKSd8V8QT8w",420,92666],
+"scripts/validate_repository.py":["RKksAVsi6k_0xno2hF3EEurcoJAObbvYgj6bpAssVts",420,86770],
 
 "scripts/validate_run_readiness_plan.py":["eOh8Jx0MhjjmZlqhcUFpe5E6tYTyKsSuz8Cm0vg8nq8",493,19544],
 
@@ -7624,7 +7624,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["AktQnvdKq6wHK7deQh0oK27iYWLNq16QUCQaQOsr2SU",420,143537],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["kt5Gki2YBKRJV3UJhJbYN6adg38ORDh3jbZ6ah_bLMw",420,143580],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7652,13 +7652,13 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["BIGSiyXM2mXVdBYphhTmw7hQ1uS-l_pU_GW9fbaSQiQ",420,25742],
+"tests/test_cwo_core_import_contract.py":["Wc52DrJLo6l4W3CjfuQ3KxyC61OzCSX1AIxK-CzfyV8",420,25759],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 
 "tests/test_turn_observations.py":["bv8rFwyIv9tFCgWj1UtgIaZ-jfEHkrIkwhyJUkENpjU",420,22744],
 
-"tests/test_validate_repository.py":["-7m8RAQU-YuivIsfGvZDlDQKCsXJahKqaXPzpeI_Lsg",420,46896],
+"tests/test_validate_repository.py":["9lZQCi7YnMLnR94OMIjEVTFOMP5xKz6tuQYET_zXLTM",420,50669],
 
 "tests/test_w20_affected_contract_w13.py":["S7jdDJpdkOB6sE3CLqbgnRnzD6QWVyX6SxWpeqjwThk",420,68078]
 },

@@ -2,11 +2,13 @@ from __future__ import annotations
 
 import json
 import re
+from collections.abc import Iterator
 from typing import Any
 
+from .policy_schema import strict_json_loads
 from .return_common import add_weighted_signal, extend_signals, malpractice_signal_weights, strip_fenced_blocks
 from .return_sections import SectionReader
-from .types import EvidenceQuality, ResearchEvidenceQuality, ReturnSignal
+from .types import EvidenceQuality, ResearchEvidenceQuality, ResearchEvidenceRejection, ReturnSignal
 
 
 RESEARCH_SOURCE_TYPES = {
@@ -23,32 +25,117 @@ RESEARCH_SOURCE_TYPES = {
 
 RESEARCH_SUPPORT_TYPES = {"supports", "refutes", "contradicts", "background"}
 RESEARCH_ACCESS_STATUSES = {"full", "abstract-only", "paywalled", "restricted", "inaccessible", "unknown"}
+_RESEARCH_SCORE_FIELDS = ("source_reliability_score", "reliability_score", "relevance_score")
+_RESEARCH_ITEM_FIELDS = ("claim", "source_locator", "citation_span", "quoted_excerpt", "support_type", *_RESEARCH_SCORE_FIELDS)
+_RESEARCH_ITEM_WRAPPERS = ("research_evidence_items", "evidence_items")
+_CONTRADICTION_WRAPPERS = ("research_contradictions", "contradictions")
+_REFLECTION_WRAPPERS = ("research_reflection", "reflection")
+_RESEARCH_WRAPPER_TYPES = {
+    **dict.fromkeys(_RESEARCH_ITEM_WRAPPERS + _CONTRADICTION_WRAPPERS, list),
+    **dict.fromkeys(_REFLECTION_WRAPPERS, dict),
+}
+
+MAX_RETURN_JSON_CHARS = 1_048_576
+MAX_RETURN_JSON_DEPTH = 64
+MAX_RETURN_JSON_DOCUMENTS = 64
+_JSON_STRUCTURE = re.compile(r'\\.|"|[\[\]{}]', re.S)
+_JSON_PREFIX = re.compile(r"\s*[\[{]")
+_JSON_LIKE_PREFIX = re.compile(r'\s*(?:\{(?=\s*(?:["}]|$))|\[(?=\s*(?:[\[\]{"0-9-]|true\b|false\b|null\b|NaN\b|Infinity\b|$)))')
+_MARKDOWN_CITATION = re.compile(r"\s*\[[0-9]+\]\s*\S")
+_SURROGATE = re.compile(r"\\u[dD][89a-fA-F][0-9a-fA-F]{2}|[\ud800-\udfff]")
+_FENCED_BLOCK = re.compile(
+    r"(?ms)^[ \t]*(?P<fence>```|~~~)(?P<language>[A-Za-z0-9_-]*)[ \t]*(?:\n|\Z)"
+    r"(?P<body>.*?)(?:^[ \t]*(?P=fence)[ \t]*(?:\n|\Z)|(?P<unclosed>\Z))"
+)
+
+
+class ReturnJsonError(ValueError):
+    def __init__(self, code: str, *, field: str | None = None, item_index: int | None = None) -> None:
+        super().__init__(code)
+        self.code = code
+        self.field = field
+        self.item_index = item_index
+
+    def record(self, section: str, index: int, occurrence: int | None) -> ResearchEvidenceRejection:
+        rejection: ResearchEvidenceRejection = {"section": section, "document_index": index, "code": self.code}
+        if occurrence is not None:
+            rejection["occurrence_index"] = occurrence
+        if self.item_index is not None:
+            rejection["item_index"] = self.item_index
+        if self.field is not None:
+            rejection["field"] = self.field
+        return rejection
+
+
+def _check_json_depth(text: str) -> None:
+    quoted = False
+    depth = 0
+    for match in _JSON_STRUCTURE.finditer(text):
+        token = match[0]
+        if token == '"':
+            quoted = not quoted
+        elif not quoted and len(token) == 1:
+            depth += 1 if token in "[{" else -1
+            if depth > MAX_RETURN_JSON_DEPTH:
+                raise ReturnJsonError("nesting-too-deep")
+
+
+def _bounded_return_json(text: str) -> dict[str, Any] | list[Any]:
+    _check_json_depth(text)
+    try:
+        value = strict_json_loads(text)
+        if _SURROGATE.search(text):
+            json.dumps(value, ensure_ascii=False).encode("utf-8")
+    except (ValueError, RecursionError) as exc:
+        raise ReturnJsonError("invalid-json") from exc
+    if not isinstance(value, (dict, list)):
+        raise ReturnJsonError("invalid-document-type")
+    return value
+
+
+def _starts_structured_json(text: str, start: int, end: int, *, legacy: bool) -> bool:
+    if legacy:
+        return bool(_JSON_LIKE_PREFIX.match(text, start, end) and not _MARKDOWN_CITATION.match(text, start, end))
+    return bool(_JSON_PREFIX.match(text, start, end))
+
+
+def _structured_candidates(value: str, *, legacy: bool) -> Iterator[tuple[int, int, bool]]:
+    if _starts_structured_json(value, 0, len(value), legacy=legacy):
+        yield 0, len(value), False
+        return
+    for match in _FENCED_BLOCK.finditer(value):
+        language = match["language"].lower()
+        start, end = match.span("body")
+        if language == "json" or (not language and _starts_structured_json(value, start, end, legacy=legacy)):
+            yield start, end, match["unclosed"] is not None
+
+
+def _structured_documents(
+    value: str, *, section: str, rejections: list[ResearchEvidenceRejection] | None = None, occurrence: int | None = None,
+) -> Iterator[dict[str, Any] | list[Any]]:
+    for index, (start, end, unclosed) in enumerate(_structured_candidates(value, legacy=section == "Evidence"), start=1):
+        try:
+            if len(value) > MAX_RETURN_JSON_CHARS:
+                raise ReturnJsonError("section-too-large")
+            if index > MAX_RETURN_JSON_DOCUMENTS:
+                raise ReturnJsonError("too-many-documents")
+            if unclosed:
+                raise ReturnJsonError("unterminated-fence")
+            document = _bounded_return_json(value[start:end].strip())
+            if rejections is not None:
+                _check_research_document(document, section)
+            yield document
+        except ReturnJsonError as exc:
+            if rejections is None:
+                raise
+            rejections.append(exc.record(section, index, occurrence))
+            if exc.code in {"section-too-large", "too-many-documents"}:
+                break
 
 
 def structured_json_values(value: str) -> list[Any]:
-    """Parse whole-value or fenced JSON blocks from a return section."""
-
-    values: list[Any] = []
-    stripped = value.strip()
-    if stripped and stripped[0] in "[{":
-        try:
-            values.append(json.loads(stripped))
-        except json.JSONDecodeError:
-            pass
-
-    fence_pattern = re.compile(r"(?ms)^\s*```([A-Za-z0-9_-]*)\s*\n(.*?)^\s*```\s*$")
-    for match in fence_pattern.finditer(value):
-        language = match.group(1).strip().lower()
-        if language and language != "json":
-            continue
-        candidate = match.group(2).strip()
-        if not candidate or candidate[0] not in "[{":
-            continue
-        try:
-            values.append(json.loads(candidate))
-        except json.JSONDecodeError:
-            continue
-    return values
+    """Parse whole-value or fenced return JSON, raising on malformed data."""
+    return list(_structured_documents(value, section="Research evidence"))
 
 
 def as_research_list(value: Any) -> list[dict[str, Any]]:
@@ -72,13 +159,7 @@ def as_research_reflection(value: Any) -> dict[str, Any]:
 
 
 def research_score_value(value: Any) -> int | None:
-    if value is None or value == "":
-        return None
-    try:
-        score = int(value)
-    except (TypeError, ValueError):
-        return None
-    return max(0, min(100, score))
+    return value if type(value) is int and 0 <= value <= 100 else None
 
 
 def booleanish(value: Any) -> bool:
@@ -97,57 +178,85 @@ def research_sections_present(sections: dict[str, str], *, reader: "SectionReade
     )
 
 
+def _research_items(document: dict[str, Any] | list[Any], section: str) -> list[Any]:
+    if isinstance(document, list):
+        return [] if section == "Research contradictions" else document
+    if isinstance(document.get("research_evidence_items"), list):
+        return document["research_evidence_items"]
+    if section == "Research evidence":
+        if isinstance(document.get("evidence_items"), list):
+            return document["evidence_items"]
+        if any(key in document for key in _RESEARCH_ITEM_FIELDS):
+            return [document]
+    return []
+
+
+def _check_research_scores(item: dict[str, Any], index: int) -> None:
+    for field in _RESEARCH_SCORE_FIELDS:
+        if field in item and research_score_value(item[field]) is None:
+            raise ReturnJsonError("invalid-score", field=field, item_index=index)
+
+
+def _check_research_list(items: list[Any], *, scores: bool, field: str | None = None) -> None:
+    for index, item in enumerate(items, start=1):
+        if isinstance(item, dict):
+            if scores:
+                _check_research_scores(item, index)
+        elif not isinstance(item, str):
+            raise ReturnJsonError("invalid-list-item", field=field, item_index=index)
+
+
+def _check_research_document(document: dict[str, Any] | list[Any], section: str) -> None:
+    if isinstance(document, list):
+        _check_research_list(document, scores=section != "Research contradictions")
+        return
+    for field, wrapper_type in _RESEARCH_WRAPPER_TYPES.items():
+        if field not in document or (field == "evidence_items" and section != "Research evidence"):
+            continue
+        contents = document[field]
+        if not isinstance(contents, wrapper_type):
+            raise ReturnJsonError("invalid-wrapper-type", field=field)
+        if isinstance(contents, list):
+            _check_research_list(contents, scores=field in _RESEARCH_ITEM_WRAPPERS, field=field)
+    if section == "Research evidence" and not any(field in document for field in _RESEARCH_ITEM_WRAPPERS):
+        _check_research_scores(document, 1)
+
+
 def research_evidence_from_sections(sections: dict[str, str], *, reader: "SectionReader | None" = None) -> dict[str, Any]:
     reader = reader or SectionReader(sections)
-    evidence_section = reader.value("Research evidence")
-    contradiction_section = reader.value("Research contradictions")
-    reflection_section = reader.value("Research reflection")
-    legacy_evidence = reader.value("Evidence")
-
     items: list[dict[str, Any]] = []
     contradictions: list[dict[str, Any]] = []
     reflection: dict[str, Any] = {}
+    rejections: list[ResearchEvidenceRejection] = []
 
-    def merge_document(document: Any, *, source: str) -> None:
-        nonlocal reflection
+    def merge_document(document: dict[str, Any] | list[Any], *, section: str) -> None:
         if isinstance(document, dict):
-            if isinstance(document.get("research_evidence_items"), list):
-                items.extend(as_research_list(document["research_evidence_items"]))
-            elif isinstance(document.get("evidence_items"), list) and source == "research-evidence":
-                items.extend(as_research_list(document["evidence_items"]))
-            elif source == "research-evidence" and any(
-                key in document
-                for key in ["claim", "source_locator", "citation_span", "quoted_excerpt", "support_type"]
-            ):
-                items.extend(as_research_list(document))
-
             if isinstance(document.get("research_contradictions"), list):
                 contradictions.extend(as_research_list(document["research_contradictions"]))
             elif isinstance(document.get("contradictions"), list):
                 contradictions.extend(as_research_list(document["contradictions"]))
-            elif source == "research-contradictions" and document:
+            elif section == "Research contradictions" and document:
                 contradictions.extend(as_research_list(document))
 
             if isinstance(document.get("research_reflection"), dict):
                 reflection.update(as_research_reflection(document["research_reflection"]))
             elif isinstance(document.get("reflection"), dict):
                 reflection.update(as_research_reflection(document["reflection"]))
-            elif source == "research-reflection" and document:
+            elif section == "Research reflection" and document:
                 reflection.update(as_research_reflection(document))
-        elif isinstance(document, list):
-            if source == "research-contradictions":
-                contradictions.extend(as_research_list(document))
-            else:
-                items.extend(as_research_list(document))
+        elif section == "Research contradictions":
+            contradictions.extend(as_research_list(document))
 
-    for document in structured_json_values(evidence_section):
-        merge_document(document, source="research-evidence")
-    for document in structured_json_values(contradiction_section):
-        merge_document(document, source="research-contradictions")
-    for document in structured_json_values(reflection_section):
-        merge_document(document, source="research-reflection")
-    for document in structured_json_values(legacy_evidence):
-        merge_document(document, source="legacy-evidence")
+    for section in ("Research evidence", "Research contradictions", "Research reflection", "Evidence"):
+        occurrences = reader.occurrences(section)
+        for index, value in enumerate(occurrences, start=1):
+            documents = _structured_documents(
+                value, section=section, rejections=rejections, occurrence=index if len(occurrences) > 1 else None,
+            )
+            for document in documents:
+                if index == len(occurrences):
+                    items.extend(as_research_list(_research_items(document, section)))
+                    merge_document(document, section=section)
 
     unresolved = [
         item
@@ -156,12 +265,13 @@ def research_evidence_from_sections(sections: dict[str, str], *, reader: "Sectio
         not in {"resolved", "handled", "accepted-risk", "open-risk", "not-applicable", "none", "n/a"}
     ]
     return {
-        "research_evidence_present": bool(items or contradictions or reflection or research_sections_present(sections, reader=reader)),
+        "research_evidence_present": any((items, contradictions, reflection, rejections)) or research_sections_present(sections, reader=reader),
         "research_evidence_items": items,
         "research_contradictions": contradictions,
         "research_reflection": reflection,
         "research_unresolved_contradiction_count": len(unresolved),
         "research_replan_recommended": booleanish(reflection.get("replan_recommended")),
+        **({"research_evidence_rejections": rejections} if rejections else {}),
     }
 
 
@@ -198,7 +308,7 @@ def score_research_evidence(
         source_type = str(item.get("source_type") or "unknown").strip().lower().replace("_", "-")
         support_type = str(item.get("support_type") or "").strip().lower().replace("_", "-")
         access_status = str(item.get("access_status") or "unknown").strip().lower().replace("_", "-")
-        reliability = research_score_value(item.get("source_reliability_score") or item.get("reliability_score"))
+        reliability = research_score_value(item.get("source_reliability_score", item.get("reliability_score")))
         relevance = research_score_value(item.get("relevance_score"))
 
         if not claim:

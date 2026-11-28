@@ -23,6 +23,11 @@ The repository validator reads required documentation terms from
 `tools/ci/required-documentation.json`. When changing a documented contract,
 update the affected phrases in the same change.
 
+The validator also reads `tools/ci/required-schema-properties.json` for schema
+field checks and `tools/ci/waiver-conventions.json` for CLI waiver reason and
+audit checks. Update the corresponding roster when changing one of those
+contracts.
+
 Run `python scripts/check_code_health.py` to compare the checkout with
 `policy/code-health-baseline.json`. It checks Ruff F and E9 diagnostics and
 core-to-CLI imports. For code under `scripts/`, it also checks broad exception

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Literal, TypedDict
+from typing import Any, Literal, NotRequired, TypedDict
 
 
 RiskLevel = Literal["low", "medium", "high", "critical"]
@@ -283,6 +283,15 @@ class CoachResult(TypedDict, total=False):
     execution_availability: dict[str, Any]
 
 
+class ResearchEvidenceRejection(TypedDict):
+    section: str
+    document_index: int
+    code: str
+    occurrence_index: NotRequired[int]
+    item_index: NotRequired[int]
+    field: NotRequired[str]
+
+
 class ResearchEvidenceQuality(TypedDict, total=False):
     research_evidence_present: bool
     research_evidence_items: list[dict[str, Any]]
@@ -293,6 +302,7 @@ class ResearchEvidenceQuality(TypedDict, total=False):
     research_evidence_score: int
     research_evidence_signals: list[ReturnSignal]
     research_evidence_signal_categories: list[str]
+    research_evidence_rejections: list[ResearchEvidenceRejection]
 
 
 class EvidenceQuality(TypedDict, total=False):
@@ -336,6 +346,7 @@ class ContractorReturnBundle(TypedDict, total=False):
     required_sections_missing: list[str]
     required_sections_present: list[str]
     evidence_items: list[dict[str, str]]
+    research_evidence_rejections: list[ResearchEvidenceRejection]
     workspace_mutation: dict[str, Any] | None
     implementation_blocked: bool
     hold_reasons: list[str]
@@ -394,6 +405,7 @@ class AcceptanceDecision(TypedDict, total=False):
     missing_sections: list[str]
     penalty_reasons: list[str]
     hard_disqualifiers: list[str]
+    research_evidence_rejections: list[ResearchEvidenceRejection]
     sabotage_score: int
     sabotage_signals: list[ReturnSignal]
     sabotage_signal_categories: list[str]

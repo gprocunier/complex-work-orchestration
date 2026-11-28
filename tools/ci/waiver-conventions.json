@@ -1,0 +1,86 @@
+{
+  "scripts/authorize_sol_breakfix.py": {
+    "flags": [
+      "--allow-sol-breakfix"
+    ],
+    "audit_fields": true
+  },
+  "scripts/build_contractor_packet.py": {
+    "flags": [
+      "--allow-disclosure-escalation",
+      "--no-audit"
+    ],
+    "audit_fields": true
+  },
+  "scripts/chatgpt_browser_review.py": {
+    "flags": [
+      "--allow-degraded-packet",
+      "--allow-unlinked-packet",
+      "--no-audit"
+    ],
+    "audit_fields": true
+  },
+  "scripts/dispatch_work.py": {
+    "flags": [
+      "--allow-degraded-packet",
+      "--allow-unlinked-packet",
+      "--allow-raw-manual-prompt",
+      "--allow-disclosure-escalation",
+      "--local-allow-private-dns",
+      "--local-insecure-tls",
+      "--allow-offline-access-profile",
+      "--no-audit"
+    ],
+    "audit_fields": true
+  },
+  "scripts/evaluate_return.py": {
+    "flags": [
+      "--no-audit"
+    ],
+    "audit_fields": true
+  },
+  "scripts/render_harness_dispatch.py": {
+    "flags": [
+      "--no-audit"
+    ],
+    "audit_fields": true
+  },
+  "scripts/import_execution_telemetry.py": {
+    "flags": [
+      "--allow-unmatched"
+    ],
+    "audit_terms": [
+      "waiver_required",
+      "waiver_flags",
+      "waiver_reason"
+    ]
+  },
+  "scripts/generate_manual_dispatch_prompt.py": {
+    "flags": [
+      "--allow-degraded-packet",
+      "--allow-raw-manual-prompt",
+      "--allow-disclosure-escalation"
+    ]
+  },
+  "scripts/configure_codex_beads_hooks.py": {
+    "flags": [
+      "--force-visibility-hint",
+      "--allow-degraded-context"
+    ]
+  },
+  "scripts/coach_prompt.py": {
+    "flags": [
+      "--allow-disclosure-escalation"
+    ]
+  },
+  "scripts/route_work.py": {
+    "flags": [
+      "--allow-disclosure-escalation"
+    ]
+  },
+  "scripts/scaffold_workgraph.py": {
+    "flags": [
+      "--allow-disclosure-escalation"
+    ]
+  }
+}
