@@ -19,6 +19,10 @@ Each isolated test worker can import `cwo_core` directly from the checkout.
 python scripts/run_parallel_unittest.py --workers 4 --verbose --shard-index 0 --shard-count 4
 ```
 
+The repository validator reads required documentation terms from
+`tools/ci/required-documentation.json`. When changing a documented contract,
+update the affected phrases in the same change.
+
 Use Python 3.12 to reproduce the type and coverage checks from the `quality`
 job. The strict type check starts with eight annotated helpers. Add modules as
 they pass strict checking.

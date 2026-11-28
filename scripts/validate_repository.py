@@ -939,7 +939,7 @@ def validate_repository() -> list[str]:
     validate_retired_beads_context_aliases(errors)
     validate_public_copy_docs(errors)
     validate_native_supervision_tech_preview_copy(errors)
-    _validate_native_reference_docs(errors)
+    _validate_documentation_group(errors, "native")
     validate_closure_pressure_contract(errors)
 
     validate_policy_validation_boundaries(errors)
@@ -1146,6 +1146,26 @@ def validate_repository() -> list[str]:
     if not all(name in thresholds for name in ["review", "escalation", "quarantine"]):
         errors.append("zero-trust-consensus-policy thresholds must include review, escalation, and quarantine")
 
+    _validate_contractor_schemas(errors)
+    _validate_routing_schemas(errors)
+    _validate_activation_schemas(errors)
+    _validate_readiness_schemas(errors)
+    for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
+        errors.append(f"sample-run-readiness-plan.json: {error}")
+
+    _validate_documentation_group(errors, "public")
+    _validate_skill_size(errors)
+    _validate_documentation_group(errors, "references")
+    validate_local_inference_peer_review_guidance(errors)
+    validate_public_docs_do_not_expose_hardware_categories(errors)
+    validate_waiver_conventions(errors)
+
+    validate_ci_workflow(errors)
+
+    return errors
+
+
+def _validate_contractor_schemas(errors: list[str]) -> None:
     _require_runtime_schema_fields(
         errors, "contractor packet", load_json(REPO_ROOT / "schemas" / "contractor-packet.schema.json"),
         CONTRACTOR_PACKET_REQUIRED_FIELDS,
@@ -1203,6 +1223,9 @@ def validate_repository() -> list[str]:
             *language_properties,
         ],
     })
+
+
+def _validate_routing_schemas(errors: list[str]) -> None:
     local_envelope_schema = load_json(REPO_ROOT / "schemas" / "local-dispatch-envelope.schema.json")
     _require_runtime_schema_fields(errors, "local dispatch envelope", local_envelope_schema, LOCAL_DISPATCH_REQUIRED_FIELDS)
     require_schema_properties(
@@ -1273,6 +1296,9 @@ def validate_repository() -> list[str]:
         if field not in profile_properties:
             errors.append(f"model-profile.schema.json profile is missing property {field!r}")
     _require_schema_file_properties(errors, {"execution-environment.schema.json": ["profiles"]})
+
+
+def _validate_activation_schemas(errors: list[str]) -> None:
     _require_schema_file_properties(errors, {
         "native-tool-activation-result-v2.schema.json": [
             "tool_trace_sha256",
@@ -1308,6 +1334,9 @@ def validate_repository() -> list[str]:
             "native tool activation result schemas must preserve "
             "historical v1 and current v2"
         )
+
+
+def _validate_readiness_schemas(errors: list[str]) -> None:
     _require_schema_file_properties(errors, {
         "run-readiness-plan.schema.json": [
             "workstreams",
@@ -1359,16 +1388,6 @@ def validate_repository() -> list[str]:
             errors.append(f"sprint-continuation.schema.json operator_handoff_packet is missing required field {field!r}")
         if field not in operator_packet_schema.get("properties", {}):
             errors.append(f"sprint-continuation.schema.json operator_handoff_packet is missing property {field!r}")
-    for error in validate_run_readiness_plan(load_json(REPO_ROOT / "examples" / "sample-run-readiness-plan.json")):
-        errors.append(f"sample-run-readiness-plan.json: {error}")
-
-    _validate_public_entry_docs(errors)
-    _validate_reference_and_template_docs(errors)
-    validate_waiver_conventions(errors)
-
-    validate_ci_workflow(errors)
-
-    return errors
 
 
 def validate_qualification_target(errors: list[str]) -> None:
@@ -1704,454 +1723,31 @@ def _require_runtime_schema_fields(
         errors.append(f"{label} schema is missing runtime required fields: {', '.join(missing)}")
 
 
-def _validate_native_reference_docs(errors: list[str]) -> None:
-    for relative_path, terms in (
-        ("references/native-supervision-pools.md", [
-            "Temporary Audited Tool Boundary",
-            "intent and audit evidence, never dispatch authority",
-            "VerifiedToolEnforcementActivation",
-            "keeps its verification key and",
-            "rejected by dispatchable packet validation",
-            "scripts/run_native_pool_activation_preview.py",
-            "n1-read-only",
-            "n2-read-only",
-            "n1-mutable",
-            "--dry-run",
-            "--enable-tech-preview",
-            "verifies the clean commit/tree",
-            "without consuming the approval",
-            "exits 1 and reports its refusal on stderr",
-            "Archived activation procedure",
-            "run_admitted_native_pool",
-            "version-2 admitted contract passed directly",
-            "admitted-pool-launcher-required",
-            "capability_receipt=capability_receipt",
-            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41",
-            "Generation8FiniteDagContractTests",
-            "test_neutral_steering_is_strict_write_with_compatible_v1_read",
-        ]),
-        ("references/native-live-route-holds.md", [
-            "Historical campaign verification",
-            "7b2f3db802d7b1d1c4c555960d65d2502220f93b/scripts/cwo_core/native_campaign_history.py",
-            "bd458b84e9ab1ef7161fe43f555c11f6ebac8c41/scripts/cwo_core/native_canary_contracts.py",
-        ]),
-        ("references/execution-environments.md", [
-            "--tool-enforcement-override",
-            "audit-only intent",
-            "cannot start `supervise_native_worker.py`",
-            "Live execution is retired.",
-            "--dry-run",
-            "--enable-tech-preview",
-            "One supervised worker remains the standard path",
-            "Running two or three workers concurrently is an experimental Tech Preview",
-            "productive admission-bound",
-            "run_admitted_native_pool",
-            "Capacity four and above is blocked",
-            "Native Worker Supervision",
-            "Native Supervision Pools",
-        ]),
-        ("references/native-supervision.md", [
-            "Single-worker execution is the default",
-            "fresh Spark session with trusted model attestation",
-            "version-2 native worker packet",
-            "single-worker supervisor armed before task submission",
-            "one uninterrupted control turn",
-            "The packet's `scope.workdir` is the authoritative working directory",
-            "A check that returns exit code `2` means interrupt or control loss",
-            "group of two or three workers through the [registered contained pool]",
-            "Two workers",
-            "Three workers",
-            "Four or more",
-            "run_admitted_native_pool",
-            "Exact server-side tool allowlisting",
-            "--enable-tech-preview",
-        ]),
-        ('docs/reference.html', [
-            "id=\"activation-artifacts\"",
-            "references/native-supervision-pools.md",
-            "current",
-            "historical",
-        ]),
-    ):
-        require_doc_terms(errors, relative_path, terms)
+def _validate_documentation_group(errors: list[str], group: str) -> None:
+    path = REPO_ROOT / "tools" / "ci" / "required-documentation.json"
+    try:
+        groups = load_json(path)
+    except (OSError, ValueError) as exc:
+        errors.append(f"Could not read documentation requirements: {exc}")
+        return
+    rules = groups.get(group) if isinstance(groups, dict) else None
+    if not isinstance(rules, list) or not rules:
+        errors.append(f"Missing documentation requirements for {group!r}")
+        return
+    for rule in rules:
+        if not isinstance(rule, dict) or not all(
+            isinstance(values := rule.get(key), list)
+            and values
+            and all(isinstance(value, str) and value for value in values)
+            for key in ("files", "terms")
+        ):
+            errors.append(f"Invalid documentation requirements for {group!r}")
+            continue
+        for relative_path in rule["files"]:
+            require_doc_terms(errors, relative_path, rule["terms"])
 
 
-def _validate_public_entry_docs(errors: list[str]) -> None:
-    for relative_path, terms in (
-        ('README.md', [
-            "CWO is a Codex skill",
-            "tasks and their dependencies",
-            "first-project",
-            "Match coordination to the task",
-            "No model gets implicit trust.",
-            "Codex already plans",
-            "Some safeguards are code",
-            "development-stage",
-            "Historical Spark records",
-            "CONTRIBUTING.md",
-            "SECURITY.md",
-        ]),
-        ('docs/index.html', [
-            "A Codex skill",
-            "./get-started.html",
-            "./use-cases.html#cli-review",
-            "./use-cases.html",
-            "./explanation.html",
-            "./reference.html",
-        ]),
-        ('docs/explanation.html', [
-            "model",
-            "agent client",
-            "skill",
-            "Beads alone",
-            "AGENTS.md alone",
-            "Instructions versus executable controls",
-            "enforced",
-            "A review is not permission to act",
-            "Two models given different role prompts can still repeat the same unsupported claim",
-            "provider",
-            "./native-supervision.html",
-        ]),
-        ('docs/get-started.html', [
-            "signed-in Codex command-line client",
-            "github.com/gastownhall/beads",
-            "./install.html",
-            "./first-project.html",
-            "./continue-project.html",
-        ]),
-        ('docs/install.html', [
-            "CODEX_SKILLS_DIR",
-            "manage_instruction_profile.py install --profile architect",
-            "manage_instruction_profile.py verify --profile architect",
-        ]),
-        ('docs/first-project.html', [
-            "scripts/create_first_project.py",
-            "bd init",
-            "a CLI task blocked by it",
-            "HANDOFF.md",
-            "cwo-tutorial-start",
-            "provider",
-        ]),
-        ('docs/continue-project.html', ["fresh", "HANDOFF.md", "exit 0", "exit 1", "exit 2"]),
-        ('docs/tutorial-recovery.html', ["--uninstall", "git restore", "staged", "managed"]),
-        ("docs/beads-memory.html", [
-            "Beads stores tasks and dependencies",
-            "accepted decisions",
-            "Before closing an important task",
-            "context-depth",
-            "another person or agent",
-            "new session",
-            "Local-only storage is not remote backup",
-            "Dolt-backed",
-            "Outside reviewers receive only",
-            "./workflows.html#beads-graph",
-            "./reference.html#durable-memory",
-        ]),
-        ("docs/model-synthesis.html", [
-            "Compare model reviews and decide what to change",
-            "The combined review summary reports findings; the lead makes the decision",
-            "architect decides",
-            "Several models agreeing does not prove",
-            "accepted-with-modification",
-            "salvage-only",
-            "boundary-tainted",
-            "minimum usable primary inputs",
-            "provider identity",
-            "comparison of explicit claims",
-            "agreement is not validation",
-            "architect adjudication",
-            "./zero-trust-consensus.html",
-            "./external-contracting.html#multi-expert-review",
-            "./reference.html#experts",
-        ]),
-        ("docs/zero-trust-consensus.html", [
-            "Zero-Trust Consensus",
-            "Two models may repeat the same unsupported assumption",
-            "independent trust domains",
-            "agreement can reduce uncertainty",
-            "validation by itself",
-            "Record claims the helper can compare",
-            "zero_trust_claims",
-            "policy/zero-trust-consensus-policy.yaml",
-            "Which sources count separately?",
-            "Boundary-tainted",
-            "The allowed states are intentionally narrow",
-            "informational",
-            "blocked",
-            "divergent",
-            "Agreement remains evidence",
-            "./model-synthesis.html",
-            "./malpractice-sabotage.html",
-        ]),
-        ("docs/malpractice-sabotage.html", [
-            "Check model output before using it",
-            "untrusted evidence",
-            "malpractice",
-            "sabotage",
-            "boundary-tainted",
-            "quarantine",
-            "mutation-guard",
-            "incident-response",
-            "architect adjudication",
-            "Limits of these checks",
-            "Why provider and deployment limits belong in the record",
-            "Separate the source statement from your conclusion",
-            "Record limits without treating disclosure as failure",
-            "Provider conflict disposition",
-            "opaque intervention",
-            "classifier-triggered",
-            "source-bound and time-bound",
-            "boundary-risk patterns",
-            "sensitive-data requests",
-            "agreement is not validation",
-            "frontier LLM development",
-            "pretraining pipelines",
-            "distributed training infrastructure",
-            "ML accelerator design",
-            "Limit the assignment, then check the return",
-            "Expected Return Language",
-            "NFKC normalization",
-            "Mixed scripts",
-            "architect remains the decision owner",
-            "./zero-trust-consensus.html",
-            "./workflows.html#validate-handoff",
-            "./model-synthesis.html",
-        ]),
-        ("docs/prompt-coach.html", [
-            'Prompt Coach',
-            '/plan Use $complex-work-orchestration prompt coach',
-            'Codex may run this helper behind the scenes',
-            'Use direct script execution only',
-            'interactive_questions',
-            'scaffold_sizing',
-            'beads_context_depth',
-            'build_beads_brief.py',
-            '--data-sensitivity',
-            'data_sensitivity_provenance',
-            'Context option is always present',
-            'autosized depth as the recommended default',
-            '--scaffold-size tight',
-            'workerbee_parallelism',
-            'Subagents',
-            'The coach always asks',
-            'task-selected Luna-first route',
-            'Do not silently substitute',
-            'separately selected local or contractor route',
-            'deterministic check',
-            'Publish Release',
-            'editorial review before publish',
-            'reader-facing language',
-            'outside-sharing boundary',
-            'A focused local-model review after explicit opt-in',
-            'requires_user_selection_before_plan',
-            'selection_before_plan_reason',
-            './workflows.html',
-            'From your request to a reviewed plan',
-            'Define and size',
-            'Draft the plan',
-            'Get second opinions',
-            'Synthesize and revise',
-            'Execute only when permitted',
-            './model-synthesis.html#planning-example',
-            'Planning only: do not modify files or deploy',
-            'Do not implement, publish or make extra reviewer calls',
-        ]),
-        ('docs/workflows.html', [
-            "Codex supplies the agent tools",
-            "Beads stores the task state",
-            "CWO’s instructions and helpers",
-            "What survives",
-            "What it costs",
-            "Additional outside review is off by default",
-            "Do not substitute a delegated worker model",
-            "new allowance",
-            "./use-cases.html#conflicting-review",
-            "./get-started.html#recover",
-        ]),
-        ('docs/use-cases.html', [
-            "multi-session",
-            "conflicting-review",
-            "lab-operations",
-            "research-artifact",
-            "not live specialist conversations",
-            "Operator decision",
-            "Recovery",
-            "Not worth it",
-            "examples/worked-evidence/run_examples.py --check",
-            "rollback_verified",
-            "N3",
-            "VALIDATION.md",
-        ]),
-        ("docs/external-contracting.html", [
-            'Get a review from an outside model',
-            'specialist guide',
-            'Should this project use an outside model for this review?',
-            'contractor handoff packet',
-            'Build and check the brief before sending it',
-            'Give each reviewer the same question independently',
-            'contractor-only',
-            'contract-jd-security-reasoning',
-            'skills',
-            'acceptance',
-            'design',
-            'notes',
-            './workflows.html#optional-lanes',
-            './contractor-demo.html',
-            'What the historical contractor demo showed',
-            'operator-run CLI call',
-            'agy -p',
-            'Executor access',
-            'Codex runtime account must be able to invoke',
-            'operator-approved privilege escalation',
-            'External CLIs receive only the rendered prompt',
-            'Beads authority',
-            'merge permission',
-            './model-synthesis.html',
-            './zero-trust-consensus.html',
-            './malpractice-sabotage.html',
-            './use-cases.html#conflicting-review',
-            'agree what may be shared',
-            'normalize_contractor_return.py',
-            'workspace_mutation_guard.py',
-            'closure-memory comment',
-            'Unexpected tracked-file',
-            'Expected return language',
-            'Required reviewer gate',
-            'remains blocking',
-            'stop dependent implementation',
-            'the operator changes it',
-            'model confirmation',
-            'model picker label confirmed by the sender',
-            'ChatGPT desktop app',
-            './model-synthesis.html#planning-example',
-        ]),
-        ("docs/local-workers.html", [
-            "Local Models",
-            "Guided Workflow",
-            "Ask for a specific local review",
-            "Confirm local dispatch and review requirements",
-            "Choose an endpoint and model profile",
-            "Large-cluster enterprise architecture",
-            "enterprise-scale OpenShift AI clusters",
-            "benchmark gate",
-            "Prepare the request without calling the model",
-            "Make the approved model call",
-            "Check the answer and record what may be used",
-            "/plan Use $complex-work-orchestration prompt coach",
-            "--local-ok",
-            "--prefer-local",
-            "--local-profile openshift-ai-vllm",
-            "--execute-local",
-            "local-worker-only",
-            "no-codex-exec",
-            "architect adjudication",
-            "OpenAI-compatible",
-            "demonstrated task fit",
-            "curl",
-            "codex_pickup=forbidden",
-            "evaluate_return.py",
-            "./workflows.html#optional-lanes",
-        ]),
-        ('docs/reference.html', [
-            "installation",
-            "updates",
-            "troubleshooting",
-            "CODEX_HOME",
-            "modified managed files",
-            "Luna-first",
-            "Historical",
-            "qualification",
-            "native-supervision",
-            "controls",
-            "preview_site.py",
-            "CONTRIBUTING.md",
-        ]),
-        ("docs/codex-beads-hooks.html", [
-            "Keep Beads context without noisy hook output",
-            "SessionStart",
-            "bd codex-hook SessionStart",
-            "full-context",
-            "visibilityHint",
-            "hookSpecificOutput.additionalContext",
-            "scripts/configure_codex_beads_hooks.py",
-            "--allow-degraded-context",
-            "compact-degraded",
-            "SubagentStart",
-            "Beads 1.0.5",
-        ]),
-        ("docs/contractor-demo.html", [
-            "Historical example: two outside contractors",
-            "hello-world contractor demo",
-            "gprocunier/hello-world-contractor-demo",
-            "https://gprocunier.github.io/hello-world-contractor-demo/",
-            "Codex PM",
-            "Antigravity",
-            "Claude Code",
-            "The request that started the demo",
-            "/plan Use $complex-work-orchestration prompt coach",
-            "Ask before external sharing",
-            "Access needed before calling the outside tools",
-            "Codex runtime account must be able to invoke",
-            "operator-approved privilege escalation",
-            "A contractor packet does not grant shell access",
-            "External CLIs receive only the rendered",
-            "not Beads authority",
-            "closure-memory comment",
-            "agy -p",
-            "claude -p",
-            "separated packet preparation from the model call",
-            "--allow-disclosure-escalation",
-            "contractor-return.md",
-            "normalize_contractor_return.py",
-            "evaluate_return.py",
-            "workspace_mutation_guard.py",
-            "unexpected tracked-file mutation",
-            "file://",
-            "Beads had no Dolt remote",
-            "the coordinating agent’s and lead’s responsibilities",
-        ]),
-        ("docs/styles.css", [
-            ":focus-visible",
-            "@media",
-            "--red",
-            "system-map",
-            "matrix-list",
-            "doc-layout",
-            "page-nav",
-            "callout",
-        ]),
-        ("SKILL.md", [
-            "When To Use",
-            "Operating Defaults",
-            "First Moves",
-            "Scaffold Choices",
-            "Reference Map",
-            "Contractor And Local Worker Gates",
-            "Run Readiness And Closeout",
-            "Explicit coach requests",
-            "coach options before plan creation",
-            "operator continuation packet",
-            "Next executable Bead",
-            "Commit/push status",
-            "Execution prompt",
-            "scripts/coach_prompt.py",
-            "scripts/cleanup_stale_agents.py",
-            "scripts/workspace_mutation_guard.py",
-            "references/prompt-coach.md",
-            "references/external-contracting.md",
-            "Beads tracking is mandatory",
-            "--scaffold-size tight",
-            "bd dolt remote list",
-            "docs/workflows.html",
-            "docs/local-workers.html",
-            "references/run-readiness.md",
-            "references/codex-beads-hooks.md",
-            "references/redhat-expert-catalog.md",
-            "policy/executor-registry.yaml",
-            "scripts/close_bead_with_summary.py",
-        ]),
-    ):
-        require_doc_terms(errors, relative_path, terms)
+def _validate_skill_size(errors: list[str]) -> None:
     skill_path = REPO_ROOT / "SKILL.md"
     if skill_path.is_file():
         skill_content = skill_path.read_text(encoding="utf-8")
@@ -2159,227 +1755,6 @@ def _validate_public_entry_docs(errors: list[str]) -> None:
         for count, unit, limit in ((line_count, "lines", 220), (word_count, "words", 1600)):
             if count > limit:
                 errors.append(f"SKILL.md should stay router-sized: {count} {unit} > {limit}")
-
-
-def _validate_reference_and_template_docs(errors: list[str]) -> None:
-    closure_terms = (
-        "closure-memory",
-        "who was involved",
-        "what changed",
-        "how validated",
-        "when closed",
-        "where executed",
-        "evidence",
-        "residual risk",
-        "follow-up",
-    )
-    for relative_path, terms in (
-        ("references/redhat-expert-catalog.md", [
-            "contract-jd-redhat-openshift-platform",
-            "contract-jd-redhat-openshift-app-dev",
-            "contract-jd-redhat-openshift-ai",
-            "contract-jd-redhat-rhoso",
-            "contract-jd-redhat-rhacm",
-            "contract-jd-redhat-rhacs",
-            "contract-jd-redhat-rhel",
-            "Identity Management",
-            "Satellite",
-        ]),
-        ("references/prompt-coach.md", [
-            "interactive_questions",
-            "requires_user_selection_before_plan",
-            "selection_before_plan_reason",
-            "selection_before_plan_question_ids",
-            "CWO Operator Handoff Packet",
-            "exact command/resume",
-            "execution prompt",
-            "Use direct script execution only",
-            "beads_tracking_required",
-            "workerbee_parallelism",
-            "review-only",
-            "Subagent Parallelism",
-            "heavy review subagents",
-            "in-thread",
-            "lightweight-beads",
-            "full-harness",
-            "external-contract",
-            "local-worker",
-            "publish-release",
-            "Scaffold Size",
-            "Sprint Continuation",
-            "Data Sensitivity Declaration",
-            "--data-sensitivity",
-            "data_sensitivity_provenance",
-            "Exact contract labels belong",
-        ]),
-        ("references/run-readiness.md", [
-            "Run Readiness Gate",
-            "summarizes saved Beads state",
-            "criterion maps to an artifact, validator, or review gate",
-            "Rubrics have a version",
-            "typed projections",
-            "Unsupported or boundary-breaking returns are quarantined",
-            "Next-version items have a typed reason",
-            "Patrol or recurring work remains research-only",
-            "scripts/render_run_projection.py",
-            "wrap-up-status",
-            "criterion_ids",
-            "provider_neutral_execution",
-            "out-of-scope",
-            "needs-credential",
-            "needs-research",
-            "hardening",
-            "later-version",
-            "blocked",
-            "schemas/run-readiness-plan.schema.json",
-            "examples/sample-run-readiness-plan.json",
-            "scripts/validate_run_readiness_plan.py",
-            "templates/run-readiness-plan.md",
-            "Architect adjudication is the handoff decision",
-        ]),
-        ("references/codex-beads-hooks.md", [
-            "Codex Beads Hooks",
-            "bd codex-hook SessionStart",
-            "full-context",
-            "visibilityHint",
-            "hookSpecificOutput.additionalContext",
-            "compact-degraded",
-            "--allow-degraded-context",
-            "SubagentStart",
-            "Beads 1.0.5",
-            "scripts/build_beads_brief.py",
-            "scripts/build_contractor_packet.py",
-        ]),
-        ("examples/prompt-coach-examples.md", [
-            "interactive_questions",
-            "advanced helper equivalent",
-            "beads_tracking_required",
-            "Parallel Subagent Review",
-            "workerbee_parallelism.recommended_mode=review-only",
-            "review-subagents",
-            "Heavy Subagent Review",
-            "workerbee_parallelism.recommended_mode=heavy-review",
-            "heavy-review-subagents",
-            "Explicit Scaffold",
-            "Contractor Workstream Scaffold",
-            "Narrow In-Thread Work",
-            "Lightweight Beads Plan",
-            "Full Harness",
-            "External Security Contractor",
-            "OpenShift AI vLLM Local Worker",
-            "/plan Use $complex-work-orchestration prompt coach",
-            "local-worker-only",
-            "no-codex-exec",
-            "architect adjudication",
-            "Local Worker Mention Without Opt-In",
-            "Publish Release Gate",
-            "Publication Editorial Review",
-            "editor review before publish sanitization",
-            "contract labels belong in",
-            "zero_trust_consensus_required",
-            "Declared Data Sensitivity",
-            "data_sensitivity_source=operator-declared",
-        ]),
-        ("references/external-contracting.md", [
-            'Peer-review disposition',
-            'malpractice_score',
-            'contract-jd-sabotage-review',
-            'contract-jd-editorial-reasoning',
-            'Hello-World Contractor Demo Lessons',
-            'gprocunier/hello-world-contractor-demo',
-            'in-Codex `/plan Use $complex-work-orchestration prompt coach',
-            'Executor access prerequisite',
-            'Codex runtime account must be able to',
-            'operator-approved privilege escalation',
-            'The contractor packet does not grant shell access',
-            'prompt-file or stdin-safe mode',
-            'command arguments may be visible',
-            'Beads authority',
-            'merge permission',
-            'agy -p',
-            'claude -p',
-            'dispatch prompt',
-            'file://',
-            'contract-jd-master-plan-review',
-            'closure-memory comment',
-            'policy/zero-trust-consensus-policy.yaml',
-            'zero_trust_claims',
-            'Trust Model And Enforcement Boundary',
-            'outside the audit guarantee',
-            'Expected Return Language Guard',
-            'expected_return_language: en',
-            'required reviewer gate',
-            'Confirm the approved route, model selection',
-            'stop dependent implementation',
-            'An explicit operator decision',
-            'desktop workflow and availability',
-        ]),
-        ("references/chatgpt-pro-browser.md", [
-            'visible message text',
-            'ChatGPT desktop app',
-            '@Chrome',
-            'prepare-browser',
-            '--browser-reply',
-            '--request-id',
-            '--model-label',
-            'host audit',
-            'before dependent implementation',
-        ]),
-        ("references/zero-trust-consensus.md", [
-            "Zero-Trust Consensus",
-            "zero_trust_consensus_required",
-            "zero_trust_claims",
-            "independent trust domains",
-            "Agreement is evidence, not validation",
-            "policy/zero-trust-consensus-policy.yaml",
-        ]),
-        *((path, list(closure_terms)) for path in (
-            "templates/work-task.md",
-            "templates/review-task.md",
-            "templates/external-contract.md",
-            "templates/contractor-evaluation.md",
-            "templates/acceptance-decision.md",
-            "templates/followup-task.md",
-            "templates/local-worker-task.md",
-            "templates/epic.md",
-        )),
-        ("templates/followup-task.md", ["closure summary"]),
-        ("experts/editor.md", [
-            "Editor Distinguished Engineer",
-            "contract-jd-editorial-reasoning",
-            "Diataxis",
-            "docs/pages flow",
-            "AI-slop",
-            "internal process leakage",
-            "Design-source or design-corpus",
-            "private vocabulary",
-            "reference/operator lookup",
-            "public-copy validator evidence",
-            "Required prerequisites",
-            "Acceptance criteria",
-        ]),
-        ("references/incident-response-playbook.md", [
-            "malpractice_score",
-            "peer_review_status",
-            "recommended_disposition",
-            "zero-trust consensus status",
-        ]),
-        ("references/local-inference.md", [
-            "/plan Use $complex-work-orchestration prompt coach",
-            "OpenShift AI vLLM",
-            "CWO_OPENSHIFT_AI_VLLM_BASE_URL",
-            "--local-ok",
-            "--prefer-local",
-            "--local-profile openshift-ai-vllm",
-            "--execute-local",
-            "scripts/dispatch_work.py",
-            "architect adjudication",
-            "expected_return_language: en",
-        ]),
-    ):
-        require_doc_terms(errors, relative_path, terms)
-    validate_local_inference_peer_review_guidance(errors)
-    validate_public_docs_do_not_expose_hardware_categories(errors)
 
 
 def require_doc_terms(errors: list[str], relative_path: str, terms: list[str]) -> None:

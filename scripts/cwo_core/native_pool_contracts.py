@@ -535,12 +535,11 @@ POOL_RECEIPT_LEGACY_TIMING_FIELDS = {
     "poll_interval_ms",
     "poll_lag_tolerance_ms",
 }
+_POOL_RECEIPT_TIMING_BUCKETS = (
+    "callback_ns", "noncallback_invoke_ns", "coordinator_ns", "wait_ns",
+)
 POOL_RECEIPT_EXCLUSIVE_TIMING_FIELDS = POOL_RECEIPT_LEGACY_TIMING_FIELDS | {
-    "accounting_version",
-    "callback_ns",
-    "noncallback_invoke_ns",
-    "coordinator_ns",
-    "wait_ns",
+    "accounting_version", *_POOL_RECEIPT_TIMING_BUCKETS,
 }
 
 
@@ -2402,12 +2401,7 @@ def validate_pool_receipt(
         if "accounting_version" in timing:
             if timing.get("accounting_version") != "exclusive-v1":
                 errors.append("invalid-timing-accounting-version")
-            for field in (
-                "callback_ns",
-                "noncallback_invoke_ns",
-                "coordinator_ns",
-                "wait_ns",
-            ):
+            for field in _POOL_RECEIPT_TIMING_BUCKETS:
                 if not _is_int(timing.get(field)):
                     errors.append(f"invalid-timing-{field.replace('_', '-')}")
     child_receipts = receipt.get("child_terminal_receipts")
@@ -2470,25 +2464,9 @@ def validate_pool_receipt(
         timing is not None
         and timing.get("accounting_version") == "exclusive-v1"
         and _is_number(receipt.get("pool_wall_seconds"))
-        and all(
-            _is_int(timing.get(field))
-            for field in (
-                "callback_ns",
-                "noncallback_invoke_ns",
-                "coordinator_ns",
-                "wait_ns",
-            )
-        )
+        and all(_is_int(timing.get(field)) for field in _POOL_RECEIPT_TIMING_BUCKETS)
     ):
-        accounted_ns = sum(
-            timing[field]
-            for field in (
-                "callback_ns",
-                "noncallback_invoke_ns",
-                "coordinator_ns",
-                "wait_ns",
-            )
-        )
+        accounted_ns = sum(timing[field] for field in _POOL_RECEIPT_TIMING_BUCKETS)
         wall_ns = round(float(receipt["pool_wall_seconds"]) * 1_000_000_000)
         if abs(accounted_ns - wall_ns) > 1:
             errors.append("timing-buckets-do-not-reconcile-with-pool-wall")
