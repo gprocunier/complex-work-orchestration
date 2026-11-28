@@ -13,7 +13,7 @@ import json
 import os
 from pathlib import Path
 import stat
-from typing import Any
+from typing import Any, Mapping
 
 from . import policy
 from .adjudication import bind_inputs, dispatch_provenance, hold_clearance, load_registries, resolve_adjudication
@@ -237,7 +237,8 @@ def _supports(record, observation, observed_support, root):
     return tuple(_support_one(item, expected[key], observation, root) for item, key in zip(items, names))
 
 
-def _evaluation_disposition(result):
+def evaluation_disposition(result: Mapping[str, Any]) -> str:
+    """Project the recorded evaluation to its synthesis disposition."""
     if result['verdict'] == 'quarantine':
         return 'quarantined'
     if result['verdict'] == 'reject':
@@ -297,7 +298,7 @@ def _normalized(observation, record, *, expected: ExpectedContext | None = None,
     # Project the ACTUAL result conservatively, never an accepting held verdict.
     entry = {**result, 'lane': context.dispatch_id, 'dispatch_id': context.dispatch_id,
         'return_sha256': observation.return_sha256,
-        'disposition': _evaluation_disposition(result)}
+        'disposition': evaluation_disposition(result)}
     dispatch = {'record_type': 'cwo-dispatch-record', 'version': 1, 'dispatch_id': context.dispatch_id,
         'return_sha256': observation.return_sha256, 'candidate': context.candidate, 'executor': context.executor}
     if observed_dispatch is not None:
@@ -392,3 +393,6 @@ def synthesis_preparation(prepared: PreparedAdjudication, expected: ExpectedCont
 def status_preparation(prepared: PreparedAdjudication, expected: ExpectedContext) -> dict[str, Any]:
     # Serialize the SAME state; a status adapter cannot silently drop restrictions.
     return synthesis_preparation(prepared, expected)
+
+
+_evaluation_disposition = evaluation_disposition

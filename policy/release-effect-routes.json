@@ -784,7 +784,7 @@
 
 "aI":[84,"AuthorizeSolBreakfixTests.test_requires_explicit_allow_flag",67,"fpjKoo0q0LcDUwoDkLOPYIHLPh-1zuhQibZjDjCciWw"],
 
-"aJ":[55,"main",2118,"Fg9Mi8nF8MWKp9PJAhY3y8mtdqGVH5D08CE8lXEXJns"],
+"aJ":[55,"main",2153,"Fg9Mi8nF8MWKp9PJAhY3y8mtdqGVH5D08CE8lXEXJns"],
 
 "aL":[2,31,"if not args.allow_sol_breakfix:"],
 
@@ -818,7 +818,7 @@
 
 "ab":[130,"ReleaseEffectRoutesTests._expert_pair",1425,"kbSL3z98wq8WFbfj0KkDTNRoVaiQppuvgqDUaS6drPs"],
 
-"ac":[11,151,"if path.is_symlink() or not path.is_file() or path.resolve() != path.absolute():"],
+"ac":[11,143,"if path.is_symlink() or not path.is_file() or path.resolve() != path.absolute():"],
 
 "af":[16,"main",445,"xGTyvJBuUHMW3Y79KWf5XWPd_J2FsJJRCJStdqc50s4"],
 
@@ -922,7 +922,7 @@
 
 "bj":[85,"BeadsArgvShapeTests.test_exact_structured_show_puts_json_before_the_separator",115,"qi7HO-HbgGPVchCbvdP_hwgdWwwQKZPe6J_VsP7DovI"],
 
-"bl":[54,237,"_need(os.environ.get(\"CWO_PY\") in (\"312\", \"314\"), \"The fixed offline runner is required.\")"],
+"bl":[54,241,"_need(os.environ.get(\"CWO_PY\") in (\"312\", \"314\"), \"The fixed offline runner is required.\")"],
 
 "bm":[93,"SuccessfulClosureUnavailableTests.test_closable_non_completion_outcomes_still_close",210,"biUqSOs9Y6qvDyXdhZWoumbeDW38JoS0Q-H62nMnwVE"],
 
@@ -1014,13 +1014,13 @@
 
 "cJ":[74,"validate_and_acquire_global_campaign_claim",313,"d_ahEIC997foEyS0SS0MmWax2sZY9IcaHL9YHsnJkXw"],
 
-"cL":[54,"ExampleInputProcess._exchange",236,"t06C66GiL8LNIqQVSDFTmoLvTAGCq0v8MH7OpBtgvqM"],
+"cL":[54,"ExampleInputProcess._exchange",240,"v2uGaeJTzHlvA3TNLhz0RaSSSDxxuui_RJ2Jdg4a86k"],
 
 "cM":[34,"prepare_activation_plan",1294,"p-ij8pQTY7jVgUrFYNE4AG3MLvC9vveRRM17dtU7rmQ"],
 
 "cN":[136,"example_plan",43,"ibaGSIpq5tH57uhJEMizDUPdIwZQ3xgBxViEc7zkX3I"],
 
-"cO":[9,"main",979,"cy-QfmQ9fxyd-FqivXSD_Z8lIIc6FdZ8xJTJ9sPbVto"],
+"cO":[9,"main",1028,"cy-QfmQ9fxyd-FqivXSD_Z8lIIc6FdZ8xJTJ9sPbVto"],
 
 "cP":[60,"_ReviewScope.enter",399,"CGo-gOUMPbBGDaUgpWGetZu60g9cXrI8r3FdVxn-VOQ"],
 
@@ -1072,7 +1072,7 @@
 
 "ct":[19,"main",21,"eThUxT4TXbu8TqdPK6Wi12h0D5ETuSNvripDT6BiUbg"],
 
-"cv":[11,148,"interpreter()",11,148,24],
+"cv":[11,140,"interpreter()",11,140,24],
 
 "cw":[67,252,{"$":13},12,252,47],
 
@@ -1184,7 +1184,7 @@
 
 "ds":[44,"_preflight_local_model",1509,"pUv2XLvOBhBM-22FO6AXQSD0fkiQ0HIN6J9nfpoR9jA"],
 
-"dt":[11,"observe",187,"VDK1ZrOF1-OYRPdvB2nsItXaWkU_IVgDsCu23vTiCN0"],
+"dt":[11,"observe",179,"VDK1ZrOF1-OYRPdvB2nsItXaWkU_IVgDsCu23vTiCN0"],
 
 "du":[38,1619,"if plan_errors:"],
 
@@ -1220,7 +1220,7 @@
 
 "eA":[71,"main",17,"vpX76nxqn_R8rHtkgkA8isqg_Mk9K54woVCP6HZt4f0"],
 
-"eB":[57,"produce",280,"-zwcwUOqkteOIAFQpFXP6F4qwEE0Jyz2SQyX7b1jvlM"],
+"eB":[57,"produce",280,"T05oLTx5OlLHPgwVaFTLHwCA3yKXM_RfUo5Q-ovzxgI"],
 
 "eC":[37,452,"result = self._run((\"update\", \"--claim\", \"--json\", \"--\", issue_id))"],
 
@@ -1378,7 +1378,7 @@
 
 "fi":[75,408,{"$":256}],
 
-"fj":[9,212,{"$":98}],
+"fj":[9,196,{"$":98}],
 
 "fk":[98,"F1ProductionClosureGuardTests.test_r4_C01_F1_default_gate_refuses_before_setup_and_reads_with_patched_positive_control",23,"qWTl8E_LwD-6wYK-B7MuVG44SnLRtwHC9JImBWISLuo"],
 
@@ -1404,7 +1404,7 @@
 
 "fw":[103,"InstallerProjectionTests.test_missing_required_entry_refuses_install_and_dry_run_without_change",607,"IgYG_0EaCFhEydPeKMkBMAua7ymNBWWP167FMqMm5SM"],
 
-"fx":[9,230,"result = subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)"],
+"fx":[9,214,"result = subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)"],
 
 "fy":[73,"_start_activation_server",95,"5zkEWP1yaB82gP48WkvhOExRL3q37xVSFiN-6tgnjuc"],
 
@@ -1542,13 +1542,13 @@
 
 "h5":[214,{"$":441},63,"xSLX4Nw6gBhMOHm4tnKWJ5G9V9jrVFCpI_Gi5mdLv74"],
 
-"h6":[218,322,"if any(value is not None for value in (args.candidate, args.scope, args.adjudications, args.route)) or args.zero_trust_required:"],
+"h6":[218,326,"if any(value is not None for value in (args.candidate, args.scope, args.adjudications, args.route)) or args.zero_trust_required:"],
 
 "h7":[60,413,"checked.require_intent()"],
 
-"h8":[11,"measure",146,"OGhwtb9heIp96gxgIeKyjlHuWHkjLU3d3OvhEZBy2PQ"],
+"h8":[11,"measure",138,"OGhwtb9heIp96gxgIeKyjlHuWHkjLU3d3OvhEZBy2PQ"],
 
-"h9":[218,"main",329,"Vb76PIbxNjJ5JX8ZA7PrwFTN96CU1Syr71Gj3V5Bnu8"],
+"h9":[218,"main",333,"Vb76PIbxNjJ5JX8ZA7PrwFTN96CU1Syr71Gj3V5Bnu8"],
 
 "hA":[25,298,"if spec[\"mode\"] == \"shell-source\":"],
 
@@ -1640,7 +1640,7 @@
 
 "hu":[22,"AtomicChild",43,"35UYEtop-eG3HqVAfE4HDDCvc7e7uB5rLtcf5Qb7o84"],
 
-"hv":[54,242,"child = subprocess.Popen([sys.executable, \"-I\", \"-S\", \"-c\", _CHILD], cwd=worker,"],
+"hv":[54,246,"child = subprocess.Popen([sys.executable, \"-I\", \"-S\", \"-c\", _CHILD], cwd=worker,"],
 
 "hw":[48,69,"verify_provenance_pin(raw, expected)",8,69,44],
 
@@ -1724,7 +1724,7 @@
 
 "id":[49,332,"entries=\"$(projection_list --list-entries)\" || die \"source does not satisfy the installed projection ($PROJECTION); nothing was installed\""],
 
-"ie":[218,345,"print(json.dumps(result, indent=2, sort_keys=True))"],
+"ie":[218,349,"print(json.dumps(result, indent=2, sort_keys=True))"],
 
 "if":[51,"_LinuxEngine._capability",658,"sT7nuF1AHheWVOlYHmiZD6h3lK9MOITRCyw0jRmYRGY"],
 
@@ -1854,7 +1854,7 @@
 
 "jn":[156,"PoolConfigurationTests.test_default_tier_contract",91,"S0cNBp6hxSLxGrVfuL5Pn9Hav81X-zFjDOpNuv4DFdg"],
 
-"jo":[174,37,"_await_original_contexts(controls)"],
+"jo":[174,43,"_await_original_contexts(controls)"],
 
 "jp":[199,"OrdinaryPoolIngressTests._foreground_pool_decision",179,"MABWzcOvDJe0EVZL2xckFupmwJ-udyyNDDw0qoX0mVQ"],
 
@@ -1942,7 +1942,7 @@
 
 "kl":[23,295,"run_bd(args)",17,295,29],
 
-"km":[9,230,"subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)",13,230,95],
+"km":[9,214,"subprocess.run([\"ruff\", \"--version\"], capture_output=True, text=True, check=False)",13,214,95],
 
 "kn":[76,1382,"create_bead(\n                item[\"title\"],\n                parent=epic[\"id\"],\n                # One priority rule for direct creation and the Beads graph plan.\n                priority=item_priority(item, index),\n                labels=item[\"labels\"],\n                skills=item[\"skills\"],\n                description=planned_description(item, key),\n                acceptance=str(item[\"acceptance\"]),\n                design=str(item[\"design\"]),\n                notes=str(item[\"notes\"]),\n                metadata=item.get(\"metadata\"),\n            )",19,1394,13],
 
@@ -1966,7 +1966,7 @@
 
 "l":[176,86,"_worker_home(home, primary)",11,86,38],
 
-"l0":[28,244,"_need(type(source_context) is dict"],
+"l0":[28,246,"_need(type(source_context) is dict"],
 
 "l1":[82,"AcceptanceProductFlowTests.closure",154,"vt_4ZRytzwToArtXAmOHraBX35INyex---bmEldrU0E"],
 
@@ -1976,7 +1976,7 @@
 
 "l4":[138,"delivery_evidence",21,"wQtZhNfG1UVeVSDetm_6JXcKJjTGTCGAP2fz225ZrNA"],
 
-"l5":[28,242,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
+"l5":[28,244,"_need(accepted.get(\"source_context\") == source_context, \"accepted source context differs from dispatch\")"],
 
 "l6":[138,"WorkflowAdjudicationTests.source",111,"ARUJO6dNUmDpramf--GkSDzHE4ErBTyJ69TRu_q6ki8"],
 
@@ -1994,9 +1994,9 @@
 
 "lG":[19,17,{"$":313},4,17,95],
 
-"lH":[9,212,"subprocess.run(\n        [*RUFF_COMMAND, \"--no-respect-gitignore\", *inventory],\n        cwd=root, capture_output=True, text=True, check=False, env=env,\n    )",13,215,5],
+"lH":[9,196,"subprocess.run(\n        [*RUFF_COMMAND, \"--no-respect-gitignore\", *inventory],\n        cwd=root, capture_output=True, text=True, check=False, env=env,\n    )",13,199,5],
 
-"lJ":[54,242,"subprocess.Popen([sys.executable, \"-I\", \"-S\", \"-c\", _CHILD], cwd=worker,\n            env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",16,243,90],
+"lJ":[54,246,"subprocess.Popen([sys.executable, \"-I\", \"-S\", \"-c\", _CHILD], cwd=worker,\n            env={}, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE)",16,247,90],
 
 "lN":[64,1585,"super().request(*args, **kwargs)",17,1585,49],
 
@@ -2010,7 +2010,7 @@
 
 "lX":[59,747,"_bd(state, [\"comment\", \"--\", bead[\"id\"], summary])",8,747,58],
 
-"lY":[28,231,"_need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {\"session_id\"},"],
+"lY":[28,233,"_need(type(identity) is dict and set(identity) == IDENTITY_FIELDS | {\"session_id\"},"],
 
 "lZ":[58,22,"if type(value) is not dict or set(value) != {\"task\", \"scope\", \"candidate\"}:"],
 
@@ -2178,7 +2178,7 @@
 
 "mu":[52,"install",60,"uh3KN2RLGfCjEDn8zWY_T7Qj-AZ9dxGaXsVbkOPiwHE"],
 
-"mv":[54,238,"_need(not self.exchanges, \"The EXAMPLE input process is one-shot; retry is forbidden.\")"],
+"mv":[54,242,"_need(not self.exchanges, \"The EXAMPLE input process is one-shot; retry is forbidden.\")"],
 
 "mw":[51,646,"self._spawn(expected, lambda spec: self._adapter.spawn(birth, argv, executable, workspace))",19,646,110],
 
@@ -2988,7 +2988,7 @@
 
 "v5":[29,"HostRecordStore.__init__",385,"rSJ9YvuKtR1_X3rYVk76a160bX1T5VCDmYkrR8TjReg"],
 
-"v6":[11,171,"runpy.run_path(str(paths[1]), run_name=\"__w21_measurement__\")"],
+"v6":[11,163,"runpy.run_path(str(paths[1]), run_name=\"__w21_measurement__\")"],
 
 "v7":[137,"PrivatePidReuseOSControlTests._retain_boundary_observations",474,"IDeX9Lo52btkIeXILElMwXI00UEHBzvPyp9NkvpX3NI"],
 
@@ -4505,9 +4505,9 @@
 
 [1,216,11,216,56,"dynamic","p32Wcw9IcsCBNcqZ8kEpQK1m2ScIIaoaCGNaIzGkXE0",[{"$":9},"aw"]],
 
-[2,212,13,215,5,"process","Vqqyc6cslSRuy_gBcQ2meCuywNgY_WoJRVBpviXLFxo",["route","X6.1","lH"]],
+[2,196,13,199,5,"process","Vqqyc6cslSRuy_gBcQ2meCuywNgY_WoJRVBpviXLFxo",["route","X6.1","lH"]],
 
-[2,230,13,230,95,"process","De-OB8tdNxgWygd728zcDVX79HXNPKA1XYcHJMFIv28",["route","X6.1","km"]],
+[2,214,13,214,95,"process","De-OB8tdNxgWygd728zcDVX79HXNPKA1XYcHJMFIv28",["route","X6.1","km"]],
 
 [4,51,13,52,72,"process","DS1sHSyKOm6xYz6E4zrShSWvTPZzFKc1j8Ug4uVg3Ng",["route","X6.2","le"]],
 
@@ -4611,9 +4611,9 @@
 
 [13,365,4,365,106,"beads","Yhhiw5H3JRsyuTPfU9bXEqjEmPLCS_EcslEYHTvjUZY",["route","B9.4","kL"]],
 
-[14,1258,21,1258,40,"dynamic",{"$":89},[{"$":9},"a9"]],
+[14,1295,21,1295,40,"dynamic",{"$":89},[{"$":9},"a9"]],
 
-[14,1259,22,1259,42,"dynamic","b2prbKA2aJzBqK976jlrp8cFO8WO3AbBWI-xbnw5i88",[{"$":9},"ba"]],
+[14,1296,22,1296,42,"dynamic","b2prbKA2aJzBqK976jlrp8cFO8WO3AbBWI-xbnw5i88",[{"$":9},"ba"]],
 
 [15,303,19,303,201,"process","19UON6kPg7A6K19mSIwXjebFw_s13_RoUsiWNuuDODU",["route","X1.2","k2"]],
 
@@ -5099,7 +5099,7 @@
 
 [43,675,19,675,44,"dynamic",{"$":192},[{"$":9},"dS"]],
 
-[90,326,11,326,84,{"$":3},"BxQXymhrN4ga9Ofy-LQe2k22wNBOFhfkBKy2nxFw14g",[{"$":9},"authority-protected-synthesis-client"]],
+[90,330,11,330,84,{"$":3},"BxQXymhrN4ga9Ofy-LQe2k22wNBOFhfkBKy2nxFw14g",[{"$":9},"authority-protected-synthesis-client"]],
 
 [88,70,4,70,53,"beads","tL-5k4gLzdn43GnJyjbm47nstYqCfzOB5L9s-GCvqN0",["route","B11.2","mz"]],
 
@@ -5217,19 +5217,19 @@
 
 [53,432,17,432,40,"dynamic",{"$":229},[{"$":9},"ew"]],
 
-[54,90,16,90,38,"dynamic",{"$":52},[{"$":9},"ex"]],
+[54,94,16,94,38,"dynamic",{"$":52},[{"$":9},"ex"]],
 
-[54,91,40,91,72,"dynamic",{"$":88},[{"$":9},"ey"]],
+[54,95,40,95,72,"dynamic",{"$":88},[{"$":9},"ey"]],
 
-[54,92,50,92,82,"dynamic",{"$":83},[{"$":9},"ez"]],
+[54,96,50,96,82,"dynamic",{"$":83},[{"$":9},"ez"]],
 
-[54,242,16,243,90,"process","RUQ8iRV6NilsRF5Cljs8CcYUWZZD7u1SglLbI3Yf7bM",["route","X2.2","lJ"]],
+[54,246,16,247,90,"process","RUQ8iRV6NilsRF5Cljs8CcYUWZZD7u1SglLbI3Yf7bM",["route","X2.2","lJ"]],
 
-[54,281,15,281,67,"dynamic","VDT1ADxKEq9fTEyHb98Mv_V8BUH1lM827fR2j51rZBA",[{"$":9},"eA"]],
+[54,287,15,287,67,"dynamic","VDT1ADxKEq9fTEyHb98Mv_V8BUH1lM827fR2j51rZBA",[{"$":9},"eA"]],
 
-[54,325,11,325,57,"dynamic","lgG8zv9_m7lwB7koKxsLONAcoeaxpRyZdOdwp3nvkoU",[{"$":9},"eB"]],
+[54,331,11,331,57,"dynamic","lgG8zv9_m7lwB7koKxsLONAcoeaxpRyZdOdwp3nvkoU",[{"$":9},"eB"]],
 
-[54,333,16,333,65,"dynamic","nzWwSrXhEBXA_GrSwzUmc13WIqVdIesRW5esreMfY9A",[{"$":9},"eC"]],
+[54,339,16,339,65,"dynamic","nzWwSrXhEBXA_GrSwzUmc13WIqVdIesRW5esreMfY9A",[{"$":9},"eC"]],
 
 [55,129,13,129,41,"dynamic",{"$":182},[{"$":9},"eD"]],
 
@@ -5243,9 +5243,9 @@
 
 [55,147,15,147,73,"dynamic",{"$":84},[{"$":9},"eI"]],
 
-[56,2141,19,2141,39,"dynamic",{"$":80},[{"$":9},"eJ"]],
+[56,2176,19,2176,39,"dynamic",{"$":80},[{"$":9},"eJ"]],
 
-[56,2143,15,2143,35,"dynamic",{"$":80},[{"$":9},"eK"]],
+[56,2178,15,2178,35,"dynamic",{"$":80},[{"$":9},"eK"]],
 
 [57,13,9,13,62,"dynamic","MgfmciW8w2YYZEw1QHTt6pqoDz2O8amTSbkirRuZxMs",[{"$":9},"XR441"]],
 
@@ -6734,7 +6734,7 @@
 
 "@109":["Mmde4erNcu3wLV49icpoBm_daE5mlpEkd-t-_f8GJlc",420,57385],
 
-"@11":["htaD6jlGOoWD832WGs4PHkBMHU7KEvTWcM--fFBfdso",420,17233],
+"@11":["laqBbFFQ0gTuF4fDAcxGezAzdei_3ZyNXd0fUwqBVZg",420,16778],
 
 "@110":["3e3Zd_q5IUuM1qX43twzPf07pXjDpupuC9QhnERtGco",420,28027],
 
@@ -6854,7 +6854,7 @@
 
 "@165":["TYqkvPgx0blpBSfpIOYyfqIob8chY3XnTfSeLuQ40KU",420,17856],
 
-"@166":["sAZT9JkORrXLNCC2NtUYeUXTZp6ENRXscjxpvi7VDXg",420,28764],
+"@166":["I8vQMCmfn2uV9tj3I82IbyTh_DrsC8yrj89cEzmzGhk",420,28874],
 
 "@168":["cp4GLde3x8B1NCzMW5vBEMxWfkqDcjJ7GD84uCZfoPQ",420,49479],
 
@@ -6870,7 +6870,7 @@
 
 "@173":["i7KNwVs42welSgdc6T0fWRMjuuM8DGgudDPC9L1rKIg",420,8498],
 
-"@174":["i0W81ez4Ll-GgiYI3FOuPFvDM8k3HlyrJ4TqjwYc3ps",420,3915],
+"@174":["KzhbACmg2DgFrgItkBIvOHSRLe7kOLIgRaW8G39DQ1c",420,4637],
 
 "@175":["py_P7xSx__EQmYCJs5266i4nHFFeMlyfG_SNssvJASc",420,11598],
 
@@ -6968,7 +6968,7 @@
 
 "@217":["dmAbyrwsZ_H2-cju0VFxPELrxIto89FIQjz8Uf24q2c",420,15537],
 
-"@218":["vP-3TmvQmXQ3AMB9Je-sqpQSvJTkZ6yJEhlf4QK3Xjs",493,19314],
+"@218":["4A0bQP3Vz4V-8lJmuwqJIjijeIUn6kpH5xTD2p_lqfc",493,19402],
 
 "@219":["KAxYB56cSvrpYM7otSp4wRmrkXdFDBuyvNf9M3eIttA",420,28567],
 
@@ -6988,7 +6988,7 @@
 
 "@27":["4xWincalZn6rH6iaAPIxu-nKCFt-N0PqJT7etk706xg",420,40785],
 
-"@28":["H9Gku_A2eopKOD_qJKdQP1gEgoWRaGhlwXndABwfS6U",420,21454],
+"@28":["lTvNrGbk0cBe4pPUaqg4sx6gDWZqbGzGGctH6lG8xQI",420,22238],
 
 "@29":["91A1wiC3zHAHpxmf3tt3pm_OwVi3obmspcRYxvVipGM",420,43706],
 
@@ -7040,13 +7040,13 @@
 
 "@53":["XgL51lGYupC7NOYP6_DXRLsFOWonLKbfbeqk2sxeJPY",420,35854],
 
-"@54":["s2z5hJAfglFcyaX6UPIh5FPq3x7om0ODi2vbxucYcuQ",420,25405],
+"@54":["wpYCxMdCwZnO04IcYClYt3YIe0LkowOFxANJ_n27vz8",420,26845],
 
-"@55":["rRV3AiAdM48-_q31F-qaPSLEqJ8OYii2tEPgB9W7BGI",420,110511],
+"@55":["3XOymZD9rfywrmH0ooqNk-Xz5WwTjngVPdEvytoZzyo",420,111526],
 
 "@56":["M8O71tGEy5wqCsOwMqRmvby9bnWwjBHVPZ-llZzTha0",420,1726],
 
-"@57":["cvk9O7uLCsmFZ-w1H0YHrrEp20MeBkn9Rc9t_nj47-w",420,17526],
+"@57":["iBc3qj1GcQANA-UMgzPygRzCvGTdMIgxh8EoU1IVZ94",420,17586],
 
 "@58":["s0xsi-TR_8qTMoZJMEKcUVPumO1SEt2FSAEBodjtJlo",420,5434],
 
@@ -7110,7 +7110,7 @@
 
 "@87":["vIsueexTEHusnpeWlui4l6CQ0EmLMO7qtQ2AIDezfd8",420,23606],
 
-"@9":["5bzlm98aIwSUJ7uujDKGYv6mSSW0yRx0gjDcmsYs5uw",420,49677],
+"@9":["FovpzR01PnBp19zCNVTHk1xHLJwWUlOzJFIaMigSMYg",420,51361],
 
 "@90":["TLtb5QBhYPmCavz4VT8oulEGQVO8fIpx9kbYVboK62w",420,19192],
 
@@ -7156,11 +7156,11 @@
 
 "scripts/cwo_core/__init__.py":["uRvJy59Xtmpy9sngu-WHSiUf_UPqGfIrc7-13chOFXM",420,3935],
 
-"scripts/cwo_core/access_profiles.py":["2lC0xX3ZK3Ut05NAyEuODqb3Q78Tw8DuakVP-4ppiqQ",420,12119],
+"scripts/cwo_core/access_profiles.py":["H-MRK1xji2UeoSMN0ZmfQIeHGP8MSCgVhtfslygVD9U",420,12167],
 
 "scripts/cwo_core/adjudication.py":["-hZheSwXmBn68qAzgoNjJvBK-Rn4-V6_9rnHCyoYEA0",420,24376],
 
-"scripts/cwo_core/adjudication_binding.py":["5wQJU4jP2eHvc1ugVr3gBawyj0YzpQZQkBL8GKiIocA",420,18251],
+"scripts/cwo_core/adjudication_binding.py":["1r22teOv4O-GHoU4yOt-avkB95NN3j8plQovBqJAmvg",420,18407],
 
 "scripts/cwo_core/adjudication_source.py":["xCJWtl9ZxyT-TK3t-_935R1XSxo4R_km21BmwJW-TTY",420,17075],
 
@@ -7168,7 +7168,7 @@
 
 "scripts/cwo_core/audit_segments.py":["N4ud1f8BXL44DUdnq_rkCf1WrfMEJV-mFdPR0I0OyxI",420,11965],
 
-"scripts/cwo_core/beads_ready_set.py":["1thiIJSrWT1sP4y4ngFkYuQMQPDB7ILHAicSFbzeyPI",420,72147],
+"scripts/cwo_core/beads_ready_set.py":["qIbA0t01VanUC5lsNXVthC9yf_JY4rp4pPkaUlhXvhg",420,73416],
 
 "scripts/cwo_core/chatgpt_urls.py":["snQgt8w8wj-dmp_XFtYyjtI-Rpf2zQ9PFF9FuHlhMkY",420,734],
 
@@ -7188,7 +7188,7 @@
 
 "scripts/cwo_core/execution_enhancement_metrics.py":["N6TKKElAPklIroC_lNeYczgXyAhQW3fMJ0uGdzWQjL0",420,3891],
 
-"scripts/cwo_core/execution_status_report.py":["vN34S26xXRYqcGkwlYsYh1jtBW3k84bYjbnZWYtkA-8",420,105906],
+"scripts/cwo_core/execution_status_report.py":["k7aGNBBYYLFgFhbxANbjtARvBDr_Vz9Qtr4mjwk1QY4",420,104433],
 
 "scripts/cwo_core/frozen_protocol.py":["udzaFoZcIArSlyfAsTyJsWfRs5ycg2rWXmDiRaAZpvI",420,25676],
 
@@ -7228,7 +7228,7 @@
 
 "scripts/cwo_core/native_containment.py":["IZKFg5IIFKQudLx7a6Tm1ePL_J0YlAXSNlaWNYX_MHE",420,7668],
 
-"scripts/cwo_core/native_control.py":["KSpikt3B4sJsHIwc4exQdUZ6B8UaLkRjxQkis8SFnJU",420,24378],
+"scripts/cwo_core/native_control.py":["wUQk9_afapqGSyY0nCqDrsPN_hnTSAghxoqOWSFssT8",420,24087],
 
 "scripts/cwo_core/native_disposition.py":["6dI8LVr7dM7BHnSlLjJ4Z6xlrG3c6dM6-C6HIZeCoBI",420,7648],
 
@@ -7244,7 +7244,7 @@
 
 "scripts/cwo_core/native_pool_config.py":["umDwP27VZ_6wOBHw1mZSCj8Z-lLDiOGRu934SOL7tek",420,36031],
 
-"scripts/cwo_core/native_pool_contracts.py":["HguZx7X7eVRtMXIbLMgmtGZJWcj2WmZxYneMbCvaFn4",420,124666],
+"scripts/cwo_core/native_pool_contracts.py":["L3ly0rr6JsrBuhfKwIoJaRtcAoeFnrHIwAB5uULKw28",420,125384],
 
 "scripts/cwo_core/native_pool_deferred_attestation.py":["tc8HfpPIuR4TtLtWo34caLQ1aMqJTffsbUW7pa2a9GI",420,9054],
 
@@ -7252,7 +7252,7 @@
 
 "scripts/cwo_core/native_pool_leases.py":["BQaZ5iKv4atCgAONLRYz750Vr889PrXcx-JSjI1x5ug",420,25727],
 
-"scripts/cwo_core/native_pool_preflight.py":["T4gMEfSeotgYJkMCaY9XyOGj2R8XU-sLHO9qIuJwMFc",420,78537],
+"scripts/cwo_core/native_pool_preflight.py":["sXMWfIJohO7sO7O0g2GVFS403mliQXI_hHvJIblYt4Y",420,79939],
 
 "scripts/cwo_core/native_pool_proportionality.py":["MDXOBsy1CKOL9LkSts8zfBuYiyCo44WInvBhUBxtvaY",420,80954],
 
@@ -7278,7 +7278,7 @@
 
 "scripts/cwo_core/native_release.py":["pqGrZV5RxlAwB4Xe4Wdjo5rUW2yB__Y6nROxFh27eHM",420,36425],
 
-"scripts/cwo_core/native_replanning.py":["dBjFDmLDO8s5zsWkRB8gNT8sQD7-E4WTJ6O5aJnMye4",420,93446],
+"scripts/cwo_core/native_replanning.py":["c0O8snpW8X9OtOPTnmOCgnSrqTg-gKrxcH5x3DYQpfY",420,93761],
 
 "scripts/cwo_core/native_retry.py":["TZ7hsg1BvyPPwj1azzWvP8Y-SgM9m7cm293Liu1JIEU",420,30757],
 
@@ -7352,7 +7352,7 @@
 
 "scripts/cwo_core/route_feasibility.py":["nj4kt1Oy6wNp_saSO0OsUTO1XRl-u-JfyPNd6cz_Wys",420,17323],
 
-"scripts/cwo_core/routing.py":["oIxYB5ApabSMp_ZnDRSXVGHcjZ7c0IKCPI_yprDBa-E",420,78068],
+"scripts/cwo_core/routing.py":["2iyJg0PQ_q7WX_HtNj7vbqyFNwASEbdebzdPUWOqux0",420,78614],
 
 "scripts/cwo_core/routing_signals.py":["yWu6vKNnizk0NPTjDzXn9XHpEXUPnTMmEwGclONeQqg",420,6184],
 
@@ -7396,7 +7396,7 @@
 
 "scripts/everyday_delegation_delivery.py":["LuLHo3j3CYlKaM9oxbQdlEpXIIG8LXsMaibYt4zi0NQ",420,3657],
 
-"scripts/evidence_use.py":["YDhwd-mV9n2mCcuh_n34-2p7Y_b9VSYHj41wfBpSv6Q",420,9494],
+"scripts/evidence_use.py":["Ia7p0WxERuiIu1ToVaqwygBup7ujq3cf3RddN7DjSQY",420,9493],
 
 "scripts/example_diagrams.py":["MC2TU6qc0wuqeHaVd-sGPl8DLm7mvam1SwetZ2O-KKQ",420,13410],
 
@@ -7474,7 +7474,7 @@
 
 "scripts/render_run_projection.py":["ItC_BTiu77ktRyWCflgXSAAGthWtxljiWVxQuQ9c1rc",493,10984],
 
-"scripts/replay_epic_convergence.py":["jQ0vyeUP-jglvKB1ZqcGMfr20hwk6zKsYwTU_Yzhbog",420,18327],
+"scripts/replay_epic_convergence.py":["D-kUNO88cTxN5078dOErKgQZY_Ru3rbFesJsktGhMGY",420,16598],
 
 "scripts/route_work.py":["7Kb-QJQpnm2djpAyR2bwSentjPaxNvxJJItWCdvvLM0",493,10654],
 
@@ -7502,7 +7502,7 @@
 
 "scripts/validate_public_copy.py":["Nh2VF3xdNxmpccEZqUMcJTUD9LW-oEhvzOCJKawL4hc",420,62905],
 
-"scripts/validate_repository.py":["Lf4fe02E3e0-IrRTi_-YiAIcQcXnkRxjhkW24Odzc9o",420,117606],
+"scripts/validate_repository.py":["2SVNWbD8mpvYAzlCPED_h-b4z_8ZDSn92Kxd-yr31HU",420,92913],
 
 "scripts/validate_run_readiness_plan.py":["eOh8Jx0MhjjmZlqhcUFpe5E6tYTyKsSuz8Cm0vg8nq8",493,19544],
 
@@ -7514,7 +7514,7 @@
 
 "scripts/workspace_mutation_guard.py":["JP4HVc4FaiQ01dyvaCPPpK59WqIH6CL1BkibvKcnT8Q",493,3115],
 
-"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["TB-o-ZRGoqdVyiDD71g3WRIWfqw2pga8R2htSdsB_VA",420,143537],
+"tests/fixtures/affected_contract_compatibility/EXAMPLE-manifest.json":["qggAudbL9Tyn0sRatmVg8S9Pm8W2aZcISm6jIUDj0-o",420,143537],
 
 "tests/fixtures/browser-capture-v5/host/audit.jsonl":["_gqR3Q40vhVYoV4og0-Nm0Rm7UQ1kOBh4fuT3wia1CU",420,3656],
 
@@ -7540,13 +7540,13 @@
 
 "tests/test_core_resource_tool_profiles.py":["BLcVQF-zTyYeX3fskFBF-ZnSo4wB5Y5p-rLf7G11O9M",420,16187],
 
-"tests/test_cwo_core_import_contract.py":["hplW4c0L9TvhIjIwlJih4Ru5V6-miMxwFkgmYBkfJmU",420,25677],
+"tests/test_cwo_core_import_contract.py":["lp_Yd6dQXHszf79MEL47ZY3rttlmcpmyDTsKZzwEDDg",420,25687],
 
 "tests/test_registered_startup_publication.py":["ehNz28XVNrM_cMOYcmEZcTZ1r7ioUbzdArV00sy3Zuc",420,13496],
 
 "tests/test_turn_observations.py":["bv8rFwyIv9tFCgWj1UtgIaZ-jfEHkrIkwhyJUkENpjU",420,22744],
 
-"tests/test_validate_repository.py":["EAmTyxPeaHpvmB4U2hYstNzNtICjUXS1byo50vCrSko",420,44869],
+"tests/test_validate_repository.py":["-7m8RAQU-YuivIsfGvZDlDQKCsXJahKqaXPzpeI_Lsg",420,46896],
 
 "tests/test_w20_affected_contract_w13.py":["pObZRcvYgOiAcf7fjL2JfkzhoAyQ3bxatzioRC29Dz0",420,67757]
 },

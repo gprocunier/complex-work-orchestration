@@ -861,18 +861,9 @@ def _admission_findings(
     ]
 
 
-def run_pool_preflight(
-    request: Mapping[str, Any],
-    *,
-    activation_capability: VerifiedToolEnforcementActivation | None = None,
-    override_authorization: VerifiedPoolPreflightOverride | None = None,
-    policy_document: Mapping[str, Any] | None = None,
-) -> dict[str, Any]:
-    """Return a deterministic result; no model or worker session is consulted."""
-
-    capacity_limits = load_pool_capacity(policy_document)
-    request_sha256 = _safe_request_sha256(request)
-    findings: list[dict[str, Any]] = []
+def _request_map_and_version(
+    request: Mapping[str, Any], findings: list[dict[str, Any]],
+) -> tuple[dict[str, Any], bool]:
     if not isinstance(request, Mapping):
         request_map: dict[str, Any] = {}
         findings.append(
@@ -895,7 +886,12 @@ def run_pool_preflight(
         if shape is not None:
             findings.append(shape)
     admitted_v2 = request_map.get("version") == ADMITTED_PREFLIGHT_VERSION
+    return request_map, admitted_v2
 
+
+def _check_request_header(
+    request_map: Mapping[str, Any], admitted_v2: bool, findings: list[dict[str, Any]],
+) -> Any:
     if (
         request_map.get("preflight_type") != PREFLIGHT_REQUEST_TYPE
         or request_map.get("version")
@@ -945,6 +941,424 @@ def run_pool_preflight(
                     "Use a lowercase canonical RFC 4122 UUID string.",
                 )
             )
+    return stage
+
+
+def _check_children_shape(
+    request_map: Mapping[str, Any], requested_workers: Any, findings: list[dict[str, Any]],
+) -> list[Any]:
+    children_value = request_map.get("children")
+    children = children_value if isinstance(children_value, list) else []
+    if not isinstance(children_value, list) or not children:
+        findings.append(
+            _finding(
+                "children.shape",
+                "error",
+                {"observed_type": type(children_value).__name__},
+                "Declare one effective-environment record per child.",
+            )
+        )
+    if _integer(requested_workers, 1) and len(children) != requested_workers:
+        findings.append(
+            _finding(
+                "children.cardinality",
+                "error",
+                {"requested_workers": requested_workers, "child_count": len(children)},
+                "Make the fixed child cohort equal requested_workers.",
+            )
+        )
+    return children
+
+
+def _check_admitted_child_identity(
+    child: Mapping[str, Any], index: int, findings: list[dict[str, Any]],
+) -> None:
+    for field in ("bead_id", "work_unit_id", "requested_model"):
+        if not _nonempty(child.get(field)):
+            findings.append(
+                _finding(
+                    "admission.child-identity",
+                    "error",
+                    {"child_index": index, "field": field},
+                    "Provide the exact admitted child identity.",
+                )
+            )
+    for field in PREFLIGHT_CHILD_ADMISSION_FIELDS - {
+        "bead_id",
+        "work_unit_id",
+        "requested_model",
+    }:
+        if not _sha256(child.get(field)):
+            findings.append(
+                _finding(
+                    "admission.child-identity",
+                    "error",
+                    {"child_index": index, "field": field},
+                    "Provide the exact admitted child identity.",
+                )
+            )
+
+
+def _check_child_identity(
+    child: Mapping[str, Any], index: int, stage: Any, identities: dict[str, list[Any]],
+    findings: list[dict[str, Any]],
+) -> None:
+    for field in identities:
+        identities[field].append(child.get(field))
+    if not _nonempty(child.get("child_id")):
+        findings.append(
+            _finding(
+                "identity.child-id",
+                "error",
+                {"child_index": index},
+                "Provide a stable non-empty child ID.",
+            )
+        )
+    for field in ("packet_id", "attempt_nonce", "lease_id"):
+        if not _canonical_uuid(child.get(field)):
+            findings.append(
+                _finding(
+                    "identity.canonical-uuid",
+                    "error",
+                    {
+                        "child_index": index,
+                        "field": field,
+                        "value_sha256": _value_sha256(child.get(field)),
+                    },
+                    "Use a lowercase canonical RFC 4122 UUID string.",
+                )
+            )
+    expected_packet_sha256 = effective_child_packet_sha256(child)
+    if (
+        not _sha256(child.get("packet_sha256"))
+        or child.get("packet_sha256") != expected_packet_sha256
+    ):
+        findings.append(
+            _finding(
+                "contract.packet-binding",
+                "error",
+                {
+                    "child_index": index,
+                    "expected_sha256": expected_packet_sha256,
+                    "observed_sha256": _value_sha256(child.get("packet_sha256")),
+                },
+                "Recompute the child packet digest from the exact effective inputs.",
+            )
+        )
+    if stage == "pre-allocation":
+        if child.get("session_id") is not None or child.get("agent_id") is not None:
+            findings.append(
+                _finding(
+                    "identity.preallocation-session-state",
+                    "error",
+                    {"child_index": index},
+                    "Leave session_id and agent_id null before allocation.",
+                )
+            )
+    elif stage == "pre-dispatch":
+        for field in ("session_id", "agent_id"):
+            if not _canonical_uuid(child.get(field)):
+                findings.append(
+                    _finding(
+                        "identity.canonical-uuid",
+                        "error",
+                        {
+                            "child_index": index,
+                            "field": field,
+                            "value_sha256": _value_sha256(child.get(field)),
+                        },
+                        "Use the canonical UUID returned by the trusted session service.",
+                    )
+                )
+        if child.get("session_id") != child.get("agent_id"):
+            findings.append(
+                _finding(
+                    "identity.session-agent-binding",
+                    "error",
+                    {"child_index": index},
+                    "Bind the child agent to the exact allocated session.",
+                )
+            )
+
+
+def _check_child_budget(
+    child: Mapping[str, Any], index: int, isolation: Any, budget_sum: dict[str, int],
+    findings: list[dict[str, Any]],
+) -> bool:
+    child_budget = child.get("hard_budget")
+    child_budget_errors = _budget_errors(child_budget)
+    if child_budget_errors:
+        findings.append(
+            _finding(
+                "budget.child-shape",
+                "error",
+                {"child_index": index, "errors": child_budget_errors},
+                "Provide every per-child hard-budget dimension.",
+            )
+        )
+    else:
+        assert isinstance(child_budget, Mapping)
+        for field in BUDGET_FIELDS:
+            budget_sum[field] += int(child_budget[field])
+        completion = child.get("completion_evidence_policy")
+        minimum_tool_calls = (
+            completion.get("minimum_tool_calls")
+            if isinstance(completion, Mapping)
+            else None
+        )
+        if (
+            _integer(minimum_tool_calls)
+            and minimum_tool_calls > child_budget["tool_calls"]
+        ):
+            findings.append(
+                _finding(
+                    "completion.budget-satisfiable",
+                    "error",
+                    {
+                        "child_index": index,
+                        "minimum_tool_calls": minimum_tool_calls,
+                        "tool_call_budget": child_budget["tool_calls"],
+                    },
+                    "Increase the child tool-call budget or reduce required evidence.",
+                )
+            )
+        if isolation == "mutable-isolated" and child_budget["mutations"] < 1:
+            findings.append(
+                _finding(
+                    "completion.budget-satisfiable",
+                    "error",
+                    {
+                        "child_index": index,
+                        "mutation_budget": child_budget["mutations"],
+                    },
+                    "Reserve at least one mutation for a mutable child.",
+                )
+            )
+        if isolation == "read-only-shared" and child_budget["mutations"] != 0:
+            findings.append(
+                _finding(
+                    "completion.budget-satisfiable",
+                    "error",
+                    {
+                        "child_index": index,
+                        "mutation_budget": child_budget["mutations"],
+                    },
+                    "Set the mutation budget to zero for a read-only child.",
+                )
+            )
+    return not child_budget_errors
+
+
+def _check_child_paths(
+    child: Mapping[str, Any], index: int, isolation: Any, mutable_targets: list[tuple[int, str]],
+    findings: list[dict[str, Any]],
+) -> None:
+    write_paths = child.get("declared_write_paths")
+    write_errors = _validate_relative_paths(write_paths)
+    if write_errors:
+        findings.append(
+            _finding(
+                "topology.declared-write-paths",
+                "error",
+                {"child_index": index, "errors": write_errors},
+                "Use unique canonical relative declared write paths.",
+            )
+        )
+    target_paths = child.get("integration_target_paths")
+    target_errors = _validate_relative_paths(target_paths)
+    if target_errors:
+        findings.append(
+            _finding(
+                "topology.target-paths",
+                "error",
+                {"child_index": index, "errors": target_errors},
+                "Use unique canonical relative integration target paths.",
+            )
+        )
+    elif isolation == "mutable-isolated":
+        if not target_paths:
+            findings.append(
+                _finding(
+                    "topology.target-paths",
+                    "error",
+                    {"child_index": index, "reason": "mutable-targets-empty"},
+                    "Declare at least one integration target for a mutable child.",
+                )
+            )
+        else:
+            mutable_targets.extend((index, str(path)) for path in target_paths)
+    elif isolation == "read-only-shared" and target_paths:
+        findings.append(
+            _finding(
+                "topology.target-paths",
+                "error",
+                {"child_index": index, "reason": "read-only-targets-present"},
+                "Remove integration targets from read-only children.",
+            )
+        )
+    if isolation == "read-only-shared" and write_paths:
+        findings.append(
+            _finding(
+                "topology.declared-write-paths",
+                "error",
+                {"child_index": index, "reason": "read-only-writes-present"},
+                "Remove declared writes from read-only children.",
+            )
+        )
+    if isolation == "mutable-isolated" and not write_errors and not target_errors:
+        _check_mutable_writes(index, write_paths, target_paths, findings)
+
+
+def _check_mutable_writes(
+    index: int, write_paths: Any, target_paths: Any, findings: list[dict[str, Any]],
+) -> None:
+    if not write_paths:
+        findings.append(
+            _finding(
+                "topology.declared-write-paths",
+                "error",
+                {"child_index": index, "reason": "mutable-writes-empty"},
+                "Declare at least one write path for a mutable child.",
+            )
+        )
+    else:
+        for write_path in write_paths:
+            write_parts = PurePosixPath(str(write_path)).parts
+            if not any(
+                PurePosixPath(str(target)).parts
+                == write_parts[: len(PurePosixPath(str(target)).parts)]
+                for target in target_paths
+            ):
+                findings.append(
+                    _finding(
+                        "topology.write-outside-target",
+                        "error",
+                        {
+                            "child_index": index,
+                            "write_path_sha256": _value_sha256(write_path),
+                        },
+                        "Keep every declared write under an integration target.",
+                    )
+                )
+
+
+def _check_unique_child_identities(
+    identities: dict[str, list[Any]], findings: list[dict[str, Any]],
+) -> None:
+    for field, values in identities.items():
+        comparable = [value for value in values if value is not None]
+        if len(comparable) != len(set(comparable)):
+            findings.append(
+                _finding(
+                    "identity.unique-child-binding",
+                    "error",
+                    {"field": field},
+                    "Use a unique value for every child identity and nonce field.",
+                )
+            )
+
+
+def _check_child_target_overlap(
+    mutable_targets: list[tuple[int, str]], findings: list[dict[str, Any]],
+) -> None:
+    for index, (left_child, left) in enumerate(mutable_targets):
+        left_parts = PurePosixPath(left).parts
+        for right_child, right in mutable_targets[index + 1 :]:
+            if left_child == right_child:
+                continue
+            right_parts = PurePosixPath(right).parts
+            if (
+                left_parts == right_parts[: len(left_parts)]
+                or right_parts == left_parts[: len(right_parts)]
+            ):
+                findings.append(
+                    _finding(
+                        "topology.mutable-overlap",
+                        "error",
+                        {
+                            "left_child_index": left_child,
+                            "right_child_index": right_child,
+                            "left_path_sha256": _value_sha256(left),
+                            "right_path_sha256": _value_sha256(right),
+                        },
+                        "Assign non-overlapping mutable integration targets.",
+                    )
+                )
+
+
+def _format_preflight_result(
+    findings: list[dict[str, Any]], request_sha256: str, contract_sha256: str | None,
+    stage: Any, admitted_v2: bool, reservation: Any, result_authority: dict[str, Any] | None,
+) -> dict[str, Any]:
+    findings.sort(
+        key=lambda item: (
+            item["rule_id"],
+            item["severity"],
+            canonical_sha256(item["evidence"]),
+        )
+    )
+    accepted = not any(
+        item["severity"] == "error" and item["overridden"] is not True
+        for item in findings
+    )
+    result = {
+        "result_type": PREFLIGHT_RESULT_TYPE,
+        "version": (ADMITTED_PREFLIGHT_VERSION if admitted_v2 else PREFLIGHT_VERSION),
+        "schema": (
+            ADMITTED_PREFLIGHT_RESULT_SCHEMA if admitted_v2 else PREFLIGHT_RESULT_SCHEMA
+        ),
+        "stage": stage if stage in PREFLIGHT_STAGES else None,
+        "request_sha256": request_sha256,
+        "contract_sha256": contract_sha256,
+        "decision": "accept" if accepted else "reject",
+        "accepted": accepted,
+        "findings": findings,
+        "override_authority": result_authority,
+    }
+    if admitted_v2:
+        result.update(
+            {
+                "admission_reservation_sha256": (
+                    reservation.get("reservation_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+                "fixed_cohort_sha256": (
+                    reservation.get("fixed_cohort_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+                "child_bindings_sha256": (
+                    reservation.get("child_bindings_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+                "claim_set_sha256": (
+                    reservation.get("claim_set_sha256")
+                    if isinstance(reservation, Mapping)
+                    else None
+                ),
+            }
+        )
+    result["result_sha256"] = canonical_sha256(result)
+    return result
+
+
+def run_pool_preflight(
+    request: Mapping[str, Any],
+    *,
+    activation_capability: VerifiedToolEnforcementActivation | None = None,
+    override_authorization: VerifiedPoolPreflightOverride | None = None,
+    policy_document: Mapping[str, Any] | None = None,
+) -> dict[str, Any]:
+    """Return a deterministic result; no model or worker session is consulted."""
+
+    capacity_limits = load_pool_capacity(policy_document)
+    request_sha256 = _safe_request_sha256(request)
+    findings: list[dict[str, Any]] = []
+    request_map, admitted_v2 = _request_map_and_version(request, findings)
+
+    stage = _check_request_header(request_map, admitted_v2, findings)
 
     integration_root = request_map.get("integration_root")
     if not _nonempty(integration_root) or not Path(str(integration_root)).is_absolute():
@@ -1013,26 +1427,7 @@ def run_pool_preflight(
             )
         )
 
-    children_value = request_map.get("children")
-    children = children_value if isinstance(children_value, list) else []
-    if not isinstance(children_value, list) or not children:
-        findings.append(
-            _finding(
-                "children.shape",
-                "error",
-                {"observed_type": type(children_value).__name__},
-                "Declare one effective-environment record per child.",
-            )
-        )
-    if _integer(requested_workers, 1) and len(children) != requested_workers:
-        findings.append(
-            _finding(
-                "children.cardinality",
-                "error",
-                {"requested_workers": requested_workers, "child_count": len(children)},
-                "Make the fixed child cohort equal requested_workers.",
-            )
-        )
+    children = _check_children_shape(request_map, requested_workers, findings)
 
     normalized_children: list[Mapping[str, Any]] = []
     worktrees: list[Path] = []
@@ -1068,106 +1463,8 @@ def run_pool_preflight(
         child = dict(raw_child)
         normalized_children.append(child)
         if admitted_v2:
-            for field in ("bead_id", "work_unit_id", "requested_model"):
-                if not _nonempty(child.get(field)):
-                    findings.append(
-                        _finding(
-                            "admission.child-identity",
-                            "error",
-                            {"child_index": index, "field": field},
-                            "Provide the exact admitted child identity.",
-                        )
-                    )
-            for field in PREFLIGHT_CHILD_ADMISSION_FIELDS - {
-                "bead_id",
-                "work_unit_id",
-                "requested_model",
-            }:
-                if not _sha256(child.get(field)):
-                    findings.append(
-                        _finding(
-                            "admission.child-identity",
-                            "error",
-                            {"child_index": index, "field": field},
-                            "Provide the exact admitted child identity.",
-                        )
-                    )
-        for field in identities:
-            identities[field].append(child.get(field))
-        if not _nonempty(child.get("child_id")):
-            findings.append(
-                _finding(
-                    "identity.child-id",
-                    "error",
-                    {"child_index": index},
-                    "Provide a stable non-empty child ID.",
-                )
-            )
-        for field in ("packet_id", "attempt_nonce", "lease_id"):
-            if not _canonical_uuid(child.get(field)):
-                findings.append(
-                    _finding(
-                        "identity.canonical-uuid",
-                        "error",
-                        {
-                            "child_index": index,
-                            "field": field,
-                            "value_sha256": _value_sha256(child.get(field)),
-                        },
-                        "Use a lowercase canonical RFC 4122 UUID string.",
-                    )
-                )
-        expected_packet_sha256 = effective_child_packet_sha256(child)
-        if (
-            not _sha256(child.get("packet_sha256"))
-            or child.get("packet_sha256") != expected_packet_sha256
-        ):
-            findings.append(
-                _finding(
-                    "contract.packet-binding",
-                    "error",
-                    {
-                        "child_index": index,
-                        "expected_sha256": expected_packet_sha256,
-                        "observed_sha256": _value_sha256(child.get("packet_sha256")),
-                    },
-                    "Recompute the child packet digest from the exact effective inputs.",
-                )
-            )
-        if stage == "pre-allocation":
-            if child.get("session_id") is not None or child.get("agent_id") is not None:
-                findings.append(
-                    _finding(
-                        "identity.preallocation-session-state",
-                        "error",
-                        {"child_index": index},
-                        "Leave session_id and agent_id null before allocation.",
-                    )
-                )
-        elif stage == "pre-dispatch":
-            for field in ("session_id", "agent_id"):
-                if not _canonical_uuid(child.get(field)):
-                    findings.append(
-                        _finding(
-                            "identity.canonical-uuid",
-                            "error",
-                            {
-                                "child_index": index,
-                                "field": field,
-                                "value_sha256": _value_sha256(child.get(field)),
-                            },
-                            "Use the canonical UUID returned by the trusted session service.",
-                        )
-                    )
-            if child.get("session_id") != child.get("agent_id"):
-                findings.append(
-                    _finding(
-                        "identity.session-agent-binding",
-                        "error",
-                        {"child_index": index},
-                        "Bind the child agent to the exact allocated session.",
-                    )
-                )
+            _check_admitted_child_identity(child, index, findings)
+        _check_child_identity(child, index, stage, identities, findings)
 
         raw_worktree = child.get("worktree")
         if not _nonempty(raw_worktree) or not Path(str(raw_worktree)).is_absolute():
@@ -1326,162 +1623,12 @@ def run_pool_preflight(
                     )
                 )
 
-        child_budget = child.get("hard_budget")
-        child_budget_errors = _budget_errors(child_budget)
-        if child_budget_errors:
+        if not _check_child_budget(child, index, isolation, budget_sum, findings):
             budgets_complete = False
-            findings.append(
-                _finding(
-                    "budget.child-shape",
-                    "error",
-                    {"child_index": index, "errors": child_budget_errors},
-                    "Provide every per-child hard-budget dimension.",
-                )
-            )
-        else:
-            assert isinstance(child_budget, Mapping)
-            for field in BUDGET_FIELDS:
-                budget_sum[field] += int(child_budget[field])
-            completion = child.get("completion_evidence_policy")
-            minimum_tool_calls = (
-                completion.get("minimum_tool_calls")
-                if isinstance(completion, Mapping)
-                else None
-            )
-            if (
-                _integer(minimum_tool_calls)
-                and minimum_tool_calls > child_budget["tool_calls"]
-            ):
-                findings.append(
-                    _finding(
-                        "completion.budget-satisfiable",
-                        "error",
-                        {
-                            "child_index": index,
-                            "minimum_tool_calls": minimum_tool_calls,
-                            "tool_call_budget": child_budget["tool_calls"],
-                        },
-                        "Increase the child tool-call budget or reduce required evidence.",
-                    )
-                )
-            if isolation == "mutable-isolated" and child_budget["mutations"] < 1:
-                findings.append(
-                    _finding(
-                        "completion.budget-satisfiable",
-                        "error",
-                        {
-                            "child_index": index,
-                            "mutation_budget": child_budget["mutations"],
-                        },
-                        "Reserve at least one mutation for a mutable child.",
-                    )
-                )
-            if isolation == "read-only-shared" and child_budget["mutations"] != 0:
-                findings.append(
-                    _finding(
-                        "completion.budget-satisfiable",
-                        "error",
-                        {
-                            "child_index": index,
-                            "mutation_budget": child_budget["mutations"],
-                        },
-                        "Set the mutation budget to zero for a read-only child.",
-                    )
-                )
 
-        write_paths = child.get("declared_write_paths")
-        write_errors = _validate_relative_paths(write_paths)
-        if write_errors:
-            findings.append(
-                _finding(
-                    "topology.declared-write-paths",
-                    "error",
-                    {"child_index": index, "errors": write_errors},
-                    "Use unique canonical relative declared write paths.",
-                )
-            )
-        target_paths = child.get("integration_target_paths")
-        target_errors = _validate_relative_paths(target_paths)
-        if target_errors:
-            findings.append(
-                _finding(
-                    "topology.target-paths",
-                    "error",
-                    {"child_index": index, "errors": target_errors},
-                    "Use unique canonical relative integration target paths.",
-                )
-            )
-        elif isolation == "mutable-isolated":
-            if not target_paths:
-                findings.append(
-                    _finding(
-                        "topology.target-paths",
-                        "error",
-                        {"child_index": index, "reason": "mutable-targets-empty"},
-                        "Declare at least one integration target for a mutable child.",
-                    )
-                )
-            else:
-                mutable_targets.extend((index, str(path)) for path in target_paths)
-        elif isolation == "read-only-shared" and target_paths:
-            findings.append(
-                _finding(
-                    "topology.target-paths",
-                    "error",
-                    {"child_index": index, "reason": "read-only-targets-present"},
-                    "Remove integration targets from read-only children.",
-                )
-            )
-        if isolation == "read-only-shared" and write_paths:
-            findings.append(
-                _finding(
-                    "topology.declared-write-paths",
-                    "error",
-                    {"child_index": index, "reason": "read-only-writes-present"},
-                    "Remove declared writes from read-only children.",
-                )
-            )
-        if isolation == "mutable-isolated" and not write_errors and not target_errors:
-            if not write_paths:
-                findings.append(
-                    _finding(
-                        "topology.declared-write-paths",
-                        "error",
-                        {"child_index": index, "reason": "mutable-writes-empty"},
-                        "Declare at least one write path for a mutable child.",
-                    )
-                )
-            else:
-                for write_path in write_paths:
-                    write_parts = PurePosixPath(str(write_path)).parts
-                    if not any(
-                        PurePosixPath(str(target)).parts
-                        == write_parts[: len(PurePosixPath(str(target)).parts)]
-                        for target in target_paths
-                    ):
-                        findings.append(
-                            _finding(
-                                "topology.write-outside-target",
-                                "error",
-                                {
-                                    "child_index": index,
-                                    "write_path_sha256": _value_sha256(write_path),
-                                },
-                                "Keep every declared write under an integration target.",
-                            )
-                        )
+        _check_child_paths(child, index, isolation, mutable_targets, findings)
 
-    for field, values in identities.items():
-        comparable = [value for value in values if value is not None]
-        if len(comparable) != len(set(comparable)):
-            findings.append(
-                _finding(
-                    "identity.unique-child-binding",
-                    "error",
-                    {"field": field},
-                    "Use a unique value for every child identity and nonce field.",
-                )
-            )
+    _check_unique_child_identities(identities, findings)
     override_children_by_hash: dict[str, list[int]] = {}
     for child_index, override_hash, _mutable in operative_override_by_child:
         override_children_by_hash.setdefault(override_hash, []).append(child_index)
@@ -1575,29 +1722,7 @@ def run_pool_preflight(
             )
         )
 
-    for index, (left_child, left) in enumerate(mutable_targets):
-        left_parts = PurePosixPath(left).parts
-        for right_child, right in mutable_targets[index + 1 :]:
-            if left_child == right_child:
-                continue
-            right_parts = PurePosixPath(right).parts
-            if (
-                left_parts == right_parts[: len(left_parts)]
-                or right_parts == left_parts[: len(right_parts)]
-            ):
-                findings.append(
-                    _finding(
-                        "topology.mutable-overlap",
-                        "error",
-                        {
-                            "left_child_index": left_child,
-                            "right_child_index": right_child,
-                            "left_path_sha256": _value_sha256(left),
-                            "right_path_sha256": _value_sha256(right),
-                        },
-                        "Assign non-overlapping mutable integration targets.",
-                    )
-                )
+    _check_child_target_overlap(mutable_targets, findings)
 
     findings.extend(
         _safe_directory_findings(
@@ -1815,58 +1940,9 @@ def run_pool_preflight(
             )
         )
     result_authority = override_provenance or activation_provenance
-    findings.sort(
-        key=lambda item: (
-            item["rule_id"],
-            item["severity"],
-            canonical_sha256(item["evidence"]),
-        )
+    return _format_preflight_result(
+        findings, request_sha256, contract_sha256, stage, admitted_v2, reservation, result_authority
     )
-    accepted = not any(
-        item["severity"] == "error" and item["overridden"] is not True
-        for item in findings
-    )
-    result = {
-        "result_type": PREFLIGHT_RESULT_TYPE,
-        "version": (ADMITTED_PREFLIGHT_VERSION if admitted_v2 else PREFLIGHT_VERSION),
-        "schema": (
-            ADMITTED_PREFLIGHT_RESULT_SCHEMA if admitted_v2 else PREFLIGHT_RESULT_SCHEMA
-        ),
-        "stage": stage if stage in PREFLIGHT_STAGES else None,
-        "request_sha256": request_sha256,
-        "contract_sha256": contract_sha256,
-        "decision": "accept" if accepted else "reject",
-        "accepted": accepted,
-        "findings": findings,
-        "override_authority": result_authority,
-    }
-    if admitted_v2:
-        result.update(
-            {
-                "admission_reservation_sha256": (
-                    reservation.get("reservation_sha256")
-                    if isinstance(reservation, Mapping)
-                    else None
-                ),
-                "fixed_cohort_sha256": (
-                    reservation.get("fixed_cohort_sha256")
-                    if isinstance(reservation, Mapping)
-                    else None
-                ),
-                "child_bindings_sha256": (
-                    reservation.get("child_bindings_sha256")
-                    if isinstance(reservation, Mapping)
-                    else None
-                ),
-                "claim_set_sha256": (
-                    reservation.get("claim_set_sha256")
-                    if isinstance(reservation, Mapping)
-                    else None
-                ),
-            }
-        )
-    result["result_sha256"] = canonical_sha256(result)
-    return result
 
 
 def validate_pool_preflight_result(

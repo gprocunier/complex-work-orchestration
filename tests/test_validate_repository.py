@@ -78,6 +78,43 @@ class ValidateRepositoryTests(unittest.TestCase):
     def test_repository_control_plane_is_consistent(self) -> None:
         self.assertEqual(validate_repository(), [])
 
+    def test_documentation_requirements_preserve_rule_and_file_order(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "tools" / "ci" / "required-documentation.json"
+            path.parent.mkdir(parents=True)
+            path.write_text(json.dumps({"public": [
+                {"files": ["a.md", "b.md"], "terms": ["one", "two"]},
+                {"files": ["a.md"], "terms": ["three"]},
+            ]}), encoding="utf-8")
+            errors = []
+            with (
+                mock.patch.object(validate_repository_module, "REPO_ROOT", root),
+                mock.patch.object(validate_repository_module, "require_doc_terms") as check,
+            ):
+                validate_repository_module._validate_documentation_group(errors, "public")
+            self.assertEqual(errors, [])
+            self.assertEqual(check.call_args_list, [
+                mock.call(errors, "a.md", ["one", "two"]),
+                mock.call(errors, "b.md", ["one", "two"]),
+                mock.call(errors, "a.md", ["three"]),
+            ])
+
+    def test_documentation_requirements_report_missing_or_malformed_rules(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            path = root / "tools" / "ci" / "required-documentation.json"
+            path.parent.mkdir(parents=True)
+            with mock.patch.object(validate_repository_module, "REPO_ROOT", root):
+                errors = []
+                validate_repository_module._validate_documentation_group(errors, "public")
+                self.assertTrue(errors[0].startswith("Could not read documentation requirements"))
+
+                path.write_text('{"public": [{"files": ["a.md"], "terms": []}]}', encoding="utf-8")
+                errors = []
+                validate_repository_module._validate_documentation_group(errors, "public")
+                self.assertEqual(errors, ["Invalid documentation requirements for 'public'"])
+
     def test_repository_refuses_schema_valid_policy_contradictions(self) -> None:
         cases = (
             (

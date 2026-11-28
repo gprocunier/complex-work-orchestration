@@ -4,6 +4,7 @@ import os
 from typing import Any, Mapping
 
 from .codex_hook_enforcement import validate_profile_hooks
+from .errors import CWOValidationError
 from .policy import load_policy
 
 
@@ -245,7 +246,7 @@ def validate_access_profile_registry() -> list[str]:
         # Profile hooks go through the single advisory hook validation path.
         try:
             validate_profile_hooks(profile, profile_name=key)
-        except Exception as exc:
+        except CWOValidationError as exc:
             errors.append(f"access profile {key!r} hook validation failed: {exc}")
 
     for executor_key, executor in executors.items():

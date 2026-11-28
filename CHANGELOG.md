@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Extend the code-health checks to cover function size and nesting, broad catches, private imports, and missing annotations in registered and offline modules. Split large validators and simplify offline reports.
 - Add an optional architecture-design profile that gives the architect Bead a design package covering caller experience, interfaces, alternatives, validation and rollback.
 - Carry required inputs into managed expert reviews, report delivery readiness from checked obligations, and count corrective work and first acceptance attempts in convergence reports.
 - Require workload-derived sizing before managed contractor and desktop browser exports and internal Codex critic and peer-review preparation. Supply the original route plan for the exact request when preparing a new dispatch.

@@ -15,7 +15,7 @@ ALLOWED_IMPORTS = {
     "atomic_spawn": set(),
     "ownership_producer": {"process_identity"},
     "server_request_preparation": set(),
-    "access_profiles": {"codex_hook_enforcement", "policy"},
+    "access_profiles": {"codex_hook_enforcement", "errors", "policy"},
     "checked_command": {"path_contract"},
     "checked_command_sequence": {"checked_command"},
     "codex_hook_enforcement": {"errors"},

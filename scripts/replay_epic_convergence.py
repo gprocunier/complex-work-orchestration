@@ -38,9 +38,7 @@ PROTECTED_REASON_TOKENS = (
 
 
 def _load_text(path: str | Path) -> str:
-    ledger_path = Path(path)
-    with ledger_path.open("r", encoding="utf-8") as handle:
-        return handle.read()
+    return Path(path).read_text(encoding="utf-8")
 
 
 def _parse_json_or_jsonl(path: str | Path) -> list[dict[str, Any]]:
@@ -105,15 +103,10 @@ def _coerce_call_count(value: Any, context: str) -> int | None:
 
 def _extract_tool_calls(record: dict[str, Any]) -> tuple[int | None, str]:
     candidates = []
-    usage = record.get("usage")
-    if isinstance(usage, dict) and "tool_calls" in usage:
-        candidates.append(("usage.tool_calls", usage.get("tool_calls")))
-    observed = record.get("observed")
-    if isinstance(observed, dict) and "tool_calls" in observed:
-        candidates.append(("observed.tool_calls", observed.get("tool_calls")))
-    aggregate = record.get("aggregate")
-    if isinstance(aggregate, dict) and "tool_calls" in aggregate:
-        candidates.append(("aggregate.tool_calls", aggregate.get("tool_calls")))
+    for field in ("usage", "observed", "aggregate"):
+        container = record.get(field)
+        if isinstance(container, dict) and "tool_calls" in container:
+            candidates.append((f"{field}.tool_calls", container.get("tool_calls")))
     if "agent_model_calls" in record:
         candidates.append(("agent_model_calls", record.get("agent_model_calls")))
 
@@ -159,15 +152,12 @@ def _classify_category(record: dict[str, Any]) -> str:
 
 
 def _resolve_disposition(record: dict[str, Any]) -> str | None:
-    if record.get("artifact_disposition") is not None:
-        value = record.get("artifact_disposition")
-        if value is not None and not isinstance(value, str):
-            raise TypeError("artifact_disposition must be a string or null")
-        return value
-    if record.get("session_disposition") is not None:
-        value = record.get("session_disposition")
-        if value is not None and not isinstance(value, str):
-            raise TypeError("session_disposition must be a string or null")
+    for field in ("artifact_disposition", "session_disposition"):
+        value = record.get(field)
+        if value is None:
+            continue
+        if not isinstance(value, str):
+            raise TypeError(f"{field} must be a string or null")
         return value
     return None
 
@@ -242,12 +232,10 @@ def _validate_and_project_records(inputs: list[str]) -> tuple[list[dict[str, Any
             if call_count is not None:
                 usage["tool_calls"] = call_count
 
-            for field in ec.USAGE_FIELDS:
-                if usage.get(field) is None:
-                    null_counts["usage"][field] += 1
-            for field in ec.GRAPH_COUNTER_FIELDS:
-                if graph_counters.get(field) is None:
-                    null_counts["graph_counters"][field] += 1
+            for section, metrics in (("usage", usage), ("graph_counters", graph_counters)):
+                for field, value in metrics.items():
+                    if value is None:
+                        null_counts[section][field] += 1
 
             projection = {
                 "call_category": category,
@@ -304,56 +292,34 @@ def _delivery_accounting_summary(records: list[dict[str, Any]]) -> dict[str, Any
 
 
 def _compute_summary(records: list[dict[str, Any]], null_counts: dict[str, Any]) -> dict[str, Any]:
-    records_by_category = {category: 0 for category in ec.CALL_CATEGORIES}
-    calls_by_category = {category: 0 for category in ec.CALL_CATEGORIES}
-    unknown_call_records = 0
-    accepted_segments = 0
-    nonaccepted_segments = 0
-    quarantined_segments = 0
-    accepted_calls = 0
-    nonaccepted_calls = 0
-    quarantined_calls = 0
-    protected_stops = 0
-    protected_stop_calls = 0
-    protected_stop_preserved = 0
+    records_by_category: dict[str, int] = dict.fromkeys(ec.CALL_CATEGORIES, 0)
+    calls_by_category: dict[str, int] = dict.fromkeys(ec.CALL_CATEGORIES, 0)
+    segments = {
+        key: {"segments": 0, "calls": 0} for key in ("accepted", "nonaccepted", "quarantined")
+    }
+    protected_stops = {"count": 0, "calls": 0, "preserved": 0}
     latest_graph_counters: dict[str, int | None] | None = None
 
     for record in records:
         category = record["call_category"]
-        if category == "unknown":
-            unknown_call_records += 1
+        calls = record["tool_calls"] or 0
         records_by_category[category] += 1
-        calls = record["tool_calls"]
-        if calls is not None:
-            calls_by_category[category] += calls
+        calls_by_category[category] += calls
 
-        disposition = (
-            (record["artifact_disposition"] or "").strip().lower() if record["artifact_disposition"] else ""
-        )
-        if disposition in ACCEPTED_DISPOSITIONS:
-            accepted_segments += 1
-            if calls is not None:
-                accepted_calls += calls
-        else:
-            nonaccepted_segments += 1
-            if calls is not None:
-                nonaccepted_calls += calls
-
+        disposition = (record["artifact_disposition"] or "").strip().lower()
+        accepted = disposition in ACCEPTED_DISPOSITIONS
+        totals = segments["accepted" if accepted else "nonaccepted"]
+        totals["segments"] += 1
+        totals["calls"] += calls
         if disposition in QUARANTINED_DISPOSITIONS:
-            quarantined_segments += 1
-            if calls is not None:
-                quarantined_calls += calls
-
-        if record["_protected_stop"] and disposition not in ACCEPTED_DISPOSITIONS:
-            protected_stops += 1
-            if calls is not None:
-                protected_stop_calls += calls
-            protected_stop_preserved += 1
+            segments["quarantined"]["segments"] += 1
+            segments["quarantined"]["calls"] += calls
+        if record["_protected_stop"] and not accepted:
+            protected_stops["count"] += 1
+            protected_stops["calls"] += calls
+            protected_stops["preserved"] += 1
 
         latest_graph_counters = record["graph_counters"]
-
-    preventable_segments = nonaccepted_segments - protected_stops
-    preventable_calls = nonaccepted_calls - protected_stop_calls
 
     return {
         "record_count": len(records),
@@ -362,35 +328,17 @@ def _compute_summary(records: list[dict[str, Any]], null_counts: dict[str, Any])
             "record_counts": records_by_category,
             "call_totals": calls_by_category,
         },
-        "unknown_call_records": unknown_call_records,
-        "accepted": {
-            "segments": accepted_segments,
-            "calls": accepted_calls,
-        },
-        "nonaccepted": {
-            "segments": nonaccepted_segments,
-            "calls": nonaccepted_calls,
-        },
-        "quarantined": {
-            "segments": quarantined_segments,
-            "calls": quarantined_calls,
-        },
+        "unknown_call_records": records_by_category["unknown"],
+        **segments,
         "preventable": {
-            "segments": preventable_segments,
-            "calls": preventable_calls,
+            "segments": segments["nonaccepted"]["segments"] - protected_stops["count"],
+            "calls": segments["nonaccepted"]["calls"] - protected_stops["calls"],
         },
-        "protected_stops": {
-            "count": protected_stops,
-            "calls": protected_stop_calls,
-            "preserved": protected_stop_preserved,
-        },
+        "protected_stops": protected_stops,
         "latest_graph_counters": latest_graph_counters,
         "historical_null_counts": {
-            "call_category": null_counts["call_category"],
-            "artifact_disposition": null_counts["artifact_disposition"],
-            "tool_calls": null_counts["tool_calls"],
-            "usage": null_counts["usage"],
-            "graph_counters": null_counts["graph_counters"],
+            field: null_counts[field]
+            for field in ("call_category", "artifact_disposition", "tool_calls", "usage", "graph_counters")
         },
     }
 

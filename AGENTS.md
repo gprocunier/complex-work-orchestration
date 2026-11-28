@@ -48,9 +48,9 @@ python scripts/run_parallel_unittest.py --workers 4 --verbose
 ```
 
 `check_code_health.py` needs the pinned test-only `ruff` from
-`requirements-test.txt`. It fails on a new F or E9 diagnostic, a new import of a
-CLI module from `scripts/cwo_core`, a function whose complexity grew, or a new
-function over the advisory threshold in `policy/code-health-baseline.json`.
+`requirements-test.txt`. It ratchets lint, function size and complexity,
+broad catches, private imports and annotations in the documented scopes.
+See [CI validation](references/ci-validation.md) for the measures and baseline.
 Record a reviewed move or rename in `policy/code-health-moves.json` under a
 new `batch` identifier for each review (a consumed identifier is never reused);
 lower the baseline with `refresh`, and admit new debt only with `refresh --admit REASON`.
