@@ -133,6 +133,7 @@ class SynthesisWorkflowTests(unittest.TestCase):
         route = self._run_json("route_work.py", route_main, "--json", "--external-ok", "--share-boundary",
             "redacted-packet", "--requested-role", "architecture",
             f"Use {camp} and Codex as architecture critics. Use model synthesis and zero-trust consensus.")
+        self.assertNotIn("required_experts", route)
         self.assertTrue(route["model_synthesis"]["active"])
         self.assertIn(executor, {entry["executor"] for entry in route["architecture_critic_contracts"]})
         self.route_path = self._json_file("route.json", route)

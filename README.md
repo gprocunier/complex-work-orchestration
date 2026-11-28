@@ -308,6 +308,10 @@ are instructions. The lead session uses the host's tool permissions and sandbox.
   prefixes, including text passed as a single string. Routine edits with no
   risk evidence can still route low.
   [Routing risk details](references/prompt-coach.md#routing-risk)
+- **`route_work.py --json` shows compact rankings.** Read `ranked_experts`
+  for ranked matches and `risk_assessment.required_experts` for experts the
+  risk rules require. Use `--include-catalog` for full ranking details.
+  [Routing JSON](references/prompt-coach.md#routing-json)
 - **Disabled in this version:** raw native launch,
   ordinary productive pool plans passed to the standalone launcher, live campaigns, and
   risk narrowing (`--risk-scope` and `--risk-evidence-dir`

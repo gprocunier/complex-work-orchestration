@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import argparse
 import json
+from typing import Any
 
 from cwo_core.errors import CWOError
 from cwo_core.risk_features import add_risk_narrowing_arguments, refuse_risk_narrowing_arguments
 from cwo_core.routing import classify_work, experts_with_required, unmet_required_experts
+from cwo_core.types import RouteResult
 from cwo_core.util import read_text_segments
 from cwo_core.waivers import add_waiver_reason_argument, require_waiver_reason
 from model_catalog_startup import configure_cli_model_catalog
@@ -18,6 +20,28 @@ from routing_cli_options import (
     add_task_routing_arguments,
     routing_options,
 )
+
+
+def json_route(route: RouteResult, *, include_catalog: bool) -> dict[str, Any]:
+    result: dict[str, Any] = dict(route)
+    result.pop("required_experts", None)
+    if include_catalog:
+        return result
+    executor_fields = (
+        "key", "score", "dispatch_mode", "external", "provider_key", "provider_family",
+        "provider_trust_tier", "provider_retention_class", "access_profile", "model_label", "model_role",
+        "policy_violations", "reasons",
+    )
+
+    result["ranked_experts"] = [
+        {key: value for key, value in expert.items() if key != "executor_candidates"}
+        for expert in route["ranked_experts"]
+    ]
+    result["ranked_executors"] = [
+        {key: executor[key] for key in executor_fields if key in executor}
+        for executor in route["ranked_executors"]
+    ]
+    return result
 
 
 def print_human(route: dict[str, object], top_n: int) -> None:
@@ -169,6 +193,7 @@ def main() -> None:
     parser.add_argument("--top-n", type=int, default=5)
     add_operative_route_arguments(parser)
     parser.add_argument("--json", action="store_true", help="Print machine-readable JSON.")
+    parser.add_argument("--include-catalog", action="store_true", help="Include full expert and executor details in JSON.")
     add_waiver_reason_argument(parser)
     parser.add_argument("--current-authority", help="Trusted task-fit and allocation evidence JSON for current routing.")
     add_risk_narrowing_arguments(parser)
@@ -191,7 +216,7 @@ def main() -> None:
     except CWOError as exc:
         raise SystemExit(str(exc))
     if args.json:
-        print(json.dumps(route, indent=2, sort_keys=True))
+        print(json.dumps(json_route(route, include_catalog=args.include_catalog), indent=2, sort_keys=True))
     else:
         print_human(route, args.top_n)
 

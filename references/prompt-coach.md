@@ -118,6 +118,20 @@ Automation can consume JSON directly:
 python3 scripts/coach_prompt.py --json "<task text>"
 ```
 
+## Routing JSON
+
+Use `python3 scripts/route_work.py --json "<task text>"` or
+`python3 scripts/cwo.py route --json "<task text>"` for the routing decision,
+provenance and ranked summaries. The top-level `required_experts` alias was
+removed. Use `ranked_experts` for the ordered matches and
+`risk_assessment.required_experts` for the names required by risk rules.
+
+Each expert entry keeps its selected executor and review requirements. Each
+executor entry lists ranking details, provider metadata and policy violations.
+Add `--include-catalog` to see the full ranked records, including each expert's
+executor candidates and each ranked executor's access profile details and
+transport. `--top-n` limits the human-readable display.
+
 ## Output Levels
 
 Output levels are the coach's work-sizing result. They drive where execution
