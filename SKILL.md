@@ -217,4 +217,4 @@ python3 scripts/close_bead_with_summary.py --bead <id> --disposition pending-acc
 ```
 
 Validate drafts with `python3 scripts/validate_operator_handoff.py --require-scoped-continuation <handoff.md>`.
-Supply matching state when both scoped fields are `None`. [Scoped continuation](references/run-readiness.md#human-template).
+Supply matching state when both scoped fields are `None`. [Continue and analyze](references/run-readiness.md#saved-continuation-and-plan-analysis).

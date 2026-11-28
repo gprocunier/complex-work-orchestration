@@ -8,6 +8,7 @@ from pathlib import Path
 SCRIPT_DIR = Path(__file__).resolve().parent
 
 COMMANDS = {
+    "analyze": "analyze_plan.py",
     "coach": "coach_prompt.py",
     "route": "route_work.py",
     "scaffold": "scaffold_workgraph.py",

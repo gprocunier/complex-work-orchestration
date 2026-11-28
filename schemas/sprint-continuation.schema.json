@@ -91,6 +91,8 @@
     "definition_of_done": {"type": "array", "items": {"$ref": "#/$defs/check"}},
     "evidence_expectations": {"type": "array", "items": {"type": "string"}},
     "resume_commands": {"type": "array", "items": {"type": "string"}},
+    "run_state": {"$ref": "#/$defs/active_run"},
+    "run_state_path": {"type": "string", "minLength": 1},
     "status_summary": {
       "type": "object",
       "additionalProperties": false,
@@ -125,6 +127,7 @@
         "escalation_rule"
       ],
       "properties": {
+        "run_id": {"$ref": "#/$defs/sha256"},
         "next_action": {"type": ["string", "null"], "minLength": 1},
         "waiting_on": {"type": ["string", "null"], "minLength": 1},
         "next_executable_bead": {"type": "string", "minLength": 1},
@@ -160,6 +163,19 @@
     }
   ],
   "$defs": {
+    "active_run": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "run_id", "current_step", "current_gate", "operator_decision_frontier", "resume_command"],
+      "properties": {
+        "version": {"const": 1},
+        "run_id": {"$ref": "#/$defs/sha256"},
+        "current_step": {"type": ["string", "null"], "minLength": 1},
+        "current_gate": {"enum": ["ready", "blocked", "no-work", "operator-selection"]},
+        "operator_decision_frontier": {"type": "array", "items": {"type": "string", "pattern": "^[a-z0-9_-]+$"}},
+        "resume_command": {"type": "string", "minLength": 1}
+      }
+    },
     "sha256": {
       "type": "string",
       "pattern": "^[0-9a-f]{64}$"

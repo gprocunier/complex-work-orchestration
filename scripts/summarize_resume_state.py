@@ -21,6 +21,9 @@ from cwo_core.workgraph_markdown import (
 
 WORKGRAPH_HEADING_RE = re.compile(r"^###\s+([^:\n]+):\s*(.+?)\s*$")
 WORKGRAPH_FIELD_RE = re.compile(r"^-\s+([^:]+):\s*(.+?)\s*$")
+WORKGRAPH_SCALAR_FIELDS = {FIELD_TYPE.lower(): "type", FIELD_STATUS.lower(): "status", FIELD_LANE.lower(): "lane"}
+WORKGRAPH_LIST_FIELDS = {FIELD_LABELS.lower(): "labels", FIELD_DEPENDS_ON_LANES.lower(): "depends_on_lanes"}
+WORKGRAPH_ROUTE_NOTES = {"Route": "route", "Share boundary": "share_boundary", "Risk": "risk_level"}
 
 
 def bd_json(args: list[str]) -> Any:
@@ -65,7 +68,17 @@ def markdown_values(value: str) -> list[str]:
     return [match.strip() for match in re.findall(r"`([^`]+)`", value)]
 
 
-def parse_markdown_workgraph(path: Path) -> list[dict[str, Any]]:
+def read_workgraph_field(current: dict[str, Any], line: str) -> None:
+    if match := WORKGRAPH_FIELD_RE.match(line):
+        name = normalize_field_label(match.group(1))
+        value = match.group(2).strip()
+        if name in WORKGRAPH_LIST_FIELDS:
+            current[WORKGRAPH_LIST_FIELDS[name]] = markdown_values(value)
+        elif name in WORKGRAPH_SCALAR_FIELDS:
+            current[WORKGRAPH_SCALAR_FIELDS[name]] = ", ".join(markdown_values(value)) or value
+
+
+def parse_markdown_workgraph(path: Path, *, include_route: bool = False) -> list[dict[str, Any]]:
     try:
         text = path.read_text(encoding="utf-8")
     except OSError as exc:
@@ -76,6 +89,7 @@ def parse_markdown_workgraph(path: Path) -> list[dict[str, Any]]:
 
     items: list[dict[str, Any]] = []
     current: dict[str, Any] | None = None
+    in_notes = False
     for raw_line in text.splitlines():
         line = raw_line.strip()
         heading = WORKGRAPH_HEADING_RE.match(line)
@@ -87,24 +101,17 @@ def parse_markdown_workgraph(path: Path) -> list[dict[str, Any]]:
                 "labels": [],
             }
             items.append(current)
+            in_notes = False
             continue
         if current is None:
             continue
-        field_match = WORKGRAPH_FIELD_RE.match(line)
-        if not field_match:
-            continue
-        name = normalize_field_label(field_match.group(1))
-        value = field_match.group(2).strip()
-        if name == normalize_field_label(FIELD_LABELS):
-            current["labels"] = markdown_values(value)
-        elif name == normalize_field_label(FIELD_TYPE):
-            current["type"] = ", ".join(markdown_values(value)) or value
-        elif name == normalize_field_label(FIELD_STATUS):
-            current["status"] = ", ".join(markdown_values(value)) or value
-        elif name == normalize_field_label(FIELD_LANE):
-            current["lane"] = ", ".join(markdown_values(value)) or value
-        elif name == normalize_field_label(FIELD_DEPENDS_ON_LANES):
-            current["depends_on_lanes"] = markdown_values(value)
+        if include_route and line.startswith("#### "):
+            in_notes = line == "#### Notes"
+        if in_notes:
+            label, _, value = line.partition(": ")
+            if label in WORKGRAPH_ROUTE_NOTES:
+                current.setdefault("orchestration_route", {})[WORKGRAPH_ROUTE_NOTES[label]] = value
+        read_workgraph_field(current, line)
 
     if not items:
         raise SystemExit(f"{path} does not contain any Markdown workgraph items")
