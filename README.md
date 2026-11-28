@@ -168,6 +168,9 @@ fallback attempt. Unmarked work and every other failure keep their normal path.
 Parallel work requires independent tasks, separate write ownership and an
 approved, qualified environment.
 
+The workshop handoff comparison records decisions, elapsed time, and token
+use for CWO and plain Codex on six fixed cases. [Evaluation evidence](references/evaluation-evidence.md#workshop-handoff-comparison)
+
 [![CWO delegation, fanout, live supervision and acceptance flow](docs/illustrations/supervised-delegation.svg)](https://gprocunier.github.io/complex-work-orchestration/#supervised-execution)
 
 [Read the delegation guide](https://gprocunier.github.io/complex-work-orchestration/native-supervision.html).

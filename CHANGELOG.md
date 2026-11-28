@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Let a registered pool worker submit a bounded unified diff for one existing approved file. The host checks the patch against the signed starting file and verifies the isolated writer's result. A three-worker qualification can use the existing dedicated logins as a complete roster.
+- Publish the [six-case workshop handoff comparison](references/evaluation-evidence.md#workshop-handoff-comparison) with check outcomes, elapsed time, and token use for CWO and plain Codex.
 
 ## 1.49.0 - 2026-11-28
 
